@@ -295,17 +295,9 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
     const colorProgress = .18 + progress * .82;
     const width = root.currentWidth;
     const height = root.currentHeight;
-    const hostX = root.hostPlatform.x + root.hostPlatform.w - 12;
-    const hostY = root.hostPlatform.y + 12;
 
     ctx.save();
     ctx.lineCap = 'round';
-    ctx.strokeStyle = `rgba(${Math.round(180 + colorProgress * 32)},${Math.round(174 + colorProgress * 14)},${Math.round(146 - colorProgress * 34)},${.42 + colorProgress * .5})`;
-    ctx.lineWidth = 3 + progress * 8;
-    ctx.beginPath();
-    ctx.moveTo(hostX, hostY);
-    ctx.bezierCurveTo(hostX + 22, hostY - 12, root.x - 18, root.y + height * .7, root.x + 5, root.y + height * .55);
-    ctx.stroke();
 
     const gradient = ctx.createLinearGradient(0, root.y, 0, root.y + height);
     gradient.addColorStop(0, progress < .35 ? '#c8c3a6' : '#d9b477');
@@ -343,17 +335,42 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
 
     const site = root.activeSite;
     if (site?.mature && (site.fixationRate || 0) >= root.requiredFixationRate && !root.developed) {
+      const sourceX = site.x;
       const sourceY = site.surfaceY + site.depth;
-      for (let index = 0; index < 7; index++) {
-        const travel = (state.time * .5 + index / 7 + root.phase) % 1;
-        const x = lerp(site.x, root.x + Math.min(width * .72, root.targetWidth * .6), travel);
-        const y = lerp(sourceY, root.y + height * .42, travel) - Math.sin(travel * Math.PI) * 18;
-        ctx.globalAlpha = .3 + .65 * Math.sin(travel * Math.PI);
+      const targetX = root.x + Math.min(width * .58, root.targetWidth * .52);
+      const targetY = root.y + height * .42;
+      const distance = Math.max(80, targetX - sourceX);
+      const controlOne = { x: sourceX + distance * .28, y: sourceY - 48 };
+      const controlTwo = { x: targetX - distance * .24, y: targetY - 34 };
+      const bezierPoint = (start, controlA, controlB, end, travel) => {
+        const inverse = 1 - travel;
+        return inverse ** 3 * start
+          + 3 * inverse ** 2 * travel * controlA
+          + 3 * inverse * travel ** 2 * controlB
+          + travel ** 3 * end;
+      };
+      for (let index = 0; index < 9; index++) {
+        const travel = (state.time * .42 + index / 9 + root.phase) % 1;
+        const x = bezierPoint(sourceX, controlOne.x, controlTwo.x, targetX, travel);
+        const y = bezierPoint(sourceY, controlOne.y, controlTwo.y, targetY, travel);
+        const visibility = Math.sin(travel * Math.PI);
+        ctx.globalAlpha = .2 + .8 * visibility;
         ctx.fillStyle = index % 2 ? '#ffd783' : '#8db8ff';
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.shadowBlur = 10;
         ctx.beginPath();
-        ctx.arc(x, y, 2.2 + (index % 2), 0, TAU);
+        ctx.arc(x, y, 3.2 + (index % 2) * 1.2, 0, TAU);
         ctx.fill();
+        if (index % 3 === 0 && travel > .12 && travel < .88) {
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#fff3c4';
+          ctx.font = '800 8px Inter, system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('N', x, y - 9);
+        }
       }
+      ctx.shadowBlur = 0;
       ctx.globalAlpha = 1;
     }
 
