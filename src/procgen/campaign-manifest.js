@@ -128,10 +128,10 @@ const phases = [
         mechanicsRequired: ['exudate', 'inoculation'],
         fixedBlock: {
           template: 'phase1-intro-v1',
-          objective: 'Libere exsudato, recrute Bacillus e forme um biofilme em qualquer raiz.',
+          objective: 'Libere exsudato, recrute Bacillus e inocule a raiz com halo amarelo.',
           completion: [
             { type: 'worldState', key: 'deployedExudateCount', operator: '>=', value: 1 },
-            { type: 'worldState', key: 'functionalBiofilmCount', operator: '>=', value: 1 },
+            { type: 'worldState', key: 'functionalBiofilmCount', target: 'p1-intro-root', operator: '>=', value: 1 },
           ],
           exitGate: true,
         } },

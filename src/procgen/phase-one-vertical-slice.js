@@ -5,7 +5,7 @@ const BLOCK_LAYOUTS = Object.freeze({
     roles: ['coleta', 'gradiente', 'encontro', 'inoculacao', 'observacao'],
     yOffsets: [0, -24, -42, -12, 8],
     targetChunk: 7,
-    targetId: null,
+    targetId: 'p1-intro-root',
     exudateChunks: [4, 5, 7],
   }),
   'phase1-final-v1': Object.freeze({
@@ -169,8 +169,8 @@ export function createFixedBlockRuntime({ state, evaluator, entities }) {
     if (missing.condition.key === 'deployedExudateCount') return 'libere pelo menos um exsudato com E';
     if (missing.condition.key === 'functionalBiofilmCount') {
       return block.kind === 'final'
-        ? 'volte à raiz amarela da prova e forme o biofilme nela'
-        : 'forme um biofilme funcional em qualquer raiz';
+        ? 'volte à raiz da prova com halo amarelo e forme o biofilme nela'
+        : 'volte à raiz de treinamento com halo amarelo e inocule Bacillus nela';
     }
     return 'complete o objetivo ecológico indicado';
   }
@@ -207,8 +207,8 @@ export function createFixedBlockRuntime({ state, evaluator, entities }) {
       if (centerX >= block.startX - 260 && centerX <= block.gateX + 80) {
         state.mission = block.completed
           ? `${block.objective} Objetivo concluído; prossiga.`
-          : block.kind === 'final' && centerX > block.targetPlatform.x + block.targetPlatform.w
-            ? `${block.objective} ← Volte à raiz marcada em amarelo.`
+          : centerX > block.targetPlatform.x + block.targetPlatform.w
+            ? `${block.objective} ← Volte à raiz com halo amarelo.`
             : block.objective;
       }
     }
@@ -248,8 +248,8 @@ export function createFixedBlockRuntime({ state, evaluator, entities }) {
         const label = block.completed
           ? 'BIOFILME CONFIRMADO'
           : block.kind === 'final'
-            ? 'FORME O BIOFILME DA PROVA AQUI'
-            : 'INOCULE BACILLUS NESTA RAIZ';
+            ? '↓ ALVO DA PROVA — FORME O BIOFILME AQUI'
+            : '↓ ALVO DA MISSÃO — INOCULE BACILLUS AQUI';
         const width = ctx.measureText(label).width + 26;
         ctx.fillStyle = 'rgba(3,18,24,.9)';
         ctx.strokeStyle = block.completed ? '#9bea8f' : '#ffd56f';
@@ -282,7 +282,7 @@ export function createFixedBlockRuntime({ state, evaluator, entities }) {
       ctx.fillText(block.kind === 'final' ? 'PORTÃO DA PROVA' : 'PORTÃO DO TREINO', block.gateX, 82);
       ctx.font = '700 10px Inter,system-ui';
       ctx.fillText(
-        block.kind === 'final' ? '← VOLTE À RAIZ AMARELA' : 'FORME UM BIOFILME EM QUALQUER RAIZ',
+        block.kind === 'final' ? '← VOLTE À RAIZ DA PROVA COM HALO' : '← VOLTE AO ALVO COM HALO AMARELO',
         block.gateX,
         99,
       );

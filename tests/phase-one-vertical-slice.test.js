@@ -52,8 +52,9 @@ test('Fase 1 segue introdução fixa, desafio procedural e prova final fixa', ()
     assert.deepEqual(level.checkpoints, [], 'Bacillus natural não pode antecipar o primeiro biofilme do jogador');
     assert.deepEqual(
       level.fixedBlocks.map(block => block.targetPlatform.objectiveTarget),
-      [undefined, 'p1-exit-root'],
+      ['p1-intro-root', 'p1-exit-root'],
     );
+    assert.equal(level.fixedBlocks.every(block => block.targetPlatform.fixedObjective === true), true);
 
     for (const platform of mainPlatforms(level)) {
       const shouldBeAuthored = (platform.logicIndex >= 4 && platform.logicIndex <= 8)
@@ -139,6 +140,11 @@ test('portão do módulo abre apenas após ação real e preserva o progresso lo
   gameplay.deployedCloudCount = 1;
   state.level.biofilms.push({ functional: true, platform: { objectiveTarget: 'qualquer-outra-raiz' } });
   state.time = 4;
+  runtime.update();
+  assert.equal(intro.completed, false, 'biofilme fora do alvo não conclui a ação guiada');
+
+  state.level.biofilms.push({ functional: true, platform: intro.targetPlatform });
+  state.time = 7;
   runtime.update();
   assert.equal(intro.completed, true);
 

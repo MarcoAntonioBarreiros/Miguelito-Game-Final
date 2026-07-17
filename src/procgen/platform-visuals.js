@@ -165,6 +165,22 @@ export function createPlatformVisuals({ state }) {
     ctx.stroke();
     ctx.setLineDash([]);
 
+    if (platform.fixedObjective) {
+      const objectivePulse = .72 + Math.sin(state.time * 3.6) * .2;
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,213,111,${objectivePulse})`;
+      ctx.fillStyle = `rgba(255,213,111,${.12 + objectivePulse * .12})`;
+      ctx.lineWidth = 4;
+      ctx.shadowBlur = 22;
+      ctx.shadowColor = '#ffd56f';
+      roundedPath(ctx, platform, radius);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffd56f';
+      ctx.fillRect(platform.x + 12, platform.y - 3, Math.max(24, platform.w - 24), 6);
+      ctx.restore();
+    }
+
     if (!platform.mycorrhizaStructure) {
       const hairCount = Math.max(0, Math.min(9, Math.floor(platform.w / 44 * health)));
       ctx.strokeStyle = platform.healthTrend > 0 ? 'rgba(184,255,198,.78)' : `rgba(233,213,180,${.12 + health * .46})`;
@@ -276,8 +292,11 @@ export function createPlatformVisuals({ state }) {
     const maxHealth = Math.round(clamp(platform.rootMaxHealth ?? 1, 0, 1) * 100);
     const stateStyle = stateInfo(platform);
     const scar = maxHealth < 100 ? ` · máx. ${maxHealth}%` : '';
+    if (platform.objectiveTarget === 'p1-intro-root') {
+      return { text: '↓ ALVO DA MISSÃO · inocule Bacillus aqui', color: '#ffd56f' };
+    }
     if (platform.objectiveTarget === 'p1-exit-root') {
-      return { text: 'Raiz da prova final · forme o biofilme aqui', color: '#ffd56f' };
+      return { text: '↓ ALVO DA PROVA · forme o biofilme aqui', color: '#ffd56f' };
     }
     if (platform.azospirillumStructure) {
       return { text: `Raiz lateral ${stateStyle.label} · ${health}%${scar}`, color: stateStyle.color };
