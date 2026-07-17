@@ -453,6 +453,20 @@ function roamingTypesOf(presentation) {
   return [];
 }
 
+export function getRoamingDebutsAt(phase, chunkIndex) {
+  const entry = getPhaseManifest(phase);
+  if (!entry) return [];
+  return entry.presentations
+    .filter(presentation => presentation.debutChunk === chunkIndex)
+    .flatMap(presentation => roamingTypesOf(presentation).map(type => ({
+      type,
+      cardId: presentation.cardId,
+      presentationId: presentation.id,
+      debutZoneId: presentation.debutZoneId || `${presentation.id}-debut`,
+      tetherUntilSeen: presentation.tetherUntilSeen === true,
+    })));
+}
+
 export function getProceduralPoolAt(phase, chunkIndex) {
   const types = new Set();
   for (const entry of campaignManifest) {
@@ -477,6 +491,18 @@ export function getPathogensAt(phase, chunkIndex) {
     }
   }
   return [...active];
+}
+
+export function getPathogenStartChunk(phase, pathogen) {
+  const current = getPhaseManifest(phase);
+  if (!current || MVP_EXCLUDED_PATHOGENS.includes(pathogen)) return null;
+  for (const entry of campaignManifest) {
+    if (entry.phase > phase) break;
+    const debut = entry.pathogenDebuts.find(candidate => candidate.pathogen === pathogen);
+    if (!debut) continue;
+    return entry.phase < phase ? 0 : debut.fromChunk;
+  }
+  return null;
 }
 
 export function getPersistentUnlocksBeforePhase(phase) {

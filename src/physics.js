@@ -334,6 +334,7 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
       }
     });
     level.allies.forEach(a => {
+      if (a.presentationOnly) return;
       if (!a.taken && Math.hypot(a.x - (player.x + 16), a.y - (player.y + 24)) < 54) {
         a.taken = true;
         const color = collectCampaignUnlock(a, player);

@@ -1,6 +1,7 @@
 import {
   CAMPAIGN_UNLOCKS,
   getAvailableUnlocksAt,
+  getPathogensAt,
   getPhaseManifest,
   getRequiredPracticeAbilityAt,
 } from './campaign-manifest.js';
@@ -77,8 +78,19 @@ export function generateLogicGraph(rnd) {
     let isCheckpoint = false;
     if (i > 0 && i % 7 === 0 && !event) isCheckpoint = true;
 
-    let hasEnemy = false;
-    if (!event && !isCheckpoint && !isSkillNode && i > 4 && rnd() < profile.enemyChance) hasEnemy = true;
+    const activePathogens = getPathogensAt(profile.phase, i);
+    const pathogenDebut = getPhaseManifest(profile.phase)?.pathogenDebuts
+      .find(debut => debut.fromChunk === i) || null;
+    const eligibleEnemyChunk = !event && !isCheckpoint && !isSkillNode && i > 4;
+    const enemyRoll = eligibleEnemyChunk ? rnd() : 1;
+    let pathogenType = pathogenDebut?.pathogen === 'rhizoctonia' ? 'rhizoctonia' : null;
+    if (!pathogenType
+      && activePathogens.includes('rhizoctonia')
+      && eligibleEnemyChunk
+      && enemyRoll < profile.enemyChance) {
+      pathogenType = 'rhizoctonia';
+    }
+    const hasEnemy = pathogenType === 'rhizoctonia';
 
     chunks.push({
       index: i,
@@ -92,6 +104,9 @@ export function generateLogicGraph(rnd) {
       unlockFeature: event?.feature || null,
       isCheckpoint,
       hasEnemy,
+      pathogenType,
+      activePathogens,
+      isPathogenDebut: Boolean(pathogenDebut),
       campaignPhase: profile.phase,
       phaseTheme: profile.theme,
     });

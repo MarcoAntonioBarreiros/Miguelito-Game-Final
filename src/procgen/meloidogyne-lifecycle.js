@@ -52,10 +52,16 @@ export function createMeloidogyneLifecycle({ state, entities }) {
   }
 
   function seedInfestation() {
-    const candidates = roots().filter(p => (p.logicIndex ?? -1) >= 2 && p.w >= 120 && !p.azospirillumStructure);
+    const startChunk = state.level.pathogenSchedule?.meloidogyne;
+    if (!Number.isInteger(startChunk)) return;
+    const candidates = roots().filter(p => (p.logicIndex ?? -1) >= startChunk && p.w >= 120 && !p.azospirillumStructure);
+    if (!candidates.length) return;
+    const first = candidates.reduce((best, candidate) => (
+      (candidate.logicIndex ?? Infinity) < (best.logicIndex ?? Infinity) ? candidate : best
+    ), candidates[0]);
     let chosen = candidates.filter((p, i) => i % 5 === 2 || hash(p, 17) > .79);
-    chosen = chosen.slice(0, Math.max(1, Math.min(3, Math.ceil(candidates.length / 7))));
-    if (!chosen.length && candidates.length) chosen = [candidates[Math.floor(candidates.length * .55)]];
+    chosen = [first, ...chosen.filter(candidate => candidate !== first)]
+      .slice(0, Math.max(1, Math.min(3, Math.ceil(candidates.length / 7))));
     for (const p of chosen) addEggMass(p, p.x + p.w * (.28 + hash(p, 29) * .44), 0, null, true);
   }
 

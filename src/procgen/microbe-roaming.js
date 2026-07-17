@@ -78,6 +78,12 @@ export function createRoamingMicrobeEcology({ state, entities }) {
   const base = createMicrobeEcology({ state, entities });
   const niches = [];
   const groups = new Map();
+  const dormantEncounters = [];
+  let hasSeenCard = () => false;
+
+  function setTutorialCardSeenResolver(resolver) {
+    hasSeenCard = typeof resolver === 'function' ? resolver : () => false;
+  }
 
   function buildNiches() {
     niches.length = 0;
@@ -217,47 +223,80 @@ export function createRoamingMicrobeEcology({ state, entities }) {
     });
   }
 
+  function configureAgent(agent, index) {
+    const profile = PROFILE_TUNING[agent.type] || {};
+    agent.routeLag = Math.random() * .16;
+    agent.lateral = 18 + Math.random() * 62;
+    agent.turbulence = (profile.turbulence || 60) * (.55 + Math.random() * .8);
+    agent.individualRate = .55 + Math.random() * 1.35;
+    agent.noiseSeed = Math.random() * TAU + index * .173;
+    agent.taxisSensitivity = (profile.taxis || 70) * (.65 + Math.random() * .7);
+  }
+
+  function initializeGroup(zone, zoneIndex) {
+    const zoneAgents = base.agents.filter(agent => agent.zoneIndex === zoneIndex);
+    if (!zoneAgents.length || !niches.length) return;
+    const center = centroid(zoneAgents);
+    const start = nearestNicheIndex(center.x, center.y, false);
+    const group = {
+      zoneIndex,
+      type: zone.id,
+      territory: zone.territory || ROAMING_DISTANCE[zone.id] || 900,
+      fromIndex: start,
+      toIndex: start,
+      progress: 1,
+      duration: randomInterval(zone.id),
+      direction: Math.random() < .5 ? -1 : 1,
+      curve: { x: center.x, y: center.y },
+      cardId: zone.cardId || null,
+      tethered: Boolean(zone.tetherUntilSeen && zone.cardId && !hasSeenCard(zone.cardId)),
+      anchorX: zone.x,
+      anchorY: zone.y - 32,
+      tetherRadius: zone.tetherRadius || 165,
+    };
+    groups.set(zoneIndex, group);
+    if (!group.tethered) beginLeg(group, center);
+  }
+
   function reset(encounters) {
-    base.reset(encounters);
+    dormantEncounters.length = 0;
+    const activeEncounters = [];
+    for (const encounter of encounters) {
+      if (encounter.requiresSeenCardId && !hasSeenCard(encounter.requiresSeenCardId)) {
+        dormantEncounters.push({ ...encounter });
+      } else {
+        activeEncounters.push(encounter);
+      }
+    }
+    base.reset(activeEncounters);
     buildNiches();
     groups.clear();
 
-    base.agents.forEach((agent, index) => {
-      const profile = PROFILE_TUNING[agent.type] || {};
-      agent.routeLag = Math.random() * .16;
-      agent.lateral = 18 + Math.random() * 62;
-      agent.turbulence = (profile.turbulence || 60) * (.55 + Math.random() * .8);
-      agent.individualRate = .55 + Math.random() * 1.35;
-      agent.noiseSeed = Math.random() * TAU + index * .173;
-      agent.taxisSensitivity = (profile.taxis || 70) * (.65 + Math.random() * .7);
-    });
+    base.agents.forEach(configureAgent);
 
     base.encounters.forEach((zone, zoneIndex) => {
-      const zoneAgents = base.agents.filter(agent => agent.zoneIndex === zoneIndex);
-      if (!zoneAgents.length || !niches.length) return;
-      const center = centroid(zoneAgents);
-      const start = nearestNicheIndex(center.x, center.y, false);
-      const group = {
-        zoneIndex,
-        type: zone.id,
-        territory: zone.territory || ROAMING_DISTANCE[zone.id] || 900,
-        fromIndex: start,
-        toIndex: start,
-        progress: 1,
-        duration: randomInterval(zone.id),
-        direction: Math.random() < .5 ? -1 : 1,
-        curve: { x: center.x, y: center.y },
-      };
-      groups.set(zoneIndex, group);
-      beginLeg(group, center);
+      initializeGroup(zone, zoneIndex);
     });
-    for (const group of groups.values()) applyGroupRoute(group);
+    for (const group of groups.values()) if (!group.tethered) applyGroupRoute(group);
   }
 
   function clear() {
     groups.clear();
     niches.length = 0;
+    dormantEncounters.length = 0;
     base.clear();
+  }
+
+  function activateSeenEncounters() {
+    for (let index = dormantEncounters.length - 1; index >= 0; index--) {
+      const encounter = dormantEncounters[index];
+      if (!hasSeenCard(encounter.requiresSeenCardId)) continue;
+      dormantEncounters.splice(index, 1);
+      const firstAgent = base.agents.length;
+      const zone = base.addEncounter(encounter);
+      base.agents.slice(firstAgent).forEach((agent, offset) => configureAgent(agent, firstAgent + offset));
+      initializeGroup(zone, zone.index);
+    }
   }
 
   function nearestAttractor(agent) {
@@ -362,9 +401,22 @@ export function createRoamingMicrobeEcology({ state, entities }) {
   }
 
   function update(dt) {
+    activateSeenEncounters();
     for (const group of groups.values()) {
       const groupAgents = base.agents.filter(agent => agent.zoneIndex === group.zoneIndex);
       if (!groupAgents.length) continue;
+      if (group.tethered && hasSeenCard(group.cardId)) {
+        group.tethered = false;
+        beginLeg(group, centroid(groupAgents));
+      }
+      if (group.tethered) {
+        for (const agent of groupAgents) {
+          agent.homeX = group.anchorX;
+          agent.homeY = group.anchorY;
+          agent.radius = Math.min(agent.radius, group.tetherRadius);
+        }
+        continue;
+      }
       group.progress += dt / Math.max(1.8, group.duration);
       if (group.progress >= 1) beginLeg(group, centroid(groupAgents));
       applyGroupRoute(group);
@@ -374,9 +426,29 @@ export function createRoamingMicrobeEcology({ state, entities }) {
     applyContinuousFields(dt);
 
     for (const group of groups.values()) {
+      if (!group.tethered) continue;
+      const groupAgents = base.agents.filter(agent => agent.zoneIndex === group.zoneIndex);
+      for (const agent of groupAgents) {
+        const dx = agent.x - group.anchorX;
+        const dy = agent.y - group.anchorY;
+        const distance = Math.max(1, Math.hypot(dx, dy));
+        if (distance <= group.tetherRadius) continue;
+        agent.x = group.anchorX + dx / distance * group.tetherRadius;
+        agent.y = group.anchorY + dy / distance * group.tetherRadius;
+        agent.vx *= .25;
+        agent.vy *= .25;
+      }
+    }
+
+    for (const group of groups.values()) {
       const groupAgents = base.agents.filter(agent => agent.zoneIndex === group.zoneIndex);
       const zone = base.encounters[group.zoneIndex];
       if (!zone || !groupAgents.length) continue;
+      if (group.tethered) {
+        zone.x = group.anchorX;
+        zone.y = group.anchorY;
+        continue;
+      }
       const center = centroid(groupAgents);
       zone.x = center.x;
       zone.y = center.y;
@@ -389,8 +461,11 @@ export function createRoamingMicrobeEcology({ state, entities }) {
     get agents() { return base.agents; },
     get encounters() { return base.encounters; },
     get nicheCount() { return niches.length; },
+    get tetheredDebutCount() { return [...groups.values()].filter(group => group.tethered).length; },
+    get dormantEncounterCount() { return dormantEncounters.length; },
     clear,
     reset,
+    setTutorialCardSeenResolver,
     update,
     render: base.render,
   };

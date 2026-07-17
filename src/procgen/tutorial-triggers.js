@@ -3,7 +3,7 @@ import { getTutorialModeAt, tutorialPacing } from './campaign-manifest.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-export const TUTORIAL_RUNTIME_VERSION = '2026.07.17.1';
+export const TUTORIAL_RUNTIME_VERSION = '2026.07.17.2';
 export const TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT =
   tutorialPacing.simultaneousFirstEncountersEventName;
 
@@ -143,6 +143,14 @@ export function createTutorialTriggers({
       const distance = distanceToPlayer(zone.x, zone.y);
       if (distance > TUTORIAL_PROXIMITY.microbeCommunity) continue;
       addCandidate(cardId, distance, { type: zone.id, source: 'community' });
+    }
+
+    for (const ally of state.level.allies || []) {
+      if (!ally.presentationOnly) continue;
+      const cardId = ally.cardId || discoveryCards[ally.id];
+      const distance = distanceToPlayer(ally.x, ally.y);
+      if (distance > TUTORIAL_PROXIMITY.organism) continue;
+      addCandidate(cardId, distance, { type: ally.id, source: 'fixed-debut' });
     }
 
     for (const enemy of state.level.enemies || []) {
