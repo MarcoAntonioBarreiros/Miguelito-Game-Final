@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Beans Browser Smoke Runner</title>
+</head>
+<body data-status="running">
+<pre id="result">running</pre>
+<script>
+(async () => {
+  const result = document.getElementById('result');
+  const errors = [];
+  const checks = [];
+
+  window.addEventListener('error', event => {
+    errors.push(event.message || 'window error');
+  });
+  window.addEventListener('unhandledrejection', event => {
+    errors.push(event.reason?.stack || event.reason?.message || String(event.reason));
+  });
+
+  function record(name) {
+    checks.push(name);
+  }
+
+  function assert(condition, message) {
+    if (!condition) throw new Error(message);
+  }
+
+  function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async function waitFor(predicate, message) {
+    const start = performance.now();
+    while (performance.now() - start < 5000) {
+      if (predicate()) return;
+      await wait(25);
+    }
+    throw new Error(message);
+  }
+
+  async function loadGame(pathname) {
+    const iframe = document.createElement('iframe');
+    iframe.width = 1280;
+    iframe.height = 720;
+    iframe.src = `${pathname}?test=1`;
+    document.body.appendChild(iframe);
+    await new Promise((resolve, reject) => {
+      iframe.onload = resolve;
+      iframe.onerror = () => reject(new Error(`Failed to load ${pathname}`));
+    });
+    const win = iframe.contentWindow;
+    const originalError = win.console.error.bind(win.console);
+    win.console.error = (...args) => {
+      errors.push(args.map(arg => String(arg)).join(' '));
+      originalError(...args);
+    };
+    await waitFor(() => win.__BEANS_GAME__?.ready === true, `Game API did not become ready for ${pathname}`);
+    return { iframe, win };
+  }
+
+  function step(win, frames = 1, dt = 1 / 60) {
+    for (let i = 0; i < frames; i++) win.__BEANS_GAME__.step(dt);
+  }
+
+  function player(win) {
+    return { ...win.__BEANS_GAME__.state.player };
+  }
+
+  try {
+    const dev = await loadGame('/index.html');
+    assert(!!dev.win.document.getElementById('game'), 'canvas should exist');
+    assert(!dev.win.document.getElementById('intro').classList.contains('hidden'), 'intro should load first');
+    record('load');
+    dev.iframe.remove();
+
+    const built = await loadGame('/dist/index.html');
+    const api = built.win.__BEANS_GAME__;
+    api.startGame();
+
+    let before = player(built.win);
+    api.input.press('ArrowRight');
+    step(built.win, 18);
+    api.input.release('ArrowRight');
+    let after = player(built.win);
+    assert(after.x > before.x + 8, 'movement should move the player right');
+    record('movement');
+
+    api.input.clear();
+    api.setPlayer({ x: 90, y: 562, vx: 0, vy: 0, onGround: true, coyote: .12, jumpBuffer: 0 });
+    api.state.jumpHeldLast = false;
+    api.input.press('Space');
+    step(built.win, 1);
+    api.input.release('Space');
+    after = player(built.win);
+    assert(after.vy < -400, 'jump should apply upward velocity');
+    record('jump');
+
+    api.input.clear();
+    api.setPlayer({ y: 480, vy: 40, onGround: false, coyote: 0, canDoubleJump: true, airJumpAvailable: true, jumpBuffer: 0 });
+    api.state.jumpHeldLast = false;
+    api.input.press('Space');
+    step(built.win, 1);
+    api.input.release('Space');
+    after = player(built.win);
+    assert(after.vy < -400, 'double jump should apply upward velocity in air');
+    assert(after.airJumpAvailable === false, 'double jump should consume the air jump');
+    record('double-jump');
+
+    api.input.clear();
+    api.setPlayer({ facing: 1, canDash: true, dashCooldown: 0, dashTime: 0, vx: 0, vy: 0 });
+    api.input.press('ShiftLeft');
+    step(built.win, 2);
+    after = player(built.win);
+    assert(after.dashCooldown > 0, 'dash should start cooldown');
+    assert(after.vx > 600, 'dash should set high horizontal velocity');
+    record('dash');
+
+    api.input.clear();
+    api.setPlayer({ x: 3160, y: 540, canPulse: true, vx: 0, vy: 0 });
+    api.input.press('KeyK');
+    step(built.win, 1);
+    assert(api.state.level.pulses.length > 0, 'pulse should create a visible pulse entity');
+    assert(api.state.level.crystals[0].broken === true, 'pulse should break a nearby crystal');
+    record('pulse');
+
+    api.input.clear();
+    api.setPlayer({ x: 1124, y: 506, vx: 0, vy: 0, dashTime: 0, dashCooldown: 0 });
+    step(built.win, 1);
+    assert(api.state.level.checkpoints[0].active === true, 'checkpoint should activate when the player overlaps it');
+    assert(api.state.currentCheckpoint.x === 1124 && api.state.currentCheckpoint.y === 506, 'checkpoint should update respawn position');
+    api.setPlayer({ x: 400, y: 700 });
+    api.respawn(true);
+    after = player(built.win);
+    assert(after.x === 1124 && after.y === 506, 'manual respawn should return to checkpoint');
+    record('checkpoint');
+
+    api.setPlayer({ x: 4591, y: 500, vx: 0, vy: 0 });
+    step(built.win, 1);
+    assert(api.state.gameState === 'end', 'player crossing the final threshold should end the level');
+    assert(!built.win.document.getElementById('end').classList.contains('hidden'), 'completion screen should become visible');
+    record('completion');
+
+    assert(errors.length === 0, `console/page errors: ${errors.join('; ')}`);
+    document.body.dataset.status = 'pass';
+    result.textContent = JSON.stringify({ status: 'pass', checks }, null, 2);
+  } catch (err) {
+    document.body.dataset.status = 'fail';
+    result.textContent = JSON.stringify({ status: 'fail', checks, errors, error: err.stack || err.message }, null, 2);
+  }
+})();
+</script>
+</body>
+</html>
