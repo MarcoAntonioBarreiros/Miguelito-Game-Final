@@ -166,18 +166,18 @@ export function createPlatformVisuals({ state }) {
     ctx.setLineDash([]);
 
     if (platform.fixedObjective) {
-      const objectivePulse = .72 + Math.sin(state.time * 3.6) * .2;
+      const objectivePulse = .78 + Math.sin(state.time * 3.2) * .08;
       ctx.save();
       ctx.strokeStyle = `rgba(255,213,111,${objectivePulse})`;
-      ctx.fillStyle = `rgba(255,213,111,${.12 + objectivePulse * .12})`;
-      ctx.lineWidth = 4;
-      ctx.shadowBlur = 22;
+      ctx.fillStyle = 'rgba(255,213,111,.08)';
+      ctx.lineWidth = 3;
+      ctx.shadowBlur = 8;
       ctx.shadowColor = '#ffd56f';
       roundedPath(ctx, platform, radius);
       ctx.fill();
       ctx.stroke();
       ctx.fillStyle = '#ffd56f';
-      ctx.fillRect(platform.x + 12, platform.y - 3, Math.max(24, platform.w - 24), 6);
+      ctx.fillRect(platform.x + 12, platform.y - 2, Math.max(24, platform.w - 24), 4);
       ctx.restore();
     }
 

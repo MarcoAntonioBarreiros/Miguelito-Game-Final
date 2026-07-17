@@ -219,73 +219,29 @@ export function createFixedBlockRuntime({ state, evaluator, entities }) {
     ctx.translate(-(state.cameraX || 0), 0);
     for (const block of activeBlocks()) {
       const target = block.targetPlatform;
-      if (target?.objectiveTarget) {
-        const x = target.x + target.w / 2;
-        const y = target.y - 92;
-        const pulse = .72 + Math.sin(state.time * 3.4) * .18;
-        ctx.save();
-        ctx.strokeStyle = block.completed
-          ? `rgba(155,234,143,${pulse})`
-          : `rgba(255,213,111,${pulse})`;
-        ctx.fillStyle = block.completed ? 'rgba(155,234,143,.1)' : 'rgba(255,213,111,.12)';
-        ctx.lineWidth = 3;
-        for (let ring = 0; ring < 2; ring++) {
-          ctx.beginPath();
-          ctx.ellipse(x, target.y - 8, target.w * (.34 + ring * .12), 24 + ring * 10, 0, 0, Math.PI * 2);
-          if (ring === 0) ctx.fill();
-          ctx.stroke();
-        }
-        ctx.beginPath();
-        ctx.moveTo(x, target.y - 38);
-        ctx.lineTo(x - 9, target.y - 53);
-        ctx.lineTo(x + 9, target.y - 53);
-        ctx.closePath();
-        ctx.fillStyle = block.completed ? '#9bea8f' : '#ffd56f';
-        ctx.fill();
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = '800 12px Inter,system-ui';
-        const label = block.completed
-          ? 'BIOFILME CONFIRMADO'
-          : block.kind === 'final'
-            ? '↓ ALVO DA PROVA — FORME O BIOFILME AQUI'
-            : '↓ ALVO DA MISSÃO — INOCULE BACILLUS AQUI';
-        const width = ctx.measureText(label).width + 26;
-        ctx.fillStyle = 'rgba(3,18,24,.9)';
-        ctx.strokeStyle = block.completed ? '#9bea8f' : '#ffd56f';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.roundRect(x - width / 2, y - 14, width, 28, 14);
-        ctx.fill();
-        ctx.stroke();
-        ctx.fillStyle = block.completed ? '#bff5b7' : '#ffe58f';
-        ctx.fillText(label, x, y + .5);
-        ctx.restore();
-      }
-      if (!block.exitGate || block.completed) continue;
-      const gateY = clamp(target?.y || 500, 300, 560);
-      const pulse = .65 + Math.sin(state.time * 3.2) * .18;
+      if (!target?.objectiveTarget) continue;
+      const x = target.x + target.w / 2;
+      const y = target.y - 72;
+      const label = block.completed
+        ? 'BIOFILME CONFIRMADO'
+        : block.kind === 'final'
+          ? '↓ ALVO DA PROVA — FORME O BIOFILME AQUI'
+          : '↓ ALVO DA MISSÃO — INOCULE BACILLUS AQUI';
+
       ctx.save();
-      ctx.strokeStyle = `rgba(255,213,111,${pulse})`;
-      ctx.fillStyle = 'rgba(255,213,111,.14)';
-      ctx.lineWidth = 4;
-      ctx.setLineDash([10, 7]);
-      ctx.fillRect(block.gateX - 10, 115, 20, gateY - 115);
-      ctx.beginPath();
-      ctx.moveTo(block.gateX, 115);
-      ctx.lineTo(block.gateX, gateY);
-      ctx.stroke();
-      ctx.setLineDash([]);
       ctx.textAlign = 'center';
-      ctx.font = '800 11px Inter,system-ui';
-      ctx.fillStyle = '#ffe58f';
-      ctx.fillText(block.kind === 'final' ? 'PORTÃO DA PROVA' : 'PORTÃO DO TREINO', block.gateX, 82);
-      ctx.font = '700 10px Inter,system-ui';
-      ctx.fillText(
-        block.kind === 'final' ? '← VOLTE À RAIZ DA PROVA COM HALO' : '← VOLTE AO ALVO COM HALO AMARELO',
-        block.gateX,
-        99,
-      );
+      ctx.textBaseline = 'middle';
+      ctx.font = '900 13px Inter,system-ui';
+      const width = ctx.measureText(label).width + 30;
+      ctx.fillStyle = 'rgba(3,18,24,.9)';
+      ctx.strokeStyle = block.completed ? '#9bea8f' : '#ffd56f';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(x - width / 2, y - 16, width, 32, 16);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = block.completed ? '#bff5b7' : '#ffe58f';
+      ctx.fillText(label, x, y + .5);
       ctx.restore();
     }
     ctx.restore();
