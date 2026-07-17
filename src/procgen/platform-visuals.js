@@ -292,12 +292,6 @@ export function createPlatformVisuals({ state }) {
     const maxHealth = Math.round(clamp(platform.rootMaxHealth ?? 1, 0, 1) * 100);
     const stateStyle = stateInfo(platform);
     const scar = maxHealth < 100 ? ` · máx. ${maxHealth}%` : '';
-    if (platform.objectiveTarget === 'p1-intro-root') {
-      return { text: '↓ ALVO DA MISSÃO · inocule Bacillus aqui', color: '#ffd56f' };
-    }
-    if (platform.objectiveTarget === 'p1-exit-root') {
-      return { text: '↓ ALVO DA PROVA · forme o biofilme aqui', color: '#ffd56f' };
-    }
     if (platform.azospirillumStructure) {
       return { text: `Raiz lateral ${stateStyle.label} · ${health}%${scar}`, color: stateStyle.color };
     }
@@ -314,6 +308,9 @@ export function createPlatformVisuals({ state }) {
     if (state.gameState !== 'play') return;
     const nearby = nearbyPlatform();
     if (!nearby) return;
+    // Os blocos fixos possuem orientação contextual própria. Repetir aqui o
+    // rótulo da raiz criava duas mensagens sobrepostas.
+    if (nearby.platform.fixedObjective) return;
     const { text, color } = labelFor(nearby.platform);
     const alpha = clamp(1 - nearby.score / 82, .25, 1);
     const player = state.player;

@@ -71,6 +71,7 @@ const fixedBlockRuntime = createFixedBlockRuntime({
   state: sim.state,
   evaluator: objectiveEvaluator,
   entities: sim.entities,
+  ecology: sim.ecology,
 });
 sim.goal.setCompletionGuard(() => {
   if (campaign.phase !== 1) return { passed: true };

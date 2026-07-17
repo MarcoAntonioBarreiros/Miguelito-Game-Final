@@ -55,6 +55,10 @@ test('Fase 1 segue introdução fixa, desafio procedural e prova final fixa', ()
       ['p1-intro-root', 'p1-exit-root'],
     );
     assert.equal(level.fixedBlocks.every(block => block.targetPlatform.fixedObjective === true), true);
+    const introBridge = level.fixedBlocks[0].recoveryPlatform;
+    assert.equal(introBridge.logicIndex, 8);
+    assert.equal(introBridge.checkpointRecoveryBridge, true);
+    assert.equal(level.platforms.includes(introBridge), false, 'a primeira tentativa não possui a raiz de apoio');
 
     for (const platform of mainPlatforms(level)) {
       const shouldBeAuthored = (platform.logicIndex >= 4 && platform.logicIndex <= 8)
@@ -75,7 +79,13 @@ test('Fase 1 segue introdução fixa, desafio procedural e prova final fixa', ()
 test('geometria autoral permanece atravessável sem poderes em múltiplas seeds', () => {
   for (const seed of SEEDS) {
     const { level } = phaseOne(`${seed}:geometry`);
-    const route = mainPlatforms(level);
+    const intro = level.fixedBlocks[0];
+    const nextRoot = mainPlatforms(level).find(platform => platform.logicIndex === 9);
+    const forcedGap = nextRoot.x - (intro.targetPlatform.x + intro.targetPlatform.w);
+    assert.ok(forcedGap >= 360, `primeira tentativa precisa ser impossível: ${forcedGap.toFixed(1)}px`);
+
+    const route = [...mainPlatforms(level), intro.recoveryPlatform]
+      .sort((left, right) => left.logicIndex - right.logicIndex || left.x - right.x);
     for (let index = 1; index < route.length; index++) {
       const previous = route[index - 1];
       const current = route[index];
@@ -118,11 +128,16 @@ test('portão do módulo abre apenas após ação real e preserva o progresso lo
     level: { ...level, biofilms: [] },
     cameraX: 480,
     player: { x: level.fixedBlocks[0].gateX, y: 400, w: 32, h: 48, vx: 120, vy: 0 },
+    discoveredMicrobes: new Set(['bacillus']),
     toast: '',
     toastTime: 0,
   };
   const evaluator = createCampaignObjectiveEvaluator({ state, systems: { gameplay, inoculants: { colonies: [] } } });
-  const runtime = createFixedBlockRuntime({ state, evaluator, entities: { burst() {} } });
+  const ecology = {
+    agents: [{ type: 'bacillus', beneficialRecruitedUntil: 30 }],
+    encounters: [],
+  };
+  const runtime = createFixedBlockRuntime({ state, evaluator, entities: { burst() {} }, ecology });
   const intro = state.level.fixedBlocks[0];
 
   runtime.update();
@@ -130,12 +145,15 @@ test('portão do módulo abre apenas após ação real e preserva o progresso lo
   assert.ok(state.player.x + state.player.w < intro.gateX);
 
   const translations = [];
+  const renderedLabels = [];
   const ctx = new Proxy({
     measureText: text => ({ width: text.length * 7 }),
     translate: (x, y) => translations.push([x, y]),
+    fillText: text => renderedLabels.push(text),
   }, { get: (target, key) => target[key] || (() => {}) });
   runtime.render(ctx);
   assert.deepEqual(translations, [[-480, 0]], 'portão e marcador usam a câmera horizontal');
+  assert.ok(renderedLabels.some(label => label.includes('ALVO DA MISSÃO')));
 
   gameplay.deployedCloudCount = 1;
   state.level.biofilms.push({ functional: true, platform: { objectiveTarget: 'qualquer-outra-raiz' } });
@@ -147,8 +165,29 @@ test('portão do módulo abre apenas após ação real e preserva o progresso lo
   state.time = 7;
   runtime.update();
   assert.equal(intro.completed, true);
+  assert.equal(intro.targetPlatform.fixedObjective, false);
+
+  renderedLabels.length = 0;
+  runtime.render(ctx);
+  assert.equal(
+    renderedLabels.some(label => label.includes('ALVO DA MISSÃO')),
+    false,
+    'a instrução desaparece quando o biofilme é confirmado',
+  );
+
+  state.currentCheckpoint = {
+    x: intro.targetPlatform.x + intro.targetPlatform.w / 2 - state.player.w / 2,
+    y: intro.targetPlatform.y - state.player.h,
+  };
+  state.player.x = intro.targetPlatform.x + intro.targetPlatform.w + 40;
+  state.player.deaths = 1;
+  state.gameState = 'respawning';
+  runtime.update();
+  assert.equal(intro.recoveryPlatformUnlocked, true);
+  assert.equal(state.level.platforms.includes(intro.recoveryPlatform), true);
 
   state.level.biofilms.length = 0;
+  state.gameState = 'play';
   state.player.x = intro.gateX + 20;
   runtime.update();
   assert.ok(state.player.x > intro.gateX, 'conclusão já demonstrada mantém o portão aberto');

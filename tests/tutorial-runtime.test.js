@@ -115,6 +115,32 @@ test('cartão de organismo abre quando Miguelito chega bem perto', () => {
   assert.equal(result.discovered.has('bacillus'), true);
 });
 
+test('indivíduo na borda não antecipa cartão de uma estreia ainda tethered', () => {
+  const result = runTriggerScenario({
+    agents: [{ type: 'bacillus', zoneIndex: 0, x: 72, y: 0 }],
+    encounters: [{
+      id: 'bacillus', source: 'debut', tetherUntilSeen: true,
+      x: TUTORIAL_PROXIMITY.microbeCommunity + 1, y: 0,
+    }],
+  });
+
+  assert.deepEqual(result.triggered, []);
+  assert.equal(result.discovered.size, 0);
+});
+
+test('estreia tethered abre pelo centro da primeira colônia', () => {
+  const result = runTriggerScenario({
+    agents: [{ type: 'bacillus', zoneIndex: 0, x: 400, y: 0 }],
+    encounters: [{
+      id: 'bacillus', source: 'debut', tetherUntilSeen: true,
+      x: TUTORIAL_PROXIMITY.microbeCommunity - 1, y: 0,
+    }],
+  });
+
+  assert.deepEqual(result.triggered, ['organism-bacillus']);
+  assert.equal(result.discovered.has('bacillus'), true);
+});
+
 test('organismo mais próximo tem prioridade entre tipos diferentes', () => {
   const result = runTriggerScenario({
     enemies: [{ type: 'rhizoctonia', alive: true, x: 240, y: 0, w: 0, h: 0 }],

@@ -119,6 +119,13 @@ export function applyPhaseOneVerticalSlice(level, phase = level.campaignPhase) {
     const completion = segment.fixedBlock.completionRef === 'finalTest'
       ? manifest.finalTest.requires
       : segment.fixedBlock.completion;
+    const recoveryPlatform = segment.id === 'p1-intro'
+      ? geometry.platforms[geometry.platforms.length - 1]
+      : null;
+    if (recoveryPlatform) {
+      recoveryPlatform.checkpointRecoveryBridge = true;
+      level.platforms = level.platforms.filter(platform => platform !== recoveryPlatform);
+    }
     level.fixedBlocks.push({
       id: segment.id,
       kind: segment.kind,
@@ -130,6 +137,8 @@ export function applyPhaseOneVerticalSlice(level, phase = level.campaignPhase) {
       endX: geometry.endX,
       gateX: geometry.gateX,
       targetPlatform: geometry.target,
+      recoveryPlatform,
+      recoveryPlatformUnlocked: !recoveryPlatform,
       completed: false,
     });
     for (let chunk = segment.from; chunk <= segment.to; chunk++) {
@@ -156,7 +165,7 @@ export function applyPhaseOneVerticalSlice(level, phase = level.campaignPhase) {
   return level;
 }
 
-export function createFixedBlockRuntime({ state, evaluator, entities }) {
+export function createFixedBlockRuntime({ state, evaluator, entities, ecology = null }) {
   let lastBlockedAt = -Infinity;
 
   function activeBlocks() {
@@ -178,11 +187,43 @@ export function createFixedBlockRuntime({ state, evaluator, entities }) {
   function completeBlock(block) {
     block.completed = true;
     block.completedAt = state.time;
+    block.deathsAtCompletion = state.player.deaths || 0;
+    block.targetPlatform.fixedObjective = false;
     state.toast = block.kind === 'final'
       ? 'Prova final concluída: a raiz de saída recebeu um biofilme funcional.'
       : 'Módulo concluído: recrutamento, inoculação e biofilme confirmados.';
     state.toastTime = 5.2;
     entities.burst(block.gateX, block.targetPlatform.y - 70, '#8ff2c1', 34, 150);
+  }
+
+  function checkpointIsOnTarget(block) {
+    const checkpoint = state.currentCheckpoint;
+    if (!checkpoint) return false;
+    const checkpointX = checkpoint.x + state.player.w / 2;
+    return checkpointX >= block.targetPlatform.x - 80
+      && checkpointX <= block.targetPlatform.x + block.targetPlatform.w + 80;
+  }
+
+  function unlockRecoveryPlatformAfterDeath(block) {
+    if (!block.recoveryPlatform || block.recoveryPlatformUnlocked || !block.completed) return;
+    const diedAfterCheckpoint = (state.player.deaths || 0) > (block.deathsAtCompletion || 0);
+    const failedBeyondCheckpoint = state.player.x > block.targetPlatform.x + block.targetPlatform.w + 24;
+    if (!diedAfterCheckpoint || !failedBeyondCheckpoint || !checkpointIsOnTarget(block)) return;
+
+    block.recoveryPlatformUnlocked = true;
+    if (!state.level.platforms.includes(block.recoveryPlatform)) {
+      state.level.platforms.push(block.recoveryPlatform);
+      state.level.platforms.sort((left, right) => left.x - right.x);
+    }
+    state.toast = 'Checkpoint demonstrado: uma raiz de apoio surgiu para a segunda tentativa.';
+    state.toastTime = 5.2;
+    entities.burst(
+      block.recoveryPlatform.x + block.recoveryPlatform.w / 2,
+      block.recoveryPlatform.y - 18,
+      '#ffd56f',
+      30,
+      145,
+    );
   }
 
   function holdAtGate(block, result) {
@@ -198,6 +239,7 @@ export function createFixedBlockRuntime({ state, evaluator, entities }) {
   }
 
   function update() {
+    for (const block of activeBlocks()) unlockRecoveryPlatformAfterDeath(block);
     if (state.gameState !== 'play') return;
     const centerX = state.player.x + state.player.w / 2;
     for (const block of activeBlocks()) {
@@ -214,35 +256,68 @@ export function createFixedBlockRuntime({ state, evaluator, entities }) {
     }
   }
 
+  function hasRecruitedBacillus() {
+    return (ecology?.agents || []).some(agent => (
+      agent.type === 'bacillus'
+      && (agent.beneficialRecruitedUntil || 0) > state.time
+    ));
+  }
+
+  function hasPlacedBacillus() {
+    return (state.level.beneficialColonies || []).some(colony => colony.type === 'bacillus')
+      || (state.level.biofilms || []).some(film => film.platform?.objectiveTarget === 'p1-intro-root');
+  }
+
+  function drawGuidance(ctx, x, y, label, color = '#ffd56f') {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '900 13px Inter,system-ui';
+    const width = ctx.measureText(label).width + 30;
+    ctx.fillStyle = 'rgba(3,18,24,.9)';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(x - width / 2, y - 16, width, 32, 16);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = color === '#ffd56f' ? '#ffe58f' : color;
+    ctx.fillText(label, x, y + .5);
+    ctx.restore();
+  }
+
   function render(ctx) {
     ctx.save();
     ctx.translate(-(state.cameraX || 0), 0);
     for (const block of activeBlocks()) {
+      if (block.id === 'p1-intro' && !block.completed) {
+        const bacillusKnown = state.discoveredMicrobes?.has('bacillus');
+        const recruited = hasRecruitedBacillus();
+        const placed = hasPlacedBacillus();
+        const debut = (ecology?.encounters || []).find(encounter => (
+          encounter.source === 'debut'
+          && encounter.id === 'bacillus'
+          && encounter.logicIndex === 6
+        ));
+        if (bacillusKnown && !recruited && !placed && debut) {
+          drawGuidance(
+            ctx,
+            debut.x,
+            debut.y + 88,
+            '↓ LANCE O EXSUDATO PARA RECRUTAR BACILLUS AQUI',
+          );
+        }
+      }
+
       const target = block.targetPlatform;
-      if (!target?.objectiveTarget) continue;
+      if (!target?.objectiveTarget || block.completed) continue;
+      if (block.id === 'p1-intro' && !hasRecruitedBacillus() && !hasPlacedBacillus()) continue;
       const x = target.x + target.w / 2;
       const y = target.y - 72;
-      const label = block.completed
-        ? 'BIOFILME CONFIRMADO'
-        : block.kind === 'final'
-          ? '↓ ALVO DA PROVA — FORME O BIOFILME AQUI'
-          : '↓ ALVO DA MISSÃO — INOCULE BACILLUS AQUI';
-
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = '900 13px Inter,system-ui';
-      const width = ctx.measureText(label).width + 30;
-      ctx.fillStyle = 'rgba(3,18,24,.9)';
-      ctx.strokeStyle = block.completed ? '#9bea8f' : '#ffd56f';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.roundRect(x - width / 2, y - 16, width, 32, 16);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = block.completed ? '#bff5b7' : '#ffe58f';
-      ctx.fillText(label, x, y + .5);
-      ctx.restore();
+      const label = block.kind === 'final'
+        ? '↓ ALVO DA PROVA — FORME O BIOFILME AQUI'
+        : '↓ ALVO DA MISSÃO — INOCULE BACILLUS AQUI';
+      drawGuidance(ctx, x, y, label);
     }
     ctx.restore();
   }
