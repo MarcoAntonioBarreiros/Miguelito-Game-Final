@@ -5,13 +5,12 @@ import { createRandom } from './random.js';
 export const AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE = 'azospirillum-root-ladder';
 
 const TAU = Math.PI * 2;
-const FIRST_DEMONSTRATION_VERTICAL_SPACING = 74;
-const MIN_VERTICAL_SPACING = 50;
-const WALL_OFFSET = 86;
-const WALL_WIDTH = 62;
-const BRANCH_WIDTH = 104;
-const BRANCH_STAGGER = 18;
-const EXIT_GAP = 74;
+const PRACTICE_WINDOW_CHUNKS = 4;
+const MIN_VERTICAL_RISE = 210;
+const MAX_VERTICAL_RISE = 300;
+const FIRST_DEMONSTRATION_VERTICAL_SPACING = 58;
+const BRANCH_WIDTH = 90;
+const ROOT_SWAY_MAX = 74;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -21,56 +20,22 @@ function routePlatforms(level) {
     .sort((left, right) => left.logicIndex - right.logicIndex || left.x - right.x);
 }
 
-function colonizableRoot(platform) {
-  return Boolean(
-    platform
-    && platform.type === 'root'
-    && !platform.mycorrhizaStructure
-    && !platform.azospirillumStructure
-    && !platform.nitrogenRootCollider
-    && !platform.fixedObjective,
-  );
+function topPoint(platform, x) {
+  return {
+    x: clamp(x, platform.x + 18, platform.x + platform.w - 18),
+    y: platform.y - 6,
+  };
 }
 
 function occupiesPlatform(entity, platform) {
-  if (Number.isInteger(entity?.logicIndex)) return entity.logicIndex === platform.logicIndex;
-  return Number.isFinite(entity?.x) && entity.x >= platform.x && entity.x <= platform.x + platform.w;
-}
-
-function hasCriticalContent(level, encounters, platform) {
-  return [
-    level.exudates,
-    level.crystals,
-    level.enemies,
-    level.checkpoints,
-    encounters,
-  ].some(collection => (collection || []).some(entity => occupiesPlatform(entity, platform)));
-}
-
-function shuffled(values, random) {
-  const result = [...values];
-  for (let index = result.length - 1; index > 0; index--) {
-    const target = Math.floor(random() * (index + 1));
-    [result[index], result[target]] = [result[target], result[index]];
+  if (Number.isFinite(entity?.x)) {
+    return entity.x >= platform.x && entity.x <= platform.x + platform.w;
   }
-  return result;
+  return Number.isInteger(entity?.logicIndex) && entity.logicIndex === platform.logicIndex;
 }
 
-function removeRecoveryPlatforms(level, host, destination) {
-  const start = host.x + host.w;
-  const end = destination.x + Math.min(destination.w, 80);
-  level.platforms = (level.platforms || []).filter(platform => {
-    if (!platform.recovery) return true;
-    const center = platform.x + platform.w / 2;
-    return center <= start || center >= end;
-  });
-}
-
-function shiftRouteAfter(level, encounters, thresholdX, deltaX) {
-  if (deltaX <= 0) return;
-  for (const platform of level.platforms || []) {
-    if (platform.x >= thresholdX) platform.x += deltaX;
-  }
+function shiftContentsWithPlatform(level, encounters, platform, deltaY) {
+  if (!deltaY) return;
   for (const collection of [
     level.exudates,
     level.crystals,
@@ -80,79 +45,79 @@ function shiftRouteAfter(level, encounters, thresholdX, deltaX) {
     encounters,
   ]) {
     for (const entity of collection || []) {
-      if (Number.isFinite(entity.x) && entity.x >= thresholdX) entity.x += deltaX;
-      if (Number.isFinite(entity.left) && entity.left >= thresholdX) entity.left += deltaX;
-      if (Number.isFinite(entity.right) && entity.right >= thresholdX) entity.right += deltaX;
+      if (occupiesPlatform(entity, platform) && Number.isFinite(entity.y)) entity.y += deltaY;
     }
   }
-  if (Number.isFinite(level.endX)) level.endX += deltaX;
-  if (Number.isFinite(level.cameraMaxX)) level.cameraMaxX += deltaX;
-  const hazardWidth = 500;
-  const requiredHazards = Math.ceil((level.endX || 0) / hazardWidth);
-  if (!Array.isArray(level.hazards)) level.hazards = [];
-  while (level.hazards.length < requiredHazards) {
-    const index = level.hazards.length;
-    level.hazards.push({ x: index * hazardWidth, y: 674, w: hazardWidth, h: 46 });
-  }
 }
 
-function shiftAlliesWithPlatform(level, platform, deltaY) {
-  if (!deltaY) return;
-  for (const ally of level.allies || []) {
-    if (occupiesPlatform(ally, platform) && Number.isFinite(ally.y)) ally.y += deltaY;
-  }
-}
-
-function ladderCandidates(level, encounters, route, firstExudate, minimumHostChunk, maximumHostChunk, config) {
+function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChunk, config) {
   const candidates = [];
-  for (let index = 1; index < route.length - 2; index++) {
-    const host = route[index];
-    const destination = route[index + 1];
-    const following = route[index + 2];
+  const platforms = (level.platforms || [])
+    .filter(platform => !platform.final && Number.isInteger(platform.logicIndex));
+  const mainRoute = routePlatforms(level);
+
+  for (const host of platforms) {
     if (
-      !colonizableRoot(host)
+      host.type !== 'root'
+      || !host.recovery
       || host.logicIndex <= firstExudate
       || host.logicIndex < minimumHostChunk
       || host.logicIndex > maximumHostChunk
     ) continue;
-    if (hasCriticalContent(level, encounters, destination)) continue;
-    if (destination.x <= host.x + host.w) continue;
 
-    const availableSpacing = (host.y - 112) / config.stepCount;
-    const verticalSpacing = Math.min(
-      config.verticalSpacing,
-      FIRST_DEMONSTRATION_VERTICAL_SPACING,
-      availableSpacing,
-    );
-    if (verticalSpacing < MIN_VERTICAL_SPACING) continue;
+    const hostCenter = host.x + host.w / 2;
+    const targets = mainRoute.filter(target => (
+      target.logicIndex >= host.logicIndex
+      && target.logicIndex <= host.logicIndex + 1
+      && target !== host
+      && target.y < host.y - 60
+    ));
+    let bestForHost = null;
+    for (const destination of targets) {
+      const naturalRise = host.y - destination.y;
+      const destinationPoint = topPoint(destination, hostCenter);
+      const dx = Math.abs(destinationPoint.x - hostCenter);
+      if (naturalRise > 360 || dx > 390) continue;
 
-    const wallX = host.x + host.w + WALL_OFFSET;
-    const topStepY = host.y - verticalSpacing * config.stepCount;
-    const wallTopY = topStepY - 18;
-    // A saida permanece em uma altura intermediaria para reconectar a rota
-    // procedural sem transformar os degraus numa passarela horizontal.
-    const destinationY = Math.min(destination.y, host.y - verticalSpacing * 2);
-    const wallBottomY = Math.max(host.y + host.h, destinationY + destination.h);
-
-    candidates.push({
-      host,
-      destination,
-      following,
-      verticalSpacing,
-      destinationY,
-      wallX,
-      wallTopY,
-      wallBottomY,
-    });
+      const verticalSpacing = Math.min(
+        Number(config.verticalSpacing) || FIRST_DEMONSTRATION_VERTICAL_SPACING,
+        FIRST_DEMONSTRATION_VERTICAL_SPACING,
+      );
+      const desiredRise = clamp(
+        verticalSpacing * (config.stepCount + 1),
+        MIN_VERTICAL_RISE,
+        MAX_VERTICAL_RISE,
+      );
+      const destinationY = Math.min(destination.y, host.y - desiredRise);
+      const following = mainRoute.find(platform => platform.logicIndex > destination.logicIndex) || null;
+      const score = (host.logicIndex - minimumHostChunk) * 1000
+        + Math.abs(desiredRise - naturalRise)
+        + dx * .35;
+      const candidate = {
+        host,
+        destination,
+        following,
+        destinationY,
+        desiredRise,
+        dx,
+        score,
+      };
+      if (!bestForHost || candidate.score < bestForHost.score) bestForHost = candidate;
+    }
+    if (bestForHost) candidates.push(bestForHost);
   }
   return candidates;
 }
 
 function buildSteps(slot, config, ladderId) {
+  const start = topPoint(slot.host, slot.host.x + slot.host.w / 2);
+  const end = topPoint(slot.destination, start.x);
+  const swayDirection = Math.sign(end.x - start.x || 1);
+  const sway = swayDirection * Math.min(ROOT_SWAY_MAX, 24 + slot.dx * .22);
   return Array.from({ length: config.stepCount }, (_, index) => {
-    const side = index % 2 === 0 ? -1 : 1;
-    const centerX = slot.wallX + WALL_WIDTH / 2 + side * BRANCH_STAGGER;
-    const y = slot.host.y - slot.verticalSpacing * (index + 1);
+    const t = (index + 1) / (config.stepCount + 1);
+    const centerX = lerp(start.x, end.x, t) + Math.sin(t * Math.PI) * sway;
+    const y = lerp(start.y, end.y, t);
     return {
       id: `${ladderId}-step-${index + 1}`,
       index,
@@ -218,11 +183,9 @@ export function generateAzospirillumRootLadders({
   }
 
   const minimumHostChunk = Math.max(firstExudate + 1, unlockChunk + 1);
-  const maximumHostChunk = unlockChunk + 12;
+  const maximumHostChunk = unlockChunk + PRACTICE_WINDOW_CHUNKS;
   const candidates = ladderCandidates(
     level,
-    encounters,
-    route,
     firstExudate,
     minimumHostChunk,
     maximumHostChunk,
@@ -231,15 +194,16 @@ export function generateAzospirillumRootLadders({
   if (!candidates.length) return level.azospirillumRootLadders;
 
   const ordered = [...candidates].sort((left, right) => (
-    left.host.logicIndex - right.host.logicIndex || left.host.x - right.host.x
+    left.host.logicIndex - right.host.logicIndex
+    || left.score - right.score
+    || left.host.x - right.host.x
   ));
-  const window = ordered.slice(0, Math.min(ordered.length, Math.max(3, config.count * 3)));
   const random = createRandom(`${seedValue}:azospirillum-root-ladder:p${phase}`);
   const selected = [];
-  for (const candidate of shuffled(window, random)) {
+  for (const candidate of ordered) {
     if (selected.some(item => Math.abs(item.host.logicIndex - candidate.host.logicIndex) < 4)) continue;
     selected.push(candidate);
-    if (selected.length >= Math.min(config.count, window.length)) break;
+    if (selected.length >= Math.min(config.count, ordered.length)) break;
   }
 
   level.azospirillumRootLadders = selected
@@ -248,31 +212,19 @@ export function generateAzospirillumRootLadders({
       const id = `azo-ladder-${slot.host.logicIndex}-${index}`;
       const originalDestinationY = slot.destination.y;
       const originalDestinationX = slot.destination.x;
-      const desiredDestinationX = slot.wallX + WALL_WIDTH + EXIT_GAP;
-      shiftRouteAfter(level, encounters, originalDestinationX, desiredDestinationX - originalDestinationX);
-      shiftAlliesWithPlatform(level, slot.destination, slot.destinationY - originalDestinationY);
+      shiftContentsWithPlatform(level, encounters, slot.destination, slot.destinationY - originalDestinationY);
       slot.destination.y = slot.destinationY;
       if (Number.isFinite(slot.destination.rootBaseY)) {
         slot.destination.rootBaseY = slot.destinationY;
       }
+      slot.host.wasRecoveryRoot = true;
+      slot.host.recovery = false;
       slot.host.azospirillumLadderHost = true;
+      slot.host.rootHealth = Number.isFinite(slot.host.rootHealth) ? slot.host.rootHealth : 1;
+      slot.host.rootMaxHealth = Number.isFinite(slot.host.rootMaxHealth) ? slot.host.rootMaxHealth : 1;
       slot.destination.azospirillumLadderDestination = true;
-      removeRecoveryPlatforms(level, slot.host, slot.destination);
-      const wall = {
-        x: slot.wallX,
-        y: slot.wallTopY,
-        w: WALL_WIDTH,
-        h: slot.wallBottomY - slot.wallTopY,
-        type: 'root',
-        oneWay: false,
-        azospirillumStructure: true,
-        azospirillumRootWall: true,
-        ladderId: id,
-        logicIndex: slot.host.logicIndex,
-        rootHealth: 1,
-        rootMaxHealth: 1,
-      };
-      level.platforms.push(wall);
+      const start = topPoint(slot.host, slot.host.x + slot.host.w / 2);
+      const end = topPoint(slot.destination, start.x);
       const ladder = {
         id,
         blockType: AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE,
@@ -284,11 +236,10 @@ export function generateAzospirillumRootLadders({
         destinationLogicIndex: slot.destination.logicIndex,
         originalDestinationY,
         originalDestinationX,
-        blockedRise: slot.host.y - slot.wallTopY,
-        blockedGap: slot.destination.x - (slot.host.x + slot.host.w),
-        actualVerticalSpacing: slot.verticalSpacing,
-        horizontalSpacing: BRANCH_STAGGER * 2,
-        wall,
+        blockedRise: slot.host.y - slot.destination.y,
+        blockedGap: Math.abs(end.x - start.x),
+        actualVerticalSpacing: (slot.host.y - slot.destination.y) / (config.stepCount + 1),
+        horizontalSpacing: slot.dx,
         sourceAzospirillumLogicIndex: firstAzospirillum,
         sourceExudateLogicIndex: firstExudate,
         growthDurationSeconds: config.growthDurationSeconds,
@@ -300,10 +251,10 @@ export function generateAzospirillumRootLadders({
         colony: null,
         announced: false,
         phase: random() * TAU,
-        startX: slot.wallX + WALL_WIDTH / 2,
-        startY: slot.host.y,
-        endX: slot.wallX + WALL_WIDTH / 2,
-        endY: slot.wallTopY,
+        startX: start.x,
+        startY: start.y,
+        endX: end.x,
+        endY: end.y,
         steps: [],
       };
       ladder.steps = buildSteps(slot, config, id);
@@ -477,42 +428,40 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    const wall = ladder.wall;
-    const wallCenter = wall.x + wall.w / 2;
-    const wallGradient = ctx.createLinearGradient(wall.x, 0, wall.x + wall.w, 0);
-    wallGradient.addColorStop(0, '#72513c');
-    wallGradient.addColorStop(.45, '#bb8c5c');
-    wallGradient.addColorStop(1, '#5f4235');
-    ctx.fillStyle = wallGradient;
-    ctx.shadowColor = 'rgba(126,224,157,.35)';
-    ctx.shadowBlur = 8;
-    ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(151,232,158,.72)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(wall.x, wall.y, wall.w, wall.h);
-    ctx.strokeStyle = 'rgba(238,213,169,.28)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(wall.x + wall.w * .33, wall.y + 8);
-    ctx.bezierCurveTo(
-      wall.x + wall.w * .18,
-      wall.y + wall.h * .35,
-      wall.x + wall.w * .7,
-      wall.y + wall.h * .68,
-      wall.x + wall.w * .52,
-      wall.y + wall.h - 8,
+    const points = [
+      { x: ladder.startX, y: ladder.startY },
+      ...ladder.steps.map(step => ({ x: step.centerX, y: step.y + step.currentHeight / 2 })),
+      { x: ladder.endX, y: ladder.endY },
+    ];
+    const visibleSegments = clamp(
+      Math.ceil(ladder.visibleProgress * (points.length - 1)),
+      0,
+      points.length - 1,
     );
-    ctx.stroke();
 
-    // A ligação com a raiz hospedeira é curta; a navegação cresce para cima,
-    // nunca como uma passarela horizontal até a próxima plataforma.
-    ctx.strokeStyle = '#9b704c';
-    ctx.lineWidth = 9;
-    ctx.beginPath();
-    ctx.moveTo(ladder.host.x + ladder.host.w - 18, ladder.host.y + 12);
-    ctx.quadraticCurveTo(wall.x - 18, ladder.host.y + 18, wallCenter, ladder.host.y + 8);
-    ctx.stroke();
+    // Mesma topologia da antiga ponte vertical da micorriza: a estrutura
+    // detecta a raiz superior e cresce do bloco inferior até ela. Aqui o
+    // traço é radicular, não hifal.
+    if (visibleSegments > 0) {
+      ctx.strokeStyle = ladder.developed ? '#a7784f' : '#c3a172';
+      ctx.lineWidth = 5 + ladder.visibleProgress * 2;
+      ctx.shadowColor = '#72e8dd';
+      ctx.shadowBlur = ladder.developed ? 3 : 8;
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let index = 1; index <= visibleSegments; index++) {
+        const previous = points[index - 1];
+        const point = points[index];
+        ctx.quadraticCurveTo(
+          lerp(previous.x, point.x, .55) + Math.sin(index * 1.8 + ladder.phase) * 5,
+          lerp(previous.y, point.y, .5),
+          point.x,
+          point.y,
+        );
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
 
     if (ladder.progress === 0) {
       ctx.font = '700 12px Inter,system-ui';
@@ -554,17 +503,19 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
       }
     }
 
-    const wallHairCount = Math.floor(ladder.visibleProgress * 14);
+    const rootHairCount = Math.floor(ladder.visibleProgress * 12);
     ctx.strokeStyle = 'rgba(214,239,190,.6)';
     ctx.lineWidth = 1;
-    for (let index = 0; index < wallHairCount; index++) {
-      const y = ladder.host.y - 18 - index / Math.max(1, wallHairCount - 1)
-        * Math.max(20, ladder.host.y - wall.y - 34);
+    for (let index = 0; index < rootHairCount; index++) {
+      const t = (index + 1) / (rootHairCount + 1);
+      const segment = Math.min(points.length - 2, Math.floor(t * (points.length - 1)));
+      const local = t * (points.length - 1) - segment;
+      const x = lerp(points[segment].x, points[segment + 1].x, local);
+      const y = lerp(points[segment].y, points[segment + 1].y, local);
       const side = index % 2 === 0 ? -1 : 1;
-      const x = side < 0 ? wall.x : wall.x + wall.w;
       ctx.beginPath();
       ctx.moveTo(x, y);
-      ctx.lineTo(x + side * (8 + index % 4 * 2), y - 5);
+      ctx.lineTo(x + side * (8 + index % 4 * 2), y - 4);
       ctx.stroke();
     }
 
