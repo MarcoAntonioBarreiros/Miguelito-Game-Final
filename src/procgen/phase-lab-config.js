@@ -7,11 +7,12 @@ import {
   AZOSPIRILLUM_NITROGEN_DEFAULTS,
   MYCORRHIZA_BRIDGE_DEFAULTS,
   campaignManifest,
+  getProceduralPoolAt,
   validateCampaignManifest,
 } from './campaign-manifest.js';
 import { createRandom } from './random.js';
 
-export const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v1';
+export const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v2';
 export const PHASE_LAB_MAX_RESOURCES = 100;
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -53,7 +54,9 @@ export function createDefaultPhaseLabConfig(phase = 1) {
     theme: base.theme,
     mission: base.mission,
     segments: clone(base.segments),
-    allowedOrganisms: [...ECOLOGY_ROAMING_TYPES],
+    // O ensaio nasce com o pool curricular real da fase. Outros organismos
+    // continuam disponiveis no seletor, mas nao invadem o teste por padrao.
+    allowedOrganisms: getProceduralPoolAt(base.phase, base.totalChunks - 1),
     allowedPathogens: base.pathogenDebuts.map(entry => entry.pathogen)
       .filter(type => !MVP_EXCLUDED_PATHOGENS.includes(type)),
     resources: {
@@ -63,7 +66,11 @@ export function createDefaultPhaseLabConfig(phase = 1) {
     },
     nitrogenRoot: {
       ...(base.nitrogenRoot || NITROGEN_ROOT_DEFAULTS),
-      enabled: base.phase >= 2 && (base.nitrogenRoot?.enabled ?? NITROGEN_ROOT_DEFAULTS.enabled),
+      // O laboratório abre cada fase focado em sua mecânica nova. A raiz de
+      // FBN continua disponível manualmente nas fases posteriores, mas não
+      // antecede por padrão o ensaio da escada de Azospirillum na Fase 3.
+      enabled: base.phase === 2
+        && (base.nitrogenRoot?.enabled ?? NITROGEN_ROOT_DEFAULTS.enabled),
     },
     azospirillumRootLadder: {
       ...(base.azospirillumRootLadder || AZOSPIRILLUM_ROOT_LADDER_DEFAULTS),
