@@ -37,6 +37,12 @@ test('configuracao altera perfil, segmentos, organismos, recursos e prova final 
   config.allowedOrganisms = ['pseudomonas', 'trichoderma'];
   config.allowedPathogens = ['rhizoctonia'];
   config.resources = { exudates: 7, crystals: 2, checkpoints: 1 };
+  config.nitrogenRoot = {
+    enabled: true,
+    count: 2,
+    requiredFixationRate: .08,
+    growthDurationSeconds: 6,
+  };
   config.finalGoal = 'Neutralizar um foco e alcancar a raiz.';
   config.finalConditions = [
     { type: 'worldState', key: 'neutralizedOpportunisticFungusCount', operator: '>=', value: 1 },
@@ -53,6 +59,7 @@ test('configuracao altera perfil, segmentos, organismos, recursos e prova final 
   assert.deepEqual(getProceduralPoolAt(5, 0), ['pseudomonas', 'trichoderma']);
   assert.deepEqual(getPathogensAt(5, 0), ['rhizoctonia']);
   assert.deepEqual(active.phaseLab.resources, config.resources);
+  assert.deepEqual(active.nitrogenRoot, config.nitrogenRoot);
   assert.equal(active.finalTest.goal, config.finalGoal);
 });
 
@@ -86,4 +93,5 @@ test('exporta uma entrada completa compativel com o formato do manifesto', () =>
   assert.ok(Array.isArray(exported.presentations));
   assert.ok(Array.isArray(exported.finalTest.requires));
   assert.deepEqual(exported.phaseLab.allowedOrganisms, ['azospirillum']);
+  assert.deepEqual(exported.nitrogenRoot, config.nitrogenRoot);
 });

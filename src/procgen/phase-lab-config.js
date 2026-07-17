@@ -2,6 +2,7 @@ import {
   ECOLOGY_ROAMING_TYPES,
   MVP_EXCLUDED_PATHOGENS,
   PATHOGEN_SYSTEMS,
+  NITROGEN_ROOT_DEFAULTS,
   campaignManifest,
   validateCampaignManifest,
 } from './campaign-manifest.js';
@@ -56,6 +57,10 @@ export function createDefaultPhaseLabConfig(phase = 1) {
       exudates: null,
       crystals: null,
       checkpoints: null,
+    },
+    nitrogenRoot: {
+      ...(base.nitrogenRoot || NITROGEN_ROOT_DEFAULTS),
+      enabled: base.phase >= 2 && (base.nitrogenRoot?.enabled ?? NITROGEN_ROOT_DEFAULTS.enabled),
     },
     finalGoal: base.finalTest.goal,
     finalConditions: clone(base.finalTest.requires),
@@ -113,6 +118,14 @@ export function buildPhaseLabManifest(config) {
     .filter(type => ECOLOGY_ROAMING_TYPES.includes(type));
   const allowedPathogens = [...new Set(config.allowedPathogens || [])]
     .filter(type => PATHOGEN_SYSTEMS.includes(type) && !MVP_EXCLUDED_PATHOGENS.includes(type));
+  const nitrogenRootInput = config.nitrogenRoot || base.nitrogenRoot || NITROGEN_ROOT_DEFAULTS;
+  const nitrogenRoot = {
+    ...(base.nitrogenRoot || NITROGEN_ROOT_DEFAULTS),
+    enabled: base.phase >= 2 && Boolean(nitrogenRootInput.enabled),
+    count: clamp(Math.round(Number(nitrogenRootInput.count) || 0), 0, 8),
+    requiredFixationRate: Number(nitrogenRootInput.requiredFixationRate),
+    growthDurationSeconds: Number(nitrogenRootInput.growthDurationSeconds),
+  };
 
   return {
     ...clone(base),
@@ -124,6 +137,7 @@ export function buildPhaseLabManifest(config) {
     presentations,
     unlockEvents,
     pathogenDebuts,
+    nitrogenRoot,
     finalTest: {
       ...clone(base.finalTest),
       goal: String(config.finalGoal || base.finalTest.goal).trim(),

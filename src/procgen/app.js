@@ -1,5 +1,6 @@
 import { generateLevel } from './generator.js';
 import { generateCampaignEncounters } from './campaign-encounters.js';
+import { generateUnderdevelopedNitrogenRoots } from './nitrogen-root.js';
 import { createCampaignObjectiveEvaluator } from './campaign-objectives.js';
 import { applyPhaseOneVerticalSlice, createFixedBlockRuntime } from './phase-one-vertical-slice.js';
 import { getPhaseManifest } from './campaign-manifest.js';
@@ -134,6 +135,18 @@ function prepareLevel() {
   levelData = decorateCampaignLevel(generateLevel(seed), campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
+  levelData.microbeEncounters = generateCampaignEncounters({
+    platforms: levelData.platforms,
+    phase: campaign.phase,
+    seedValue: seed,
+  }).concat(levelData.authoredEncounters || []);
+  generateUnderdevelopedNitrogenRoots({
+    level: levelData,
+    phase: campaign.phase,
+    seedValue: seed,
+    encounters: levelData.microbeEncounters,
+    config: getPhaseManifest(campaign.phase)?.nitrogenRoot,
+  });
   installFinalGoal(levelData);
 }
 
@@ -175,11 +188,6 @@ function initGame({ announce = false } = {}) {
   sim.state.gameState = 'play';
   sim.state.mission = profile.mission;
   cameraView.resetTracking();
-  levelData.microbeEncounters = generateCampaignEncounters({
-    platforms: levelData.platforms,
-    phase: campaign.phase,
-    seedValue: seed,
-  }).concat(levelData.authoredEncounters || []);
   sim.resetEcology(levelData.microbeEncounters);
   sim.resetBiology();
   ralstoniaControl.initialize();
@@ -316,6 +324,7 @@ function renderWorld() {
     sim.pseudomonasSiderophores.render(ctx);
     sim.azospirillumRootGrowth.render(ctx);
     sim.rhizobiumNodulation.render(ctx);
+    sim.nitrogenRootDevelopment.render(ctx);
     sim.trichodermaColonies.render(ctx);
     sim.trichoderma.render(ctx);
     trichodermaRhizoctoniaControl.render(ctx);

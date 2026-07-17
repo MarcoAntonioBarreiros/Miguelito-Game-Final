@@ -875,6 +875,7 @@ const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
 const { generateLevel } = __require("src/procgen/generator.js");
 const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");
+const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");
 const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");
 const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");
 const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
@@ -992,6 +993,18 @@ function prepareLevel() {
   levelData = decorateCampaignLevel(generateLevel(seed), campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
+  levelData.microbeEncounters = generateCampaignEncounters({
+    platforms: levelData.platforms,
+    phase: campaign.phase,
+    seedValue: seed,
+  }).concat(levelData.authoredEncounters || []);
+  generateUnderdevelopedNitrogenRoots({
+    level: levelData,
+    phase: campaign.phase,
+    seedValue: seed,
+    encounters: levelData.microbeEncounters,
+    config: getPhaseManifest(campaign.phase)?.nitrogenRoot,
+  });
   installFinalGoal(levelData);
 }
 
@@ -1033,11 +1046,6 @@ function initGame({ announce = false } = {}) {
   sim.state.gameState = 'play';
   sim.state.mission = profile.mission;
   cameraView.resetTracking();
-  levelData.microbeEncounters = generateCampaignEncounters({
-    platforms: levelData.platforms,
-    phase: campaign.phase,
-    seedValue: seed,
-  }).concat(levelData.authoredEncounters || []);
   sim.resetEcology(levelData.microbeEncounters);
   sim.resetBiology();
   ralstoniaControl.initialize();
@@ -1174,6 +1182,7 @@ function renderWorld() {
     sim.pseudomonasSiderophores.render(ctx);
     sim.azospirillumRootGrowth.render(ctx);
     sim.rhizobiumNodulation.render(ctx);
+    sim.nitrogenRootDevelopment.render(ctx);
     sim.trichodermaColonies.render(ctx);
     sim.trichoderma.render(ctx);
     trichodermaRhizoctoniaControl.render(ctx);
@@ -1764,6 +1773,12 @@ const PRESENTATION_POLICIES = Object.freeze([
 const SEGMENT_KINDS = Object.freeze(['fixed', 'procedural', 'final']);
 const DERIVED_TRIGGER_BEHAVIORS = Object.freeze(['guide-only', 'open-in-guided']);
 const MVP_EXCLUDED_PATHOGENS = Object.freeze(['ralstonia']);
+const NITROGEN_ROOT_DEFAULTS = Object.freeze({
+  enabled: true,
+  count: 1,
+  requiredFixationRate: 0.05,
+  growthDurationSeconds: 4,
+});
 
 const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
   'action-exudate': Object.freeze(['action-exudate', 'action-inoculation']),
@@ -1883,6 +1898,7 @@ const phases = [
 
   {
     id: 'phase-2', phase: 2, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Rhizobium, nódulo e FBN', theme: 'simbiose',
     mission: 'Estabeleça um nódulo maduro e mantenha a fixação de nitrogênio ativa.',
     newConcepts: ['Rhizobium→nódulo→FBN'], newCommand: null,
@@ -1916,6 +1932,7 @@ const phases = [
 
   {
     id: 'phase-3', phase: 3, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Azospirillum e arquitetura radicular', theme: 'arquitetura',
     mission: 'Induza raízes laterais e use o salto duplo para alcançar novas rotas.',
     newConcepts: ['Azospirillum→raiz lateral'], newCommand: 'doubleJump',
@@ -1957,6 +1974,7 @@ const phases = [
 
   {
     id: 'phase-4', phase: 4, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Micorriza e expansão do solo explorado', theme: 'expansão',
     mission: 'Estabeleça a micorriza, atravesse uma ponte hifal e domine o Dash.',
     newConcepts: ['micorriza→arbúsculo→absorção→ponte'], newCommand: 'dash',
@@ -1996,6 +2014,7 @@ const phases = [
 
   {
     id: 'phase-5', phase: 5, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Ferro e biocontrole fúngico', theme: 'equilíbrio',
     mission: 'Construa reserva de ferro e use Trichoderma contra fungos oportunistas.',
     newConcepts: ['Pseudomonas→sideróforo→ferro', 'oportunista→Trichoderma→micoparasitismo'], newCommand: null,
@@ -2049,6 +2068,7 @@ const phases = [
 
   {
     id: 'phase-6', phase: 6, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Rhizoctonia, saúde da raiz e Pulso', theme: 'patologia',
     mission: 'Controle Rhizoctonia, recupere a sustentação da raiz e libere o Pulso.',
     newConcepts: ['Rhizoctonia→lesão→saúde/recuperação'], newCommand: 'pulse',
@@ -2098,6 +2118,7 @@ const phases = [
 
   {
     id: 'phase-7', phase: 7, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Meloidogyne: infecção, reprodução e sequela', theme: 'infestação',
     mission: 'Impeça novas penetrações, neutralize massas de ovos e preserve uma raiz.',
     newConcepts: ['J2→penetração→galha', 'fêmea→massa de ovos→sequela'], newCommand: null,
@@ -2141,6 +2162,7 @@ const phases = [
 
   {
     id: 'phase-8', phase: 8, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Ecossistema integrado', theme: 'síntese',
     mission: 'Proteja, controle, recupere e atravesse usando tudo o que aprendeu.',
     newConcepts: [], newCommand: null,
@@ -2461,6 +2483,21 @@ function validateCampaignManifest({
       return;
     }
 
+    if (phase.nitrogenRoot) {
+      const nitrogenRoot = phase.nitrogenRoot;
+      if (typeof nitrogenRoot.enabled !== 'boolean') errors.push(`${phase.id}: nitrogenRoot.enabled invalido.`);
+      if (nitrogenRoot.enabled && phase.phase < 2) errors.push(`${phase.id}: nitrogenRoot nao pode existir antes da fase 2.`);
+      if (!Number.isInteger(nitrogenRoot.count) || nitrogenRoot.count < 0 || nitrogenRoot.count > 8) {
+        errors.push(`${phase.id}: nitrogenRoot.count invalido.`);
+      }
+      if (!Number.isFinite(nitrogenRoot.requiredFixationRate) || nitrogenRoot.requiredFixationRate <= 0) {
+        errors.push(`${phase.id}: nitrogenRoot.requiredFixationRate invalido.`);
+      }
+      if (!Number.isFinite(nitrogenRoot.growthDurationSeconds) || nitrogenRoot.growthDurationSeconds <= 0) {
+        errors.push(`${phase.id}: nitrogenRoot.growthDurationSeconds invalido.`);
+      }
+    }
+
     const coverage = new Array(phase.totalChunks).fill(0);
     const segmentIds = new Set();
     const segmentById = new Map();
@@ -2599,7 +2636,7 @@ function validateCampaignManifest({
 
   return errors;
 }
-Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getActiveCampaignManifest, setPhaseManifestOverride, clearPhaseManifestOverride, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
+Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, NITROGEN_ROOT_DEFAULTS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getActiveCampaignManifest, setPhaseManifestOverride, clearPhaseManifestOverride, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
 },
 "src/procgen/primitives.js": (__exports, __require) => {
 const { createSimulator } = __require("src/procgen/simulator.js");
@@ -2759,12 +2796,15 @@ Object.assign(__exports, { generatePrimitives });
 "src/procgen/simulator.js": (__exports, __require) => {
 const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");
 const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");
-const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
+const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");
+const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");
+const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
 function createEmptyLevel() {
   return {
     platforms: [], hazards: [], crystals: [], enemies: [], exudates: [],
     allies: [], checkpoints: [], particles: [], pulses: [], goal: null,
     exudateClouds: [], biofilms: [], beneficialColonies: [], rhizobiumNodules: [],
+    nitrogenRoots: [],
     azospirillumRoots: [], ironDeposits: [], siderophores: [],
     nematodeEggMasses: [], nematodeJuveniles: [], rootGalls: [],
   };
@@ -2882,6 +2922,7 @@ function createSimulator() {
     inoculants: beneficialInoculants,
   });
   const rhizobiumNodulation = createRhizobiumNodulation({ state, entities, inoculants: beneficialInoculants });
+  const nitrogenRootDevelopment = createNitrogenRootDevelopment({ state, entities });
   const azospirillumRootGrowth = createAzospirillumRootGrowth({ state, entities, inoculants: beneficialInoculants });
   const azospirillumRootSafety = createAzospirillumRootSafety({ state, rootGrowth: azospirillumRootGrowth });
   const meloidogyneLifecycle = createMeloidogyneLifecycle({ state, entities });
@@ -2897,6 +2938,7 @@ function createSimulator() {
   state.pseudomonasSiderophores = pseudomonasSiderophores;
   state.bacillusBioprotection = bacillusBioprotection;
   state.rhizobiumNodulation = rhizobiumNodulation;
+  state.nitrogenRootDevelopment = nitrogenRootDevelopment;
   state.azospirillumRootGrowth = azospirillumRootGrowth;
   state.azospirillumRootSafety = azospirillumRootSafety;
   state.meloidogyneLifecycle = meloidogyneLifecycle;
@@ -2921,6 +2963,7 @@ function createSimulator() {
     bacillusBioprotection.clear();
     meloidogyneLifecycle.clear();
     beneficialInoculants.clear();
+    nitrogenRootDevelopment.clear();
     rhizobiumNodulation.clear();
     mycorrhizaStructures.clear();
     ecology.clear();
@@ -2949,6 +2992,7 @@ function createSimulator() {
     pseudomonasSiderophores.reset();
     bacillusBioprotection.reset();
     rhizobiumNodulation.reset();
+    nitrogenRootDevelopment.reset();
     meloidogyneLifecycle.reset();
     pathogenSurvival.reset();
   }
@@ -2978,6 +3022,7 @@ function createSimulator() {
     }
 
     rhizobiumNodulation.update(dt);
+    nitrogenRootDevelopment.update(dt);
     trichodermaColonies.update(dt);
     gameplay.update(dt);
     bacillusBioprotection.update(dt);
@@ -3000,7 +3045,7 @@ function createSimulator() {
     state, input, entities, ecology, mycorrhiza, mycorrhizaStructures,
     trichoderma, recruitment, trichodermaColonies, beneficialInoculants,
     pseudomonasSiderophores, bacillusBioprotection, bacillusBioprotectionSafety,
-    rhizobiumNodulation, azospirillumRootGrowth, azospirillumRootSafety,
+    rhizobiumNodulation, nitrogenRootDevelopment, azospirillumRootGrowth, azospirillumRootSafety,
     meloidogyneLifecycle, pathogenSurvival, goal, gameplay,
     reset, resetEcology, resetBiology, setInputs, step,
   };
@@ -8671,6 +8716,303 @@ function createRhizobiumNodulation({ state, entities, inoculants }) {
 }
 Object.assign(__exports, { createRhizobiumNodulation });
 },
+"src/procgen/nitrogen-root.js": (__exports, __require) => {
+const { W } = __require("src/core/constants.js");
+const { createRandom } = __require("src/procgen/random.js");
+const NITROGEN_ROOT_BLOCK_TYPE = 'underdeveloped-nitrogen-root';
+
+const TAU = Math.PI * 2;
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const lerp = (a, b, t) => a + (b - a) * t;
+
+function routePlatforms(level) {
+  return (level.platforms || [])
+    .filter(platform => !platform.recovery && !platform.final && Number.isInteger(platform.logicIndex))
+    .sort((left, right) => left.logicIndex - right.logicIndex || left.x - right.x);
+}
+
+function colonizableRoot(platform) {
+  return Boolean(
+    platform
+    && platform.type === 'root'
+    && !platform.mycorrhizaStructure
+    && !platform.azospirillumStructure
+    && !platform.nitrogenRootCollider
+    && !platform.fixedObjective,
+  );
+}
+
+function shuffled(values, random) {
+  const result = [...values];
+  for (let index = result.length - 1; index > 0; index--) {
+    const target = Math.floor(random() * (index + 1));
+    [result[index], result[target]] = [result[target], result[index]];
+  }
+  return result;
+}
+
+function generateUnderdevelopedNitrogenRoots({
+  level,
+  phase,
+  seedValue,
+  encounters = [],
+  config,
+} = {}) {
+  level.nitrogenRoots = [];
+  if (phase < 2 || !config?.enabled || config.count <= 0) return level.nitrogenRoots;
+
+  const rhizobiumIndexes = encounters
+    .filter(encounter => encounter.id === 'rhizobium' && Number.isInteger(encounter.logicIndex))
+    .map(encounter => encounter.logicIndex)
+    .sort((left, right) => left - right);
+  if (!rhizobiumIndexes.length) return level.nitrogenRoots;
+
+  const firstRhizobium = rhizobiumIndexes[0];
+  const exudateIndexes = (level.exudates || [])
+    .filter(exudate => Number.isInteger(exudate.logicIndex) && exudate.logicIndex > firstRhizobium)
+    .map(exudate => exudate.logicIndex)
+    .sort((left, right) => left - right);
+  if (!exudateIndexes.length) return level.nitrogenRoots;
+
+  const firstExudate = exudateIndexes[0];
+  const route = routePlatforms(level);
+  const hosts = route.filter(platform => colonizableRoot(platform) && platform.logicIndex > firstExudate);
+  if (!hosts.length) return level.nitrogenRoots;
+
+  const random = createRandom(`${seedValue}:nitrogen-root:p${phase}`);
+  const selected = shuffled(hosts, random).slice(0, Math.min(config.count, hosts.length));
+  level.nitrogenRoots = selected.map((hostPlatform, index) => {
+    const targetWidth = 150 + Math.round(random() * 72);
+    const targetHeight = 48 + Math.round(random() * 12);
+    return {
+      id: `nitrogen-root-${hostPlatform.logicIndex}-${index}`,
+      blockType: NITROGEN_ROOT_BLOCK_TYPE,
+      hostPlatform,
+      hostLogicIndex: hostPlatform.logicIndex,
+      sourceRhizobiumLogicIndex: firstRhizobium,
+      sourceExudateLogicIndex: firstExudate,
+      x: hostPlatform.x + hostPlatform.w - 24,
+      y: clamp(hostPlatform.y - 72 + Math.round((random() - .5) * 18), 245, 565),
+      startWidth: 34,
+      startHeight: 8,
+      targetWidth,
+      targetHeight,
+      currentWidth: 34,
+      currentHeight: 8,
+      progress: 0,
+      functionalProgress: 0,
+      stage: 'underdeveloped',
+      developed: false,
+      paused: false,
+      requiredFixationRate: config.requiredFixationRate,
+      growthDurationSeconds: config.growthDurationSeconds,
+      phase: random() * TAU,
+      collider: null,
+      activeSite: null,
+      announced: false,
+    };
+  });
+  return level.nitrogenRoots;
+}
+
+function removeCollider(state, root) {
+  if (!root.collider) return;
+  const index = (state.level.platforms || []).indexOf(root.collider);
+  if (index >= 0) state.level.platforms.splice(index, 1);
+  root.collider = null;
+}
+
+function updateCollider(state, root) {
+  const fullyDeveloped = root.developed && root.progress >= 1;
+  root.functionalProgress = fullyDeveloped ? 1 : 0;
+  if (!fullyDeveloped) {
+    removeCollider(state, root);
+    return;
+  }
+  if (!root.collider) {
+    root.collider = {
+      type: 'root',
+      nitrogenRootCollider: true,
+      nitrogenRootId: root.id,
+      logicIndex: root.hostLogicIndex,
+      rootHealth: 1,
+      rootMaxHealth: 1,
+      supportIntegrity: 1,
+    };
+    state.level.platforms.push(root.collider);
+  }
+  Object.assign(root.collider, {
+    x: root.x,
+    y: root.y,
+    w: root.targetWidth,
+    h: root.targetHeight,
+    oneWay: false,
+    mature: true,
+  });
+}
+
+function associatedNodule(state, root) {
+  return (state.level.rhizobiumNodules || []).find(site => site.platform === root.hostPlatform) || null;
+}
+
+function createNitrogenRootDevelopment({ state, entities = null } = {}) {
+  function clear() {
+    for (const root of state.level.nitrogenRoots || []) removeCollider(state, root);
+    state.level.nitrogenRoots = [];
+  }
+
+  function reset() {
+    for (const root of state.level.nitrogenRoots || []) {
+      removeCollider(state, root);
+      root.progress = 0;
+      root.functionalProgress = 0;
+      root.currentWidth = root.startWidth;
+      root.currentHeight = root.startHeight;
+      root.stage = 'underdeveloped';
+      root.developed = false;
+      root.paused = false;
+      root.activeSite = null;
+      root.announced = false;
+    }
+  }
+
+  function updateRoot(root, dt) {
+    if (root.developed) {
+      root.progress = 1;
+      root.currentWidth = root.targetWidth;
+      root.currentHeight = root.targetHeight;
+      updateCollider(state, root);
+      return;
+    }
+
+    const site = associatedNodule(state, root);
+    root.activeSite = site;
+    const mature = Boolean(site?.mature || site?.stage === 'mature-nodule');
+    const fixationActive = mature && (site.fixationRate || 0) >= root.requiredFixationRate;
+    root.paused = root.progress > 0 && !fixationActive;
+    if (!fixationActive) {
+      updateCollider(state, root);
+      return;
+    }
+
+    const wasStarted = root.progress > 0;
+    root.progress = clamp(root.progress + dt / Math.max(.1, root.growthDurationSeconds), 0, 1);
+    root.currentWidth = lerp(root.startWidth, root.targetWidth, root.progress);
+    root.currentHeight = lerp(root.startHeight, root.targetHeight, root.progress);
+    root.stage = root.progress < .22
+      ? 'receiving-nitrogen'
+      : root.progress < 1 ? 'growing' : 'developed';
+    root.developed = root.progress >= 1;
+    root.paused = false;
+    updateCollider(state, root);
+
+    if (!wasStarted) entities?.burst?.(site.x, site.surfaceY + site.depth, '#ffd783', 18, 75);
+    if (root.developed && !root.announced) {
+      root.announced = true;
+      state.toast = 'FBN ativa: o nitrogenio sustentou o desenvolvimento de uma nova plataforma radicular.';
+      state.toastTime = 4.8;
+      entities?.burst?.(root.x + root.targetWidth * .65, root.y, '#d9c48b', 34, 120);
+    }
+  }
+
+  function update(dt) {
+    if (state.gameState !== 'play') return;
+    for (const root of state.level.nitrogenRoots || []) updateRoot(root, dt);
+  }
+
+  function drawRoot(ctx, root) {
+    const progress = clamp(root.progress, 0, 1);
+    const colorProgress = .18 + progress * .82;
+    const width = root.currentWidth;
+    const height = root.currentHeight;
+    const hostX = root.hostPlatform.x + root.hostPlatform.w - 12;
+    const hostY = root.hostPlatform.y + 12;
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = `rgba(${Math.round(180 + colorProgress * 32)},${Math.round(174 + colorProgress * 14)},${Math.round(146 - colorProgress * 34)},${.42 + colorProgress * .5})`;
+    ctx.lineWidth = 3 + progress * 8;
+    ctx.beginPath();
+    ctx.moveTo(hostX, hostY);
+    ctx.bezierCurveTo(hostX + 22, hostY - 12, root.x - 18, root.y + height * .7, root.x + 5, root.y + height * .55);
+    ctx.stroke();
+
+    const gradient = ctx.createLinearGradient(0, root.y, 0, root.y + height);
+    gradient.addColorStop(0, progress < .35 ? '#c8c3a6' : '#d9b477');
+    gradient.addColorStop(.28, progress < .35 ? '#9b9786' : '#ad774e');
+    gradient.addColorStop(1, progress < .35 ? '#5f5b58' : '#2b1c25');
+    ctx.fillStyle = gradient;
+    ctx.strokeStyle = progress >= 1 ? '#98e287' : `rgba(222,213,173,${.35 + progress * .45})`;
+    ctx.lineWidth = 1.4 + progress;
+    ctx.beginPath();
+    ctx.roundRect(root.x, root.y, width, height, 5 + progress * 10);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = `rgba(255,235,181,${.16 + progress * .4})`;
+    ctx.lineWidth = 2 + progress * 3;
+    ctx.beginPath();
+    ctx.moveTo(root.x + 8, root.y + 3);
+    ctx.lineTo(root.x + width - 8, root.y + 3);
+    ctx.stroke();
+
+    if (progress > .38) {
+      const hairProgress = clamp((progress - .38) / .62, 0, 1);
+      const count = Math.floor(2 + hairProgress * 11);
+      ctx.strokeStyle = `rgba(230,218,185,${.24 + hairProgress * .52})`;
+      ctx.lineWidth = 1;
+      for (let index = 0; index < count; index++) {
+        const x = root.x + 14 + (index + .5) / count * Math.max(8, width - 28);
+        const direction = index % 2 ? 1 : -1;
+        ctx.beginPath();
+        ctx.moveTo(x, root.y + height - 2);
+        ctx.quadraticCurveTo(x + direction * 6, root.y + height + 8, x + direction * 10, root.y + height + 15 + (index % 3) * 3);
+        ctx.stroke();
+      }
+    }
+
+    const site = root.activeSite;
+    if (site?.mature && (site.fixationRate || 0) >= root.requiredFixationRate && !root.developed) {
+      const sourceY = site.surfaceY + site.depth;
+      for (let index = 0; index < 7; index++) {
+        const travel = (state.time * .5 + index / 7 + root.phase) % 1;
+        const x = lerp(site.x, root.x + Math.min(width * .72, root.targetWidth * .6), travel);
+        const y = lerp(sourceY, root.y + height * .42, travel) - Math.sin(travel * Math.PI) * 18;
+        ctx.globalAlpha = .3 + .65 * Math.sin(travel * Math.PI);
+        ctx.fillStyle = index % 2 ? '#ffd783' : '#8db8ff';
+        ctx.beginPath();
+        ctx.arc(x, y, 2.2 + (index % 2), 0, TAU);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
+  function render(ctx) {
+    const roots = state.level.nitrogenRoots || [];
+    if (!roots.length) return;
+    ctx.save();
+    ctx.translate(-state.cameraX, 0);
+    for (const root of roots) {
+      if (root.x + root.currentWidth < state.cameraX - 100 || root.x > state.cameraX + W + 100) continue;
+      drawRoot(ctx, root);
+    }
+    ctx.restore();
+  }
+
+  return {
+    clear,
+    reset,
+    update,
+    render,
+    get rootCount() { return (state.level.nitrogenRoots || []).length; },
+    get developedCount() { return (state.level.nitrogenRoots || []).filter(root => root.developed).length; },
+    get growingCount() { return (state.level.nitrogenRoots || []).filter(root => root.progress > 0 && !root.developed).length; },
+  };
+}
+Object.assign(__exports, { NITROGEN_ROOT_BLOCK_TYPE, generateUnderdevelopedNitrogenRoots, createNitrogenRootDevelopment });
+},
 "src/procgen/azospirillum-root-growth.js": (__exports, __require) => {
 const { W } = __require("src/core/constants.js");
 const TAU = Math.PI * 2;
@@ -11574,7 +11916,7 @@ function createFixedBlockRuntime({ state, evaluator, entities, ecology = null })
 Object.assign(__exports, { applyPhaseOneVerticalSlice, createFixedBlockRuntime });
 },
 "src/procgen/phase-lab-config.js": (__exports, __require) => {
-const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, campaignManifest, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");
+const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, NITROGEN_ROOT_DEFAULTS, campaignManifest, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");
 const { createRandom } = __require("src/procgen/random.js");
 const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v1';
 const PHASE_LAB_MAX_RESOURCES = 100;
@@ -11625,6 +11967,10 @@ function createDefaultPhaseLabConfig(phase = 1) {
       exudates: null,
       crystals: null,
       checkpoints: null,
+    },
+    nitrogenRoot: {
+      ...(base.nitrogenRoot || NITROGEN_ROOT_DEFAULTS),
+      enabled: base.phase >= 2 && (base.nitrogenRoot?.enabled ?? NITROGEN_ROOT_DEFAULTS.enabled),
     },
     finalGoal: base.finalTest.goal,
     finalConditions: clone(base.finalTest.requires),
@@ -11682,6 +12028,14 @@ function buildPhaseLabManifest(config) {
     .filter(type => ECOLOGY_ROAMING_TYPES.includes(type));
   const allowedPathogens = [...new Set(config.allowedPathogens || [])]
     .filter(type => PATHOGEN_SYSTEMS.includes(type) && !MVP_EXCLUDED_PATHOGENS.includes(type));
+  const nitrogenRootInput = config.nitrogenRoot || base.nitrogenRoot || NITROGEN_ROOT_DEFAULTS;
+  const nitrogenRoot = {
+    ...(base.nitrogenRoot || NITROGEN_ROOT_DEFAULTS),
+    enabled: base.phase >= 2 && Boolean(nitrogenRootInput.enabled),
+    count: clamp(Math.round(Number(nitrogenRootInput.count) || 0), 0, 8),
+    requiredFixationRate: Number(nitrogenRootInput.requiredFixationRate),
+    growthDurationSeconds: Number(nitrogenRootInput.growthDurationSeconds),
+  };
 
   return {
     ...clone(base),
@@ -11693,6 +12047,7 @@ function buildPhaseLabManifest(config) {
     presentations,
     unlockEvents,
     pathogenDebuts,
+    nitrogenRoot,
     finalTest: {
       ...clone(base.finalTest),
       goal: String(config.finalGoal || base.finalTest.goal).trim(),
@@ -11901,6 +12256,14 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
         <label>Cristais<input data-resource="crystals" type="number" min="0" max="100"></label>
         <label>Checkpoints<input data-resource="checkpoints" type="number" min="0" max="100"></label>
       </div></fieldset>
+      <fieldset><legend>Raiz dependente de FBN</legend>
+        <label><span><input data-nitrogen="enabled" type="checkbox" style="width:auto"> Ativada</span></label>
+        <div class="resources">
+          <label>Quantidade<input data-nitrogen="count" type="number" min="0" max="8"></label>
+          <label>FBN minima<input data-nitrogen="requiredFixationRate" type="number" min="0.001" step="0.01"></label>
+          <label>Crescimento (s)<input data-nitrogen="growthDurationSeconds" type="number" min="0.1" step="0.5"></label>
+        </div>
+      </fieldset>
       <label>Objetivo final <input data-field="finalGoal"></label>
       <label>Condicoes finais (JSON) <textarea data-field="finalConditions"></textarea></label>
       <div class="phase-lab-status" role="status"></div>
@@ -11926,6 +12289,10 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
       for (const key of ['exudates', 'crystals', 'checkpoints']) {
         panel.querySelector(`[data-resource="${key}"]`).value = next.resources?.[key] ?? '';
       }
+      panel.querySelector('[data-nitrogen="enabled"]').checked = Boolean(next.nitrogenRoot?.enabled);
+      for (const key of ['count', 'requiredFixationRate', 'growthDurationSeconds']) {
+        panel.querySelector(`[data-nitrogen="${key}"]`).value = next.nitrogenRoot?.[key] ?? '';
+      }
     }
     function read() {
       const value = key => panel.querySelector(`[data-field="${key}"]`).value;
@@ -11943,6 +12310,12 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
         allowedOrganisms: checked('[data-organisms]'),
         allowedPathogens: checked('[data-pathogens]'),
         resources: { exudates: resource('exudates'), crystals: resource('crystals'), checkpoints: resource('checkpoints') },
+        nitrogenRoot: {
+          enabled: panel.querySelector('[data-nitrogen="enabled"]').checked,
+          count: Number(panel.querySelector('[data-nitrogen="count"]').value),
+          requiredFixationRate: Number(panel.querySelector('[data-nitrogen="requiredFixationRate"]').value),
+          growthDurationSeconds: Number(panel.querySelector('[data-nitrogen="growthDurationSeconds"]').value),
+        },
         finalGoal: value('finalGoal'),
         finalConditions: JSON.parse(value('finalConditions')),
       };
@@ -12218,6 +12591,7 @@ function createRenderer({ canvas, state, entities }) {
     }
 
     level.platforms.forEach(p => {
+      if (p.nitrogenRootCollider) return;
       const health = p.type === 'root' ? clamp(p.rootHealth ?? 1, .06, 1) : 1;
       const damage = 1 - health;
       const grad = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
@@ -13202,7 +13576,7 @@ function createPlatformVisuals({ state }) {
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
+      if (platform.mycorrhizaStructure || platform.azospirillumStructure || platform.nitrogenRootCollider) continue;
       if (platform.x + platform.w < state.cameraX - 80 || platform.x > state.cameraX + W + 80) continue;
       if (platform.type === 'root') drawRoot(ctx, platform);
       else drawSoil(ctx, platform);
@@ -13218,7 +13592,7 @@ function createPlatformVisuals({ state }) {
     let bestScore = 76;
 
     for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure) continue;
+      if (platform.mycorrhizaStructure || platform.nitrogenRootCollider) continue;
       const horizontal = centerX < platform.x
         ? platform.x - centerX
         : centerX > platform.x + platform.w

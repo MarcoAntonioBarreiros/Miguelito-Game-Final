@@ -213,6 +213,7 @@ export function createRenderer({ canvas, state, entities }) {
     }
 
     level.platforms.forEach(p => {
+      if (p.nitrogenRootCollider) return;
       const health = p.type === 'root' ? clamp(p.rootHealth ?? 1, .06, 1) : 1;
       const damage = 1 - health;
       const grad = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);

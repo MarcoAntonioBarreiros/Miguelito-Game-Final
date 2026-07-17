@@ -255,7 +255,7 @@ export function createPlatformVisuals({ state }) {
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
+      if (platform.mycorrhizaStructure || platform.azospirillumStructure || platform.nitrogenRootCollider) continue;
       if (platform.x + platform.w < state.cameraX - 80 || platform.x > state.cameraX + W + 80) continue;
       if (platform.type === 'root') drawRoot(ctx, platform);
       else drawSoil(ctx, platform);
@@ -271,7 +271,7 @@ export function createPlatformVisuals({ state }) {
     let bestScore = 76;
 
     for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure) continue;
+      if (platform.mycorrhizaStructure || platform.nitrogenRootCollider) continue;
       const horizontal = centerX < platform.x
         ? platform.x - centerX
         : centerX > platform.x + platform.w

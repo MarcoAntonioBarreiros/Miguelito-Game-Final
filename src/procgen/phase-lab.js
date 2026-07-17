@@ -125,6 +125,14 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
         <label>Cristais<input data-resource="crystals" type="number" min="0" max="100"></label>
         <label>Checkpoints<input data-resource="checkpoints" type="number" min="0" max="100"></label>
       </div></fieldset>
+      <fieldset><legend>Raiz dependente de FBN</legend>
+        <label><span><input data-nitrogen="enabled" type="checkbox" style="width:auto"> Ativada</span></label>
+        <div class="resources">
+          <label>Quantidade<input data-nitrogen="count" type="number" min="0" max="8"></label>
+          <label>FBN minima<input data-nitrogen="requiredFixationRate" type="number" min="0.001" step="0.01"></label>
+          <label>Crescimento (s)<input data-nitrogen="growthDurationSeconds" type="number" min="0.1" step="0.5"></label>
+        </div>
+      </fieldset>
       <label>Objetivo final <input data-field="finalGoal"></label>
       <label>Condicoes finais (JSON) <textarea data-field="finalConditions"></textarea></label>
       <div class="phase-lab-status" role="status"></div>
@@ -150,6 +158,10 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
       for (const key of ['exudates', 'crystals', 'checkpoints']) {
         panel.querySelector(`[data-resource="${key}"]`).value = next.resources?.[key] ?? '';
       }
+      panel.querySelector('[data-nitrogen="enabled"]').checked = Boolean(next.nitrogenRoot?.enabled);
+      for (const key of ['count', 'requiredFixationRate', 'growthDurationSeconds']) {
+        panel.querySelector(`[data-nitrogen="${key}"]`).value = next.nitrogenRoot?.[key] ?? '';
+      }
     }
     function read() {
       const value = key => panel.querySelector(`[data-field="${key}"]`).value;
@@ -167,6 +179,12 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
         allowedOrganisms: checked('[data-organisms]'),
         allowedPathogens: checked('[data-pathogens]'),
         resources: { exudates: resource('exudates'), crystals: resource('crystals'), checkpoints: resource('checkpoints') },
+        nitrogenRoot: {
+          enabled: panel.querySelector('[data-nitrogen="enabled"]').checked,
+          count: Number(panel.querySelector('[data-nitrogen="count"]').value),
+          requiredFixationRate: Number(panel.querySelector('[data-nitrogen="requiredFixationRate"]').value),
+          growthDurationSeconds: Number(panel.querySelector('[data-nitrogen="growthDurationSeconds"]').value),
+        },
         finalGoal: value('finalGoal'),
         finalConditions: JSON.parse(value('finalConditions')),
       };

@@ -26,6 +26,12 @@ export const PRESENTATION_POLICIES = Object.freeze([
 export const SEGMENT_KINDS = Object.freeze(['fixed', 'procedural', 'final']);
 export const DERIVED_TRIGGER_BEHAVIORS = Object.freeze(['guide-only', 'open-in-guided']);
 export const MVP_EXCLUDED_PATHOGENS = Object.freeze(['ralstonia']);
+export const NITROGEN_ROOT_DEFAULTS = Object.freeze({
+  enabled: true,
+  count: 1,
+  requiredFixationRate: 0.05,
+  growthDurationSeconds: 4,
+});
 
 export const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
   'action-exudate': Object.freeze(['action-exudate', 'action-inoculation']),
@@ -145,6 +151,7 @@ const phases = [
 
   {
     id: 'phase-2', phase: 2, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Rhizobium, nódulo e FBN', theme: 'simbiose',
     mission: 'Estabeleça um nódulo maduro e mantenha a fixação de nitrogênio ativa.',
     newConcepts: ['Rhizobium→nódulo→FBN'], newCommand: null,
@@ -178,6 +185,7 @@ const phases = [
 
   {
     id: 'phase-3', phase: 3, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Azospirillum e arquitetura radicular', theme: 'arquitetura',
     mission: 'Induza raízes laterais e use o salto duplo para alcançar novas rotas.',
     newConcepts: ['Azospirillum→raiz lateral'], newCommand: 'doubleJump',
@@ -219,6 +227,7 @@ const phases = [
 
   {
     id: 'phase-4', phase: 4, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Micorriza e expansão do solo explorado', theme: 'expansão',
     mission: 'Estabeleça a micorriza, atravesse uma ponte hifal e domine o Dash.',
     newConcepts: ['micorriza→arbúsculo→absorção→ponte'], newCommand: 'dash',
@@ -258,6 +267,7 @@ const phases = [
 
   {
     id: 'phase-5', phase: 5, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Ferro e biocontrole fúngico', theme: 'equilíbrio',
     mission: 'Construa reserva de ferro e use Trichoderma contra fungos oportunistas.',
     newConcepts: ['Pseudomonas→sideróforo→ferro', 'oportunista→Trichoderma→micoparasitismo'], newCommand: null,
@@ -311,6 +321,7 @@ const phases = [
 
   {
     id: 'phase-6', phase: 6, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Rhizoctonia, saúde da raiz e Pulso', theme: 'patologia',
     mission: 'Controle Rhizoctonia, recupere a sustentação da raiz e libere o Pulso.',
     newConcepts: ['Rhizoctonia→lesão→saúde/recuperação'], newCommand: 'pulse',
@@ -360,6 +371,7 @@ const phases = [
 
   {
     id: 'phase-7', phase: 7, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Meloidogyne: infecção, reprodução e sequela', theme: 'infestação',
     mission: 'Impeça novas penetrações, neutralize massas de ovos e preserve uma raiz.',
     newConcepts: ['J2→penetração→galha', 'fêmea→massa de ovos→sequela'], newCommand: null,
@@ -403,6 +415,7 @@ const phases = [
 
   {
     id: 'phase-8', phase: 8, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Ecossistema integrado', theme: 'síntese',
     mission: 'Proteja, controle, recupere e atravesse usando tudo o que aprendeu.',
     newConcepts: [], newCommand: null,
@@ -721,6 +734,21 @@ export function validateCampaignManifest({
     if (!Number.isInteger(phase.totalChunks) || phase.totalChunks <= 0) {
       errors.push(`${phase.id}: totalChunks inválido.`);
       return;
+    }
+
+    if (phase.nitrogenRoot) {
+      const nitrogenRoot = phase.nitrogenRoot;
+      if (typeof nitrogenRoot.enabled !== 'boolean') errors.push(`${phase.id}: nitrogenRoot.enabled invalido.`);
+      if (nitrogenRoot.enabled && phase.phase < 2) errors.push(`${phase.id}: nitrogenRoot nao pode existir antes da fase 2.`);
+      if (!Number.isInteger(nitrogenRoot.count) || nitrogenRoot.count < 0 || nitrogenRoot.count > 8) {
+        errors.push(`${phase.id}: nitrogenRoot.count invalido.`);
+      }
+      if (!Number.isFinite(nitrogenRoot.requiredFixationRate) || nitrogenRoot.requiredFixationRate <= 0) {
+        errors.push(`${phase.id}: nitrogenRoot.requiredFixationRate invalido.`);
+      }
+      if (!Number.isFinite(nitrogenRoot.growthDurationSeconds) || nitrogenRoot.growthDurationSeconds <= 0) {
+        errors.push(`${phase.id}: nitrogenRoot.growthDurationSeconds invalido.`);
+      }
     }
 
     const coverage = new Array(phase.totalChunks).fill(0);
