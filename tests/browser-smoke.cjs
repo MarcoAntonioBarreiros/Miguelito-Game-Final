@@ -17,8 +17,8 @@ const mimeTypes = {
 
 const browserCandidates = [
   process.env.CHROME_PATH,
-  'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
 ].filter(Boolean);
 
 function findBrowserExecutable() {
@@ -68,16 +68,18 @@ function decodeHtml(text) {
 
 async function runHeadlessRunner(baseUrl) {
   const executable = findBrowserExecutable();
-  const userDataDir = fs.mkdtempSync(path.join(root, 'work', 'headless-test-'));
+  const workDir = path.join(root, 'work');
+  fs.mkdirSync(workDir, { recursive: true });
+  const userDataDir = fs.mkdtempSync(path.join(workDir, 'headless-test-'));
   const url = `${baseUrl}/tests/browser-runner.html`;
 
   const child = spawn(executable, [
     '--headless=new',
     '--disable-gpu',
+    '--disable-software-rasterizer',
     '--disable-gpu-compositing',
     '--disable-accelerated-2d-canvas',
-    '--use-angle=swiftshader',
-    '--use-gl=swiftshader',
+    '--no-sandbox',
     '--no-first-run',
     '--no-default-browser-check',
     '--disable-background-networking',

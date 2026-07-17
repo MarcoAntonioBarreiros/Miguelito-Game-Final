@@ -2,52 +2,119 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const entry = path.join(root, 'src', 'main.js');
 const dist = path.join(root, 'dist');
-const seen = new Set();
+const modules = new Map();
+
+const importPattern = /^\s*import\s*\{([\s\S]*?)\}\s*from\s*['"]([^'"]+)['"]\s*;\s*$/gm;
+const moduleScriptPattern = /<script\b(?=[^>]*\btype=["']module["'])[^>]*\bsrc=["']([^"']+)["'][^>]*><\/script>/gi;
+
+function moduleId(file) {
+  return path.relative(root, file).replaceAll(path.sep, '/');
+}
 
 function resolveImport(fromFile, request) {
-  const resolved = path.resolve(path.dirname(fromFile), request);
+  const cleanRequest = request.split(/[?#]/, 1)[0];
+  if (!cleanRequest.startsWith('.')) {
+    throw new Error(`Only local module imports are supported: ${request} in ${moduleId(fromFile)}`);
+  }
+  const resolved = path.resolve(path.dirname(fromFile), cleanRequest);
   return path.extname(resolved) ? resolved : `${resolved}.js`;
 }
 
-function bundleModule(file) {
+function parseImports(file, source) {
+  return [...source.matchAll(importPattern)].map(match => ({
+    bindings: match[1].split(',').map(name => name.trim()).filter(Boolean),
+    file: resolveImport(file, match[2]),
+  }));
+}
+
+function collectModule(file) {
   const normalized = path.normalize(file);
-  if (seen.has(normalized)) return '';
-  seen.add(normalized);
+  if (modules.has(normalized)) return;
+  if (!fs.existsSync(normalized)) throw new Error(`Imported module not found: ${normalized}`);
 
-  let source = fs.readFileSync(normalized, 'utf8');
-  const dependencies = [];
-  source = source.replace(/^import\s+[^'"]+\s+from\s+['"]([^'"]+)['"];\s*$/gm, (_match, request) => {
-    dependencies.push(resolveImport(normalized, request));
-    return '';
+  const source = fs.readFileSync(normalized, 'utf8');
+  const imports = parseImports(normalized, source);
+  modules.set(normalized, { source, imports });
+  for (const dependency of imports) collectModule(dependency.file);
+}
+
+function transformModule(file, record) {
+  const exportedNames = [];
+  let source = record.source.replace(importPattern, (_statement, bindings, request) => {
+    const dependency = resolveImport(file, request);
+    const names = bindings.split(',').map(name => name.trim()).filter(Boolean).join(', ');
+    return `const { ${names} } = __require(${JSON.stringify(moduleId(dependency))});`;
   });
-  source = source.replace(/^export\s+/gm, '');
 
-  const relativeName = path.relative(root, normalized).replaceAll(path.sep, '/');
-  return [
-    ...dependencies.map(bundleModule),
-    `\n// ${relativeName}\n${source.trim()}\n`,
-  ].join('\n');
+  source = source.replace(/^export\s+(function|const)\s+([A-Za-z_$][\w$]*)/gm, (_match, kind, name) => {
+    exportedNames.push(name);
+    return `${kind} ${name}`;
+  });
+
+  if (/^\s*(?:import|export)\b/m.test(source)) {
+    throw new Error(`Unsupported module syntax remains in ${moduleId(file)}`);
+  }
+
+  const publish = exportedNames.length
+    ? `\nObject.assign(__exports, { ${[...new Set(exportedNames)].join(', ')} });`
+    : '';
+  return `${source.trim()}${publish}`.replace(/[ \t]+$/gm, '');
+}
+
+function createBundle(entries) {
+  modules.clear();
+  for (const entry of entries) collectModule(entry);
+
+  const definitions = [...modules.entries()].map(([file, record]) => {
+    const id = moduleId(file);
+    return `${JSON.stringify(id)}: (__exports, __require) => {\n${transformModule(file, record)}\n}`;
+  });
+  const start = entries.map(entry => `__require(${JSON.stringify(moduleId(entry))});`).join('\n');
+
+  return `(() => {
+'use strict';
+const __modules = {
+${definitions.join(',\n')}
+};
+const __cache = Object.create(null);
+function __require(id) {
+  if (__cache[id]) return __cache[id];
+  const factory = __modules[id];
+  if (!factory) throw new Error('Bundled module not found: ' + id);
+  const exports = {};
+  __cache[id] = exports;
+  factory(exports, __require);
+  return exports;
+}
+${start}
+})();`;
 }
 
 function build() {
-  seen.clear();
-  fs.mkdirSync(dist, { recursive: true });
   const htmlPath = path.join(root, 'index.html');
   const html = fs.readFileSync(htmlPath, 'utf8');
-  const bundle = bundleModule(entry);
-  const scriptTag = '<script type="module" src="./src/main.js"></script>';
-  if (!html.includes(scriptTag)) {
-    throw new Error(`Expected module script tag not found in ${htmlPath}`);
+  const moduleScripts = [...html.matchAll(moduleScriptPattern)];
+  if (moduleScripts.length === 0) {
+    throw new Error(`No module script entries found in ${htmlPath}`);
   }
 
-  const standalone = html.replace(scriptTag, `<script>\n(() => {\n'use strict';\n${bundle}\n})();\n</script>`);
+  const entries = moduleScripts.map(match => resolveImport(htmlPath, match[1]));
+  const bundle = createBundle(entries).replace(/<\/script/gi, '<\\/script');
+  let inserted = false;
+  const standalone = html.replace(moduleScriptPattern, () => {
+    if (inserted) return '';
+    inserted = true;
+    return `<script>\n${bundle}\n</script>`;
+  }).replace(/[ \t]+$/gm, '');
+
+  fs.mkdirSync(dist, { recursive: true });
   const outIndex = path.join(dist, 'index.html');
   const outNamed = path.join(dist, 'beans_living_soil_prototype_vertical_v3.html');
   fs.writeFileSync(outIndex, standalone, 'utf8');
   fs.writeFileSync(outNamed, standalone, 'utf8');
   console.log(`Built ${path.relative(root, outIndex)} and ${path.relative(root, outNamed)}`);
+  console.log(`Bundled ${modules.size} modules from ${entries.map(moduleId).join(', ')}`);
 }
 
 build();

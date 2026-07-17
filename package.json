@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.cjs",
-    "test": "npm run test:manifest && node scripts/build.cjs && node tests/browser-smoke.cjs",
+    "test": "npm run test:manifest && npm run build && npm run test:procgen && npm run test:tutorial && npm run test:browser",
     "test:manifest": "node --test tests/campaign-manifest.test.js",
     "test:browser": "node tests/browser-smoke.cjs",
+    "test:procgen": "node --test tests/procgen.test.js",
     "test:tutorial": "node --test tests/tutorial-runtime.test.js"
   }
 }
