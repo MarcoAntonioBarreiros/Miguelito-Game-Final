@@ -878,6 +878,8 @@ const { generateCampaignEncounters } = __require("src/procgen/campaign-encounter
 const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");
 const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");
 const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");
+const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");
 const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
@@ -890,9 +892,12 @@ const pulseTouchButton = document.querySelector('[data-key="KeyK"]');
 
 let campaignStorage = null;
 try { campaignStorage = window.sessionStorage; } catch (_) {}
+const phaseLab = createPhaseLabSession({ windowObject: window });
+if (phaseLab.enabled) campaignStorage = null;
 
 let sim = createSimulator();
-const campaign = createCampaign(undefined, { storage: campaignStorage });
+const campaign = createCampaign(phaseLab.enabled ? phaseLab.config.seed : undefined, { storage: campaignStorage });
+if (phaseLab.enabled) phaseLab.configureCampaign(campaign);
 sim.state.campaign = campaign;
 const cameraView = createCameraView({ canvas, state: sim.state });
 const rhizoctoniaControl = createRhizoctoniaControl({
@@ -923,6 +928,8 @@ const objectiveEvaluator = createCampaignObjectiveEvaluator({
     gameplay: sim.gameplay,
     inoculants: sim.beneficialInoculants,
     pseudomonas: sim.pseudomonasSiderophores,
+    trichoderma: trichodermaRhizoctoniaControl,
+    meloidogyneControl: trichodermaMeloidogyneControl,
   },
 });
 const fixedBlockRuntime = createFixedBlockRuntime({
@@ -932,8 +939,13 @@ const fixedBlockRuntime = createFixedBlockRuntime({
   ecology: sim.ecology,
 });
 sim.goal.setCompletionGuard(() => {
-  if (campaign.phase !== 1) return { passed: true };
-  const result = objectiveEvaluator.evaluate(getPhaseManifest(1).finalTest);
+  const finalTest = getPhaseManifest(campaign.phase)?.finalTest;
+  if (!finalTest) return { passed: true };
+  const conditions = (finalTest.requires || []).filter(condition => !(
+    condition.type === 'worldState' && condition.key === 'reachedFinalRoot'
+  ));
+  if (!conditions.length) return { passed: true };
+  const result = objectiveEvaluator.evaluate(conditions);
   return {
     passed: result.passed,
     message: 'A raiz final aguarda a ativação do checkpoint de Bacillus na raiz marcada.',
@@ -979,6 +991,7 @@ function prepareLevel() {
   seed = campaignPhaseSeed(campaign);
   levelData = decorateCampaignLevel(generateLevel(seed), campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
+  if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
   installFinalGoal(levelData);
 }
 
@@ -1046,6 +1059,13 @@ function initGame({ announce = false } = {}) {
 }
 
 function startNewCampaign() {
+  if (phaseLab.enabled) {
+    phaseLab.configureCampaign(campaign);
+    sim.state.discoveredMicrobes.clear();
+    prepareLevel();
+    initGame({ announce: true });
+    return;
+  }
   resetCampaign(campaign);
   sim.state.discoveredMicrobes.clear();
   prepareLevel();
@@ -1094,6 +1114,13 @@ function maybeAdvanceCampaign() {
 
   if (sim.state.time < campaign.transitionAt) return false;
 
+  if (phaseLab.enabled) {
+    campaign.transitionRequested = false;
+    sim.state.gameState = 'end';
+    sim.state.mission = `Phase Lab concluido: ${getPhaseManifest(campaign.phase)?.finalTest?.goal || profile.mission}`;
+    return true;
+  }
+
   if (!advanceCampaignPhase(campaign)) {
     campaign.transitionRequested = false;
     sim.state.gameState = 'end';
@@ -1107,9 +1134,11 @@ function maybeAdvanceCampaign() {
 
 prepareLevel();
 initGame({ announce: true });
+if (phaseLab.enabled) phaseLab.mount({ onRestart: startNewCampaign });
 
 const keys = {};
 window.addEventListener('keydown', event => {
+  if (phaseLab.enabled && event.target instanceof Element && event.target.closest('.phase-lab')) return;
   keys[event.code] = true;
   if (event.code === 'KeyR' && !event.repeat) startNewCampaign();
   if (event.code === 'Tab') {
@@ -2136,8 +2165,42 @@ const phases = [
 
 const campaignManifest = Object.freeze(phases);
 
+const phaseManifestOverrides = new Map();
+
+function cloneManifestValue(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function getActiveCampaignManifest() {
+  return campaignManifest.map(entry => phaseManifestOverrides.get(entry.phase) || entry);
+}
+
+function setPhaseManifestOverride(phaseManifest) {
+  if (!phaseManifest || !Number.isInteger(phaseManifest.phase)) {
+    throw new TypeError('Override de fase precisa informar um numero de fase inteiro.');
+  }
+  if (!campaignManifest.some(entry => entry.phase === phaseManifest.phase)) {
+    throw new RangeError(`Fase inexistente no manifesto: ${phaseManifest.phase}.`);
+  }
+  const candidate = cloneManifestValue(phaseManifest);
+  const manifest = campaignManifest.map(entry => entry.phase === candidate.phase ? candidate : entry);
+  const errors = validateCampaignManifest({ manifest });
+  if (errors.length) {
+    throw new Error(`Override de fase invalido:\n${errors.join('\n')}`);
+  }
+  phaseManifestOverrides.set(candidate.phase, candidate);
+  return candidate;
+}
+
+function clearPhaseManifestOverride(phase = null) {
+  if (phase === null) phaseManifestOverrides.clear();
+  else phaseManifestOverrides.delete(phase);
+}
+
 function getPhaseManifest(phase) {
-  return campaignManifest.find(entry => entry.phase === phase) || null;
+  return phaseManifestOverrides.get(phase)
+    || campaignManifest.find(entry => entry.phase === phase)
+    || null;
 }
 
 function getSegmentAt(phase, chunkIndex) {
@@ -2149,7 +2212,7 @@ function getTutorialModeAt(phase, chunkIndex) {
 }
 
 function getPresentationById(id) {
-  for (const phase of campaignManifest) {
+  for (const phase of getActiveCampaignManifest()) {
     const found = phase.presentations.find(p => p.id === id);
     if (found) return found;
   }
@@ -2157,7 +2220,7 @@ function getPresentationById(id) {
 }
 
 function getPresentationForTrigger(triggerId) {
-  for (const phase of campaignManifest) {
+  for (const phase of getActiveCampaignManifest()) {
     const found = phase.presentations.find(p => p.triggerIds.includes(triggerId));
     if (found) return found;
   }
@@ -2173,9 +2236,14 @@ function roamingTypesOf(presentation) {
 function getRoamingDebutsAt(phase, chunkIndex) {
   const entry = getPhaseManifest(phase);
   if (!entry) return [];
+  const allowed = Array.isArray(entry.phaseLab?.allowedOrganisms)
+    ? new Set(entry.phaseLab.allowedOrganisms)
+    : null;
   return entry.presentations
     .filter(presentation => presentation.debutChunk === chunkIndex)
-    .flatMap(presentation => roamingTypesOf(presentation).map(type => ({
+    .flatMap(presentation => roamingTypesOf(presentation)
+      .filter(type => !allowed || allowed.has(type))
+      .map(type => ({
       type,
       cardId: presentation.cardId,
       presentationId: presentation.id,
@@ -2185,8 +2253,13 @@ function getRoamingDebutsAt(phase, chunkIndex) {
 }
 
 function getProceduralPoolAt(phase, chunkIndex) {
+  const current = getPhaseManifest(phase);
+  if (Array.isArray(current?.phaseLab?.allowedOrganisms)) {
+    return [...new Set(current.phaseLab.allowedOrganisms)]
+      .filter(type => ECOLOGY_ROAMING_TYPES.includes(type));
+  }
   const types = new Set();
-  for (const entry of campaignManifest) {
+  for (const entry of getActiveCampaignManifest()) {
     if (entry.phase > phase) break;
     for (const presentation of entry.presentations) {
       const roaming = roamingTypesOf(presentation);
@@ -2200,8 +2273,13 @@ function getProceduralPoolAt(phase, chunkIndex) {
 }
 
 function getPathogensAt(phase, chunkIndex) {
+  const current = getPhaseManifest(phase);
+  if (Array.isArray(current?.phaseLab?.allowedPathogens)) {
+    return [...new Set(current.phaseLab.allowedPathogens)]
+      .filter(type => PATHOGEN_SYSTEMS.includes(type) && !MVP_EXCLUDED_PATHOGENS.includes(type));
+  }
   const active = new Set();
-  for (const entry of campaignManifest) {
+  for (const entry of getActiveCampaignManifest()) {
     if (entry.phase > phase) break;
     for (const debut of entry.pathogenDebuts) {
       if (entry.phase < phase || chunkIndex >= debut.fromChunk) active.add(debut.pathogen);
@@ -2213,7 +2291,10 @@ function getPathogensAt(phase, chunkIndex) {
 function getPathogenStartChunk(phase, pathogen) {
   const current = getPhaseManifest(phase);
   if (!current || MVP_EXCLUDED_PATHOGENS.includes(pathogen)) return null;
-  for (const entry of campaignManifest) {
+  if (Array.isArray(current.phaseLab?.allowedPathogens)) {
+    return current.phaseLab.allowedPathogens.includes(pathogen) ? 0 : null;
+  }
+  for (const entry of getActiveCampaignManifest()) {
     if (entry.phase > phase) break;
     const debut = entry.pathogenDebuts.find(candidate => candidate.pathogen === pathogen);
     if (!debut) continue;
@@ -2224,7 +2305,7 @@ function getPathogenStartChunk(phase, pathogen) {
 
 function getPersistentUnlocksBeforePhase(phase) {
   const active = Object.fromEntries(CAMPAIGN_UNLOCKS.map(flag => [flag, false]));
-  for (const entry of campaignManifest) {
+  for (const entry of getActiveCampaignManifest()) {
     if (entry.phase >= phase) break;
     for (const event of entry.unlockEvents) active[event.feature] = true;
   }
@@ -2262,7 +2343,7 @@ function getTetheredDebutsAt(phase, chunkIndex) {
 }
 
 function globalPresentationOrder() {
-  return campaignManifest
+  return getActiveCampaignManifest()
     .flatMap(entry => entry.presentations.map(p => ({ phase: entry.phase, ...p })))
     .sort((a, b) => a.phase - b.phase || a.debutChunk - b.debutChunk);
 }
@@ -2518,7 +2599,7 @@ function validateCampaignManifest({
 
   return errors;
 }
-Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
+Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getActiveCampaignManifest, setPhaseManifestOverride, clearPhaseManifestOverride, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
 },
 "src/procgen/primitives.js": (__exports, __require) => {
 const { createSimulator } = __require("src/procgen/simulator.js");
@@ -11492,6 +11573,438 @@ function createFixedBlockRuntime({ state, evaluator, entities, ecology = null })
 }
 Object.assign(__exports, { applyPhaseOneVerticalSlice, createFixedBlockRuntime });
 },
+"src/procgen/phase-lab-config.js": (__exports, __require) => {
+const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, campaignManifest, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");
+const { createRandom } = __require("src/procgen/random.js");
+const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v1';
+const PHASE_LAB_MAX_RESOURCES = 100;
+
+const clone = value => JSON.parse(JSON.stringify(value));
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function isPhaseLabEnabled(locationLike = globalThis.location) {
+  try {
+    return new URLSearchParams(locationLike?.search || '').get('phaseLab') === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function productionPhaseManifest(phase) {
+  return campaignManifest.find(entry => entry.phase === Number(phase)) || null;
+}
+
+function scalePhaseLabSegments(segments, oldTotal, newTotal) {
+  const source = clone(segments || []);
+  if (!source.length || oldTotal === newTotal) return source;
+  const ratio = (newTotal - 1) / Math.max(1, oldTotal - 1);
+  return source.map((segment, index) => {
+    const next = source[index + 1];
+    const from = index === 0 ? 0 : clamp(Math.round(segment.from * ratio), 0, newTotal - 1);
+    const to = next
+      ? clamp(Math.round(next.from * ratio) - 1, from, newTotal - 1)
+      : newTotal - 1;
+    return { ...segment, from, to };
+  });
+}
+
+function createDefaultPhaseLabConfig(phase = 1) {
+  const base = productionPhaseManifest(phase) || productionPhaseManifest(1);
+  return {
+    phase: base.phase,
+    seed: `phase-lab-${base.phase}`,
+    totalChunks: base.totalChunks,
+    title: base.title,
+    theme: base.theme,
+    mission: base.mission,
+    segments: clone(base.segments),
+    allowedOrganisms: [...ECOLOGY_ROAMING_TYPES],
+    allowedPathogens: base.pathogenDebuts.map(entry => entry.pathogen)
+      .filter(type => !MVP_EXCLUDED_PATHOGENS.includes(type)),
+    resources: {
+      exudates: null,
+      crystals: null,
+      checkpoints: null,
+    },
+    finalGoal: base.finalTest.goal,
+    finalConditions: clone(base.finalTest.requires),
+  };
+}
+
+function remapToSegment(value, oldSegment, newSegment, maxChunk) {
+  if (!newSegment) return clamp(value, 0, maxChunk);
+  if (!oldSegment || oldSegment.to === oldSegment.from) return newSegment.from;
+  const progress = clamp((value - oldSegment.from) / (oldSegment.to - oldSegment.from), 0, 1);
+  return clamp(Math.round(newSegment.from + progress * (newSegment.to - newSegment.from)), 0, maxChunk);
+}
+
+function normalizeResourceCount(value) {
+  if (value === null || value === '' || value === undefined) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? clamp(Math.round(number), 0, PHASE_LAB_MAX_RESOURCES) : null;
+}
+
+function buildPhaseLabManifest(config) {
+  const base = productionPhaseManifest(config?.phase);
+  if (!base) throw new RangeError(`Fase inexistente: ${config?.phase}.`);
+  const totalChunks = clamp(Math.round(Number(config.totalChunks) || base.totalChunks), 3, 120);
+  const segments = clone(config.segments || base.segments);
+  const oldSegments = new Map(base.segments.map(segment => [segment.id, segment]));
+  const newSegments = new Map(segments.map(segment => [segment.id, segment]));
+  const maxChunk = totalChunks - 1;
+  const presentations = base.presentations.map(presentation => {
+    const oldSegment = oldSegments.get(presentation.moduleId);
+    const newSegment = newSegments.get(presentation.moduleId);
+    let debutChunk = remapToSegment(presentation.debutChunk, oldSegment, newSegment, maxChunk);
+    const next = { ...clone(presentation), debutChunk };
+    if (Number.isInteger(presentation.poolFromChunk)) {
+      debutChunk = Math.min(debutChunk, Math.max(0, maxChunk - 1));
+      next.debutChunk = debutChunk;
+      const globallyMapped = Math.round(presentation.poolFromChunk * maxChunk / Math.max(1, base.totalChunks - 1));
+      next.poolFromChunk = clamp(Math.max(debutChunk + 1, globallyMapped), 0, maxChunk);
+    }
+    return next;
+  });
+  const unlockEvents = base.unlockEvents.map(event => ({
+    ...clone(event),
+    eventChunk: remapToSegment(
+      event.eventChunk,
+      oldSegments.get(event.afterModule),
+      newSegments.get(event.afterModule),
+      maxChunk,
+    ),
+  }));
+  const pathogenDebuts = base.pathogenDebuts.map(debut => ({
+    ...clone(debut),
+    fromChunk: clamp(Math.round(debut.fromChunk * maxChunk / Math.max(1, base.totalChunks - 1)), 0, maxChunk),
+  }));
+  const allowedOrganisms = [...new Set(config.allowedOrganisms || [])]
+    .filter(type => ECOLOGY_ROAMING_TYPES.includes(type));
+  const allowedPathogens = [...new Set(config.allowedPathogens || [])]
+    .filter(type => PATHOGEN_SYSTEMS.includes(type) && !MVP_EXCLUDED_PATHOGENS.includes(type));
+
+  return {
+    ...clone(base),
+    totalChunks,
+    title: String(config.title || base.title).trim(),
+    theme: String(config.theme || base.theme).trim(),
+    mission: String(config.mission || base.mission).trim(),
+    segments,
+    presentations,
+    unlockEvents,
+    pathogenDebuts,
+    finalTest: {
+      ...clone(base.finalTest),
+      goal: String(config.finalGoal || base.finalTest.goal).trim(),
+      requires: clone(config.finalConditions || base.finalTest.requires),
+    },
+    phaseLab: {
+      seed: String(config.seed || `phase-lab-${base.phase}`),
+      allowedOrganisms,
+      allowedPathogens,
+      resources: {
+        exudates: normalizeResourceCount(config.resources?.exudates),
+        crystals: normalizeResourceCount(config.resources?.crystals),
+        checkpoints: normalizeResourceCount(config.resources?.checkpoints),
+      },
+    },
+  };
+}
+
+function validatePhaseLabConfig(config) {
+  const errors = [];
+  let phaseManifest = null;
+  try {
+    phaseManifest = buildPhaseLabManifest(config);
+  } catch (error) {
+    return { valid: false, errors: [error.message], manifest: null };
+  }
+  const manifest = campaignManifest.map(entry => entry.phase === phaseManifest.phase ? phaseManifest : entry);
+  errors.push(...validateCampaignManifest({ manifest }));
+  for (const [name, value] of Object.entries(phaseManifest.phaseLab.resources)) {
+    if (value !== null && (!Number.isInteger(value) || value < 0 || value > PHASE_LAB_MAX_RESOURCES)) {
+      errors.push(`Quantidade invalida para o recurso ${name}.`);
+    }
+  }
+  return { valid: errors.length === 0, errors, manifest: phaseManifest };
+}
+
+function routePlatforms(level) {
+  return (level.platforms || []).filter(platform => !platform.recovery && !platform.final);
+}
+
+function distributedPlatform(platforms, index, count, rnd) {
+  if (!platforms.length) return null;
+  const bucket = Math.floor(index * platforms.length / Math.max(1, count));
+  const span = Math.max(1, Math.ceil(platforms.length / Math.max(1, count)));
+  return platforms[Math.min(platforms.length - 1, bucket + Math.floor(rnd() * span))];
+}
+
+function applyPhaseLabResources(level, phaseManifest, seedValue) {
+  const resources = phaseManifest?.phaseLab?.resources;
+  if (!resources) return level;
+  const platforms = routePlatforms(level);
+  const rnd = createRandom(`${seedValue}:phase-lab-resources`);
+
+  if (resources.exudates !== null) {
+    level.exudates = Array.from({ length: resources.exudates }, (_, index) => {
+      const platform = distributedPlatform(platforms, index, resources.exudates, rnd);
+      return {
+        logicIndex: platform?.logicIndex ?? -1,
+        x: (platform?.x || 100) + 30 + rnd() * Math.max(1, (platform?.w || 120) - 60),
+        y: (platform?.y || 500) - 28 - rnd() * 14,
+        taken: false,
+      };
+    });
+  }
+  if (resources.checkpoints !== null) {
+    level.checkpoints = Array.from({ length: resources.checkpoints }, (_, index) => {
+      const platform = distributedPlatform(platforms, index, resources.checkpoints, rnd);
+      return {
+        x: (platform?.x || 100) + (platform?.w || 120) / 2,
+        y: (platform?.y || 500) - 10,
+        active: false,
+      };
+    });
+  }
+  if (resources.crystals !== null) {
+    level.crystals = Array.from({ length: resources.crystals }, (_, index) => {
+      const platform = distributedPlatform(platforms.slice(1), index, resources.crystals, rnd) || platforms[0];
+      const width = 56;
+      const height = 110;
+      return {
+        logicIndex: platform?.logicIndex ?? -1,
+        requiredFeature: 'pulse',
+        x: (platform?.x || 160) + Math.max(5, (platform?.w || 140) - width - 5),
+        y: (platform?.y || 500) - height,
+        w: width,
+        h: height,
+        hp: 1,
+        broken: false,
+      };
+    });
+  }
+  return level;
+}
+Object.assign(__exports, { PHASE_LAB_STORAGE_KEY, PHASE_LAB_MAX_RESOURCES, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, createDefaultPhaseLabConfig, buildPhaseLabManifest, validatePhaseLabConfig, applyPhaseLabResources });
+},
+"src/procgen/phase-lab.js": (__exports, __require) => {
+const { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");
+const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
+const clone = value => JSON.parse(JSON.stringify(value));
+
+function readConfig(storage) {
+  try {
+    const parsed = JSON.parse(storage?.getItem(PHASE_LAB_STORAGE_KEY));
+    return parsed && productionPhaseManifest(parsed.phase) ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeConfig(storage, config) {
+  try { storage?.setItem(PHASE_LAB_STORAGE_KEY, JSON.stringify(config)); } catch (_) {}
+}
+
+function labStyles(documentObject) {
+  if (documentObject.querySelector('[data-phase-lab-styles]')) return;
+  const style = documentObject.createElement('style');
+  style.dataset.phaseLabStyles = '';
+  style.textContent = `
+    .phase-lab-toggle { position:fixed; z-index:10020; right:12px; bottom:12px; border:1px solid #75ddd2; border-radius:999px; padding:9px 14px; color:#dffffb; background:#073237e8; font:700 12px system-ui; cursor:pointer; }
+    .phase-lab { position:fixed; z-index:10019; right:12px; top:12px; bottom:58px; width:min(390px,calc(100vw - 24px)); overflow:auto; box-sizing:border-box; border:1px solid #65cfc5; border-radius:14px; padding:14px; color:#e9fffc; background:#061c20f2; box-shadow:0 18px 50px #000a; font:13px/1.35 system-ui; }
+    .phase-lab[hidden] { display:none; } .phase-lab h2 { margin:0 0 4px; font-size:19px; } .phase-lab p { margin:0 0 12px; color:#a9cfca; }
+    .phase-lab label { display:grid; gap:4px; margin:9px 0; font-weight:650; } .phase-lab input,.phase-lab select,.phase-lab textarea { width:100%; box-sizing:border-box; border:1px solid #477a7c; border-radius:7px; padding:7px; color:#f5fffd; background:#09272b; font:12px/1.35 ui-monospace,monospace; }
+    .phase-lab textarea { min-height:90px; resize:vertical; } .phase-lab fieldset { margin:10px 0; border:1px solid #315f61; border-radius:9px; } .phase-lab legend { color:#82e8dc; font-weight:750; }
+    .phase-lab .checks { display:grid; grid-template-columns:1fr 1fr; gap:5px; } .phase-lab .checks label { display:flex; align-items:center; gap:6px; margin:0; font-weight:500; } .phase-lab .checks input { width:auto; }
+    .phase-lab .resources { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; } .phase-lab .actions { display:flex; flex-wrap:wrap; gap:7px; position:sticky; bottom:-14px; padding:10px 0 2px; background:#061c20f2; }
+    .phase-lab button { border:1px solid #64cfc5; border-radius:8px; padding:8px 10px; color:#eafffc; background:#124348; font-weight:700; cursor:pointer; } .phase-lab button.primary { color:#052122; background:#79e1d6; }
+    .phase-lab-status { white-space:pre-wrap; color:#9df2b8; } .phase-lab-status.error { color:#ff9e9e; }
+    @media (pointer:coarse) { .phase-lab { width:min(440px,calc(100vw - 16px)); right:8px; top:8px; } }
+  `;
+  documentObject.head.appendChild(style);
+}
+
+function downloadManifest(windowObject, manifest) {
+  const blob = new Blob([`${JSON.stringify(manifest, null, 2)}\n`], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = windowObject.document.createElement('a');
+  anchor.href = url;
+  anchor.download = `phase-${manifest.phase}-manifest.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
+  const enabled = Boolean(windowObject && isPhaseLabEnabled(windowObject.location));
+  if (!enabled) return { enabled: false };
+  let storage = null;
+  try { storage = windowObject.localStorage; } catch (_) {}
+  let config = readConfig(storage) || createDefaultPhaseLabConfig(1);
+  let manifest = null;
+  let restartCallback = null;
+
+  function applyConfig(nextConfig, { persist = true } = {}) {
+    const result = validatePhaseLabConfig(nextConfig);
+    if (!result.valid) throw new Error(result.errors.join('\n'));
+    clearPhaseManifestOverride();
+    manifest = setPhaseManifestOverride(result.manifest);
+    config = clone(nextConfig);
+    if (persist) writeConfig(storage, config);
+    return manifest;
+  }
+
+  function configureCampaign(campaign) {
+    campaign.seed = String(config.seed);
+    campaign.phase = Number(config.phase);
+    campaign.unlocks = getPersistentUnlocksBeforePhase(campaign.phase);
+    campaign.totalScore = 0;
+    campaign.history = [];
+    campaign.transitionRequested = false;
+    campaign.transitionAt = 0;
+    campaign.transitionCaptured = false;
+    campaign.pendingReport = null;
+    return campaign;
+  }
+
+  try {
+    applyConfig(config, { persist: false });
+  } catch (_) {
+    config = createDefaultPhaseLabConfig(1);
+    applyConfig(config);
+  }
+
+  function mount({ onRestart }) {
+    restartCallback = onRestart;
+    const documentObject = windowObject.document;
+    labStyles(documentObject);
+    const toggle = documentObject.createElement('button');
+    toggle.className = 'phase-lab-toggle';
+    toggle.textContent = 'PHASE LAB';
+    toggle.type = 'button';
+    const panel = documentObject.createElement('aside');
+    panel.className = 'phase-lab';
+    panel.setAttribute('aria-label', 'Phase Lab');
+    panel.innerHTML = `
+      <h2>Phase Lab</h2><p>Runtime real · Ctrl+Enter reinicia · sem editor de plataformas</p>
+      <label>Fase <select data-field="phase">${[...Array(9)].map((_, phase) => `<option value="${phase}">Fase ${phase}</option>`).join('')}</select></label>
+      <label>Seed <input data-field="seed"></label>
+      <label>Quantidade de chunks <input data-field="totalChunks" type="number" min="3" max="120"></label>
+      <label>Titulo <input data-field="title"></label>
+      <label>Tema <input data-field="theme"></label>
+      <label>Objetivo / missao <input data-field="mission"></label>
+      <label>Segmentos (JSON do manifesto) <textarea data-field="segments"></textarea></label>
+      <fieldset><legend>Organismos permitidos</legend><div class="checks" data-organisms></div></fieldset>
+      <fieldset><legend>Patogenos permitidos</legend><div class="checks" data-pathogens></div></fieldset>
+      <fieldset><legend>Recursos (vazio = geracao normal)</legend><div class="resources">
+        <label>Exsudatos<input data-resource="exudates" type="number" min="0" max="100"></label>
+        <label>Cristais<input data-resource="crystals" type="number" min="0" max="100"></label>
+        <label>Checkpoints<input data-resource="checkpoints" type="number" min="0" max="100"></label>
+      </div></fieldset>
+      <label>Objetivo final <input data-field="finalGoal"></label>
+      <label>Condicoes finais (JSON) <textarea data-field="finalConditions"></textarea></label>
+      <div class="phase-lab-status" role="status"></div>
+      <div class="actions"><button class="primary" data-action="apply">Aplicar e reiniciar</button><button data-action="seed">Nova seed</button><button data-action="defaults">Restaurar fase</button><button data-action="export">Exportar manifesto</button></div>
+    `;
+    documentObject.body.append(panel, toggle);
+    const status = panel.querySelector('.phase-lab-status');
+
+    function checkboxMarkup(types, selected) {
+      return types.map(type => `<label><input type="checkbox" value="${type}" ${selected.includes(type) ? 'checked' : ''}>${type}</label>`).join('');
+    }
+    function fill(next) {
+      panel.dataset.totalChunks = String(next.totalChunks);
+      for (const key of ['phase', 'seed', 'totalChunks', 'title', 'theme', 'mission', 'finalGoal']) {
+        panel.querySelector(`[data-field="${key}"]`).value = next[key];
+      }
+      panel.querySelector('[data-field="segments"]').value = JSON.stringify(next.segments, null, 2);
+      panel.querySelector('[data-field="finalConditions"]').value = JSON.stringify(next.finalConditions, null, 2);
+      panel.querySelector('[data-organisms]').innerHTML = checkboxMarkup(ECOLOGY_ROAMING_TYPES, next.allowedOrganisms || []);
+      panel.querySelector('[data-pathogens]').innerHTML = checkboxMarkup(
+        PATHOGEN_SYSTEMS.filter(type => type !== 'ralstonia'), next.allowedPathogens || [],
+      );
+      for (const key of ['exudates', 'crystals', 'checkpoints']) {
+        panel.querySelector(`[data-resource="${key}"]`).value = next.resources?.[key] ?? '';
+      }
+    }
+    function read() {
+      const value = key => panel.querySelector(`[data-field="${key}"]`).value;
+      const checked = selector => [...panel.querySelectorAll(`${selector} input:checked`)].map(input => input.value);
+      const resource = key => {
+        const raw = panel.querySelector(`[data-resource="${key}"]`).value;
+        return raw === '' ? null : Number(raw);
+      };
+      return {
+        phase: Number(value('phase')),
+        seed: value('seed').trim(),
+        totalChunks: Number(value('totalChunks')),
+        title: value('title'), theme: value('theme'), mission: value('mission'),
+        segments: JSON.parse(value('segments')),
+        allowedOrganisms: checked('[data-organisms]'),
+        allowedPathogens: checked('[data-pathogens]'),
+        resources: { exudates: resource('exudates'), crystals: resource('crystals'), checkpoints: resource('checkpoints') },
+        finalGoal: value('finalGoal'),
+        finalConditions: JSON.parse(value('finalConditions')),
+      };
+    }
+    function runApply(next = read()) {
+      try {
+        applyConfig(next);
+        configureCampaign(windowObject.miguelitoSim.state.campaign);
+        status.className = 'phase-lab-status';
+        status.textContent = 'Configuracao valida. Reiniciando a fase.';
+        restartCallback?.();
+        fill(config);
+      } catch (error) {
+        status.className = 'phase-lab-status error';
+        status.textContent = error.message;
+      }
+    }
+    fill(config);
+    toggle.addEventListener('click', () => { panel.hidden = !panel.hidden; });
+    panel.querySelector('[data-field="phase"]').addEventListener('change', event => fill(createDefaultPhaseLabConfig(Number(event.target.value))));
+    panel.querySelector('[data-field="totalChunks"]').addEventListener('change', event => {
+      try {
+        const oldTotal = Number(panel.dataset.totalChunks);
+        const nextTotal = Number(event.target.value);
+        const segments = JSON.parse(panel.querySelector('[data-field="segments"]').value);
+        panel.querySelector('[data-field="segments"]').value = JSON.stringify(scalePhaseLabSegments(segments, oldTotal, nextTotal), null, 2);
+        panel.dataset.totalChunks = String(nextTotal);
+      } catch (_) {}
+    });
+    panel.querySelector('[data-action="apply"]').addEventListener('click', () => runApply());
+    panel.querySelector('[data-action="seed"]').addEventListener('click', () => {
+      panel.querySelector('[data-field="seed"]').value = `phase-lab-${Date.now().toString(36)}`;
+      runApply();
+    });
+    panel.querySelector('[data-action="defaults"]').addEventListener('click', () => fill(createDefaultPhaseLabConfig(Number(panel.querySelector('[data-field="phase"]').value))));
+    panel.querySelector('[data-action="export"]').addEventListener('click', () => {
+      try { downloadManifest(windowObject, buildPhaseLabManifest(read())); } catch (error) { status.textContent = error.message; status.className = 'phase-lab-status error'; }
+    });
+    windowObject.addEventListener('keydown', event => {
+      if (event.ctrlKey && event.code === 'Enter') { event.preventDefault(); runApply(); }
+    });
+    return panel;
+  }
+
+  const api = {
+    enabled: true,
+    getConfig: () => clone(config),
+    getManifest: () => clone(manifest),
+    applyConfig(next) {
+      applyConfig(next);
+      if (windowObject.miguelitoSim?.state?.campaign) configureCampaign(windowObject.miguelitoSim.state.campaign);
+      restartCallback?.();
+      return clone(manifest);
+    },
+    restart: () => restartCallback?.(),
+    exportManifest: () => JSON.stringify(manifest, null, 2),
+  };
+  windowObject.miguelitoPhaseLab = api;
+  return { enabled, get config() { return config; }, get manifest() { return manifest; }, configureCampaign, mount, api };
+}
+Object.assign(__exports, { createPhaseLabSession });
+},
 "src/render/renderer.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");
 function mixHex(a, b, t) {
@@ -16212,10 +16725,10 @@ const structureTutorialCards = {
 Object.assign(__exports, { structureTutorialCards });
 },
 "src/procgen/tutorial-flow.js": (__exports, __require) => {
-const { campaignManifest, getPresentationById, getSegmentAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
+const { getActiveCampaignManifest, getPresentationById, getSegmentAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
 const { getTutorialCard } = __require("src/procgen/tutorial-registry.js");
 function findPresentation(triggerId) {
-  for (const phase of campaignManifest) {
+  for (const phase of getActiveCampaignManifest()) {
     const presentation = phase.presentations.find(entry => entry.triggerIds.includes(triggerId));
     if (presentation) return { phase: phase.phase, presentation };
   }

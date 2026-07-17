@@ -427,8 +427,42 @@ const phases = [
 
 export const campaignManifest = Object.freeze(phases);
 
+const phaseManifestOverrides = new Map();
+
+function cloneManifestValue(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+export function getActiveCampaignManifest() {
+  return campaignManifest.map(entry => phaseManifestOverrides.get(entry.phase) || entry);
+}
+
+export function setPhaseManifestOverride(phaseManifest) {
+  if (!phaseManifest || !Number.isInteger(phaseManifest.phase)) {
+    throw new TypeError('Override de fase precisa informar um numero de fase inteiro.');
+  }
+  if (!campaignManifest.some(entry => entry.phase === phaseManifest.phase)) {
+    throw new RangeError(`Fase inexistente no manifesto: ${phaseManifest.phase}.`);
+  }
+  const candidate = cloneManifestValue(phaseManifest);
+  const manifest = campaignManifest.map(entry => entry.phase === candidate.phase ? candidate : entry);
+  const errors = validateCampaignManifest({ manifest });
+  if (errors.length) {
+    throw new Error(`Override de fase invalido:\n${errors.join('\n')}`);
+  }
+  phaseManifestOverrides.set(candidate.phase, candidate);
+  return candidate;
+}
+
+export function clearPhaseManifestOverride(phase = null) {
+  if (phase === null) phaseManifestOverrides.clear();
+  else phaseManifestOverrides.delete(phase);
+}
+
 export function getPhaseManifest(phase) {
-  return campaignManifest.find(entry => entry.phase === phase) || null;
+  return phaseManifestOverrides.get(phase)
+    || campaignManifest.find(entry => entry.phase === phase)
+    || null;
 }
 
 export function getSegmentAt(phase, chunkIndex) {
@@ -440,7 +474,7 @@ export function getTutorialModeAt(phase, chunkIndex) {
 }
 
 export function getPresentationById(id) {
-  for (const phase of campaignManifest) {
+  for (const phase of getActiveCampaignManifest()) {
     const found = phase.presentations.find(p => p.id === id);
     if (found) return found;
   }
@@ -448,7 +482,7 @@ export function getPresentationById(id) {
 }
 
 export function getPresentationForTrigger(triggerId) {
-  for (const phase of campaignManifest) {
+  for (const phase of getActiveCampaignManifest()) {
     const found = phase.presentations.find(p => p.triggerIds.includes(triggerId));
     if (found) return found;
   }
@@ -464,9 +498,14 @@ function roamingTypesOf(presentation) {
 export function getRoamingDebutsAt(phase, chunkIndex) {
   const entry = getPhaseManifest(phase);
   if (!entry) return [];
+  const allowed = Array.isArray(entry.phaseLab?.allowedOrganisms)
+    ? new Set(entry.phaseLab.allowedOrganisms)
+    : null;
   return entry.presentations
     .filter(presentation => presentation.debutChunk === chunkIndex)
-    .flatMap(presentation => roamingTypesOf(presentation).map(type => ({
+    .flatMap(presentation => roamingTypesOf(presentation)
+      .filter(type => !allowed || allowed.has(type))
+      .map(type => ({
       type,
       cardId: presentation.cardId,
       presentationId: presentation.id,
@@ -476,8 +515,13 @@ export function getRoamingDebutsAt(phase, chunkIndex) {
 }
 
 export function getProceduralPoolAt(phase, chunkIndex) {
+  const current = getPhaseManifest(phase);
+  if (Array.isArray(current?.phaseLab?.allowedOrganisms)) {
+    return [...new Set(current.phaseLab.allowedOrganisms)]
+      .filter(type => ECOLOGY_ROAMING_TYPES.includes(type));
+  }
   const types = new Set();
-  for (const entry of campaignManifest) {
+  for (const entry of getActiveCampaignManifest()) {
     if (entry.phase > phase) break;
     for (const presentation of entry.presentations) {
       const roaming = roamingTypesOf(presentation);
@@ -491,8 +535,13 @@ export function getProceduralPoolAt(phase, chunkIndex) {
 }
 
 export function getPathogensAt(phase, chunkIndex) {
+  const current = getPhaseManifest(phase);
+  if (Array.isArray(current?.phaseLab?.allowedPathogens)) {
+    return [...new Set(current.phaseLab.allowedPathogens)]
+      .filter(type => PATHOGEN_SYSTEMS.includes(type) && !MVP_EXCLUDED_PATHOGENS.includes(type));
+  }
   const active = new Set();
-  for (const entry of campaignManifest) {
+  for (const entry of getActiveCampaignManifest()) {
     if (entry.phase > phase) break;
     for (const debut of entry.pathogenDebuts) {
       if (entry.phase < phase || chunkIndex >= debut.fromChunk) active.add(debut.pathogen);
@@ -504,7 +553,10 @@ export function getPathogensAt(phase, chunkIndex) {
 export function getPathogenStartChunk(phase, pathogen) {
   const current = getPhaseManifest(phase);
   if (!current || MVP_EXCLUDED_PATHOGENS.includes(pathogen)) return null;
-  for (const entry of campaignManifest) {
+  if (Array.isArray(current.phaseLab?.allowedPathogens)) {
+    return current.phaseLab.allowedPathogens.includes(pathogen) ? 0 : null;
+  }
+  for (const entry of getActiveCampaignManifest()) {
     if (entry.phase > phase) break;
     const debut = entry.pathogenDebuts.find(candidate => candidate.pathogen === pathogen);
     if (!debut) continue;
@@ -515,7 +567,7 @@ export function getPathogenStartChunk(phase, pathogen) {
 
 export function getPersistentUnlocksBeforePhase(phase) {
   const active = Object.fromEntries(CAMPAIGN_UNLOCKS.map(flag => [flag, false]));
-  for (const entry of campaignManifest) {
+  for (const entry of getActiveCampaignManifest()) {
     if (entry.phase >= phase) break;
     for (const event of entry.unlockEvents) active[event.feature] = true;
   }
@@ -553,7 +605,7 @@ export function getTetheredDebutsAt(phase, chunkIndex) {
 }
 
 export function globalPresentationOrder() {
-  return campaignManifest
+  return getActiveCampaignManifest()
     .flatMap(entry => entry.presentations.map(p => ({ phase: entry.phase, ...p })))
     .sort((a, b) => a.phase - b.phase || a.debutChunk - b.debutChunk);
 }

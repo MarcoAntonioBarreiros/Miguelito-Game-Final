@@ -1,0 +1,229 @@
+import {
+  ECOLOGY_ROAMING_TYPES,
+  PATHOGEN_SYSTEMS,
+  clearPhaseManifestOverride,
+  getPersistentUnlocksBeforePhase,
+  setPhaseManifestOverride,
+} from './campaign-manifest.js';
+import {
+  PHASE_LAB_STORAGE_KEY,
+  buildPhaseLabManifest,
+  createDefaultPhaseLabConfig,
+  isPhaseLabEnabled,
+  productionPhaseManifest,
+  scalePhaseLabSegments,
+  validatePhaseLabConfig,
+} from './phase-lab-config.js';
+
+const clone = value => JSON.parse(JSON.stringify(value));
+
+function readConfig(storage) {
+  try {
+    const parsed = JSON.parse(storage?.getItem(PHASE_LAB_STORAGE_KEY));
+    return parsed && productionPhaseManifest(parsed.phase) ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeConfig(storage, config) {
+  try { storage?.setItem(PHASE_LAB_STORAGE_KEY, JSON.stringify(config)); } catch (_) {}
+}
+
+function labStyles(documentObject) {
+  if (documentObject.querySelector('[data-phase-lab-styles]')) return;
+  const style = documentObject.createElement('style');
+  style.dataset.phaseLabStyles = '';
+  style.textContent = `
+    .phase-lab-toggle { position:fixed; z-index:10020; right:12px; bottom:12px; border:1px solid #75ddd2; border-radius:999px; padding:9px 14px; color:#dffffb; background:#073237e8; font:700 12px system-ui; cursor:pointer; }
+    .phase-lab { position:fixed; z-index:10019; right:12px; top:12px; bottom:58px; width:min(390px,calc(100vw - 24px)); overflow:auto; box-sizing:border-box; border:1px solid #65cfc5; border-radius:14px; padding:14px; color:#e9fffc; background:#061c20f2; box-shadow:0 18px 50px #000a; font:13px/1.35 system-ui; }
+    .phase-lab[hidden] { display:none; } .phase-lab h2 { margin:0 0 4px; font-size:19px; } .phase-lab p { margin:0 0 12px; color:#a9cfca; }
+    .phase-lab label { display:grid; gap:4px; margin:9px 0; font-weight:650; } .phase-lab input,.phase-lab select,.phase-lab textarea { width:100%; box-sizing:border-box; border:1px solid #477a7c; border-radius:7px; padding:7px; color:#f5fffd; background:#09272b; font:12px/1.35 ui-monospace,monospace; }
+    .phase-lab textarea { min-height:90px; resize:vertical; } .phase-lab fieldset { margin:10px 0; border:1px solid #315f61; border-radius:9px; } .phase-lab legend { color:#82e8dc; font-weight:750; }
+    .phase-lab .checks { display:grid; grid-template-columns:1fr 1fr; gap:5px; } .phase-lab .checks label { display:flex; align-items:center; gap:6px; margin:0; font-weight:500; } .phase-lab .checks input { width:auto; }
+    .phase-lab .resources { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; } .phase-lab .actions { display:flex; flex-wrap:wrap; gap:7px; position:sticky; bottom:-14px; padding:10px 0 2px; background:#061c20f2; }
+    .phase-lab button { border:1px solid #64cfc5; border-radius:8px; padding:8px 10px; color:#eafffc; background:#124348; font-weight:700; cursor:pointer; } .phase-lab button.primary { color:#052122; background:#79e1d6; }
+    .phase-lab-status { white-space:pre-wrap; color:#9df2b8; } .phase-lab-status.error { color:#ff9e9e; }
+    @media (pointer:coarse) { .phase-lab { width:min(440px,calc(100vw - 16px)); right:8px; top:8px; } }
+  `;
+  documentObject.head.appendChild(style);
+}
+
+function downloadManifest(windowObject, manifest) {
+  const blob = new Blob([`${JSON.stringify(manifest, null, 2)}\n`], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = windowObject.document.createElement('a');
+  anchor.href = url;
+  anchor.download = `phase-${manifest.phase}-manifest.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
+  const enabled = Boolean(windowObject && isPhaseLabEnabled(windowObject.location));
+  if (!enabled) return { enabled: false };
+  let storage = null;
+  try { storage = windowObject.localStorage; } catch (_) {}
+  let config = readConfig(storage) || createDefaultPhaseLabConfig(1);
+  let manifest = null;
+  let restartCallback = null;
+
+  function applyConfig(nextConfig, { persist = true } = {}) {
+    const result = validatePhaseLabConfig(nextConfig);
+    if (!result.valid) throw new Error(result.errors.join('\n'));
+    clearPhaseManifestOverride();
+    manifest = setPhaseManifestOverride(result.manifest);
+    config = clone(nextConfig);
+    if (persist) writeConfig(storage, config);
+    return manifest;
+  }
+
+  function configureCampaign(campaign) {
+    campaign.seed = String(config.seed);
+    campaign.phase = Number(config.phase);
+    campaign.unlocks = getPersistentUnlocksBeforePhase(campaign.phase);
+    campaign.totalScore = 0;
+    campaign.history = [];
+    campaign.transitionRequested = false;
+    campaign.transitionAt = 0;
+    campaign.transitionCaptured = false;
+    campaign.pendingReport = null;
+    return campaign;
+  }
+
+  try {
+    applyConfig(config, { persist: false });
+  } catch (_) {
+    config = createDefaultPhaseLabConfig(1);
+    applyConfig(config);
+  }
+
+  function mount({ onRestart }) {
+    restartCallback = onRestart;
+    const documentObject = windowObject.document;
+    labStyles(documentObject);
+    const toggle = documentObject.createElement('button');
+    toggle.className = 'phase-lab-toggle';
+    toggle.textContent = 'PHASE LAB';
+    toggle.type = 'button';
+    const panel = documentObject.createElement('aside');
+    panel.className = 'phase-lab';
+    panel.setAttribute('aria-label', 'Phase Lab');
+    panel.innerHTML = `
+      <h2>Phase Lab</h2><p>Runtime real · Ctrl+Enter reinicia · sem editor de plataformas</p>
+      <label>Fase <select data-field="phase">${[...Array(9)].map((_, phase) => `<option value="${phase}">Fase ${phase}</option>`).join('')}</select></label>
+      <label>Seed <input data-field="seed"></label>
+      <label>Quantidade de chunks <input data-field="totalChunks" type="number" min="3" max="120"></label>
+      <label>Titulo <input data-field="title"></label>
+      <label>Tema <input data-field="theme"></label>
+      <label>Objetivo / missao <input data-field="mission"></label>
+      <label>Segmentos (JSON do manifesto) <textarea data-field="segments"></textarea></label>
+      <fieldset><legend>Organismos permitidos</legend><div class="checks" data-organisms></div></fieldset>
+      <fieldset><legend>Patogenos permitidos</legend><div class="checks" data-pathogens></div></fieldset>
+      <fieldset><legend>Recursos (vazio = geracao normal)</legend><div class="resources">
+        <label>Exsudatos<input data-resource="exudates" type="number" min="0" max="100"></label>
+        <label>Cristais<input data-resource="crystals" type="number" min="0" max="100"></label>
+        <label>Checkpoints<input data-resource="checkpoints" type="number" min="0" max="100"></label>
+      </div></fieldset>
+      <label>Objetivo final <input data-field="finalGoal"></label>
+      <label>Condicoes finais (JSON) <textarea data-field="finalConditions"></textarea></label>
+      <div class="phase-lab-status" role="status"></div>
+      <div class="actions"><button class="primary" data-action="apply">Aplicar e reiniciar</button><button data-action="seed">Nova seed</button><button data-action="defaults">Restaurar fase</button><button data-action="export">Exportar manifesto</button></div>
+    `;
+    documentObject.body.append(panel, toggle);
+    const status = panel.querySelector('.phase-lab-status');
+
+    function checkboxMarkup(types, selected) {
+      return types.map(type => `<label><input type="checkbox" value="${type}" ${selected.includes(type) ? 'checked' : ''}>${type}</label>`).join('');
+    }
+    function fill(next) {
+      panel.dataset.totalChunks = String(next.totalChunks);
+      for (const key of ['phase', 'seed', 'totalChunks', 'title', 'theme', 'mission', 'finalGoal']) {
+        panel.querySelector(`[data-field="${key}"]`).value = next[key];
+      }
+      panel.querySelector('[data-field="segments"]').value = JSON.stringify(next.segments, null, 2);
+      panel.querySelector('[data-field="finalConditions"]').value = JSON.stringify(next.finalConditions, null, 2);
+      panel.querySelector('[data-organisms]').innerHTML = checkboxMarkup(ECOLOGY_ROAMING_TYPES, next.allowedOrganisms || []);
+      panel.querySelector('[data-pathogens]').innerHTML = checkboxMarkup(
+        PATHOGEN_SYSTEMS.filter(type => type !== 'ralstonia'), next.allowedPathogens || [],
+      );
+      for (const key of ['exudates', 'crystals', 'checkpoints']) {
+        panel.querySelector(`[data-resource="${key}"]`).value = next.resources?.[key] ?? '';
+      }
+    }
+    function read() {
+      const value = key => panel.querySelector(`[data-field="${key}"]`).value;
+      const checked = selector => [...panel.querySelectorAll(`${selector} input:checked`)].map(input => input.value);
+      const resource = key => {
+        const raw = panel.querySelector(`[data-resource="${key}"]`).value;
+        return raw === '' ? null : Number(raw);
+      };
+      return {
+        phase: Number(value('phase')),
+        seed: value('seed').trim(),
+        totalChunks: Number(value('totalChunks')),
+        title: value('title'), theme: value('theme'), mission: value('mission'),
+        segments: JSON.parse(value('segments')),
+        allowedOrganisms: checked('[data-organisms]'),
+        allowedPathogens: checked('[data-pathogens]'),
+        resources: { exudates: resource('exudates'), crystals: resource('crystals'), checkpoints: resource('checkpoints') },
+        finalGoal: value('finalGoal'),
+        finalConditions: JSON.parse(value('finalConditions')),
+      };
+    }
+    function runApply(next = read()) {
+      try {
+        applyConfig(next);
+        configureCampaign(windowObject.miguelitoSim.state.campaign);
+        status.className = 'phase-lab-status';
+        status.textContent = 'Configuracao valida. Reiniciando a fase.';
+        restartCallback?.();
+        fill(config);
+      } catch (error) {
+        status.className = 'phase-lab-status error';
+        status.textContent = error.message;
+      }
+    }
+    fill(config);
+    toggle.addEventListener('click', () => { panel.hidden = !panel.hidden; });
+    panel.querySelector('[data-field="phase"]').addEventListener('change', event => fill(createDefaultPhaseLabConfig(Number(event.target.value))));
+    panel.querySelector('[data-field="totalChunks"]').addEventListener('change', event => {
+      try {
+        const oldTotal = Number(panel.dataset.totalChunks);
+        const nextTotal = Number(event.target.value);
+        const segments = JSON.parse(panel.querySelector('[data-field="segments"]').value);
+        panel.querySelector('[data-field="segments"]').value = JSON.stringify(scalePhaseLabSegments(segments, oldTotal, nextTotal), null, 2);
+        panel.dataset.totalChunks = String(nextTotal);
+      } catch (_) {}
+    });
+    panel.querySelector('[data-action="apply"]').addEventListener('click', () => runApply());
+    panel.querySelector('[data-action="seed"]').addEventListener('click', () => {
+      panel.querySelector('[data-field="seed"]').value = `phase-lab-${Date.now().toString(36)}`;
+      runApply();
+    });
+    panel.querySelector('[data-action="defaults"]').addEventListener('click', () => fill(createDefaultPhaseLabConfig(Number(panel.querySelector('[data-field="phase"]').value))));
+    panel.querySelector('[data-action="export"]').addEventListener('click', () => {
+      try { downloadManifest(windowObject, buildPhaseLabManifest(read())); } catch (error) { status.textContent = error.message; status.className = 'phase-lab-status error'; }
+    });
+    windowObject.addEventListener('keydown', event => {
+      if (event.ctrlKey && event.code === 'Enter') { event.preventDefault(); runApply(); }
+    });
+    return panel;
+  }
+
+  const api = {
+    enabled: true,
+    getConfig: () => clone(config),
+    getManifest: () => clone(manifest),
+    applyConfig(next) {
+      applyConfig(next);
+      if (windowObject.miguelitoSim?.state?.campaign) configureCampaign(windowObject.miguelitoSim.state.campaign);
+      restartCallback?.();
+      return clone(manifest);
+    },
+    restart: () => restartCallback?.(),
+    exportManifest: () => JSON.stringify(manifest, null, 2),
+  };
+  windowObject.miguelitoPhaseLab = api;
+  return { enabled, get config() { return config; }, get manifest() { return manifest; }, configureCampaign, mount, api };
+}
