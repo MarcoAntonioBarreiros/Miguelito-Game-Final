@@ -260,6 +260,582 @@
       .touch-device #toast { top: calc(38px + var(--safe-top)); }
     }
   </style>
+<style data-tutorial-styles>
+#tutorial-library-button {
+  position: fixed;
+  z-index: 82;
+  top: calc(44px + var(--safe-top));
+  right: calc(10px + var(--safe-right));
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid rgba(196,255,244,.42);
+  border-radius: 10px;
+  color: #effff9;
+  background: rgba(5,31,38,.7);
+  box-shadow: 0 5px 18px rgba(0,0,0,.28), inset 0 0 18px rgba(112,229,214,.08);
+  backdrop-filter: blur(7px);
+  font: 800 12px/1 Inter,system-ui,sans-serif;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+#tutorial-library-button:hover,
+#tutorial-library-button:focus-visible {
+  background: rgba(69,151,148,.84);
+  outline: 2px solid rgba(220,255,247,.76);
+  outline-offset: 2px;
+}
+.touch-device #tutorial-library-button { display: none; }
+
+.tutorial-overlay {
+  position: fixed;
+  z-index: 220;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: calc(18px + var(--safe-top)) calc(18px + var(--safe-right)) calc(18px + var(--safe-bottom)) calc(18px + var(--safe-left));
+  touch-action: none;
+}
+.tutorial-overlay[hidden] { display: none; }
+.tutorial-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(50,167,159,.2), transparent 38%),
+    rgba(1,8,12,.84);
+  backdrop-filter: blur(7px) saturate(.72);
+}
+.tutorial-panel {
+  --tutorial-accent: #70e5d6;
+  position: relative;
+  z-index: 1;
+  width: min(920px, 96vw);
+  max-height: min(90dvh, 760px);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 68%, transparent);
+  border-radius: 22px;
+  color: #effff9;
+  background:
+    linear-gradient(135deg, rgba(10,43,49,.97), rgba(3,17,25,.985) 56%, rgba(7,30,37,.98)),
+    #071b22;
+  box-shadow:
+    0 30px 80px rgba(0,0,0,.62),
+    0 0 42px color-mix(in srgb, var(--tutorial-accent) 18%, transparent),
+    inset 0 0 42px rgba(104,231,220,.05);
+  isolation: isolate;
+}
+.tutorial-panel::before,
+.tutorial-panel::after {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+}
+.tutorial-panel::before {
+  inset: 10px;
+  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 24%, transparent);
+  border-radius: 15px;
+}
+.tutorial-panel::after {
+  width: 220px;
+  height: 220px;
+  right: -95px;
+  top: -110px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--tutorial-accent) 18%, transparent);
+  filter: blur(28px);
+}
+.tutorial-scanlines {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  opacity: .16;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 4px,
+    rgba(211,255,247,.13) 5px,
+    transparent 6px
+  );
+  animation: tutorial-scan 10s linear infinite;
+}
+@keyframes tutorial-scan {
+  from { transform: translateY(-16px); }
+  to { transform: translateY(16px); }
+}
+.tutorial-close {
+  position: absolute;
+  z-index: 5;
+  top: 14px;
+  right: 14px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(226,255,250,.36);
+  border-radius: 50%;
+  color: #f1fffb;
+  background: rgba(3,20,27,.78);
+  font: 400 27px/1 system-ui,sans-serif;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tutorial-close:hover,
+.tutorial-close:focus-visible {
+  background: color-mix(in srgb, var(--tutorial-accent) 42%, rgba(3,20,27,.9));
+  outline: 2px solid var(--tutorial-accent);
+  outline-offset: 2px;
+}
+.tutorial-card-view,
+.tutorial-library-view {
+  position: relative;
+  max-height: min(90dvh, 760px);
+  overflow: auto;
+  scrollbar-color: color-mix(in srgb, var(--tutorial-accent) 55%, transparent) rgba(0,0,0,.2);
+}
+.tutorial-card-view { padding: 28px 32px 24px; }
+.tutorial-header { padding-right: 46px; }
+.tutorial-heading-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.tutorial-category,
+.tutorial-new-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.tutorial-category {
+  color: color-mix(in srgb, var(--tutorial-accent) 86%, white);
+  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 45%, transparent);
+  background: color-mix(in srgb, var(--tutorial-accent) 11%, transparent);
+}
+.tutorial-new-badge {
+  color: #08191b;
+  background: var(--tutorial-accent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--tutorial-accent) 32%, transparent);
+}
+.tutorial-title,
+.tutorial-library-title {
+  margin: 0;
+  color: #f4fffc;
+  font-size: clamp(26px, 4vw, 44px);
+  line-height: 1.04;
+  letter-spacing: -.035em;
+}
+.tutorial-subtitle,
+.tutorial-library-description {
+  margin: 7px 0 0;
+  color: rgba(231,255,249,.72);
+  font-size: clamp(13px, 1.8vw, 17px);
+  line-height: 1.4;
+}
+.tutorial-content {
+  display: grid;
+  grid-template-columns: minmax(215px, 280px) minmax(0, 1fr);
+  gap: 30px;
+  align-items: stretch;
+  margin-top: 24px;
+}
+.tutorial-visual {
+  position: relative;
+  min-height: 390px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 34%, transparent);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 37%, color-mix(in srgb, var(--tutorial-accent) 24%, transparent), transparent 36%),
+    linear-gradient(180deg, rgba(3,25,31,.62), rgba(2,13,20,.78));
+}
+.tutorial-visual::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 103px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--tutorial-accent), transparent);
+  box-shadow: 0 0 18px var(--tutorial-accent);
+}
+.tutorial-hologram-ring {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 65%, transparent);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--tutorial-accent) 18%, transparent);
+}
+.ring-one {
+  width: 165px;
+  height: 165px;
+  animation: tutorial-ring 8s linear infinite;
+}
+.ring-two {
+  width: 120px;
+  height: 120px;
+  border-style: dashed;
+  animation: tutorial-ring-reverse 6s linear infinite;
+}
+@keyframes tutorial-ring {
+  from { transform: translate(-50%, -50%) rotate(0); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+@keyframes tutorial-ring-reverse {
+  from { transform: translate(-50%, -50%) rotate(360deg); }
+  to { transform: translate(-50%, -50%) rotate(0); }
+}
+.tutorial-glyph {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  margin-bottom: 108px;
+  color: #f4fffc;
+  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 72%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--tutorial-accent) 16%, rgba(2,15,21,.88));
+  box-shadow:
+    0 0 30px color-mix(in srgb, var(--tutorial-accent) 38%, transparent),
+    inset 0 0 26px color-mix(in srgb, var(--tutorial-accent) 16%, transparent);
+  font: 900 clamp(24px, 4vw, 38px)/1 ui-monospace,monospace;
+  letter-spacing: -.08em;
+  text-shadow: 0 0 14px var(--tutorial-accent);
+}
+.tutorial-cycle-block {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 17px;
+}
+.tutorial-cycle-label {
+  display: block;
+  margin-bottom: 8px;
+  color: rgba(233,255,249,.63);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.tutorial-cycle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.tutorial-cycle-step {
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #eafff8;
+  background: color-mix(in srgb, var(--tutorial-accent) 12%, rgba(0,0,0,.28));
+  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 30%, transparent);
+  font-size: 9px;
+  line-height: 1.15;
+  text-align: center;
+}
+.tutorial-cycle-arrow {
+  color: var(--tutorial-accent);
+  font-size: 15px;
+  opacity: .85;
+}
+.tutorial-page {
+  min-height: 390px;
+  padding: 25px 27px;
+  border: 1px solid rgba(219,255,248,.12);
+  border-radius: 18px;
+  background: rgba(1,12,18,.52);
+  user-select: text;
+  outline: none;
+}
+.tutorial-page-counter {
+  color: var(--tutorial-accent);
+  font: 900 11px/1 ui-monospace,monospace;
+  letter-spacing: .12em;
+}
+.tutorial-page-title {
+  margin: 18px 0 13px;
+  color: #f4fffc;
+  font-size: clamp(22px, 3vw, 32px);
+  line-height: 1.08;
+}
+.tutorial-page-body {
+  margin: 0;
+  color: rgba(237,255,251,.86);
+  font-size: clamp(15px, 2vw, 18px);
+  line-height: 1.58;
+}
+.tutorial-page-points {
+  display: grid;
+  gap: 10px;
+  margin: 21px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tutorial-page-points li {
+  position: relative;
+  padding-left: 21px;
+  color: rgba(231,255,249,.78);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.tutorial-page-points li::before {
+  content: '◇';
+  position: absolute;
+  left: 0;
+  color: var(--tutorial-accent);
+}
+.tutorial-footer {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 18px;
+  margin-top: 20px;
+}
+.tutorial-button {
+  min-height: 43px;
+  padding: 0 18px;
+  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 45%, transparent);
+  border-radius: 12px;
+  color: #effff9;
+  background: color-mix(in srgb, var(--tutorial-accent) 13%, rgba(2,17,23,.88));
+  font: 850 13px/1 Inter,system-ui,sans-serif;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tutorial-button:hover,
+.tutorial-button:focus-visible {
+  color: #041619;
+  background: var(--tutorial-accent);
+  outline: 2px solid rgba(235,255,250,.76);
+  outline-offset: 2px;
+}
+.tutorial-button:disabled {
+  opacity: .32;
+  cursor: default;
+}
+.tutorial-button:disabled:hover { color: #effff9; background: rgba(2,17,23,.88); }
+.tutorial-page-dots {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+}
+.tutorial-page-dot {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 52%, transparent);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tutorial-page-dot.active {
+  background: var(--tutorial-accent);
+  box-shadow: 0 0 12px var(--tutorial-accent);
+}
+
+.tutorial-library-view { padding: 30px 32px 24px; }
+.tutorial-library-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-right: 8px;
+}
+.tutorial-library-count {
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  border: 1px solid rgba(112,229,214,.32);
+  border-radius: 11px;
+  color: #bff9ec;
+  background: rgba(9,48,52,.42);
+  font-size: 12px;
+  font-weight: 900;
+}
+.tutorial-library-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 26px;
+}
+.tutorial-library-card {
+  --card-accent: #70e5d6;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  min-height: 76px;
+  padding: 11px;
+  border: 1px solid color-mix(in srgb, var(--card-accent) 30%, rgba(255,255,255,.05));
+  border-radius: 14px;
+  color: #effff9;
+  background: color-mix(in srgb, var(--card-accent) 7%, rgba(1,13,19,.72));
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tutorial-library-card:hover,
+.tutorial-library-card:focus-visible {
+  border-color: var(--card-accent);
+  background: color-mix(in srgb, var(--card-accent) 15%, rgba(1,13,19,.78));
+  outline: 2px solid color-mix(in srgb, var(--card-accent) 40%, transparent);
+  outline-offset: 2px;
+}
+.tutorial-library-card-glyph {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid color-mix(in srgb, var(--card-accent) 54%, transparent);
+  border-radius: 50%;
+  color: #f3fffc;
+  background: color-mix(in srgb, var(--card-accent) 13%, rgba(0,0,0,.2));
+  font: 900 14px/1 ui-monospace,monospace;
+  text-shadow: 0 0 10px var(--card-accent);
+}
+.tutorial-library-card-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+.tutorial-library-card-copy strong {
+  overflow: hidden;
+  color: #f1fffb;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tutorial-library-card-copy small {
+  overflow: hidden;
+  color: rgba(224,255,247,.56);
+  font-size: 9px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tutorial-library-card-state {
+  color: var(--card-accent);
+  font-size: 9px;
+  font-weight: 900;
+}
+.tutorial-library-empty {
+  margin: 40px 0;
+  color: rgba(230,255,249,.62);
+  text-align: center;
+}
+.tutorial-library-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+}
+.tutorial-library-status {
+  min-height: 1.4em;
+  margin: 10px 0 0;
+  color: #bff9ec;
+  font-size: 11px;
+  text-align: center;
+}
+
+html.tutorial-open #toast,
+html.tutorial-open #mission,
+html.tutorial-open #hud-bar,
+html.tutorial-open #touch-controls,
+html.tutorial-open #mobile-tools,
+html.tutorial-open #tutorial-library-button {
+  opacity: .08 !important;
+  pointer-events: none !important;
+}
+
+@media (max-width: 760px) {
+  .tutorial-overlay { padding: calc(8px + var(--safe-top)) calc(8px + var(--safe-right)) calc(8px + var(--safe-bottom)) calc(8px + var(--safe-left)); }
+  .tutorial-panel { width: 100%; max-height: 95dvh; border-radius: 17px; }
+  .tutorial-card-view,
+  .tutorial-library-view { max-height: 95dvh; }
+  .tutorial-card-view { padding: 22px 18px 17px; }
+  .tutorial-title { font-size: 29px; }
+  .tutorial-subtitle { font-size: 13px; }
+  .tutorial-content {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin-top: 16px;
+  }
+  .tutorial-visual {
+    min-height: 150px;
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 16px 14px 16px 142px;
+  }
+  .tutorial-hologram-ring { left: 72px; top: 50%; }
+  .ring-one { width: 105px; height: 105px; }
+  .ring-two { width: 76px; height: 76px; }
+  .tutorial-glyph {
+    position: absolute;
+    left: 32px;
+    top: 50%;
+    width: 80px;
+    height: 80px;
+    margin: 0;
+    transform: translateY(-50%);
+    font-size: 22px;
+  }
+  .tutorial-visual::after { display: none; }
+  .tutorial-cycle-block {
+    position: static;
+    width: 100%;
+  }
+  .tutorial-cycle-label { text-align: left; }
+  .tutorial-cycle { justify-content: flex-start; }
+  .tutorial-cycle-step { font-size: 8px; }
+  .tutorial-page { min-height: 255px; padding: 19px 18px; }
+  .tutorial-page-title { margin-top: 12px; font-size: 24px; }
+  .tutorial-page-body { font-size: 15px; line-height: 1.48; }
+  .tutorial-footer { gap: 8px; }
+  .tutorial-button { min-height: 41px; padding: 0 12px; font-size: 12px; }
+  .tutorial-library-view { padding: 24px 17px 17px; }
+  .tutorial-library-header { display: grid; gap: 13px; }
+  .tutorial-library-count { width: max-content; }
+  .tutorial-library-grid { grid-template-columns: 1fr; gap: 9px; margin-top: 18px; }
+  .tutorial-library-footer { flex-direction: column-reverse; }
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .tutorial-panel,
+  .tutorial-card-view,
+  .tutorial-library-view { max-height: 96dvh; }
+  .tutorial-card-view { padding: 17px 21px 14px; }
+  .tutorial-title { font-size: 27px; }
+  .tutorial-content { grid-template-columns: 205px 1fr; gap: 16px; margin-top: 13px; }
+  .tutorial-visual,
+  .tutorial-page { min-height: 275px; }
+  .tutorial-glyph { width: 86px; height: 86px; margin-bottom: 92px; font-size: 25px; }
+  .ring-one { width: 130px; height: 130px; }
+  .ring-two { width: 92px; height: 92px; }
+  .tutorial-page { padding: 17px 19px; }
+  .tutorial-page-title { margin: 11px 0 8px; font-size: 23px; }
+  .tutorial-page-body { font-size: 14px; line-height: 1.42; }
+  .tutorial-page-points { gap: 6px; margin-top: 12px; }
+  .tutorial-page-points li { font-size: 12px; }
+  .tutorial-footer { margin-top: 12px; }
+}
+</style>
 </head>
 <body>
   <div id="mission"></div>
@@ -299,6 +875,9 @@ const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
 const { generateLevel } = __require("src/procgen/generator.js");
 const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");
+const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");
+const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
@@ -337,6 +916,28 @@ const ralstoniaControl = createRalstoniaVascularWilt({
   entities: sim.entities,
   inoculants: sim.beneficialInoculants,
   pseudomonas: sim.pseudomonasSiderophores,
+});
+const objectiveEvaluator = createCampaignObjectiveEvaluator({
+  state: sim.state,
+  systems: {
+    gameplay: sim.gameplay,
+    inoculants: sim.beneficialInoculants,
+    pseudomonas: sim.pseudomonasSiderophores,
+  },
+});
+const fixedBlockRuntime = createFixedBlockRuntime({
+  state: sim.state,
+  evaluator: objectiveEvaluator,
+  entities: sim.entities,
+  ecology: sim.ecology,
+});
+sim.goal.setCompletionGuard(() => {
+  if (campaign.phase !== 1) return { passed: true };
+  const result = objectiveEvaluator.evaluate(getPhaseManifest(1).finalTest);
+  return {
+    passed: result.passed,
+    message: 'A raiz final aguarda a ativação do checkpoint de Bacillus na raiz marcada.',
+  };
 });
 let profile = null;
 let seed = '';
@@ -377,6 +978,7 @@ function prepareLevel() {
   profile = prepareCampaignGeneration(campaign);
   seed = campaignPhaseSeed(campaign);
   levelData = decorateCampaignLevel(generateLevel(seed), campaign, profile);
+  applyPhaseOneVerticalSlice(levelData, campaign.phase);
   installFinalGoal(levelData);
 }
 
@@ -422,7 +1024,7 @@ function initGame({ announce = false } = {}) {
     platforms: levelData.platforms,
     phase: campaign.phase,
     seedValue: seed,
-  });
+  }).concat(levelData.authoredEncounters || []);
   sim.resetEcology(levelData.microbeEncounters);
   sim.resetBiology();
   ralstoniaControl.initialize();
@@ -552,6 +1154,7 @@ function renderWorld() {
     sim.goal.render(ctx);
     sim.gameplay.render(ctx);
     sim.bacillusBioprotection.render(ctx);
+    fixedBlockRuntime.render(ctx);
     platformVisuals.renderLabel(ctx);
   } finally {
     ctx.restore();
@@ -568,6 +1171,7 @@ function loop(now) {
     trichodermaMeloidogyneControl.update(0);
     sim.setInputs(keys);
     sim.step(dt);
+    fixedBlockRuntime.update(dt);
     rhizoctoniaControl.update(dt);
     trichodermaRhizoctoniaControl.update(dt);
     trichodermaMeloidogyneControl.update(dt);
@@ -946,6 +1550,7 @@ function generateLevel(seedString) {
     const plat = platforms[i];
     if (plat.recovery || plat.w < 75 || rnd() >= .35) continue;
     exudates.push({
+      logicIndex: plat.logicIndex,
       x: plat.x + 30 + rnd() * Math.max(1, plat.w - 60),
       y: plat.y - 25 - rnd() * 15,
       taken: false,
@@ -1152,6 +1757,7 @@ const FINAL_TEST_KEYS = Object.freeze({
     'visibleLateralRootCount', 'functionalMycorrhizaPathCount', 'pseudomonasIronReserve',
     'neutralizedOpportunisticFungusCount', 'recoveredRootCount', 'brokenCrystalCount',
     'neutralizedEggMassCount', 'preservedRootCount', 'ecologicalScore',
+    'deployedExudateCount', 'bacillusColonyCount',
   ]),
 });
 
@@ -1196,7 +1802,7 @@ const phases = [
   },
 
   {
-    id: 'phase-1', phase: 1, totalChunks: 40,
+    id: 'phase-1', phase: 1, totalChunks: 13,
     title: 'Recrutar e estabelecer', theme: 'fundamentos',
     mission: 'Recrute Bacillus com exsudatos e forme o primeiro biofilme funcional.',
     newConcepts: ['exsudato→recrutamento→inoculação', 'Bacillus→biofilme'], newCommand: null,
@@ -1228,14 +1834,21 @@ const phases = [
       { id: 'p1-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: [] },
       { id: 'p1-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided',
         debutPresentationIds: ['presentation-recruitment', 'presentation-bacillus'],
-        mechanicsRequired: ['exudate', 'inoculation'] },
-      { id: 'p1-challenge', kind: 'procedural', from: 9, to: 34, tutorialMode: 'silent',
-        mechanicsRequired: ['exudate', 'inoculation'] },
-      { id: 'p1-final', kind: 'final', from: 35, to: 39, tutorialMode: 'silent',
+        mechanicsRequired: ['exudate', 'inoculation'],
+        fixedBlock: {
+          template: 'phase1-intro-v1',
+          objective: 'Libere exsudato, recrute Bacillus e inocule a raiz com halo amarelo.',
+          completion: [
+            { type: 'worldState', key: 'deployedExudateCount', operator: '>=', value: 1 },
+            { type: 'worldState', key: 'functionalBiofilmCount', target: 'p1-intro-root', operator: '>=', value: 1 },
+          ],
+          exitGate: true,
+        } },
+      { id: 'p1-challenge', kind: 'procedural', from: 9, to: 12, tutorialMode: 'silent',
         mechanicsRequired: ['exudate', 'inoculation'] },
     ],
-    finalTest: { id: 'p1-test', goal: 'Criar um biofilme funcional na raiz de saída.', requires: [
-      { type: 'worldState', key: 'functionalBiofilmCount', operator: '>=', value: 1 },
+    finalTest: { id: 'p1-test', goal: 'Criar e ativar o primeiro checkpoint de Bacillus.', requires: [
+      { type: 'worldState', key: 'functionalBiofilmCount', target: 'p1-intro-root', operator: '>=', value: 1 },
     ]}, notes: [],
   },
 
@@ -1744,6 +2357,13 @@ function validateCampaignManifest({
   const triggerOwners = new Map();
   const allPresentationIds = new Set(manifest.flatMap(phase => phase.presentations.map(p => p.id)));
   const knownCards = knownCardIds ? new Set(knownCardIds) : null;
+  const validateCondition = (condition, scope) => {
+    if (!VALID_FINAL_TYPES.has(condition.type)) errors.push(`${scope}: tipo de condiÃ§Ã£o invÃ¡lido.`);
+    if (!VALID_OPERATORS.has(condition.operator)) errors.push(`${scope}: operador invÃ¡lido.`);
+    if (knownFinalTestKeys[condition.type] && !knownFinalTestKeys[condition.type].includes(condition.key)) {
+      errors.push(`${scope}: chave de prova desconhecida ${condition.type}.${condition.key}.`);
+    }
+  };
 
   manifest.forEach((phase, expectedPhase) => {
     if (phase.phase !== expectedPhase) errors.push(`Fase fora de ordem: ${phase.phase}; esperado ${expectedPhase}.`);
@@ -1771,6 +2391,16 @@ function validateCampaignManifest({
       if (!TUTORIAL_MODES.includes(segment.tutorialMode)) errors.push(`${phase.id}/${segment.id}: tutorialMode inválido.`);
       if (segment.from < 0 || segment.to >= phase.totalChunks || segment.from > segment.to) {
         errors.push(`${phase.id}/${segment.id}: intervalo inválido.`); continue;
+      }
+      if (segment.fixedBlock) {
+        if (!['fixed', 'final'].includes(segment.kind)) errors.push(`${phase.id}/${segment.id}: bloco autoral exige kind fixed ou final.`);
+        if (!segment.fixedBlock.template) errors.push(`${phase.id}/${segment.id}: bloco autoral sem template.`);
+        if (!segment.fixedBlock.objective) errors.push(`${phase.id}/${segment.id}: bloco autoral sem objetivo.`);
+        const completion = segment.fixedBlock.completion || [];
+        if (segment.fixedBlock.completionRef !== 'finalTest' && completion.length === 0) {
+          errors.push(`${phase.id}/${segment.id}: bloco autoral sem condição de conclusão.`);
+        }
+        for (const condition of completion) validateCondition(condition, `${phase.id}/${segment.id}`);
       }
       for (let i = segment.from; i <= segment.to; i++) coverage[i]++;
     }
@@ -2063,6 +2693,7 @@ function createSimulator() {
   const state = {
     time: 0,
     gameState: 'play',
+    proceduralCampaign: true,
     player: createPlayer(),
     level: createEmptyLevel(),
     jumpHeldLast: false,
@@ -6451,6 +7082,7 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
     get followerCount() { return followers().length; },
     get followerSummary() { return summaryFromCounts(followers()); },
     get colonyCount() { return colonies.length; },
+    get bacillusColonyCount() { return colonies.filter(colony => colony.type === 'bacillus').length; },
     get colonySummary() { return summaryFromCounts(colonies); },
     get vigorAverage() {
       if (!colonies.length) return 0;
@@ -9181,9 +9813,16 @@ const TAU = Math.PI * 2;
 
 function createGoalSystem({ state, entities }) {
   let completedAt = -1;
+  let completionGuard = () => ({ passed: true, message: '' });
+  let lastBlockedAt = -Infinity;
+
+  function setCompletionGuard(guard) {
+    completionGuard = typeof guard === 'function' ? guard : () => ({ passed: true, message: '' });
+  }
 
   function reset() {
     completedAt = -1;
+    lastBlockedAt = -Infinity;
     if (state.level.goal) state.level.goal.completed = false;
   }
 
@@ -9219,7 +9858,18 @@ function createGoalSystem({ state, entities }) {
     if (!goal || goal.completed || state.gameState !== 'play') return;
     const px = state.player.x + state.player.w / 2;
     const py = state.player.y + state.player.h / 2;
-    if (Math.hypot(px - goal.x, py - (goal.y + 48)) < goal.radius) complete(goal);
+    if (Math.hypot(px - goal.x, py - (goal.y + 48)) >= goal.radius) return;
+    const guard = completionGuard();
+    if (!guard?.passed) {
+      state.player.vx = Math.min(0, state.player.vx);
+      if (state.time - lastBlockedAt > 2.4) {
+        lastBlockedAt = state.time;
+        state.toast = guard?.message || 'A prova final ainda não foi concluída.';
+        state.toastTime = 4.2;
+      }
+      return;
+    }
+    complete(goal);
   }
 
   function render(ctx) {
@@ -9311,7 +9961,7 @@ function createGoalSystem({ state, entities }) {
     ctx.restore();
   }
 
-  return { reset, clear, update, render };
+  return { reset, clear, setCompletionGuard, update, render };
 }
 Object.assign(__exports, { createGoalSystem });
 },
@@ -9332,6 +9982,7 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
   const biofilms = [];
   const formingBiofilms = new Map();
   let nextCloudId = 1;
+  let deployedCloudCount = 0;
   let eHeldLast = false;
   let infectionAnnounced = false;
 
@@ -9346,6 +9997,7 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
     formingBiofilms.clear();
     eHeldLast = false;
     infectionAnnounced = false;
+    deployedCloudCount = 0;
   }
 
   function reset() {
@@ -9389,6 +10041,7 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
       phase: Math.random() * TAU,
     };
     clouds.push(cloud);
+    deployedCloudCount++;
     entities.burst(cloud.x, cloud.y, '#b7f36b', 22, 135);
     toast('Gradiente de exsudatos', 'A nuvem atrai comunidades móveis e orienta interações ecológicas.', 3.5);
   }
@@ -9694,6 +10347,7 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
 
   return {
     get cloudCount() { return clouds.length; },
+    get deployedCloudCount() { return deployedCloudCount; },
     get biofilmCount() { return biofilms.length; },
     clear,
     reset,
@@ -10426,6 +11080,418 @@ function generateCampaignEncounters({ platforms, phase, seedValue }) {
 }
 Object.assign(__exports, { generateCampaignEncounters });
 },
+"src/procgen/campaign-objectives.js": (__exports, __require) => {
+const OPERATORS = Object.freeze({
+  '===': (actual, expected) => actual === expected,
+  '!==': (actual, expected) => actual !== expected,
+  '>': (actual, expected) => actual > expected,
+  '>=': (actual, expected) => actual >= expected,
+  '<': (actual, expected) => actual < expected,
+  '<=': (actual, expected) => actual <= expected,
+});
+
+function functionalBiofilms(state, target = null) {
+  return (state.level.biofilms || []).filter(film => (
+    film.functional === true
+    && (!target || film.platform?.objectiveTarget === target)
+  ));
+}
+
+function activeNodules(state) {
+  return (state.level.rhizobiumNodules || []).filter(site => (
+    site.mature === true || site.stage === 'mature' || (site.fixationRate || 0) > 0.05
+  ));
+}
+
+function createCampaignObjectiveEvaluator({ state, systems = {} }) {
+  function worldValue(condition) {
+    const key = condition.key;
+    if (key === 'reachedFinalRoot') return Boolean(state.level.goal?.completed);
+    if (key === 'functionalBiofilmCount') return functionalBiofilms(state, condition.target).length;
+    if (key === 'deployedExudateCount') return systems.gameplay?.deployedCloudCount || 0;
+    if (key === 'bacillusColonyCount') {
+      return (systems.inoculants?.colonies || []).filter(colony => colony.type === 'bacillus').length;
+    }
+    if (key === 'activeMatureNoduleCount') return activeNodules(state).length;
+    if (key === 'totalFixationRate') {
+      return (state.level.rhizobiumNodules || []).reduce((sum, site) => sum + (site.fixationRate || 0), 0);
+    }
+    if (key === 'visibleLateralRootCount') return (state.level.azospirillumRoots || []).filter(root => root.visible !== false).length;
+    if (key === 'functionalMycorrhizaPathCount') {
+      return (state.level.platforms || []).filter(platform => platform.mycorrhizaStructure && platform.mature !== false).length;
+    }
+    if (key === 'pseudomonasIronReserve') return systems.pseudomonas?.ironRecovered || 0;
+    if (key === 'neutralizedOpportunisticFungusCount') return systems.trichoderma?.eliminatedCount || 0;
+    if (key === 'recoveredRootCount') {
+      return (state.level.platforms || []).filter(root => root.type === 'root' && root.healthTrend > 0 && (root.rootHealth || 0) >= .75).length;
+    }
+    if (key === 'brokenCrystalCount') return (state.level.crystals || []).filter(crystal => crystal.broken).length;
+    if (key === 'neutralizedEggMassCount') return systems.meloidogyneControl?.eggMassesNeutralized || 0;
+    if (key === 'preservedRootCount') {
+      return (state.level.platforms || []).filter(root => root.type === 'root' && (root.rootHealth ?? 1) >= .75).length;
+    }
+    if (key === 'ecologicalScore') return Number(state.level.ecologicalScore || 0);
+    return undefined;
+  }
+
+  function conditionValue(condition) {
+    if (condition.type === 'worldState') return worldValue(condition);
+    if (condition.type === 'playerUnlock') return Boolean(state.campaign?.unlocks?.[condition.key]);
+    return undefined;
+  }
+
+  function evaluate(testOrConditions) {
+    const conditions = Array.isArray(testOrConditions)
+      ? testOrConditions
+      : testOrConditions?.requires || [];
+    const results = conditions.map(condition => {
+      const actual = conditionValue(condition);
+      const compare = OPERATORS[condition.operator];
+      return {
+        condition,
+        actual,
+        passed: Boolean(compare && compare(actual, condition.value)),
+      };
+    });
+    return {
+      passed: results.length > 0 && results.every(result => result.passed),
+      results,
+    };
+  }
+
+  return { evaluate, worldValue };
+}
+Object.assign(__exports, { createCampaignObjectiveEvaluator });
+},
+"src/procgen/phase-one-vertical-slice.js": (__exports, __require) => {
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const BLOCK_LAYOUTS = Object.freeze({
+  'phase1-intro-v1': Object.freeze({
+    roles: ['coleta', 'gradiente', 'encontro', 'inoculacao', 'observacao'],
+    yOffsets: [0, -24, -42, -12, 8],
+    targetChunk: 7,
+    targetId: 'p1-intro-root',
+    exudateChunks: [4, 5, 7],
+  }),
+});
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function mainPlatform(level, logicIndex) {
+  return (level.platforms || []).find(platform => (
+    !platform.recovery && !platform.final && platform.logicIndex === logicIndex
+  ));
+}
+
+function authorGeometry(level, segment, template) {
+  const platforms = [];
+  for (let chunk = segment.from; chunk <= segment.to; chunk++) {
+    const platform = mainPlatform(level, chunk);
+    if (!platform) throw new Error(`${segment.id}: plataforma principal ausente no chunk ${chunk}.`);
+    platforms.push(platform);
+  }
+
+  const left = platforms[0].x;
+  const right = platforms[platforms.length - 1].x + platforms[platforms.length - 1].w;
+  const slot = (right - left) / platforms.length;
+  const startY = platforms[0].y;
+  const endY = platforms[platforms.length - 1].y;
+
+  platforms.forEach((platform, index) => {
+    const progress = index / Math.max(1, platforms.length - 1);
+    const authoredOffset = index === 0 || index === platforms.length - 1
+      ? 0
+      : template.yOffsets[index] * .15;
+    platform.x = left + slot * index;
+    platform.y = clamp(startY + (endY - startY) * progress + authoredOffset, 285, 545);
+    platform.w = index === platforms.length - 1
+      ? right - platform.x
+      : Math.max(122, slot - 58);
+    platform.h = 64;
+    platform.type = 'root';
+    platform.authored = true;
+    platform.fixedBlockId = segment.id;
+    platform.fixedRole = template.roles[index];
+  });
+
+  const target = mainPlatform(level, template.targetChunk);
+  if (template.targetId) {
+    target.objectiveTarget = template.targetId;
+    target.fixedObjective = true;
+  }
+
+  const last = platforms[platforms.length - 1];
+  const next = mainPlatform(level, segment.to + 1);
+  const gateX = next
+    ? last.x + last.w + Math.max(26, (next.x - (last.x + last.w)) / 2)
+    : last.x + last.w + 39;
+
+  return {
+    platforms,
+    target,
+    startX: platforms[0].x,
+    endX: last.x + last.w,
+    gateX,
+  };
+}
+
+function addAuthoredExudates(level, chunks) {
+  for (const chunk of chunks) {
+    const platform = mainPlatform(level, chunk);
+    if (!platform) continue;
+    level.exudates.push({
+      logicIndex: chunk,
+      x: platform.x + platform.w * .5,
+      y: platform.y - 34,
+      taken: false,
+      authored: true,
+    });
+  }
+}
+
+function applyPhaseOneVerticalSlice(level, phase = level.campaignPhase) {
+  if (phase !== 1) return level;
+  const manifest = getPhaseManifest(1);
+  const authoredSegments = manifest.segments.filter(segment => segment.fixedBlock);
+
+  level.fixedBlocks = [];
+  level.authoredEncounters = [];
+  // Na primeira fase, o primeiro biofilme deve ser uma ação do jogador.
+  // Checkpoints procedurais criavam biofilmes naturais e antecipavam Bacillus.
+  level.checkpoints = [];
+  level.platforms = level.platforms.filter(platform => (
+    !platform.recovery
+    || !authoredSegments.some(segment => platform.logicIndex >= segment.from && platform.logicIndex <= segment.to)
+  ));
+  level.exudates = (level.exudates || []).filter(exudate => (
+    Number.isInteger(exudate.logicIndex)
+    && exudate.logicIndex >= 9
+    && !authoredSegments.some(segment => exudate.logicIndex >= segment.from && exudate.logicIndex <= segment.to)
+  ));
+
+  for (const segment of authoredSegments) {
+    const template = BLOCK_LAYOUTS[segment.fixedBlock.template];
+    if (!template) throw new Error(`${segment.id}: template fixo desconhecido ${segment.fixedBlock.template}.`);
+    const geometry = authorGeometry(level, segment, template);
+    addAuthoredExudates(level, template.exudateChunks);
+    const completion = segment.fixedBlock.completionRef === 'finalTest'
+      ? manifest.finalTest.requires
+      : segment.fixedBlock.completion;
+    const recoveryPlatform = segment.id === 'p1-intro'
+      ? geometry.platforms[geometry.platforms.length - 1]
+      : null;
+    if (recoveryPlatform) {
+      recoveryPlatform.checkpointRecoveryBridge = true;
+      level.platforms = level.platforms.filter(platform => platform !== recoveryPlatform);
+    }
+    level.fixedBlocks.push({
+      id: segment.id,
+      kind: segment.kind,
+      template: segment.fixedBlock.template,
+      objective: segment.fixedBlock.objective,
+      completion: completion.map(condition => ({ ...condition })),
+      exitGate: segment.fixedBlock.exitGate === true,
+      startX: geometry.startX,
+      endX: geometry.endX,
+      gateX: geometry.gateX,
+      targetPlatform: geometry.target,
+      recoveryPlatform,
+      recoveryPlatformUnlocked: !recoveryPlatform,
+      completed: false,
+    });
+    for (let chunk = segment.from; chunk <= segment.to; chunk++) {
+      if (level.debugInfo?.[chunk]) {
+        level.debugInfo[chunk].authored = true;
+        level.debugInfo[chunk].fixedBlockId = segment.id;
+      }
+    }
+  }
+
+  return level;
+}
+
+function createFixedBlockRuntime({ state, evaluator, entities, ecology = null }) {
+  let lastBlockedAt = -Infinity;
+
+  function activeBlocks() {
+    return state.level.fixedBlocks || [];
+  }
+
+  function missingText(block, result) {
+    const missing = result.results.find(entry => !entry.passed);
+    if (!missing) return '';
+    if (missing.condition.key === 'deployedExudateCount') return 'libere pelo menos um exsudato com E';
+    if (missing.condition.key === 'functionalBiofilmCount') {
+      return block.kind === 'final'
+        ? 'volte à raiz da prova com halo amarelo e forme o biofilme nela'
+        : 'volte à raiz de treinamento com halo amarelo e inocule Bacillus nela';
+    }
+    return 'complete o objetivo ecológico indicado';
+  }
+
+  function completeBlock(block) {
+    block.completed = true;
+    block.completedAt = state.time;
+    block.deathsAtCompletion = state.player.deaths || 0;
+    block.targetPlatform.fixedObjective = false;
+    state.toast = block.kind === 'final'
+      ? 'Prova final concluída: a raiz de saída recebeu um biofilme funcional.'
+      : 'Módulo concluído: recrutamento, inoculação e biofilme confirmados.';
+    state.toastTime = 5.2;
+    entities.burst(block.gateX, block.targetPlatform.y - 70, '#8ff2c1', 34, 150);
+  }
+
+  function checkpointIsOnTarget(block) {
+    const checkpoint = state.currentCheckpoint;
+    if (!checkpoint) return false;
+    const checkpointX = checkpoint.x + state.player.w / 2;
+    return checkpointX >= block.targetPlatform.x - 80
+      && checkpointX <= block.targetPlatform.x + block.targetPlatform.w + 80;
+  }
+
+  function updateRecoveryPlatformAfterRespawn(block) {
+    if (!block.recoveryPlatform || block.recoveryPlatformUnlocked || !block.completed) return;
+    const diedAfterCheckpoint = (state.player.deaths || 0) > (block.deathsAtCompletion || 0);
+    const failedBeyondCheckpoint = state.player.x > block.targetPlatform.x + block.targetPlatform.w + 24;
+    if (
+      !block.recoveryPlatformPending
+      && state.gameState === 'respawning'
+      && diedAfterCheckpoint
+      && failedBeyondCheckpoint
+      && checkpointIsOnTarget(block)
+    ) {
+      block.recoveryPlatformPending = true;
+      return;
+    }
+
+    if (!block.recoveryPlatformPending || state.gameState !== 'play' || !state.player.alive) return;
+    const checkpoint = state.currentCheckpoint;
+    const respawnedAtCheckpoint = checkpoint
+      && Math.hypot(state.player.x - checkpoint.x, state.player.y - checkpoint.y) < 110;
+    if (!respawnedAtCheckpoint || !checkpointIsOnTarget(block)) return;
+
+    block.recoveryPlatformUnlocked = true;
+    block.recoveryPlatformPending = false;
+    if (!state.level.platforms.includes(block.recoveryPlatform)) {
+      state.level.platforms.push(block.recoveryPlatform);
+      state.level.platforms.sort((left, right) => left.x - right.x);
+    }
+    state.toast = 'Checkpoint demonstrado: uma raiz de apoio surgiu para a segunda tentativa.';
+    state.toastTime = 5.2;
+    entities.burst(
+      block.recoveryPlatform.x + block.recoveryPlatform.w / 2,
+      block.recoveryPlatform.y - 18,
+      '#ffd56f',
+      30,
+      145,
+    );
+  }
+
+  function holdAtGate(block, result) {
+    const player = state.player;
+    const right = player.x + player.w;
+    if (!block.exitGate || block.completed || right <= block.gateX) return;
+    player.x = block.gateX - player.w - 2;
+    player.vx = Math.min(0, player.vx);
+    if (state.time - lastBlockedAt < 2.4) return;
+    lastBlockedAt = state.time;
+    state.toast = `Saída bloqueada: ${missingText(block, result)}.`;
+    state.toastTime = 4.2;
+  }
+
+  function update() {
+    for (const block of activeBlocks()) updateRecoveryPlatformAfterRespawn(block);
+    if (state.gameState !== 'play') return;
+    const centerX = state.player.x + state.player.w / 2;
+    for (const block of activeBlocks()) {
+      const result = evaluator.evaluate(block.completion);
+      if (!block.completed && result.passed) completeBlock(block);
+      holdAtGate(block, result);
+      if (centerX >= block.startX - 260 && centerX <= block.gateX + 80) {
+        state.mission = block.completed
+          ? `${block.objective} Objetivo concluído; prossiga.`
+          : centerX > block.targetPlatform.x + block.targetPlatform.w
+            ? `${block.objective} ← Volte à raiz com halo amarelo.`
+            : block.objective;
+      }
+    }
+  }
+
+  function hasRecruitedBacillus() {
+    return (ecology?.agents || []).some(agent => (
+      agent.type === 'bacillus'
+      && (agent.beneficialRecruitedUntil || 0) > state.time
+    ));
+  }
+
+  function hasPlacedBacillus() {
+    return (state.level.beneficialColonies || []).some(colony => colony.type === 'bacillus')
+      || (state.level.biofilms || []).some(film => film.platform?.objectiveTarget === 'p1-intro-root');
+  }
+
+  function drawGuidance(ctx, x, y, label, color = '#ffd56f') {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '900 13px Inter,system-ui';
+    const width = ctx.measureText(label).width + 30;
+    ctx.fillStyle = 'rgba(3,18,24,.9)';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(x - width / 2, y - 16, width, 32, 16);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = color === '#ffd56f' ? '#ffe58f' : color;
+    ctx.fillText(label, x, y + .5);
+    ctx.restore();
+  }
+
+  function render(ctx) {
+    ctx.save();
+    ctx.translate(-(state.cameraX || 0), 0);
+    for (const block of activeBlocks()) {
+      if (block.id === 'p1-intro' && !block.completed) {
+        const bacillusKnown = state.discoveredMicrobes?.has('bacillus');
+        const recruited = hasRecruitedBacillus();
+        const placed = hasPlacedBacillus();
+        const debut = (ecology?.encounters || []).find(encounter => (
+          encounter.source === 'debut'
+          && encounter.id === 'bacillus'
+          && encounter.logicIndex === 6
+        ));
+        if (bacillusKnown && !recruited && !placed && debut) {
+          drawGuidance(
+            ctx,
+            debut.x,
+            debut.y + 88,
+            '↓ LANCE O EXSUDATO PARA RECRUTAR BACILLUS AQUI',
+          );
+        }
+      }
+
+      const target = block.targetPlatform;
+      if (!target?.objectiveTarget || block.completed) continue;
+      if (block.id === 'p1-intro' && !hasRecruitedBacillus() && !hasPlacedBacillus()) continue;
+      const x = target.x + target.w / 2;
+      const y = target.y - 72;
+      const label = block.kind === 'final'
+        ? '↓ ALVO DA PROVA — FORME O BIOFILME AQUI'
+        : '↓ ALVO DA FASE — INOCULE BACILLUS AQUI';
+      drawGuidance(ctx, x, y, label);
+    }
+    ctx.restore();
+  }
+
+  function finalBlockCompleted() {
+    const block = activeBlocks().find(candidate => candidate.kind === 'final');
+    return !block || block.completed;
+  }
+
+  return { update, render, finalBlockCompleted };
+}
+Object.assign(__exports, { applyPhaseOneVerticalSlice, createFixedBlockRuntime });
+},
 "src/render/renderer.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");
 function mixHex(a, b, t) {
@@ -10979,6 +12045,15 @@ Object.assign(__exports, { createRenderer });
 },
 "src/render/microbes.js": (__exports, __require) => {
 const { W } = __require("src/core/constants.js");const { lerp } = __require("src/core/math.js");const { microbeCatalog, microbeEncounters } = __require("src/data/microbes.js");
+const PROCEDURAL_SCENERY_IDS = new Set(['rhizobium', 'myco']);
+const proceduralSceneryEncounters = microbeEncounters
+  .filter(encounter => PROCEDURAL_SCENERY_IDS.has(encounter.id))
+  .map(encounter => Object.freeze({ ...encounter, decorative: true }));
+
+function getMicrobeSceneEncounters(state = {}) {
+  return state.proceduralCampaign === true ? proceduralSceneryEncounters : microbeEncounters;
+}
+
 function createMicrobeRenderer({ ctx, state, entities }) {
   function drawAnimatedFlag(x, y, a, len, color, phase, width = 1, spread = 0) {
     const time = state.time;
@@ -11326,7 +12401,7 @@ function createMicrobeRenderer({ ctx, state, entities }) {
   }
 
   function drawMicrobeEcosystems() {
-    for (const z of microbeEncounters) {
+    for (const z of getMicrobeSceneEncounters(state)) {
       if (z.x - state.cameraX < -260 || z.x - state.cameraX > W + 260) continue;
       if (z.id === 'rhizobium') drawRhizobiumScene(z);
       else if (z.id === 'myco') drawMycorrhizaScene(z);
@@ -11336,14 +12411,14 @@ function createMicrobeRenderer({ ctx, state, entities }) {
       else if (z.id === 'trichoderma') drawTrichodermaScene(z);
       else if (z.id === 'azospirillum') drawAzospirillumScene(z);
       else if (z.id === 'pseudomonas') drawPseudomonasScene(z);
-      drawEncounterLabel(z);
+      if (!z.decorative) drawEncounterLabel(z);
     }
   }
 
   function discoverVisibleEncounters() {
     const player = state.player;
-    microbeEncounters.forEach(z => {
-      if (z.collect || state.discoveredMicrobes.has(z.id)) return;
+    getMicrobeSceneEncounters(state).forEach(z => {
+      if (z.decorative || z.collect || state.discoveredMicrobes.has(z.id)) return;
       if (Math.hypot(z.x - (player.x + 16), z.y - (player.y + 24)) < z.r) entities.discoverMicrobe(z.id, true);
     });
   }
@@ -11355,7 +12430,7 @@ function createMicrobeRenderer({ ctx, state, entities }) {
     discoverVisibleEncounters,
   };
 }
-Object.assign(__exports, { createMicrobeRenderer });
+Object.assign(__exports, { getMicrobeSceneEncounters, createMicrobeRenderer });
 },
 "src/procgen/platform-visuals.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");
@@ -11524,6 +12599,22 @@ function createPlatformVisuals({ state }) {
     ctx.stroke();
     ctx.setLineDash([]);
 
+    if (platform.fixedObjective) {
+      const objectivePulse = .78 + Math.sin(state.time * 3.2) * .08;
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,213,111,${objectivePulse})`;
+      ctx.fillStyle = 'rgba(255,213,111,.08)';
+      ctx.lineWidth = 3;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#ffd56f';
+      roundedPath(ctx, platform, radius);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffd56f';
+      ctx.fillRect(platform.x + 12, platform.y - 2, Math.max(24, platform.w - 24), 4);
+      ctx.restore();
+    }
+
     if (!platform.mycorrhizaStructure) {
       const hairCount = Math.max(0, Math.min(9, Math.floor(platform.w / 44 * health)));
       ctx.strokeStyle = platform.healthTrend > 0 ? 'rgba(184,255,198,.78)' : `rgba(233,213,180,${.12 + health * .46})`;
@@ -11651,6 +12742,9 @@ function createPlatformVisuals({ state }) {
     if (state.gameState !== 'play') return;
     const nearby = nearbyPlatform();
     if (!nearby) return;
+    // Os blocos fixos possuem orientação contextual própria. Repetir aqui o
+    // rótulo da raiz criava duas mensagens sobrepostas.
+    if (nearby.platform.fixedObjective) return;
     const { text, color } = labelFor(nearby.platform);
     const alpha = clamp(1 - nearby.score / 82, .25, 1);
     const player = state.player;
@@ -13648,8 +14742,9 @@ const { createTutorialManager } = __require("src/procgen/tutorial-manager.js");
 const { createTutorialTriggers, TUTORIAL_RUNTIME_VERSION } = __require("src/procgen/tutorial-triggers.js");
 ensureTutorialInterface();
 
-const coarsePointer = window.matchMedia('(pointer: coarse)').matches
-  || navigator.maxTouchPoints > 0;
+const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
+const compactTouchViewport = window.matchMedia('(max-width: 900px)').matches;
+const touchDevice = coarsePointer || (navigator.maxTouchPoints > 0 && compactTouchViewport);
 
 const root = document.documentElement;
 const controls = document.getElementById('touch-controls');
@@ -13658,7 +14753,7 @@ const debugButton = document.querySelector('[data-mobile-action="debug"]');
 const resetButton = document.querySelector('[data-mobile-action="reset"]');
 const fullscreenButton = document.querySelector('[data-mobile-action="fullscreen"]');
 
-if (coarsePointer) root.classList.add('touch-device');
+if (touchDevice) root.classList.add('touch-device');
 
 const pressed = new Map();
 
@@ -13747,7 +14842,7 @@ document.addEventListener('fullscreenchange', () => {
   fullscreenButton?.classList.toggle('active', Boolean(document.fullscreenElement));
 });
 
-if (controls && coarsePointer) {
+if (controls && touchDevice) {
   controls.hidden = false;
   document.body.classList.add('touch-ready');
 }
@@ -13811,7 +14906,7 @@ initializeTutorialSystem();
 },
 "src/procgen/tutorial-bootstrap.js": (__exports, __require) => {
 function ensureTutorialInterface() {
-  if (!document.querySelector('link[data-tutorial-styles]')) {
+  if (!document.querySelector('[data-tutorial-styles]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = './src/procgen/tutorial-overlay.css';
@@ -15363,7 +16458,7 @@ const { W } = __require("src/core/constants.js");
 const { getTutorialModeAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-const TUTORIAL_RUNTIME_VERSION = '2026.07.17.2';
+const TUTORIAL_RUNTIME_VERSION = '2026.07.17.3';
 const TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT =
   tutorialPacing.simultaneousFirstEncountersEventName;
 
@@ -15493,6 +16588,16 @@ function createTutorialTriggers({
 
     for (const agent of sim.ecology.agents || []) {
       const cardId = discoveryCards[agent.type];
+      const originZone = sim.ecology.encounters?.[agent.zoneIndex];
+      // Enquanto uma estreia móvel ainda é inédita e está presa à sua zona,
+      // a proximidade deve ser medida pelo centro visível da comunidade. Um
+      // indivíduo na borda não pode antecipar o cartão para o chunk anterior.
+      if (
+        originZone?.source === 'debut'
+        && originZone.tetherUntilSeen
+        && cardId
+        && !manager.hasSeen(cardId)
+      ) continue;
       const distance = distanceToPlayer(agent.x, agent.y);
       if (distance > TUTORIAL_PROXIMITY.microbeAgent) continue;
       addCandidate(cardId, distance, { type: agent.type, source: 'agent' });

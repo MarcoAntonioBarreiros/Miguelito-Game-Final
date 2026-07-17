@@ -4,6 +4,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'dist');
 const modules = new Map();
+const tutorialStylesPath = path.join(root, 'src', 'procgen', 'tutorial-overlay.css');
 
 const importPattern = /^\s*import\s*\{([\s\S]*?)\}\s*from\s*['"]([^'"]+)['"]\s*;\s*$/gm;
 const moduleScriptPattern = /<script\b(?=[^>]*\btype=["']module["'])[^>]*\bsrc=["']([^"']+)["'][^>]*><\/script>/gi;
@@ -91,6 +92,24 @@ ${start}
 })();`;
 }
 
+function inlineRuntimeStyles(html) {
+  if (!fs.existsSync(tutorialStylesPath)) {
+    throw new Error(`Tutorial stylesheet not found: ${tutorialStylesPath}`);
+  }
+  if (!/<\/head>/i.test(html)) {
+    throw new Error('The standalone document must contain a closing </head> tag');
+  }
+
+  const tutorialStyles = fs.readFileSync(tutorialStylesPath, 'utf8');
+  if (/<\/style/i.test(tutorialStyles)) {
+    throw new Error('Tutorial stylesheet contains an unsafe </style sequence');
+  }
+  return html.replace(
+    /<\/head>/i,
+    `<style data-tutorial-styles>\n${tutorialStyles.trim()}\n</style>\n</head>`,
+  );
+}
+
 function build() {
   const htmlPath = path.join(root, 'index.html');
   const html = fs.readFileSync(htmlPath, 'utf8');
@@ -102,11 +121,12 @@ function build() {
   const entries = moduleScripts.map(match => resolveImport(htmlPath, match[1]));
   const bundle = createBundle(entries).replace(/<\/script/gi, '<\\/script');
   let inserted = false;
-  const standalone = html.replace(moduleScriptPattern, () => {
+  const bundledHtml = html.replace(moduleScriptPattern, () => {
     if (inserted) return '';
     inserted = true;
     return `<script>\n${bundle}\n</script>`;
-  }).replace(/[ \t]+$/gm, '');
+  });
+  const standalone = inlineRuntimeStyles(bundledHtml).replace(/[ \t]+$/gm, '');
 
   fs.mkdirSync(dist, { recursive: true });
   const outIndex = path.join(dist, 'index.html');

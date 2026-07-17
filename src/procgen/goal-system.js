@@ -4,9 +4,16 @@ const TAU = Math.PI * 2;
 
 export function createGoalSystem({ state, entities }) {
   let completedAt = -1;
+  let completionGuard = () => ({ passed: true, message: '' });
+  let lastBlockedAt = -Infinity;
+
+  function setCompletionGuard(guard) {
+    completionGuard = typeof guard === 'function' ? guard : () => ({ passed: true, message: '' });
+  }
 
   function reset() {
     completedAt = -1;
+    lastBlockedAt = -Infinity;
     if (state.level.goal) state.level.goal.completed = false;
   }
 
@@ -42,7 +49,18 @@ export function createGoalSystem({ state, entities }) {
     if (!goal || goal.completed || state.gameState !== 'play') return;
     const px = state.player.x + state.player.w / 2;
     const py = state.player.y + state.player.h / 2;
-    if (Math.hypot(px - goal.x, py - (goal.y + 48)) < goal.radius) complete(goal);
+    if (Math.hypot(px - goal.x, py - (goal.y + 48)) >= goal.radius) return;
+    const guard = completionGuard();
+    if (!guard?.passed) {
+      state.player.vx = Math.min(0, state.player.vx);
+      if (state.time - lastBlockedAt > 2.4) {
+        lastBlockedAt = state.time;
+        state.toast = guard?.message || 'A prova final ainda não foi concluída.';
+        state.toastTime = 4.2;
+      }
+      return;
+    }
+    complete(goal);
   }
 
   function render(ctx) {
@@ -134,5 +152,5 @@ export function createGoalSystem({ state, entities }) {
     ctx.restore();
   }
 
-  return { reset, clear, update, render };
+  return { reset, clear, setCompletionGuard, update, render };
 }

@@ -1,5 +1,5 @@
 export function ensureTutorialInterface() {
-  if (!document.querySelector('link[data-tutorial-styles]')) {
+  if (!document.querySelector('[data-tutorial-styles]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = './src/procgen/tutorial-overlay.css';

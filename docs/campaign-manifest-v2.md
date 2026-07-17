@@ -143,3 +143,11 @@ As provas verificam estado real, não apenas cartão visto. Criar avaliador cent
 4. Pool por chunk e tethering.
 5. Fase 1 como corte vertical.
 6. Uma fase por PR após playtest.
+
+## Corte vertical da Fase 1
+
+A Fase 1 implementa o ciclo completo `introdução fixa → encontro por proximidade → ação guiada → desafio procedural → prova final → raiz de conclusão`.
+
+Os blocos `p1-intro` e `p1-final` declaram template, objetivo, condições de conclusão e portão de saída no manifesto. A geometria autoral preserva conexões atravessáveis com os trechos procedurais. A introdução só libera a saída depois de um exsudato real e de um biofilme funcional na raiz de treinamento. A prova final usa o avaliador central e aceita somente um biofilme funcional associado à raiz marcada como `p1-exit-root`; cartão visto ou biofilme em outra raiz não conclui a fase.
+
+O workflow de Pages executa o build e publica o HTML standalone validado, reduzindo divergências de cache entre os módulos-fonte e o jogo implantado.

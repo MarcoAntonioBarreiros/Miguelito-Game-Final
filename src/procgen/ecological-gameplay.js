@@ -15,6 +15,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
   const biofilms = [];
   const formingBiofilms = new Map();
   let nextCloudId = 1;
+  let deployedCloudCount = 0;
   let eHeldLast = false;
   let infectionAnnounced = false;
 
@@ -29,6 +30,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
     formingBiofilms.clear();
     eHeldLast = false;
     infectionAnnounced = false;
+    deployedCloudCount = 0;
   }
 
   function reset() {
@@ -72,6 +74,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
       phase: Math.random() * TAU,
     };
     clouds.push(cloud);
+    deployedCloudCount++;
     entities.burst(cloud.x, cloud.y, '#b7f36b', 22, 135);
     toast('Gradiente de exsudatos', 'A nuvem atrai comunidades móveis e orienta interações ecológicas.', 3.5);
   }
@@ -377,6 +380,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
 
   return {
     get cloudCount() { return clouds.length; },
+    get deployedCloudCount() { return deployedCloudCount; },
     get biofilmCount() { return biofilms.length; },
     clear,
     reset,

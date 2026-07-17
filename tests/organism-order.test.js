@@ -17,6 +17,7 @@ import {
 } from '../src/procgen/campaign-manifest.js';
 import { generateLevel } from '../src/procgen/generator.js';
 import { createSimulator } from '../src/procgen/simulator.js';
+import { getMicrobeSceneEncounters } from '../src/render/microbes.js';
 
 const SEEDS = Array.from({ length: 12 }, (_, index) => `curriculum-seed-${index + 1}`);
 const ROAMING_DEBUTS = [
@@ -27,6 +28,17 @@ const ROAMING_DEBUTS = [
   { phase: 5, chunk: 18, type: 'oportunista', cardId: 'organism-opportunistic-fungus' },
   { phase: 5, chunk: 20, type: 'trichoderma', cardId: 'organism-trichoderma' },
 ];
+
+test('campanha mantém somente os sinais cenográficos antigos, sem função didática', () => {
+  const campaignScenes = getMicrobeSceneEncounters({ proceduralCampaign: true });
+  assert.deepEqual(campaignScenes.map(scene => scene.id), ['rhizobium', 'myco']);
+  assert.equal(campaignScenes.every(scene => scene.decorative === true), true);
+  assert.equal(campaignScenes.some(scene => scene.id === 'phos'), false);
+
+  const legacyScenes = getMicrobeSceneEncounters({ proceduralCampaign: false });
+  assert.ok(legacyScenes.some(scene => scene.id === 'phos'));
+  assert.equal(legacyScenes.some(scene => scene.decorative), false);
+});
 
 function generatePhase(phase, seed) {
   const campaign = createCampaign(seed);

@@ -75,6 +75,11 @@
     assert(sim.state.level.debugInfo?.length === expectedChunks, `${label}: generated chunks should match the phase profile`);
     assert(sim.state.level.platforms.length > sim.state.level.debugInfo.length, `${label}: generated route should include start and recovery platforms`);
     assert(typeof win.miguelitoTutorialVersion === 'string', `${label}: tutorial entrypoint should expose its version`);
+    assert(!!win.document.querySelector('[data-tutorial-styles]'), `${label}: tutorial styles should be available`);
+    assert(
+      !win.document.documentElement.classList.contains('touch-device'),
+      `${label}: desktop viewport should not expose touch controls`,
+    );
   }
 
   async function verifyTutorialFlow(win, label) {
@@ -96,9 +101,20 @@
     assert(pending, `${label}: first Bacillus proximity should be retained while welcome is open`);
     assert(manager.currentCardId === 'system-welcome', `${label}: mandatory pending card should not replace the active panel`);
 
+    const nextButton = win.document.querySelector('.tutorial-next');
+    const nextRect = nextButton.getBoundingClientRect();
+    const nextHit = win.document.elementFromPoint(
+      nextRect.left + nextRect.width / 2,
+      nextRect.top + nextRect.height / 2,
+    );
+    assert(
+      nextHit === nextButton || nextButton.contains(nextHit),
+      `${label}: tutorial navigation should not be covered by HUD controls`,
+    );
+
     const welcomePageCount = manager.getUnlockedPages('system-welcome').length;
     for (let index = 0; index < welcomePageCount; index++) {
-      win.dispatchEvent(new win.KeyboardEvent('keydown', { code: 'Enter', bubbles: true }));
+      nextButton.click();
     }
     await waitFor(
       () => manager.currentCardId === 'organism-bacillus',
@@ -110,7 +126,7 @@
       `${label}: first Bacillus encounter should unlock only page zero`,
     );
 
-    win.dispatchEvent(new win.KeyboardEvent('keydown', { code: 'Enter', bubbles: true }));
+    nextButton.click();
     await waitFor(() => !manager.isOpen, `${label}: one-page Bacillus introduction should close`);
     manager.trigger('structure-biofilm', {
       tutorialMode: 'silent',
@@ -144,6 +160,14 @@
     assert(
       built.win.document.querySelectorAll('script[type="module"]').length === 0,
       'build: module entrypoints should be replaced by the inline bundle',
+    );
+    assert(
+      built.win.document.querySelectorAll('style[data-tutorial-styles]').length === 1,
+      'build: tutorial styles should be embedded in the standalone document',
+    );
+    assert(
+      built.win.document.querySelectorAll('link[data-tutorial-styles]').length === 0,
+      'build: standalone document should not request an external tutorial stylesheet',
     );
     record('standalone-bundle');
 

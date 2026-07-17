@@ -3,7 +3,7 @@ import { getTutorialModeAt, tutorialPacing } from './campaign-manifest.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-export const TUTORIAL_RUNTIME_VERSION = '2026.07.17.2';
+export const TUTORIAL_RUNTIME_VERSION = '2026.07.17.3';
 export const TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT =
   tutorialPacing.simultaneousFirstEncountersEventName;
 
@@ -133,6 +133,16 @@ export function createTutorialTriggers({
 
     for (const agent of sim.ecology.agents || []) {
       const cardId = discoveryCards[agent.type];
+      const originZone = sim.ecology.encounters?.[agent.zoneIndex];
+      // Enquanto uma estreia móvel ainda é inédita e está presa à sua zona,
+      // a proximidade deve ser medida pelo centro visível da comunidade. Um
+      // indivíduo na borda não pode antecipar o cartão para o chunk anterior.
+      if (
+        originZone?.source === 'debut'
+        && originZone.tetherUntilSeen
+        && cardId
+        && !manager.hasSeen(cardId)
+      ) continue;
       const distance = distanceToPlayer(agent.x, agent.y);
       if (distance > TUTORIAL_PROXIMITY.microbeAgent) continue;
       addCandidate(cardId, distance, { type: agent.type, source: 'agent' });

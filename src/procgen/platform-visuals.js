@@ -165,6 +165,22 @@ export function createPlatformVisuals({ state }) {
     ctx.stroke();
     ctx.setLineDash([]);
 
+    if (platform.fixedObjective) {
+      const objectivePulse = .78 + Math.sin(state.time * 3.2) * .08;
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,213,111,${objectivePulse})`;
+      ctx.fillStyle = 'rgba(255,213,111,.08)';
+      ctx.lineWidth = 3;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#ffd56f';
+      roundedPath(ctx, platform, radius);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffd56f';
+      ctx.fillRect(platform.x + 12, platform.y - 2, Math.max(24, platform.w - 24), 4);
+      ctx.restore();
+    }
+
     if (!platform.mycorrhizaStructure) {
       const hairCount = Math.max(0, Math.min(9, Math.floor(platform.w / 44 * health)));
       ctx.strokeStyle = platform.healthTrend > 0 ? 'rgba(184,255,198,.78)' : `rgba(233,213,180,${.12 + health * .46})`;
@@ -292,6 +308,9 @@ export function createPlatformVisuals({ state }) {
     if (state.gameState !== 'play') return;
     const nearby = nearbyPlatform();
     if (!nearby) return;
+    // Os blocos fixos possuem orientação contextual própria. Repetir aqui o
+    // rótulo da raiz criava duas mensagens sobrepostas.
+    if (nearby.platform.fixedObjective) return;
     const { text, color } = labelFor(nearby.platform);
     const alpha = clamp(1 - nearby.score / 82, .25, 1);
     const player = state.player;

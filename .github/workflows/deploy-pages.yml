@@ -27,13 +27,20 @@ jobs:
         with:
           enablement: true
 
+      - name: Configure Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build verified standalone game
+        run: npm run build
+
       - name: Stage procedural site
         run: |
           rm -rf site
           mkdir -p site
-          cp index.html site/index.html
-          cp procgen.html site/procgen.html
-          cp -R src site/src
+          cp dist/index.html site/index.html
+          cp dist/beans_living_soil_prototype_vertical_v3.html site/procgen.html
           touch site/.nojekyll
 
       - name: Upload Pages artifact
