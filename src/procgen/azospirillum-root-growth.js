@@ -5,11 +5,13 @@ import { createRandom } from './random.js';
 export const AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE = 'azospirillum-root-ladder';
 
 const TAU = Math.PI * 2;
-const FIRST_DEMONSTRATION_VERTICAL_SPACING = 50;
-const FIRST_STEP_GAP = 80;
-const STEP_ADVANCE = 180;
-const STEP_WIDTH = 90;
-const MIN_LADDER_ARCH = 32;
+const FIRST_DEMONSTRATION_VERTICAL_SPACING = 74;
+const MIN_VERTICAL_SPACING = 50;
+const WALL_OFFSET = 86;
+const WALL_WIDTH = 62;
+const BRANCH_WIDTH = 104;
+const BRANCH_STAGGER = 18;
+const EXIT_GAP = 74;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -40,7 +42,6 @@ function hasCriticalContent(level, encounters, platform) {
     level.exudates,
     level.crystals,
     level.enemies,
-    level.allies,
     level.checkpoints,
     encounters,
   ].some(collection => (collection || []).some(entity => occupiesPlatform(entity, platform)));
@@ -95,50 +96,63 @@ function shiftRouteAfter(level, encounters, thresholdX, deltaX) {
   }
 }
 
-function ladderCandidates(level, encounters, route, firstExudate, minimumHostChunk, config) {
+function shiftAlliesWithPlatform(level, platform, deltaY) {
+  if (!deltaY) return;
+  for (const ally of level.allies || []) {
+    if (occupiesPlatform(ally, platform) && Number.isFinite(ally.y)) ally.y += deltaY;
+  }
+}
+
+function ladderCandidates(level, encounters, route, firstExudate, minimumHostChunk, maximumHostChunk, config) {
   const candidates = [];
   for (let index = 1; index < route.length - 2; index++) {
     const host = route[index];
     const destination = route[index + 1];
     const following = route[index + 2];
-    if (!colonizableRoot(host) || host.logicIndex <= firstExudate || host.logicIndex < minimumHostChunk) continue;
+    if (
+      !colonizableRoot(host)
+      || host.logicIndex <= firstExudate
+      || host.logicIndex < minimumHostChunk
+      || host.logicIndex > maximumHostChunk
+    ) continue;
     if (hasCriticalContent(level, encounters, destination)) continue;
     if (destination.x <= host.x + host.w) continue;
 
-    const availableArch = Math.min(host.y, destination.y) - 170;
-    if (availableArch < MIN_LADDER_ARCH) continue;
-    // The first Phase 3 demonstration must work before double jump. The Phase
-    // Lab value remains available for later variants, but this authored debut
-    // clamps each rise to the distance validated for a normal jump.
-    const archHeight = Math.min(
+    const availableSpacing = (host.y - 112) / config.stepCount;
+    const verticalSpacing = Math.min(
       config.verticalSpacing,
       FIRST_DEMONSTRATION_VERTICAL_SPACING,
-      availableArch,
+      availableSpacing,
     );
-    const destinationY = destination.y;
-    const actualVerticalSpacing = archHeight;
-    const horizontalSpacing = FIRST_STEP_GAP;
+    if (verticalSpacing < MIN_VERTICAL_SPACING) continue;
+
+    const wallX = host.x + host.w + WALL_OFFSET;
+    const topStepY = host.y - verticalSpacing * config.stepCount;
+    const wallTopY = topStepY - 18;
+    // A saida permanece em uma altura intermediaria para reconectar a rota
+    // procedural sem transformar os degraus numa passarela horizontal.
+    const destinationY = Math.min(destination.y, host.y - verticalSpacing * 2);
+    const wallBottomY = Math.max(host.y + host.h, destinationY + destination.h);
 
     candidates.push({
       host,
       destination,
       following,
+      verticalSpacing,
       destinationY,
-      archHeight,
-      actualVerticalSpacing,
-      horizontalSpacing,
+      wallX,
+      wallTopY,
+      wallBottomY,
     });
   }
   return candidates;
 }
 
 function buildSteps(slot, config, ladderId) {
-  const firstStepX = slot.host.x + slot.host.w + FIRST_STEP_GAP;
   return Array.from({ length: config.stepCount }, (_, index) => {
-    const verticalT = (index + 1) / (config.stepCount + 1);
-    const centerX = firstStepX + index * STEP_ADVANCE + STEP_WIDTH / 2;
-    const routeY = lerp(slot.host.y, slot.destinationY, verticalT);
-    const y = routeY - Math.sin(verticalT * Math.PI) * slot.archHeight;
+    const side = index % 2 === 0 ? -1 : 1;
+    const centerX = slot.wallX + WALL_WIDTH / 2 + side * BRANCH_STAGGER;
+    const y = slot.host.y - slot.verticalSpacing * (index + 1);
     return {
       id: `${ladderId}-step-${index + 1}`,
       index,
@@ -146,7 +160,7 @@ function buildSteps(slot, config, ladderId) {
       y,
       startWidth: 14,
       startHeight: 4,
-      targetWidth: STEP_WIDTH,
+      targetWidth: BRANCH_WIDTH,
       targetHeight: 12,
       currentWidth: 14,
       currentHeight: 4,
@@ -204,13 +218,22 @@ export function generateAzospirillumRootLadders({
   }
 
   const minimumHostChunk = Math.max(firstExudate + 1, unlockChunk + 1);
-  const candidates = ladderCandidates(level, encounters, route, firstExudate, minimumHostChunk, config);
+  const maximumHostChunk = unlockChunk + 12;
+  const candidates = ladderCandidates(
+    level,
+    encounters,
+    route,
+    firstExudate,
+    minimumHostChunk,
+    maximumHostChunk,
+    config,
+  );
   if (!candidates.length) return level.azospirillumRootLadders;
 
   const ordered = [...candidates].sort((left, right) => (
     left.host.logicIndex - right.host.logicIndex || left.host.x - right.host.x
   ));
-  const window = ordered.slice(0, Math.min(ordered.length, Math.max(4, config.count * 4)));
+  const window = ordered.slice(0, Math.min(ordered.length, Math.max(3, config.count * 3)));
   const random = createRandom(`${seedValue}:azospirillum-root-ladder:p${phase}`);
   const selected = [];
   for (const candidate of shuffled(window, random)) {
@@ -225,13 +248,31 @@ export function generateAzospirillumRootLadders({
       const id = `azo-ladder-${slot.host.logicIndex}-${index}`;
       const originalDestinationY = slot.destination.y;
       const originalDestinationX = slot.destination.x;
-      const lastStepX = slot.host.x + slot.host.w + FIRST_STEP_GAP
-        + (config.stepCount - 1) * STEP_ADVANCE;
-      const desiredDestinationX = lastStepX + STEP_WIDTH + FIRST_STEP_GAP;
+      const desiredDestinationX = slot.wallX + WALL_WIDTH + EXIT_GAP;
       shiftRouteAfter(level, encounters, originalDestinationX, desiredDestinationX - originalDestinationX);
+      shiftAlliesWithPlatform(level, slot.destination, slot.destinationY - originalDestinationY);
+      slot.destination.y = slot.destinationY;
+      if (Number.isFinite(slot.destination.rootBaseY)) {
+        slot.destination.rootBaseY = slot.destinationY;
+      }
       slot.host.azospirillumLadderHost = true;
       slot.destination.azospirillumLadderDestination = true;
       removeRecoveryPlatforms(level, slot.host, slot.destination);
+      const wall = {
+        x: slot.wallX,
+        y: slot.wallTopY,
+        w: WALL_WIDTH,
+        h: slot.wallBottomY - slot.wallTopY,
+        type: 'root',
+        oneWay: false,
+        azospirillumStructure: true,
+        azospirillumRootWall: true,
+        ladderId: id,
+        logicIndex: slot.host.logicIndex,
+        rootHealth: 1,
+        rootMaxHealth: 1,
+      };
+      level.platforms.push(wall);
       const ladder = {
         id,
         blockType: AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE,
@@ -243,10 +284,11 @@ export function generateAzospirillumRootLadders({
         destinationLogicIndex: slot.destination.logicIndex,
         originalDestinationY,
         originalDestinationX,
-        blockedRise: slot.archHeight,
+        blockedRise: slot.host.y - slot.wallTopY,
         blockedGap: slot.destination.x - (slot.host.x + slot.host.w),
-        actualVerticalSpacing: slot.actualVerticalSpacing,
-        horizontalSpacing: slot.horizontalSpacing,
+        actualVerticalSpacing: slot.verticalSpacing,
+        horizontalSpacing: BRANCH_STAGGER * 2,
+        wall,
         sourceAzospirillumLogicIndex: firstAzospirillum,
         sourceExudateLogicIndex: firstExudate,
         growthDurationSeconds: config.growthDurationSeconds,
@@ -258,10 +300,10 @@ export function generateAzospirillumRootLadders({
         colony: null,
         announced: false,
         phase: random() * TAU,
-        startX: slot.host.x + slot.host.w - 24,
+        startX: slot.wallX + WALL_WIDTH / 2,
         startY: slot.host.y,
-        endX: slot.destination.x + 24,
-        endY: slot.destinationY,
+        endX: slot.wallX + WALL_WIDTH / 2,
+        endY: slot.wallTopY,
         steps: [],
       };
       ladder.steps = buildSteps(slot, config, id);
@@ -295,22 +337,24 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     step.collider = null;
   }
 
-  function removeGeneratedPlatforms() {
-    state.level.platforms = (state.level.platforms || []).filter(platform => !platform.azospirillumStructure);
+  function removeStepPlatforms() {
+    state.level.platforms = (state.level.platforms || [])
+      .filter(platform => !platform.azospirillumLadderStep);
     for (const ladder of ladders()) {
       for (const step of ladder.steps || []) step.collider = null;
     }
   }
 
   function clear() {
-    removeGeneratedPlatforms();
+    state.level.platforms = (state.level.platforms || [])
+      .filter(platform => !platform.azospirillumStructure);
     state.level.azospirillumRootLadders = [];
     state.level.azospirillumRoots = [];
     lastToastAt = -Infinity;
   }
 
   function reset() {
-    removeGeneratedPlatforms();
+    removeStepPlatforms();
     for (const ladder of ladders()) {
       ladder.progress = 0;
       ladder.visibleProgress = 0;
@@ -349,6 +393,7 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
       type: 'root',
       oneWay: true,
       azospirillumStructure: true,
+      azospirillumLadderStep: true,
       azospirillumRootLadder: true,
       ladderId: ladder.id,
       stepId: step.id,
@@ -429,22 +474,46 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
   }
 
   function drawLadder(ctx, ladder) {
-    const colony = ladder.colony;
-    const anchorX = colony?.x ?? clamp(
-      ladder.startX,
-      ladder.host.x + 18,
-      ladder.host.x + ladder.host.w - 18,
-    );
-    const points = [
-      { x: anchorX, y: ladder.host.y + 7 },
-      ...ladder.steps.map(step => ({ x: step.centerX, y: step.y + step.currentHeight / 2 })),
-      { x: ladder.endX, y: ladder.endY + 6 },
-    ];
-    const visibleSegments = clamp(Math.ceil(ladder.visibleProgress * (points.length - 1)), 0, points.length - 1);
-
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    const wall = ladder.wall;
+    const wallCenter = wall.x + wall.w / 2;
+    const wallGradient = ctx.createLinearGradient(wall.x, 0, wall.x + wall.w, 0);
+    wallGradient.addColorStop(0, '#72513c');
+    wallGradient.addColorStop(.45, '#bb8c5c');
+    wallGradient.addColorStop(1, '#5f4235');
+    ctx.fillStyle = wallGradient;
+    ctx.shadowColor = 'rgba(126,224,157,.35)';
+    ctx.shadowBlur = 8;
+    ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(151,232,158,.72)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(wall.x, wall.y, wall.w, wall.h);
+    ctx.strokeStyle = 'rgba(238,213,169,.28)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(wall.x + wall.w * .33, wall.y + 8);
+    ctx.bezierCurveTo(
+      wall.x + wall.w * .18,
+      wall.y + wall.h * .35,
+      wall.x + wall.w * .7,
+      wall.y + wall.h * .68,
+      wall.x + wall.w * .52,
+      wall.y + wall.h - 8,
+    );
+    ctx.stroke();
+
+    // A ligação com a raiz hospedeira é curta; a navegação cresce para cima,
+    // nunca como uma passarela horizontal até a próxima plataforma.
+    ctx.strokeStyle = '#9b704c';
+    ctx.lineWidth = 9;
+    ctx.beginPath();
+    ctx.moveTo(ladder.host.x + ladder.host.w - 18, ladder.host.y + 12);
+    ctx.quadraticCurveTo(wall.x - 18, ladder.host.y + 18, wallCenter, ladder.host.y + 8);
+    ctx.stroke();
+
     if (ladder.progress === 0) {
       ctx.font = '700 12px Inter,system-ui';
       ctx.textAlign = 'center';
@@ -455,18 +524,6 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
         ladder.host.y - 30,
       );
     }
-    if (visibleSegments > 0) {
-      ctx.strokeStyle = ladder.developed ? '#b98b58' : '#caa36e';
-      ctx.lineWidth = 5 + ladder.visibleProgress * 3;
-      ctx.shadowColor = '#72e8dd';
-      ctx.shadowBlur = ladder.developed ? 4 : 10;
-      ctx.beginPath();
-      ctx.moveTo(points[0].x, points[0].y);
-      for (let index = 1; index <= visibleSegments; index++) ctx.lineTo(points[index].x, points[index].y);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-    }
-
     for (const step of ladder.steps) {
       if (step.progress <= 0) continue;
       const half = step.currentWidth / 2;
@@ -495,6 +552,20 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
         ctx.lineTo(x + (hair % 2 ? 4 : -4), step.y - 8 - (hair % 3));
         ctx.stroke();
       }
+    }
+
+    const wallHairCount = Math.floor(ladder.visibleProgress * 14);
+    ctx.strokeStyle = 'rgba(214,239,190,.6)';
+    ctx.lineWidth = 1;
+    for (let index = 0; index < wallHairCount; index++) {
+      const y = ladder.host.y - 18 - index / Math.max(1, wallHairCount - 1)
+        * Math.max(20, ladder.host.y - wall.y - 34);
+      const side = index % 2 === 0 ? -1 : 1;
+      const x = side < 0 ? wall.x : wall.x + wall.w;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + side * (8 + index % 4 * 2), y - 5);
+      ctx.stroke();
     }
 
     if (!ladder.developed && ladder.progress > 0) {

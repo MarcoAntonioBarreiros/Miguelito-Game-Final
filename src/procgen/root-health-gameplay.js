@@ -18,7 +18,8 @@ function eligibleRoot(root) {
   return root.type === 'root'
     && !root.final
     && !root.recovery
-    && !root.mycorrhizaStructure;
+    && !root.mycorrhizaStructure
+    && !root.azospirillumStructure;
 }
 
 export function createRootHealthGameplay({ state, entities }) {

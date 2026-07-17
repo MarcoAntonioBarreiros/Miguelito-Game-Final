@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { validateChunk } from '../src/procgen/agents.js';
+import { createSimulator } from '../src/procgen/simulator.js';
 import { generateCampaignEncounters } from '../src/procgen/campaign-encounters.js';
 import {
   getPersistentUnlocksBeforePhase,
@@ -31,6 +32,47 @@ const LADDER_CONFIG = {
 
 const NORMAL_JUMP = { id: 'running-jump-long', requires: [] };
 const DOUBLE_JUMP = { id: 'running-double-jump', requires: ['doubleJump'] };
+
+function validateVerticalStep(fromPlatform, toPlatform) {
+  const from = { ...fromPlatform };
+  const to = { ...toPlatform };
+  const sim = createSimulator();
+  sim.state.level.platforms = [from, to];
+  sim.state.level.hazards = [];
+  sim.state.level.endX = Math.max(to.x + to.w + 600, 2400);
+  sim.state.level.cameraMaxX = Math.max(0, sim.state.level.endX - 1280);
+  sim.state.player.x = Math.max(
+    from.x + 4,
+    Math.min(
+      from.x + from.w - sim.state.player.w - 4,
+      to.x + to.w / 2 - sim.state.player.w / 2,
+    ),
+  );
+  sim.state.player.y = from.y - sim.state.player.h;
+  sim.state.player.onGround = true;
+  sim.state.player.canDoubleJump = false;
+
+  for (let frame = 0; frame < 240; frame++) {
+    const deltaX = to.x + to.w / 2
+      - (sim.state.player.x + sim.state.player.w / 2);
+    const keys = frame === 0
+      ? { Space: true }
+      : Math.abs(deltaX) > 5
+        ? deltaX > 0 ? { ArrowRight: true } : { ArrowLeft: true }
+        : {};
+    sim.setInputs(keys);
+    sim.step(1 / 60);
+    const player = sim.state.player;
+    if (
+      player.onGround
+      && player.x + player.w > to.x + 3
+      && player.x < to.x + to.w - 3
+      && Math.abs(player.y - (to.y - player.h)) < 12
+    ) return true;
+    if (player.y > 720) return false;
+  }
+  return false;
+}
 
 function ladderFixture() {
   const platforms = [
@@ -83,7 +125,12 @@ test('desafio de Azo so e reservado depois de Azo, exsudato e raiz colonizavel',
   assert.ok(ladder.sourceAzospirillumLogicIndex < ladder.sourceExudateLogicIndex);
   assert.ok(ladder.sourceExudateLogicIndex < ladder.hostLogicIndex);
   assert.equal(ladder.host.type, 'root');
-  assert.ok(ladder.blockedGap > 300);
+  assert.equal(ladder.wall.azospirillumRootWall, true);
+  assert.equal(ladder.wall.oneWay, false);
+  assert.ok(ladder.wall.h > ladder.wall.w * 3);
+  assert.ok(ladder.wall.x > ladder.host.x + ladder.host.w);
+  assert.ok(ladder.wall.x + ladder.wall.w < ladder.destination.x);
+  assert.ok(ladder.host.y - ladder.wall.y > 200);
   assert.equal(level.platforms.some(platform => platform.recovery
     && platform.x > ladder.host.x + ladder.host.w
     && platform.x < ladder.destination.x), false);
@@ -130,7 +177,7 @@ test('escada cresce apenas com colonia de Azo na raiz e cada degrau so colide em
   assert.equal(ladder.steps.every(step => step.collider), true);
 });
 
-test('primeira escada e atravessavel com pulo normal e elimina o bloqueio obrigatorio', () => {
+test('primeira escada sobe verticalmente pela parede com pulo normal', () => {
   const { ladder } = createFixtureLadder();
   const route = [
     ladder.host,
@@ -144,12 +191,15 @@ test('primeira escada e atravessavel com pulo normal e elimina o bloqueio obriga
     })),
     ladder.destination,
   ];
+  const stepCenters = ladder.steps.map(step => step.centerX);
+  assert.ok(Math.max(...stepCenters) - Math.min(...stepCenters) <= 40);
+  assert.ok(ladder.steps[0].y - ladder.steps.at(-1).y > 200);
   assert.equal(validateChunk(ladder.host, ladder.destination, NORMAL_JUMP), false);
   for (let index = 0; index < route.length - 1; index++) {
     assert.equal(
-      validateChunk(route[index], route[index + 1], NORMAL_JUMP),
+      validateVerticalStep(route[index], route[index + 1]),
       true,
-      `salto normal deve conectar o trecho ${index} da escada`,
+      `salto normal deve subir o degrau ${index} da escada`,
     );
   }
   assert.equal(validateChunk(ladder.destination, ladder.following, NORMAL_JUMP), true);
@@ -185,10 +235,13 @@ test('geracao da escada permanece deterministica em multiplas seeds da Fase 3', 
           })),
           ladder.destination,
         ];
+        const stepCenters = ladder.steps.map(step => step.centerX);
+        assert.ok(Math.max(...stepCenters) - Math.min(...stepCenters) <= 40);
+        assert.ok(ladder.hostLogicIndex <= 20, `seed ${index} nao deve adiar o alvo de Azo`);
         assert.equal(validateChunk(ladder.host, ladder.destination, NORMAL_JUMP), false);
         for (let routeIndex = 0; routeIndex < route.length - 1; routeIndex++) {
           assert.equal(
-            validateChunk(route[routeIndex], route[routeIndex + 1], NORMAL_JUMP),
+            validateVerticalStep(route[routeIndex], route[routeIndex + 1]),
             true,
             `seed ${index} deve manter atravessável o trecho ${routeIndex}`,
           );
@@ -206,6 +259,7 @@ test('geracao da escada permanece deterministica em multiplas seeds da Fase 3', 
         azo: ladder.sourceAzospirillumLogicIndex,
         exudate: ladder.sourceExudateLogicIndex,
         blockedRise: ladder.blockedRise,
+        wall: [ladder.wall.x, ladder.wall.y, ladder.wall.w, ladder.wall.h],
         steps: ladder.steps.map(step => [step.centerX, step.y]),
       }));
     };

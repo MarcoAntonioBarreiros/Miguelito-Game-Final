@@ -26,6 +26,17 @@ test('Phase Lab so e ativado explicitamente pela query string', () => {
   assert.equal(isPhaseLabEnabled({ search: '' }), false);
 });
 
+test('Phase Lab da Fase 3 abre focado no Azo e respeita o pool curricular', () => {
+  const phase2 = createDefaultPhaseLabConfig(2);
+  const phase3 = createDefaultPhaseLabConfig(3);
+  assert.equal(phase2.nitrogenRoot.enabled, true);
+  assert.equal(phase3.nitrogenRoot.enabled, false);
+  assert.equal(phase3.azospirillumRootLadder.enabled, true);
+  assert.ok(phase3.allowedOrganisms.includes('azospirillum'));
+  assert.equal(phase3.allowedOrganisms.includes('pseudomonas'), false);
+  assert.equal(phase3.allowedOrganisms.includes('trichoderma'), false);
+});
+
 test('configuracao altera perfil, segmentos, organismos, recursos e prova final no manifesto real', () => {
   const config = createDefaultPhaseLabConfig(5);
   config.seed = 'laboratorio-curricular';
