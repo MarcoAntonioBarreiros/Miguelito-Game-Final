@@ -936,7 +936,7 @@ sim.goal.setCompletionGuard(() => {
   const result = objectiveEvaluator.evaluate(getPhaseManifest(1).finalTest);
   return {
     passed: result.passed,
-    message: 'A raiz principal aguarda um biofilme funcional na raiz marcada da prova final.',
+    message: 'A raiz final aguarda a ativação do checkpoint de Bacillus na raiz marcada.',
   };
 });
 let profile = null;
@@ -1802,7 +1802,7 @@ const phases = [
   },
 
   {
-    id: 'phase-1', phase: 1, totalChunks: 40,
+    id: 'phase-1', phase: 1, totalChunks: 13,
     title: 'Recrutar e estabelecer', theme: 'fundamentos',
     mission: 'Recrute Bacillus com exsudatos e forme o primeiro biofilme funcional.',
     newConcepts: ['exsudato→recrutamento→inoculação', 'Bacillus→biofilme'], newCommand: null,
@@ -1844,19 +1844,11 @@ const phases = [
           ],
           exitGate: true,
         } },
-      { id: 'p1-challenge', kind: 'procedural', from: 9, to: 34, tutorialMode: 'silent',
+      { id: 'p1-challenge', kind: 'procedural', from: 9, to: 12, tutorialMode: 'silent',
         mechanicsRequired: ['exudate', 'inoculation'] },
-      { id: 'p1-final', kind: 'final', from: 35, to: 39, tutorialMode: 'silent',
-        mechanicsRequired: ['exudate', 'inoculation'],
-        fixedBlock: {
-          template: 'phase1-final-v1',
-          objective: 'Prova final: forme um biofilme funcional na raiz marcada.',
-          completionRef: 'finalTest',
-          exitGate: true,
-        } },
     ],
-    finalTest: { id: 'p1-test', goal: 'Criar um biofilme funcional na raiz de saída.', requires: [
-      { type: 'worldState', key: 'functionalBiofilmCount', target: 'p1-exit-root', operator: '>=', value: 1 },
+    finalTest: { id: 'p1-test', goal: 'Criar e ativar o primeiro checkpoint de Bacillus.', requires: [
+      { type: 'worldState', key: 'functionalBiofilmCount', target: 'p1-intro-root', operator: '>=', value: 1 },
     ]}, notes: [],
   },
 
@@ -11181,13 +11173,6 @@ const BLOCK_LAYOUTS = Object.freeze({
     targetId: 'p1-intro-root',
     exudateChunks: [4, 5, 7],
   }),
-  'phase1-final-v1': Object.freeze({
-    roles: ['coleta-final', 'bacillus-conhecido', 'recrutamento-final', 'inoculacao-final', 'raiz-prova'],
-    yOffsets: [8, -18, -34, -12, 4],
-    targetChunk: 39,
-    targetId: 'p1-exit-root',
-    exudateChunks: [35, 37, 39],
-  }),
 });
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -11322,19 +11307,6 @@ function applyPhaseOneVerticalSlice(level, phase = level.campaignPhase) {
     }
   }
 
-  const finalBacillusPlatform = mainPlatform(level, 36);
-  if (finalBacillusPlatform) {
-    level.authoredEncounters.push({
-      id: 'bacillus',
-      x: finalBacillusPlatform.x + finalBacillusPlatform.w / 2,
-      y: Math.max(95, finalBacillusPlatform.y - 104),
-      r: 155,
-      territory: 360,
-      collect: false,
-      logicIndex: 36,
-      source: 'fixed-practice',
-    });
-  }
   return level;
 }
 
@@ -11377,13 +11349,29 @@ function createFixedBlockRuntime({ state, evaluator, entities, ecology = null })
       && checkpointX <= block.targetPlatform.x + block.targetPlatform.w + 80;
   }
 
-  function unlockRecoveryPlatformAfterDeath(block) {
+  function updateRecoveryPlatformAfterRespawn(block) {
     if (!block.recoveryPlatform || block.recoveryPlatformUnlocked || !block.completed) return;
     const diedAfterCheckpoint = (state.player.deaths || 0) > (block.deathsAtCompletion || 0);
     const failedBeyondCheckpoint = state.player.x > block.targetPlatform.x + block.targetPlatform.w + 24;
-    if (!diedAfterCheckpoint || !failedBeyondCheckpoint || !checkpointIsOnTarget(block)) return;
+    if (
+      !block.recoveryPlatformPending
+      && state.gameState === 'respawning'
+      && diedAfterCheckpoint
+      && failedBeyondCheckpoint
+      && checkpointIsOnTarget(block)
+    ) {
+      block.recoveryPlatformPending = true;
+      return;
+    }
+
+    if (!block.recoveryPlatformPending || state.gameState !== 'play' || !state.player.alive) return;
+    const checkpoint = state.currentCheckpoint;
+    const respawnedAtCheckpoint = checkpoint
+      && Math.hypot(state.player.x - checkpoint.x, state.player.y - checkpoint.y) < 110;
+    if (!respawnedAtCheckpoint || !checkpointIsOnTarget(block)) return;
 
     block.recoveryPlatformUnlocked = true;
+    block.recoveryPlatformPending = false;
     if (!state.level.platforms.includes(block.recoveryPlatform)) {
       state.level.platforms.push(block.recoveryPlatform);
       state.level.platforms.sort((left, right) => left.x - right.x);
@@ -11412,7 +11400,7 @@ function createFixedBlockRuntime({ state, evaluator, entities, ecology = null })
   }
 
   function update() {
-    for (const block of activeBlocks()) unlockRecoveryPlatformAfterDeath(block);
+    for (const block of activeBlocks()) updateRecoveryPlatformAfterRespawn(block);
     if (state.gameState !== 'play') return;
     const centerX = state.player.x + state.player.w / 2;
     for (const block of activeBlocks()) {
@@ -11489,7 +11477,7 @@ function createFixedBlockRuntime({ state, evaluator, entities, ecology = null })
       const y = target.y - 72;
       const label = block.kind === 'final'
         ? '↓ ALVO DA PROVA — FORME O BIOFILME AQUI'
-        : '↓ ALVO DA MISSÃO — INOCULE BACILLUS AQUI';
+        : '↓ ALVO DA FASE — INOCULE BACILLUS AQUI';
       drawGuidance(ctx, x, y, label);
     }
     ctx.restore();

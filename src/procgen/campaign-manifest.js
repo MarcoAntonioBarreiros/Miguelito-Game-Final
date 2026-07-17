@@ -93,7 +93,7 @@ const phases = [
   },
 
   {
-    id: 'phase-1', phase: 1, totalChunks: 40,
+    id: 'phase-1', phase: 1, totalChunks: 13,
     title: 'Recrutar e estabelecer', theme: 'fundamentos',
     mission: 'Recrute Bacillus com exsudatos e forme o primeiro biofilme funcional.',
     newConcepts: ['exsudato→recrutamento→inoculação', 'Bacillus→biofilme'], newCommand: null,
@@ -135,19 +135,11 @@ const phases = [
           ],
           exitGate: true,
         } },
-      { id: 'p1-challenge', kind: 'procedural', from: 9, to: 34, tutorialMode: 'silent',
+      { id: 'p1-challenge', kind: 'procedural', from: 9, to: 12, tutorialMode: 'silent',
         mechanicsRequired: ['exudate', 'inoculation'] },
-      { id: 'p1-final', kind: 'final', from: 35, to: 39, tutorialMode: 'silent',
-        mechanicsRequired: ['exudate', 'inoculation'],
-        fixedBlock: {
-          template: 'phase1-final-v1',
-          objective: 'Prova final: forme um biofilme funcional na raiz marcada.',
-          completionRef: 'finalTest',
-          exitGate: true,
-        } },
     ],
-    finalTest: { id: 'p1-test', goal: 'Criar um biofilme funcional na raiz de saída.', requires: [
-      { type: 'worldState', key: 'functionalBiofilmCount', target: 'p1-exit-root', operator: '>=', value: 1 },
+    finalTest: { id: 'p1-test', goal: 'Criar e ativar o primeiro checkpoint de Bacillus.', requires: [
+      { type: 'worldState', key: 'functionalBiofilmCount', target: 'p1-intro-root', operator: '>=', value: 1 },
     ]}, notes: [],
   },
 

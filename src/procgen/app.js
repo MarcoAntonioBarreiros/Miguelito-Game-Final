@@ -78,7 +78,7 @@ sim.goal.setCompletionGuard(() => {
   const result = objectiveEvaluator.evaluate(getPhaseManifest(1).finalTest);
   return {
     passed: result.passed,
-    message: 'A raiz principal aguarda um biofilme funcional na raiz marcada da prova final.',
+    message: 'A raiz final aguarda a ativação do checkpoint de Bacillus na raiz marcada.',
   };
 });
 let profile = null;

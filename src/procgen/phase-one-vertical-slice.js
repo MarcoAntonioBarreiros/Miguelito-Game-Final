@@ -8,13 +8,6 @@ const BLOCK_LAYOUTS = Object.freeze({
     targetId: 'p1-intro-root',
     exudateChunks: [4, 5, 7],
   }),
-  'phase1-final-v1': Object.freeze({
-    roles: ['coleta-final', 'bacillus-conhecido', 'recrutamento-final', 'inoculacao-final', 'raiz-prova'],
-    yOffsets: [8, -18, -34, -12, 4],
-    targetChunk: 39,
-    targetId: 'p1-exit-root',
-    exudateChunks: [35, 37, 39],
-  }),
 });
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -149,19 +142,6 @@ export function applyPhaseOneVerticalSlice(level, phase = level.campaignPhase) {
     }
   }
 
-  const finalBacillusPlatform = mainPlatform(level, 36);
-  if (finalBacillusPlatform) {
-    level.authoredEncounters.push({
-      id: 'bacillus',
-      x: finalBacillusPlatform.x + finalBacillusPlatform.w / 2,
-      y: Math.max(95, finalBacillusPlatform.y - 104),
-      r: 155,
-      territory: 360,
-      collect: false,
-      logicIndex: 36,
-      source: 'fixed-practice',
-    });
-  }
   return level;
 }
 
@@ -204,13 +184,29 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
       && checkpointX <= block.targetPlatform.x + block.targetPlatform.w + 80;
   }
 
-  function unlockRecoveryPlatformAfterDeath(block) {
+  function updateRecoveryPlatformAfterRespawn(block) {
     if (!block.recoveryPlatform || block.recoveryPlatformUnlocked || !block.completed) return;
     const diedAfterCheckpoint = (state.player.deaths || 0) > (block.deathsAtCompletion || 0);
     const failedBeyondCheckpoint = state.player.x > block.targetPlatform.x + block.targetPlatform.w + 24;
-    if (!diedAfterCheckpoint || !failedBeyondCheckpoint || !checkpointIsOnTarget(block)) return;
+    if (
+      !block.recoveryPlatformPending
+      && state.gameState === 'respawning'
+      && diedAfterCheckpoint
+      && failedBeyondCheckpoint
+      && checkpointIsOnTarget(block)
+    ) {
+      block.recoveryPlatformPending = true;
+      return;
+    }
+
+    if (!block.recoveryPlatformPending || state.gameState !== 'play' || !state.player.alive) return;
+    const checkpoint = state.currentCheckpoint;
+    const respawnedAtCheckpoint = checkpoint
+      && Math.hypot(state.player.x - checkpoint.x, state.player.y - checkpoint.y) < 110;
+    if (!respawnedAtCheckpoint || !checkpointIsOnTarget(block)) return;
 
     block.recoveryPlatformUnlocked = true;
+    block.recoveryPlatformPending = false;
     if (!state.level.platforms.includes(block.recoveryPlatform)) {
       state.level.platforms.push(block.recoveryPlatform);
       state.level.platforms.sort((left, right) => left.x - right.x);
@@ -239,7 +235,7 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
   }
 
   function update() {
-    for (const block of activeBlocks()) unlockRecoveryPlatformAfterDeath(block);
+    for (const block of activeBlocks()) updateRecoveryPlatformAfterRespawn(block);
     if (state.gameState !== 'play') return;
     const centerX = state.player.x + state.player.w / 2;
     for (const block of activeBlocks()) {
@@ -316,7 +312,7 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
       const y = target.y - 72;
       const label = block.kind === 'final'
         ? '↓ ALVO DA PROVA — FORME O BIOFILME AQUI'
-        : '↓ ALVO DA MISSÃO — INOCULE BACILLUS AQUI';
+        : '↓ ALVO DA FASE — INOCULE BACILLUS AQUI';
       drawGuidance(ctx, x, y, label);
     }
     ctx.restore();
