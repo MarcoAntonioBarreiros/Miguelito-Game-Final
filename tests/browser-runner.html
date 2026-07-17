@@ -175,6 +175,20 @@
     await waitFor(() => lab.win.miguelitoPhaseLab?.enabled, 'Phase Lab API should become ready');
     assert(!!lab.win.document.querySelector('.phase-lab'), 'Phase Lab panel should be mounted');
     assert(!lab.win.document.querySelector('[data-platform-drag-editor]'), 'Phase Lab should not include a platform drag editor');
+    const labToggle = lab.win.document.querySelector('.phase-lab-toggle');
+    const touchControls = lab.win.document.querySelector('#touch-controls');
+    lab.win.document.documentElement.classList.add('touch-device');
+    touchControls.hidden = false;
+    const labToggleRect = labToggle.getBoundingClientRect();
+    const touchActionsRect = lab.win.document.querySelector('.touch-cluster.actions').getBoundingClientRect();
+    const overlapsTouchActions = !(
+      labToggleRect.right <= touchActionsRect.left
+      || labToggleRect.left >= touchActionsRect.right
+      || labToggleRect.bottom <= touchActionsRect.top
+      || labToggleRect.top >= touchActionsRect.bottom
+    );
+    assert(!overlapsTouchActions, 'Phase Lab toggle should not overlap mobile action controls');
+    assert(labToggleRect.top < 180, 'Phase Lab toggle should remain in the upper HUD area');
     const config = lab.win.miguelitoPhaseLab.getConfig();
     config.seed = 'browser-phase-lab';
     config.allowedOrganisms = ['bacillus'];
