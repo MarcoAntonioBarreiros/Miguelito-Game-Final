@@ -4,6 +4,7 @@ import { createRandom } from './random.js';
 export const NITROGEN_ROOT_BLOCK_TYPE = 'underdeveloped-nitrogen-root';
 
 const TAU = Math.PI * 2;
+const PHASE_TWO_MAX_ORDINARY_GAP = 142;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -33,6 +34,68 @@ function shuffled(values, random) {
   return result;
 }
 
+function occupiesPlatform(entity, platform) {
+  if (Number.isInteger(entity?.logicIndex)) return entity.logicIndex === platform.logicIndex;
+  return Number.isFinite(entity?.x) && entity.x >= platform.x && entity.x <= platform.x + platform.w;
+}
+
+function hasCriticalContent(level, encounters, platform) {
+  const collections = [
+    level.exudates,
+    level.crystals,
+    level.enemies,
+    level.allies,
+    level.checkpoints,
+    encounters,
+  ];
+  return collections.some(collection => (collection || []).some(entity => occupiesPlatform(entity, platform)));
+}
+
+function routeGapCandidates(level, encounters, route, firstExudate) {
+  const candidates = [];
+  for (let routeIndex = 2; routeIndex < route.length - 1; routeIndex++) {
+    const targetPlatform = route[routeIndex];
+    if (!colonizableRoot(targetPlatform) || hasCriticalContent(level, encounters, targetPlatform)) continue;
+
+    const leftPlatform = route[routeIndex - 1];
+    const rightPlatform = route[routeIndex + 1];
+    const hostPlatform = [...route.slice(0, routeIndex)].reverse().find(platform => (
+      colonizableRoot(platform) && platform.logicIndex > firstExudate
+    ));
+    if (!hostPlatform || hostPlatform.logicIndex >= targetPlatform.logicIndex) continue;
+
+    const blockedGapWidth = rightPlatform.x - (leftPlatform.x + leftPlatform.w);
+    const leftLandingGap = targetPlatform.x - (leftPlatform.x + leftPlatform.w);
+    const rightLandingGap = rightPlatform.x - (targetPlatform.x + targetPlatform.w);
+    if (
+      blockedGapWidth <= PHASE_TWO_MAX_ORDINARY_GAP
+      || leftLandingGap > PHASE_TWO_MAX_ORDINARY_GAP
+      || rightLandingGap > PHASE_TWO_MAX_ORDINARY_GAP
+    ) continue;
+    candidates.push({
+      hostPlatform,
+      targetPlatform,
+      leftPlatform,
+      rightPlatform,
+      blockedGapWidth,
+      leftLandingGap,
+      rightLandingGap,
+    });
+  }
+  return candidates;
+}
+
+function removeGapPlatforms(level, slot) {
+  const gapStart = slot.leftPlatform.x + slot.leftPlatform.w;
+  const gapEnd = slot.rightPlatform.x;
+  level.platforms = (level.platforms || []).filter(platform => {
+    if (platform === slot.targetPlatform) return false;
+    if (!platform.recovery) return true;
+    const center = platform.x + platform.w / 2;
+    return center <= gapStart || center >= gapEnd;
+  });
+}
+
 export function generateUnderdevelopedNitrogenRoots({
   level,
   phase,
@@ -58,28 +121,40 @@ export function generateUnderdevelopedNitrogenRoots({
 
   const firstExudate = exudateIndexes[0];
   const route = routePlatforms(level);
-  const hosts = route.filter(platform => colonizableRoot(platform) && platform.logicIndex > firstExudate);
-  if (!hosts.length) return level.nitrogenRoots;
+  const candidates = routeGapCandidates(level, encounters, route, firstExudate);
+  if (!candidates.length) return level.nitrogenRoots;
 
   const random = createRandom(`${seedValue}:nitrogen-root:p${phase}`);
-  const selected = shuffled(hosts, random).slice(0, Math.min(config.count, hosts.length));
-  level.nitrogenRoots = selected.map((hostPlatform, index) => {
-    const targetWidth = 150 + Math.round(random() * 72);
-    const targetHeight = 48 + Math.round(random() * 12);
+  const selected = [];
+  for (const candidate of shuffled(candidates, random)) {
+    if (selected.some(existing => Math.abs(existing.targetPlatform.logicIndex - candidate.targetPlatform.logicIndex) < 3)) continue;
+    selected.push(candidate);
+    if (selected.length >= Math.min(config.count, candidates.length)) break;
+  }
+  level.nitrogenRoots = selected.map((slot, index) => {
+    const { hostPlatform, targetPlatform, leftPlatform, rightPlatform } = slot;
+    removeGapPlatforms(level, slot);
     return {
-      id: `nitrogen-root-${hostPlatform.logicIndex}-${index}`,
+      id: `nitrogen-root-${targetPlatform.logicIndex}-${index}`,
       blockType: NITROGEN_ROOT_BLOCK_TYPE,
       hostPlatform,
       hostLogicIndex: hostPlatform.logicIndex,
+      targetPlatform,
+      targetLogicIndex: targetPlatform.logicIndex,
+      leftPlatform,
+      rightPlatform,
+      blockedGapWidth: slot.blockedGapWidth,
+      leftLandingGap: slot.leftLandingGap,
+      rightLandingGap: slot.rightLandingGap,
       sourceRhizobiumLogicIndex: firstRhizobium,
       sourceExudateLogicIndex: firstExudate,
-      x: hostPlatform.x + hostPlatform.w - 24,
-      y: clamp(hostPlatform.y - 72 + Math.round((random() - .5) * 18), 245, 565),
-      startWidth: 34,
+      x: targetPlatform.x,
+      y: targetPlatform.y,
+      startWidth: Math.min(38, Math.round(targetPlatform.w * .2)),
       startHeight: 8,
-      targetWidth,
-      targetHeight,
-      currentWidth: 34,
+      targetWidth: targetPlatform.w,
+      targetHeight: targetPlatform.h,
+      currentWidth: Math.min(38, Math.round(targetPlatform.w * .2)),
       currentHeight: 8,
       progress: 0,
       functionalProgress: 0,
@@ -113,10 +188,11 @@ function updateCollider(state, root) {
   }
   if (!root.collider) {
     root.collider = {
+      ...root.targetPlatform,
       type: 'root',
       nitrogenRootCollider: true,
       nitrogenRootId: root.id,
-      logicIndex: root.hostLogicIndex,
+      logicIndex: root.targetLogicIndex,
       rootHealth: 1,
       rootMaxHealth: 1,
       supportIntegrity: 1,

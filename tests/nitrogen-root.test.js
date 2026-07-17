@@ -28,7 +28,12 @@ function fixtureLevel({ exudateIndex = 3, includeRootAfter = true } = {}) {
       { x: 100, y: 500, w: 190, h: 60, type: 'root', logicIndex: 1 },
       { x: 360, y: 490, w: 180, h: 60, type: 'root', logicIndex: 2 },
       { x: 620, y: 500, w: 210, h: 60, type: 'soil', logicIndex: 3 },
-      ...(includeRootAfter ? [{ x: 900, y: 470, w: 205, h: 62, type: 'root', logicIndex: 4 }] : []),
+      ...(includeRootAfter ? [
+        { x: 900, y: 470, w: 205, h: 62, type: 'root', logicIndex: 4 },
+        { x: 1190, y: 480, w: 190, h: 58, type: 'root', logicIndex: 5 },
+        { x: 1470, y: 490, w: 205, h: 60, type: 'soil', logicIndex: 6 },
+        { x: 1125, y: 590, w: 72, h: 28, type: 'root', logicIndex: 5, recovery: true },
+      ] : []),
     ],
     exudates: [{ logicIndex: exudateIndex, x: 680, y: 450, taken: false }],
     nitrogenRoots: [],
@@ -59,6 +64,14 @@ test('bloco so e gerado depois de Rhizobium, exsudato e raiz colonizavel, nessa 
   assert.equal(roots[0].hostPlatform.type, 'root');
   assert.ok(roots[0].hostLogicIndex > roots[0].sourceExudateLogicIndex);
   assert.ok(roots[0].sourceExudateLogicIndex > roots[0].sourceRhizobiumLogicIndex);
+  assert.equal(level.platforms.includes(roots[0].targetPlatform), false);
+  assert.equal(level.platforms.some(platform => platform.recovery
+    && platform.x > roots[0].leftPlatform.x + roots[0].leftPlatform.w
+    && platform.x < roots[0].rightPlatform.x), false);
+  assert.ok(roots[0].blockedGapWidth >= 210);
+  assert.ok(roots[0].blockedGapWidth > 142, 'sem a raiz, o vao deve exceder o salto normal da Fase 2');
+  assert.ok(roots[0].leftLandingGap <= 142, 'a borda esquerda da raiz completa deve ser alcancavel');
+  assert.ok(roots[0].rightLandingGap <= 142, 'a plataforma seguinte deve ser alcancavel pela raiz completa');
   assert.equal(level.platforms.some(platform => platform.nitrogenRootCollider), false);
 });
 
@@ -68,7 +81,7 @@ test('posicao e dimensoes sao reproduziveis pela mesma seed', () => {
       level: fixtureLevel(), phase: 2, seedValue: seed, encounters: rhizobiumAt(2), config: CONFIG,
     });
     return roots.map(root => ({
-      id: root.id, hostLogicIndex: root.hostLogicIndex, x: root.x, y: root.y,
+      id: root.id, hostLogicIndex: root.hostLogicIndex, targetLogicIndex: root.targetLogicIndex, x: root.x, y: root.y,
       targetWidth: root.targetWidth, targetHeight: root.targetHeight, phase: root.phase,
     }));
   };
@@ -135,6 +148,9 @@ test('FBN ativa cresce visualmente sem colisao ate 99% e so entao cria plataform
   assert.equal(state.level.platforms.length, originalPlatformCount + 1);
   assert.equal(root.collider.type, 'root');
   assert.equal(root.collider.oneWay, false);
+  assert.equal(root.collider.logicIndex, root.targetLogicIndex);
+  assert.equal(root.collider.x, root.targetPlatform.x);
+  assert.equal(root.collider.y, root.targetPlatform.y);
   assert.equal(root.collider.w, root.targetWidth);
   assert.equal(root.collider.h, root.targetHeight);
 
@@ -160,9 +176,14 @@ test('multiplas seeds da fase 2 respeitam ordem, raiz hospedeira e determinismo'
       });
       return roots.map(root => ({
         hostLogicIndex: root.hostLogicIndex,
+        targetLogicIndex: root.targetLogicIndex,
         sourceRhizobiumLogicIndex: root.sourceRhizobiumLogicIndex,
         sourceExudateLogicIndex: root.sourceExudateLogicIndex,
         hostType: root.hostPlatform.type,
+        targetRemoved: !level.platforms.includes(root.targetPlatform),
+        blockedGapWidth: root.blockedGapWidth,
+        leftLandingGap: root.leftLandingGap,
+        rightLandingGap: root.rightLandingGap,
         x: root.x, y: root.y,
       }));
     };
@@ -170,7 +191,13 @@ test('multiplas seeds da fase 2 respeitam ordem, raiz hospedeira e determinismo'
     assert.deepEqual(first, build());
     assert.equal(first.length, 1);
     assert.equal(first[0].hostType, 'root');
+    assert.equal(first[0].targetRemoved, true);
+    assert.ok(first[0].blockedGapWidth >= 210);
+    assert.ok(first[0].blockedGapWidth > 142);
+    assert.ok(first[0].leftLandingGap <= 142);
+    assert.ok(first[0].rightLandingGap <= 142);
     assert.ok(first[0].sourceRhizobiumLogicIndex < first[0].sourceExudateLogicIndex);
     assert.ok(first[0].sourceExudateLogicIndex < first[0].hostLogicIndex);
+    assert.ok(first[0].hostLogicIndex < first[0].targetLogicIndex);
   }
 });
