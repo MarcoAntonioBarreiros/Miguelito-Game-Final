@@ -1,9 +1,9 @@
-import { ensureTutorialInterface } from './tutorial-bootstrap.js?v=20260717-1';
-import { createTutorialManager } from './tutorial-manager.js?v=20260717-1';
+import { ensureTutorialInterface } from './tutorial-bootstrap.js?v=20260717-2';
+import { createTutorialManager } from './tutorial-manager.js?v=20260717-2';
 import {
   createTutorialTriggers,
   TUTORIAL_RUNTIME_VERSION,
-} from './tutorial-triggers.js?v=20260717-1';
+} from './tutorial-triggers.js?v=20260717-2';
 
 ensureTutorialInterface();
 
@@ -125,6 +125,7 @@ function initializeTutorialSystem() {
   };
 
   const manager = createTutorialManager({ state: sim.state });
+  sim.ecology.setTutorialCardSeenResolver?.(cardId => manager.hasSeen(cardId));
   const ralstoniaAdapter = {
     get foci() { return sim.state.level.ralstoniaFoci || []; },
   };

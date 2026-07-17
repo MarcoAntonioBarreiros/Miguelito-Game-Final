@@ -1,5 +1,5 @@
 import { generateLevel } from './generator.js';
-import { createRandom } from './random.js';
+import { generateCampaignEncounters } from './campaign-encounters.js';
 import { createSimulator } from './simulator.js';
 import { createRenderer } from '../render/renderer.js';
 import { createPlatformVisuals } from './platform-visuals.js';
@@ -10,7 +10,6 @@ import { createTrichodermaRhizoctoniaControl } from './trichoderma-rhizoctonia-c
 import { createRalstoniaVascularWilt } from './ralstonia-vascular-wilt.js';
 import {
   advanceCampaignPhase,
-  campaignEncounterTypes,
   campaignPhaseSeed,
   createCampaign,
   decorateCampaignLevel,
@@ -18,7 +17,6 @@ import {
   recordPhaseResult,
   resetCampaign,
 } from './campaign-progression.js';
-import { microbeEncounters } from '../data/microbes.js';
 
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
@@ -93,47 +91,6 @@ function installFinalGoal(level) {
   level.cameraMaxX = Math.max(0, level.endX - 1000);
 }
 
-function shuffledBag(types, random) {
-  const bag = [...types];
-  for (let i = bag.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [bag[i], bag[j]] = [bag[j], bag[i]];
-  }
-  return bag;
-}
-
-function populateMicrobeEncounters(platforms, seedValue) {
-  microbeEncounters.length = 0;
-  const random = createRandom(`${seedValue}:microbe-communities`);
-  const types = campaignEncounterTypes(campaign);
-  const candidates = platforms.filter(platform => !platform.recovery && !platform.final && platform.logicIndex >= 1 && platform.w >= 100);
-  let bag = shuffledBag(types, random);
-  let previousType = null;
-  let nextSpawnX = 430 + random() * 240;
-
-  for (const platform of candidates) {
-    if (platform.x < nextSpawnX) continue;
-    if (bag.length === 0) bag = shuffledBag(types, random);
-    let type = bag.pop();
-    if (type === previousType && bag.length) {
-      bag.unshift(type);
-      type = bag.pop();
-    }
-    previousType = type;
-
-    const lateral = (random() - .5) * Math.min(platform.w * .35, 70);
-    microbeEncounters.push({
-      id: type,
-      x: platform.x + platform.w / 2 + lateral,
-      y: Math.max(95, platform.y - 72 - random() * 76),
-      r: 145 + random() * 75,
-      territory: 520 + random() * 720,
-      collect: false,
-    });
-    nextSpawnX = platform.x + 470 + random() * 430;
-  }
-}
-
 function prepareLevel() {
   profile = prepareCampaignGeneration(campaign);
   seed = campaignPhaseSeed(campaign);
@@ -179,11 +136,14 @@ function initGame({ announce = false } = {}) {
   sim.state.gameState = 'play';
   sim.state.mission = profile.mission;
   cameraView.resetTracking();
-  populateMicrobeEncounters(levelData.platforms, seed);
-  sim.resetEcology(microbeEncounters);
+  levelData.microbeEncounters = generateCampaignEncounters({
+    platforms: levelData.platforms,
+    phase: campaign.phase,
+    seedValue: seed,
+  });
+  sim.resetEcology(levelData.microbeEncounters);
   sim.resetBiology();
   ralstoniaControl.initialize();
-  microbeEncounters.length = 0;
   renderer = createRenderer({ canvas, state: sim.state, entities: sim.entities });
   platformVisuals = createPlatformVisuals({ state: sim.state });
   toastDiv.className = '';

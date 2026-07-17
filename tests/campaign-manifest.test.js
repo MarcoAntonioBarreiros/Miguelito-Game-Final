@@ -129,14 +129,17 @@ test('Trichoderma, oportunista e micoparasitismo são apresentações separadas'
   );
 });
 
-test('integração permanece limitada a progressão, gating e fluxo dos cartões', () => {
+test('integração curricular usa manifesto sem acoplar pools ao fluxo dos cartões', () => {
   assert.match(readFileSync('src/procgen/campaign-progression.js', 'utf8'), /campaign-manifest/);
   assert.match(readFileSync('src/procgen/logic.js', 'utf8'), /campaign-manifest/);
+  assert.match(readFileSync('src/procgen/campaign-encounters.js', 'utf8'), /getProceduralPoolAt/);
+  assert.match(readFileSync('src/procgen/campaign-encounters.js', 'utf8'), /getRoamingDebutsAt/);
+  assert.match(readFileSync('src/procgen/app.js', 'utf8'), /generateCampaignEncounters/);
+  assert.match(readFileSync('src/procgen/microbe-roaming.js', 'utf8'), /requiresSeenCardId/);
   assert.match(readFileSync('src/procgen/tutorial-flow.js', 'utf8'), /campaign-manifest/);
   assert.match(readFileSync('src/procgen/tutorial-triggers.js', 'utf8'), /getTutorialModeAt/);
 
   for (const file of [
-    'src/procgen/app.js',
     'src/procgen/tutorial-flow.js',
     'src/procgen/tutorial-manager.js',
     'src/procgen/tutorial-triggers.js',
@@ -145,7 +148,7 @@ test('integração permanece limitada a progressão, gating e fluxo dos cartões
   }
   assert.doesNotMatch(
     readFileSync('src/procgen/app.js', 'utf8'),
-    /getTutorialModeAt/,
+    /getTutorialModeAt|campaignEncounterTypes/,
   );
 });
 

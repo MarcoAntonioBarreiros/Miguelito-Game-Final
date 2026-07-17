@@ -297,7 +297,9 @@
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel } = __require("src/procgen/generator.js");const { createRandom } = __require("src/procgen/random.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignEncounterTypes, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");const { microbeEncounters } = __require("src/data/microbes.js");
+const { generateLevel } = __require("src/procgen/generator.js");
+const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");
+const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
@@ -371,47 +373,6 @@ function installFinalGoal(level) {
   level.cameraMaxX = Math.max(0, level.endX - 1000);
 }
 
-function shuffledBag(types, random) {
-  const bag = [...types];
-  for (let i = bag.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [bag[i], bag[j]] = [bag[j], bag[i]];
-  }
-  return bag;
-}
-
-function populateMicrobeEncounters(platforms, seedValue) {
-  microbeEncounters.length = 0;
-  const random = createRandom(`${seedValue}:microbe-communities`);
-  const types = campaignEncounterTypes(campaign);
-  const candidates = platforms.filter(platform => !platform.recovery && !platform.final && platform.logicIndex >= 1 && platform.w >= 100);
-  let bag = shuffledBag(types, random);
-  let previousType = null;
-  let nextSpawnX = 430 + random() * 240;
-
-  for (const platform of candidates) {
-    if (platform.x < nextSpawnX) continue;
-    if (bag.length === 0) bag = shuffledBag(types, random);
-    let type = bag.pop();
-    if (type === previousType && bag.length) {
-      bag.unshift(type);
-      type = bag.pop();
-    }
-    previousType = type;
-
-    const lateral = (random() - .5) * Math.min(platform.w * .35, 70);
-    microbeEncounters.push({
-      id: type,
-      x: platform.x + platform.w / 2 + lateral,
-      y: Math.max(95, platform.y - 72 - random() * 76),
-      r: 145 + random() * 75,
-      territory: 520 + random() * 720,
-      collect: false,
-    });
-    nextSpawnX = platform.x + 470 + random() * 430;
-  }
-}
-
 function prepareLevel() {
   profile = prepareCampaignGeneration(campaign);
   seed = campaignPhaseSeed(campaign);
@@ -457,11 +418,14 @@ function initGame({ announce = false } = {}) {
   sim.state.gameState = 'play';
   sim.state.mission = profile.mission;
   cameraView.resetTracking();
-  populateMicrobeEncounters(levelData.platforms, seed);
-  sim.resetEcology(microbeEncounters);
+  levelData.microbeEncounters = generateCampaignEncounters({
+    platforms: levelData.platforms,
+    phase: campaign.phase,
+    seedValue: seed,
+  });
+  sim.resetEcology(levelData.microbeEncounters);
   sim.resetBiology();
   ralstoniaControl.initialize();
-  microbeEncounters.length = 0;
   renderer = createRenderer({ canvas, state: sim.state, entities: sim.entities });
   platformVisuals = createPlatformVisuals({ state: sim.state });
   toastDiv.className = '';
@@ -897,6 +861,10 @@ function generateLevel(seedString) {
       allies.push({ id: chunk.allyId, x: nextPlatform.x + nextPlatform.w / 2, y: nextPlatform.y - 40, r: 28, taken: false, name, desc });
     }
 
+    if (chunk.isPathogenDebut && chunk.pathogenType === 'rhizoctonia') {
+      nextPlatform.w = Math.max(nextPlatform.w, 150);
+    }
+
     if (chunk.hasEnemy && !chunk.requires.includes('pulse') && nextPlatform.w > 130) {
       const ew = 42;
       const eh = 38;
@@ -909,6 +877,9 @@ function generateLevel(seedString) {
         left: nextPlatform.x + 20,
         right: nextPlatform.x + nextPlatform.w - ew - 20,
         alive: true,
+        type: chunk.pathogenType,
+        logicIndex: i,
+        debut: chunk.isPathogenDebut,
       });
     }
 
@@ -1019,7 +990,7 @@ function createRandom(seedString) {
 Object.assign(__exports, { createRandom });
 },
 "src/procgen/logic.js": (__exports, __require) => {
-const { CAMPAIGN_UNLOCKS, getAvailableUnlocksAt, getPhaseManifest, getRequiredPracticeAbilityAt } = __require("src/procgen/campaign-manifest.js");
+const { CAMPAIGN_UNLOCKS, getAvailableUnlocksAt, getPathogensAt, getPhaseManifest, getRequiredPracticeAbilityAt } = __require("src/procgen/campaign-manifest.js");
 const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash', 'pulse']);
 let activeProfile = null;
 
@@ -1092,8 +1063,19 @@ function generateLogicGraph(rnd) {
     let isCheckpoint = false;
     if (i > 0 && i % 7 === 0 && !event) isCheckpoint = true;
 
-    let hasEnemy = false;
-    if (!event && !isCheckpoint && !isSkillNode && i > 4 && rnd() < profile.enemyChance) hasEnemy = true;
+    const activePathogens = getPathogensAt(profile.phase, i);
+    const pathogenDebut = getPhaseManifest(profile.phase)?.pathogenDebuts
+      .find(debut => debut.fromChunk === i) || null;
+    const eligibleEnemyChunk = !event && !isCheckpoint && !isSkillNode && i > 4;
+    const enemyRoll = eligibleEnemyChunk ? rnd() : 1;
+    let pathogenType = pathogenDebut?.pathogen === 'rhizoctonia' ? 'rhizoctonia' : null;
+    if (!pathogenType
+      && activePathogens.includes('rhizoctonia')
+      && eligibleEnemyChunk
+      && enemyRoll < profile.enemyChance) {
+      pathogenType = 'rhizoctonia';
+    }
+    const hasEnemy = pathogenType === 'rhizoctonia';
 
     chunks.push({
       index: i,
@@ -1107,6 +1089,9 @@ function generateLogicGraph(rnd) {
       unlockFeature: event?.feature || null,
       isCheckpoint,
       hasEnemy,
+      pathogenType,
+      activePathogens,
+      isPathogenDebut: Boolean(pathogenDebut),
       campaignPhase: profile.phase,
       phaseTheme: profile.theme,
     });
@@ -1572,6 +1557,20 @@ function roamingTypesOf(presentation) {
   return [];
 }
 
+function getRoamingDebutsAt(phase, chunkIndex) {
+  const entry = getPhaseManifest(phase);
+  if (!entry) return [];
+  return entry.presentations
+    .filter(presentation => presentation.debutChunk === chunkIndex)
+    .flatMap(presentation => roamingTypesOf(presentation).map(type => ({
+      type,
+      cardId: presentation.cardId,
+      presentationId: presentation.id,
+      debutZoneId: presentation.debutZoneId || `${presentation.id}-debut`,
+      tetherUntilSeen: presentation.tetherUntilSeen === true,
+    })));
+}
+
 function getProceduralPoolAt(phase, chunkIndex) {
   const types = new Set();
   for (const entry of campaignManifest) {
@@ -1596,6 +1595,18 @@ function getPathogensAt(phase, chunkIndex) {
     }
   }
   return [...active];
+}
+
+function getPathogenStartChunk(phase, pathogen) {
+  const current = getPhaseManifest(phase);
+  if (!current || MVP_EXCLUDED_PATHOGENS.includes(pathogen)) return null;
+  for (const entry of campaignManifest) {
+    if (entry.phase > phase) break;
+    const debut = entry.pathogenDebuts.find(candidate => candidate.pathogen === pathogen);
+    if (!debut) continue;
+    return entry.phase < phase ? 0 : debut.fromChunk;
+  }
+  return null;
 }
 
 function getPersistentUnlocksBeforePhase(phase) {
@@ -1877,7 +1888,7 @@ function validateCampaignManifest({
 
   return errors;
 }
-Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getProceduralPoolAt, getPathogensAt, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
+Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
 },
 "src/procgen/primitives.js": (__exports, __require) => {
 const { createSimulator } = __require("src/procgen/simulator.js");
@@ -2619,6 +2630,7 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
       }
     });
     level.allies.forEach(a => {
+      if (a.presentationOnly) return;
       if (!a.taken && Math.hypot(a.x - (player.x + 16), a.y - (player.y + 24)) < 54) {
         a.taken = true;
         const color = collectCampaignUnlock(a, player);
@@ -2796,7 +2808,7 @@ function createMicrobeArt() {
 Object.assign(__exports, { microbeCatalog, microbeEncounters, createMicrobeArt });
 },
 "src/procgen/campaign-progression.js": (__exports, __require) => {
-const { CAMPAIGN_UNLOCKS, campaignManifest, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { CAMPAIGN_UNLOCKS, campaignManifest, getPathogenStartChunk, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const { setLogicCampaignProfile } = __require("src/procgen/logic.js");
 const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash', 'pulse']);
 const DEFAULT_START_PHASE = 1;
@@ -2985,6 +2997,42 @@ function decorateCampaignLevel(level, campaign, profile = getPhaseProfile(campai
   level.phaseTheme = profile.theme;
   level.phaseTitle = profile.title;
   level.phaseProfile = profile;
+  level.pathogenSchedule = {
+    rhizoctonia: getPathogenStartChunk(campaign.phase, 'rhizoctonia'),
+    meloidogyne: getPathogenStartChunk(campaign.phase, 'meloidogyne'),
+  };
+
+  const fixedDebutTypes = {
+    'organism-mycorrhiza': {
+      id: 'myco', name: 'Micorriza arbuscular',
+      desc: 'Estrutura fixa de estreia da associação micorrízica.',
+    },
+    'organism-phosphate-solubilizer': {
+      id: 'phos', name: 'Microrganismo solubilizador de fosfato',
+      desc: 'Estrutura fixa de estreia da comunidade solubilizadora.',
+    },
+  };
+  const manifest = getPhaseManifest(campaign.phase);
+  for (const presentation of manifest.presentations) {
+    const fixed = fixedDebutTypes[presentation.cardId];
+    if (!fixed || presentation.roamingType || presentation.roamingTypes) continue;
+    const platform = (level.platforms || []).find(candidate => (
+      !candidate.recovery && !candidate.final && candidate.logicIndex === presentation.debutChunk
+    ));
+    if (!platform) continue;
+    level.allies.push({
+      ...fixed,
+      x: platform.x + platform.w / 2,
+      y: platform.y - 44,
+      r: 32,
+      taken: false,
+      presentationOnly: true,
+      cardId: presentation.cardId,
+      presentationId: presentation.id,
+      debutZoneId: presentation.debutZoneId,
+      logicIndex: presentation.debutChunk,
+    });
+  }
 
   const queues = new Map();
   for (const event of profile.unlockEvents) {
@@ -3002,14 +3050,6 @@ function decorateCampaignLevel(level, campaign, profile = getPhaseProfile(campai
     ally.desc = presentation.desc;
   }
   return level;
-}
-
-// Pool procedural permanece intencionalmente fora desta integração.
-function campaignEncounterTypes(campaign) {
-  const common = ['rhizobium', 'oportunista', 'trichoderma', 'pseudomonas', 'bacillus'];
-  if (campaign.phase >= 3) common.push('azospirillum');
-  if (campaign.phase >= 4 && campaign.phase % 2 === 0) common.push('oportunista');
-  return common;
 }
 
 function unlockCampaignFeature(state, feature) {
@@ -3053,7 +3093,7 @@ function advanceCampaignPhase(campaign) {
   persistCampaign(campaign);
   return true;
 }
-Object.assign(__exports, { CAMPAIGN_STORAGE_KEY, campaignSnapshot, persistCampaign, createCampaign, resetCampaign, ensureCampaignUnlockShape, getPhaseProfile, prepareCampaignGeneration, campaignPhaseSeed, decorateCampaignLevel, campaignEncounterTypes, unlockCampaignFeature, applyPersistentUnlocks, recordPhaseResult, advanceCampaignPhase });
+Object.assign(__exports, { CAMPAIGN_STORAGE_KEY, campaignSnapshot, persistCampaign, createCampaign, resetCampaign, ensureCampaignUnlockShape, getPhaseProfile, prepareCampaignGeneration, campaignPhaseSeed, decorateCampaignLevel, unlockCampaignFeature, applyPersistentUnlocks, recordPhaseResult, advanceCampaignPhase });
 },
 "src/player.js": (__exports, __require) => {
 const initialPlayer = {
@@ -3189,6 +3229,12 @@ function createRoamingMicrobeEcology({ state, entities }) {
   const base = createMicrobeEcology({ state, entities });
   const niches = [];
   const groups = new Map();
+  const dormantEncounters = [];
+  let hasSeenCard = () => false;
+
+  function setTutorialCardSeenResolver(resolver) {
+    hasSeenCard = typeof resolver === 'function' ? resolver : () => false;
+  }
 
   function buildNiches() {
     niches.length = 0;
@@ -3328,47 +3374,80 @@ function createRoamingMicrobeEcology({ state, entities }) {
     });
   }
 
+  function configureAgent(agent, index) {
+    const profile = PROFILE_TUNING[agent.type] || {};
+    agent.routeLag = Math.random() * .16;
+    agent.lateral = 18 + Math.random() * 62;
+    agent.turbulence = (profile.turbulence || 60) * (.55 + Math.random() * .8);
+    agent.individualRate = .55 + Math.random() * 1.35;
+    agent.noiseSeed = Math.random() * TAU + index * .173;
+    agent.taxisSensitivity = (profile.taxis || 70) * (.65 + Math.random() * .7);
+  }
+
+  function initializeGroup(zone, zoneIndex) {
+    const zoneAgents = base.agents.filter(agent => agent.zoneIndex === zoneIndex);
+    if (!zoneAgents.length || !niches.length) return;
+    const center = centroid(zoneAgents);
+    const start = nearestNicheIndex(center.x, center.y, false);
+    const group = {
+      zoneIndex,
+      type: zone.id,
+      territory: zone.territory || ROAMING_DISTANCE[zone.id] || 900,
+      fromIndex: start,
+      toIndex: start,
+      progress: 1,
+      duration: randomInterval(zone.id),
+      direction: Math.random() < .5 ? -1 : 1,
+      curve: { x: center.x, y: center.y },
+      cardId: zone.cardId || null,
+      tethered: Boolean(zone.tetherUntilSeen && zone.cardId && !hasSeenCard(zone.cardId)),
+      anchorX: zone.x,
+      anchorY: zone.y - 32,
+      tetherRadius: zone.tetherRadius || 165,
+    };
+    groups.set(zoneIndex, group);
+    if (!group.tethered) beginLeg(group, center);
+  }
+
   function reset(encounters) {
-    base.reset(encounters);
+    dormantEncounters.length = 0;
+    const activeEncounters = [];
+    for (const encounter of encounters) {
+      if (encounter.requiresSeenCardId && !hasSeenCard(encounter.requiresSeenCardId)) {
+        dormantEncounters.push({ ...encounter });
+      } else {
+        activeEncounters.push(encounter);
+      }
+    }
+    base.reset(activeEncounters);
     buildNiches();
     groups.clear();
 
-    base.agents.forEach((agent, index) => {
-      const profile = PROFILE_TUNING[agent.type] || {};
-      agent.routeLag = Math.random() * .16;
-      agent.lateral = 18 + Math.random() * 62;
-      agent.turbulence = (profile.turbulence || 60) * (.55 + Math.random() * .8);
-      agent.individualRate = .55 + Math.random() * 1.35;
-      agent.noiseSeed = Math.random() * TAU + index * .173;
-      agent.taxisSensitivity = (profile.taxis || 70) * (.65 + Math.random() * .7);
-    });
+    base.agents.forEach(configureAgent);
 
     base.encounters.forEach((zone, zoneIndex) => {
-      const zoneAgents = base.agents.filter(agent => agent.zoneIndex === zoneIndex);
-      if (!zoneAgents.length || !niches.length) return;
-      const center = centroid(zoneAgents);
-      const start = nearestNicheIndex(center.x, center.y, false);
-      const group = {
-        zoneIndex,
-        type: zone.id,
-        territory: zone.territory || ROAMING_DISTANCE[zone.id] || 900,
-        fromIndex: start,
-        toIndex: start,
-        progress: 1,
-        duration: randomInterval(zone.id),
-        direction: Math.random() < .5 ? -1 : 1,
-        curve: { x: center.x, y: center.y },
-      };
-      groups.set(zoneIndex, group);
-      beginLeg(group, center);
+      initializeGroup(zone, zoneIndex);
     });
-    for (const group of groups.values()) applyGroupRoute(group);
+    for (const group of groups.values()) if (!group.tethered) applyGroupRoute(group);
   }
 
   function clear() {
     groups.clear();
     niches.length = 0;
+    dormantEncounters.length = 0;
     base.clear();
+  }
+
+  function activateSeenEncounters() {
+    for (let index = dormantEncounters.length - 1; index >= 0; index--) {
+      const encounter = dormantEncounters[index];
+      if (!hasSeenCard(encounter.requiresSeenCardId)) continue;
+      dormantEncounters.splice(index, 1);
+      const firstAgent = base.agents.length;
+      const zone = base.addEncounter(encounter);
+      base.agents.slice(firstAgent).forEach((agent, offset) => configureAgent(agent, firstAgent + offset));
+      initializeGroup(zone, zone.index);
+    }
   }
 
   function nearestAttractor(agent) {
@@ -3473,9 +3552,22 @@ function createRoamingMicrobeEcology({ state, entities }) {
   }
 
   function update(dt) {
+    activateSeenEncounters();
     for (const group of groups.values()) {
       const groupAgents = base.agents.filter(agent => agent.zoneIndex === group.zoneIndex);
       if (!groupAgents.length) continue;
+      if (group.tethered && hasSeenCard(group.cardId)) {
+        group.tethered = false;
+        beginLeg(group, centroid(groupAgents));
+      }
+      if (group.tethered) {
+        for (const agent of groupAgents) {
+          agent.homeX = group.anchorX;
+          agent.homeY = group.anchorY;
+          agent.radius = Math.min(agent.radius, group.tetherRadius);
+        }
+        continue;
+      }
       group.progress += dt / Math.max(1.8, group.duration);
       if (group.progress >= 1) beginLeg(group, centroid(groupAgents));
       applyGroupRoute(group);
@@ -3485,9 +3577,29 @@ function createRoamingMicrobeEcology({ state, entities }) {
     applyContinuousFields(dt);
 
     for (const group of groups.values()) {
+      if (!group.tethered) continue;
+      const groupAgents = base.agents.filter(agent => agent.zoneIndex === group.zoneIndex);
+      for (const agent of groupAgents) {
+        const dx = agent.x - group.anchorX;
+        const dy = agent.y - group.anchorY;
+        const distance = Math.max(1, Math.hypot(dx, dy));
+        if (distance <= group.tetherRadius) continue;
+        agent.x = group.anchorX + dx / distance * group.tetherRadius;
+        agent.y = group.anchorY + dy / distance * group.tetherRadius;
+        agent.vx *= .25;
+        agent.vy *= .25;
+      }
+    }
+
+    for (const group of groups.values()) {
       const groupAgents = base.agents.filter(agent => agent.zoneIndex === group.zoneIndex);
       const zone = base.encounters[group.zoneIndex];
       if (!zone || !groupAgents.length) continue;
+      if (group.tethered) {
+        zone.x = group.anchorX;
+        zone.y = group.anchorY;
+        continue;
+      }
       const center = centroid(groupAgents);
       zone.x = center.x;
       zone.y = center.y;
@@ -3500,8 +3612,11 @@ function createRoamingMicrobeEcology({ state, entities }) {
     get agents() { return base.agents; },
     get encounters() { return base.encounters; },
     get nicheCount() { return niches.length; },
+    get tetheredDebutCount() { return [...groups.values()].filter(group => group.tethered).length; },
+    get dormantEncounterCount() { return dormantEncounters.length; },
     clear,
     reset,
+    setTutorialCardSeenResolver,
     update,
     render: base.render,
   };
@@ -3718,43 +3833,51 @@ function createMicrobeEcology({ state, entities }) {
     ecology.encounters.length = 0;
   }
 
+  function spawnZone(zone) {
+    const maxAgents = 156;
+    const profile = MICROBE_MOTION_PROFILES[zone.id];
+    if (!profile || ecology.agents.length >= maxAgents) return;
+    const count = Math.min(profile.count, maxAgents - ecology.agents.length);
+    const rnd = seededRandom(hashSeed(`${zone.id}:${Math.round(zone.x)}:${Math.round(zone.y)}:${zone.index}`));
+    const homeY = clamp(zone.y - 32, 95, H - 100);
+
+    for (let i = 0; i < count; i++) {
+      const angle = rnd() * TAU;
+      const radius = profile.radius * (.18 + rnd() * .62);
+      const direction = rnd() * TAU;
+      ecology.agents.push({
+        id: `${zone.index}:${i}`,
+        type: zone.id,
+        zoneIndex: zone.index,
+        homeX: zone.x,
+        homeY,
+        radius: zone.r || profile.radius,
+        x: zone.x + Math.cos(angle) * radius,
+        y: clamp(homeY + Math.sin(angle) * radius * .62, 70, H - 70),
+        vx: Math.cos(direction) * profile.speed * (.45 + rnd() * .35),
+        vy: Math.sin(direction) * profile.speed * (.35 + rnd() * .25),
+        targetVX: 0,
+        targetVY: 0,
+        angle: direction,
+        phase: rnd() * TAU,
+        size: .78 + rnd() * .48,
+        tumble: .3 + rnd() * 1.2,
+        trail: [],
+      });
+    }
+    ecology.active = ecology.agents.length > 0;
+  }
+
+  function addEncounter(encounter) {
+    const zone = { ...encounter, index: ecology.encounters.length };
+    ecology.encounters.push(zone);
+    spawnZone(zone);
+    return zone;
+  }
+
   function reset(encounters) {
     clear();
-    ecology.encounters = encounters.map((z, index) => ({ ...z, index }));
-    const maxAgents = 156;
-
-    for (const zone of ecology.encounters) {
-      const profile = MICROBE_MOTION_PROFILES[zone.id];
-      if (!profile || ecology.agents.length >= maxAgents) continue;
-      const count = Math.min(profile.count, maxAgents - ecology.agents.length);
-      const rnd = seededRandom(hashSeed(`${zone.id}:${Math.round(zone.x)}:${Math.round(zone.y)}:${zone.index}`));
-      const homeY = clamp(zone.y - 32, 95, H - 100);
-
-      for (let i = 0; i < count; i++) {
-        const angle = rnd() * TAU;
-        const radius = profile.radius * (.18 + rnd() * .62);
-        const direction = rnd() * TAU;
-        ecology.agents.push({
-          id: `${zone.index}:${i}`,
-          type: zone.id,
-          zoneIndex: zone.index,
-          homeX: zone.x,
-          homeY,
-          radius: zone.r || profile.radius,
-          x: zone.x + Math.cos(angle) * radius,
-          y: clamp(homeY + Math.sin(angle) * radius * .62, 70, H - 70),
-          vx: Math.cos(direction) * profile.speed * (.45 + rnd() * .35),
-          vy: Math.sin(direction) * profile.speed * (.35 + rnd() * .25),
-          targetVX: 0,
-          targetVY: 0,
-          angle: direction,
-          phase: rnd() * TAU,
-          size: .78 + rnd() * .48,
-          tumble: .3 + rnd() * 1.2,
-          trail: [],
-        });
-      }
-    }
+    for (const encounter of encounters) addEncounter(encounter);
     ecology.active = ecology.agents.length > 0;
   }
 
@@ -4000,6 +4123,7 @@ function createMicrobeEcology({ state, entities }) {
     get agents() { return ecology.agents; },
     get encounters() { return ecology.encounters; },
     clear,
+    addEncounter,
     reset,
     update,
     render,
@@ -4100,7 +4224,7 @@ function createMycorrhizaGrowth({ state, entities }) {
 
   function reset() {
     clear();
-    const allies = state.level.allies.filter(ally => ally.id === 'myco');
+    const allies = state.level.allies.filter(ally => ally.id === 'myco' && !ally.presentationOnly);
     for (const ally of allies) {
       networks.push({
         ally,
@@ -8408,10 +8532,16 @@ function createMeloidogyneLifecycle({ state, entities }) {
   }
 
   function seedInfestation() {
-    const candidates = roots().filter(p => (p.logicIndex ?? -1) >= 2 && p.w >= 120 && !p.azospirillumStructure);
+    const startChunk = state.level.pathogenSchedule?.meloidogyne;
+    if (!Number.isInteger(startChunk)) return;
+    const candidates = roots().filter(p => (p.logicIndex ?? -1) >= startChunk && p.w >= 120 && !p.azospirillumStructure);
+    if (!candidates.length) return;
+    const first = candidates.reduce((best, candidate) => (
+      (candidate.logicIndex ?? Infinity) < (best.logicIndex ?? Infinity) ? candidate : best
+    ), candidates[0]);
     let chosen = candidates.filter((p, i) => i % 5 === 2 || hash(p, 17) > .79);
-    chosen = chosen.slice(0, Math.max(1, Math.min(3, Math.ceil(candidates.length / 7))));
-    if (!chosen.length && candidates.length) chosen = [candidates[Math.floor(candidates.length * .55)]];
+    chosen = [first, ...chosen.filter(candidate => candidate !== first)]
+      .slice(0, Math.max(1, Math.min(3, Math.ceil(candidates.length / 7))));
     for (const p of chosen) addEggMass(p, p.x + p.w * (.28 + hash(p, 29) * .44), 0, null, true);
   }
 
@@ -10165,6 +10295,136 @@ function validateChunk(fromPlatform, toPlatform, primitive, agentType = 'normal'
   return false;
 }
 Object.assign(__exports, { validateChunk });
+},
+"src/procgen/campaign-encounters.js": (__exports, __require) => {
+const { createRandom } = __require("src/procgen/random.js");
+const { getPhaseManifest, getProceduralPoolAt, getRoamingDebutsAt } = __require("src/procgen/campaign-manifest.js");
+const MIN_ZONE_SPACING = 390;
+const MIN_DEBUT_CLEARANCE = 430;
+const MIN_NEWCOMER_SEPARATION = 440;
+
+function shuffledBag(types, random) {
+  const bag = [...types];
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+  return bag;
+}
+
+function routePlatforms(platforms) {
+  return platforms
+    .filter(platform => !platform.recovery && !platform.final && platform.logicIndex >= 0 && platform.w >= 100)
+    .sort((a, b) => a.logicIndex - b.logicIndex || a.x - b.x);
+}
+
+function platformForChunk(platforms, chunkIndex) {
+  return platforms.find(platform => platform.logicIndex === chunkIndex) || null;
+}
+
+function zonePosition(platform, random) {
+  const lateral = (random() - .5) * Math.min(platform.w * .28, 54);
+  return {
+    x: platform.x + platform.w / 2 + lateral,
+    y: Math.max(95, platform.y - 88 - random() * 42),
+  };
+}
+
+function nearAnyDebut(x, debutZones) {
+  return debutZones.some(zone => Math.abs(zone.x - x) < MIN_DEBUT_CLEARANCE);
+}
+
+function generateCampaignEncounters({ platforms, phase, seedValue }) {
+  const manifest = getPhaseManifest(phase);
+  if (!manifest) return [];
+
+  const random = createRandom(`${seedValue}:campaign-encounters:p${phase}`);
+  const route = routePlatforms(platforms);
+  const encounters = [];
+  const debutZones = [];
+  const currentPhaseCards = new Map();
+  for (const presentation of manifest.presentations) {
+    const types = presentation.roamingType
+      ? [presentation.roamingType]
+      : Array.isArray(presentation.roamingTypes) ? presentation.roamingTypes : [];
+    for (const type of types) currentPhaseCards.set(type, presentation.cardId);
+  }
+
+  for (const chunk of route) {
+    for (const debut of getRoamingDebutsAt(phase, chunk.logicIndex)) {
+      const platform = platformForChunk(route, chunk.logicIndex);
+      if (!platform) continue;
+      const position = zonePosition(platform, random);
+      const zone = {
+        id: debut.type,
+        x: position.x,
+        y: position.y,
+        r: 155,
+        territory: 620,
+        collect: false,
+        logicIndex: chunk.logicIndex,
+        source: 'debut',
+        cardId: debut.cardId,
+        presentationId: debut.presentationId,
+        debutZoneId: debut.debutZoneId,
+        tetherUntilSeen: debut.tetherUntilSeen,
+        tetherRadius: 165,
+      };
+      const overlappingDebut = debutZones.find(existing => (
+        Math.hypot(existing.x - zone.x, existing.y - zone.y) <= MIN_NEWCOMER_SEPARATION
+      ));
+      if (overlappingDebut) {
+        throw new Error(
+          `Estreias inéditas simultâneas na fase ${phase}: ${overlappingDebut.id}/${zone.id}`,
+        );
+      }
+      encounters.push(zone);
+      debutZones.push(zone);
+    }
+  }
+
+  let bag = [];
+  let bagKey = '';
+  let previousType = null;
+  let nextSpawnX = 430 + random() * 190;
+
+  for (const platform of route) {
+    if (platform.x < nextSpawnX || nearAnyDebut(platform.x + platform.w / 2, debutZones)) continue;
+    const pool = getProceduralPoolAt(phase, platform.logicIndex);
+    if (!pool.length) continue;
+
+    const currentKey = pool.join('|');
+    if (currentKey !== bagKey) {
+      bag = shuffledBag(pool, random);
+      bagKey = currentKey;
+    } else if (!bag.length) {
+      bag = shuffledBag(pool, random);
+    }
+
+    let type = bag.pop();
+    if (type === previousType && bag.length) {
+      bag.unshift(type);
+      type = bag.pop();
+    }
+    previousType = type;
+    const position = zonePosition(platform, random);
+    encounters.push({
+      id: type,
+      x: position.x,
+      y: position.y,
+      r: 145 + random() * 65,
+      territory: 520 + random() * 720,
+      collect: false,
+      logicIndex: platform.logicIndex,
+      source: 'procedural',
+      requiresSeenCardId: currentPhaseCards.get(type) || null,
+    });
+    nextSpawnX = platform.x + MIN_ZONE_SPACING + random() * 360;
+  }
+
+  return encounters;
+}
+Object.assign(__exports, { generateCampaignEncounters });
 },
 "src/render/renderer.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");
@@ -13506,6 +13766,7 @@ function initializeTutorialSystem() {
   };
 
   const manager = createTutorialManager({ state: sim.state });
+  sim.ecology.setTutorialCardSeenResolver?.(cardId => manager.hasSeen(cardId));
   const ralstoniaAdapter = {
     get foci() { return sim.state.level.ralstoniaFoci || []; },
   };
@@ -15102,7 +15363,7 @@ const { W } = __require("src/core/constants.js");
 const { getTutorialModeAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-const TUTORIAL_RUNTIME_VERSION = '2026.07.17.1';
+const TUTORIAL_RUNTIME_VERSION = '2026.07.17.2';
 const TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT =
   tutorialPacing.simultaneousFirstEncountersEventName;
 
@@ -15242,6 +15503,14 @@ function createTutorialTriggers({
       const distance = distanceToPlayer(zone.x, zone.y);
       if (distance > TUTORIAL_PROXIMITY.microbeCommunity) continue;
       addCandidate(cardId, distance, { type: zone.id, source: 'community' });
+    }
+
+    for (const ally of state.level.allies || []) {
+      if (!ally.presentationOnly) continue;
+      const cardId = ally.cardId || discoveryCards[ally.id];
+      const distance = distanceToPlayer(ally.x, ally.y);
+      if (distance > TUTORIAL_PROXIMITY.organism) continue;
+      addCandidate(cardId, distance, { type: ally.id, source: 'fixed-debut' });
     }
 
     for (const enemy of state.level.enemies || []) {

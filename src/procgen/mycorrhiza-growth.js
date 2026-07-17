@@ -99,7 +99,7 @@ export function createMycorrhizaGrowth({ state, entities }) {
 
   function reset() {
     clear();
-    const allies = state.level.allies.filter(ally => ally.id === 'myco');
+    const allies = state.level.allies.filter(ally => ally.id === 'myco' && !ally.presentationOnly);
     for (const ally of allies) {
       networks.push({
         ally,

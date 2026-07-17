@@ -1,6 +1,7 @@
 import {
   CAMPAIGN_UNLOCKS,
   campaignManifest,
+  getPathogenStartChunk,
   getPhaseManifest,
 } from './campaign-manifest.js';
 import { setLogicCampaignProfile } from './logic.js';
@@ -192,6 +193,42 @@ export function decorateCampaignLevel(level, campaign, profile = getPhaseProfile
   level.phaseTheme = profile.theme;
   level.phaseTitle = profile.title;
   level.phaseProfile = profile;
+  level.pathogenSchedule = {
+    rhizoctonia: getPathogenStartChunk(campaign.phase, 'rhizoctonia'),
+    meloidogyne: getPathogenStartChunk(campaign.phase, 'meloidogyne'),
+  };
+
+  const fixedDebutTypes = {
+    'organism-mycorrhiza': {
+      id: 'myco', name: 'Micorriza arbuscular',
+      desc: 'Estrutura fixa de estreia da associação micorrízica.',
+    },
+    'organism-phosphate-solubilizer': {
+      id: 'phos', name: 'Microrganismo solubilizador de fosfato',
+      desc: 'Estrutura fixa de estreia da comunidade solubilizadora.',
+    },
+  };
+  const manifest = getPhaseManifest(campaign.phase);
+  for (const presentation of manifest.presentations) {
+    const fixed = fixedDebutTypes[presentation.cardId];
+    if (!fixed || presentation.roamingType || presentation.roamingTypes) continue;
+    const platform = (level.platforms || []).find(candidate => (
+      !candidate.recovery && !candidate.final && candidate.logicIndex === presentation.debutChunk
+    ));
+    if (!platform) continue;
+    level.allies.push({
+      ...fixed,
+      x: platform.x + platform.w / 2,
+      y: platform.y - 44,
+      r: 32,
+      taken: false,
+      presentationOnly: true,
+      cardId: presentation.cardId,
+      presentationId: presentation.id,
+      debutZoneId: presentation.debutZoneId,
+      logicIndex: presentation.debutChunk,
+    });
+  }
 
   const queues = new Map();
   for (const event of profile.unlockEvents) {
@@ -209,14 +246,6 @@ export function decorateCampaignLevel(level, campaign, profile = getPhaseProfile
     ally.desc = presentation.desc;
   }
   return level;
-}
-
-// Pool procedural permanece intencionalmente fora desta integração.
-export function campaignEncounterTypes(campaign) {
-  const common = ['rhizobium', 'oportunista', 'trichoderma', 'pseudomonas', 'bacillus'];
-  if (campaign.phase >= 3) common.push('azospirillum');
-  if (campaign.phase >= 4 && campaign.phase % 2 === 0) common.push('oportunista');
-  return common;
 }
 
 export function unlockCampaignFeature(state, feature) {

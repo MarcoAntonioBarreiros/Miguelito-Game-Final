@@ -195,6 +195,10 @@ export function generateLevel(seedString) {
       allies.push({ id: chunk.allyId, x: nextPlatform.x + nextPlatform.w / 2, y: nextPlatform.y - 40, r: 28, taken: false, name, desc });
     }
 
+    if (chunk.isPathogenDebut && chunk.pathogenType === 'rhizoctonia') {
+      nextPlatform.w = Math.max(nextPlatform.w, 150);
+    }
+
     if (chunk.hasEnemy && !chunk.requires.includes('pulse') && nextPlatform.w > 130) {
       const ew = 42;
       const eh = 38;
@@ -207,6 +211,9 @@ export function generateLevel(seedString) {
         left: nextPlatform.x + 20,
         right: nextPlatform.x + nextPlatform.w - ew - 20,
         alive: true,
+        type: chunk.pathogenType,
+        logicIndex: i,
+        debut: chunk.isPathogenDebut,
       });
     }
 

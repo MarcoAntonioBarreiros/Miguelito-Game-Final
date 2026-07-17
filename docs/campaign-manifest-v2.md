@@ -115,6 +115,16 @@ Garantias:
 
 Ralstonia fica para expansão pós-piloto.
 
+## Integração da ordem curricular
+
+As comunidades vagantes são geradas por `generateCampaignEncounters` a partir do manifesto. Bacillus, Rhizobium, Azospirillum, Pseudomonas, fungo oportunista e Trichoderma recebem uma única zona de estreia no `debutChunk` declarado. Essa comunidade permanece tethered à zona enquanto o respectivo cartão ainda não foi visto.
+
+`poolFromChunk` é apenas o limite espacial mínimo da recorrência. As zonas procedurais do organismo estreante permanecem dormentes até o primeiro encontro por proximidade concluir a apresentação; portanto, alcançar ou recarregar um trecho posterior não antecipa curricularmente o organismo. Organismos de fases anteriores continuam recorrendo normalmente.
+
+Micorriza e microrganismo solubilizador de fosfato são estreias fixas, associadas às plataformas dos chunks 4 e 18 de suas fases. Eles não entram no pool das comunidades vagantes. Rhizoctonia e Meloidogyne são controlados por agendas próprias: o inimigo de Rhizoctonia começa na fase 6/chunk 4 e a infestação de Meloidogyne na fase 7/chunk 4; fases posteriores preservam somente os patógenos já introduzidos pelo manifesto.
+
+Os testes multi-seed verificam a sequência Bacillus → Rhizobium → Azospirillum → micorriza → Pseudomonas → oportunista → Trichoderma → micoparasitismo → Rhizoctonia → Meloidogyne, a separação física das estreias, a ativação pós-cartão e a posição inicial dos dois subsistemas patogênicos.
+
 ## Ordem de Meloidogyne
 
 ```text
