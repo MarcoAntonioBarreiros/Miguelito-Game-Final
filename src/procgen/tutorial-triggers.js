@@ -1,6 +1,11 @@
+import { W } from '../core/constants.js';
+import { getTutorialModeAt, tutorialPacing } from './campaign-manifest.js';
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-export const TUTORIAL_RUNTIME_VERSION = '2026.07.16.7';
+export const TUTORIAL_RUNTIME_VERSION = '2026.07.17.1';
+export const TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT =
+  tutorialPacing.simultaneousFirstEncountersEventName;
 
 export const TUTORIAL_PROXIMITY = Object.freeze({
   microbeAgent: 220,
@@ -30,6 +35,8 @@ export function createTutorialTriggers({
 }) {
   let lastCheckAt = -Infinity;
   let resumeDelayUntil = 0;
+  let lastUnexpectedFirstAppearance = null;
+  let lastSimultaneousFirstEncounters = null;
 
   function conditionSnapshot() {
     return {
@@ -46,6 +53,12 @@ export function createTutorialTriggers({
 
   window.addEventListener('miguelito:tutorial-close', () => {
     resumeDelayUntil = performance.now() + 520;
+  });
+  window.addEventListener(tutorialPacing.diagnosticEventName, event => {
+    lastUnexpectedFirstAppearance = event.detail || null;
+  });
+  window.addEventListener(TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT, event => {
+    lastSimultaneousFirstEncounters = event.detail || null;
   });
 
   function playerPoint() {
@@ -77,8 +90,34 @@ export function createTutorialTriggers({
     return Math.hypot(x - player.x, y - player.y);
   }
 
-  function trigger(id, condition) {
-    return Boolean(condition && manager.trigger(id));
+  function currentChunkIndex() {
+    let chunkIndex = -1;
+    for (const platform of state.level.platforms || []) {
+      if (!platform.recovery && !platform.final && state.player.x >= platform.x) {
+        chunkIndex = Math.max(chunkIndex, platform.logicIndex ?? -1);
+      }
+    }
+    return Math.max(0, chunkIndex);
+  }
+
+  function tutorialContext(extra = {}) {
+    const phase = Number.isInteger(state.campaign?.phase)
+      ? state.campaign.phase
+      : Number.isInteger(state.level.campaignPhase) ? state.level.campaignPhase : 1;
+    const chunkIndex = currentChunkIndex();
+    return {
+      phase,
+      chunkIndex,
+      tutorialMode: getTutorialModeAt(phase, chunkIndex),
+      worldX: playerPoint().x,
+      visibleWorldWidth: W / Math.max(0.1, state.cameraZoom || 1),
+      nowSeconds: performance.now() / 1000,
+      ...extra,
+    };
+  }
+
+  function trigger(id, condition, extra = {}) {
+    return Boolean(condition && manager.trigger(id, tutorialContext(extra)));
   }
 
   function organismCandidates() {
@@ -146,8 +185,32 @@ export function createTutorialTriggers({
   }
 
   function triggerNearestOrganism() {
-    for (const candidate of organismCandidates()) {
-      if (!manager.trigger(candidate.cardId)) continue;
+    const candidates = organismCandidates();
+    if (candidates.length > 1) {
+      const context = tutorialContext();
+      const detail = {
+        phase: context.phase,
+        chunkIndex: context.chunkIndex,
+        candidates: candidates.map(candidate => ({
+          cardId: candidate.cardId,
+          type: candidate.type || null,
+          source: candidate.source,
+          distance: Math.round(candidate.distance),
+        })),
+      };
+      lastSimultaneousFirstEncounters = detail;
+      const event = typeof CustomEvent === 'function'
+        ? new CustomEvent(TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT, { detail })
+        : Object.assign(new Event(TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT), { detail });
+      window.dispatchEvent(event);
+    }
+
+    for (const candidate of candidates) {
+      if (!manager.trigger(candidate.cardId, tutorialContext({
+        source: tutorialPacing.firstAppearanceEvent,
+        organismType: candidate.type || null,
+        organismSource: candidate.source,
+      }))) continue;
       if (candidate.type) state.discoveredMicrobes.add(candidate.type);
       return true;
     }
@@ -165,7 +228,7 @@ export function createTutorialTriggers({
     ];
     previousConditions = current;
     for (const [id, active] of transitions) {
-      if (active && manager.trigger(id)) return true;
+      if (active && manager.trigger(id, tutorialContext())) return true;
     }
     return false;
   }
@@ -272,7 +335,13 @@ export function createTutorialTriggers({
   }
 
   function showWelcome() {
-    manager.trigger('system-welcome');
+    manager.trigger('system-welcome', {
+      tutorialMode: 'guided',
+      worldX: playerPoint().x,
+      visibleWorldWidth: W / Math.max(0.1, state.cameraZoom || 1),
+      nowSeconds: performance.now() / 1000,
+      affectsPacing: false,
+    });
   }
 
   function rearm() {
@@ -284,6 +353,8 @@ export function createTutorialTriggers({
 
   function diagnostics() {
     const player = playerPoint();
+    const chunkIndex = currentChunkIndex();
+    const phase = Number.isInteger(state.campaign?.phase) ? state.campaign.phase : 1;
     const nearbyAgents = (sim.ecology.agents || [])
       .map(agent => ({
         type: agent.type,
@@ -296,10 +367,15 @@ export function createTutorialTriggers({
       version: TUTORIAL_RUNTIME_VERSION,
       gameState: state.gameState,
       tutorialOpen: manager.isOpen,
+      phase,
+      chunkIndex,
+      tutorialMode: getTutorialModeAt(phase, chunkIndex),
       conditions: conditionSnapshot(),
       discovered: [...state.discoveredMicrobes],
       nearbyAgents,
       closestCandidate: organismCandidates()[0] || null,
+      lastUnexpectedFirstAppearance,
+      lastSimultaneousFirstEncounters,
     };
   }
 

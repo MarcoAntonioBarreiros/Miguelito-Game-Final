@@ -77,14 +77,70 @@
     assert(typeof win.miguelitoTutorialVersion === 'string', `${label}: tutorial entrypoint should expose its version`);
   }
 
+  async function verifyTutorialFlow(win, label) {
+    const manager = win.miguelitoTutorial;
+    await waitFor(
+      () => manager?.currentCardId === 'system-welcome',
+      `${label}: welcome card should open in a fresh session`,
+    );
+
+    const pending = manager.trigger('organism-bacillus', {
+      tutorialMode: 'silent',
+      source: 'first-proximity-encounter',
+      phase: 1,
+      chunkIndex: 6,
+      worldX: 1000,
+      visibleWorldWidth: 900,
+      nowSeconds: 10,
+    });
+    assert(pending, `${label}: first Bacillus proximity should be retained while welcome is open`);
+    assert(manager.currentCardId === 'system-welcome', `${label}: mandatory pending card should not replace the active panel`);
+
+    const welcomePageCount = manager.getUnlockedPages('system-welcome').length;
+    for (let index = 0; index < welcomePageCount; index++) {
+      win.dispatchEvent(new win.KeyboardEvent('keydown', { code: 'Enter', bubbles: true }));
+    }
+    await waitFor(
+      () => manager.currentCardId === 'organism-bacillus',
+      `${label}: pending mandatory encounter should open after welcome`,
+    );
+    assert(manager.currentCardId === 'organism-bacillus', `${label}: Bacillus should bypass silent mode`);
+    assert(
+      JSON.stringify(manager.getUnlockedPages('organism-bacillus')) === '[0]',
+      `${label}: first Bacillus encounter should unlock only page zero`,
+    );
+
+    win.dispatchEvent(new win.KeyboardEvent('keydown', { code: 'Enter', bubbles: true }));
+    await waitFor(() => !manager.isOpen, `${label}: one-page Bacillus introduction should close`);
+    manager.trigger('structure-biofilm', {
+      tutorialMode: 'silent',
+      phase: 1,
+      chunkIndex: 12,
+      worldX: 1500,
+      visibleWorldWidth: 900,
+      nowSeconds: 20,
+    });
+    assert(!manager.isOpen, `${label}: derived biofilm update should not open a panel in silent mode`);
+    assert(
+      JSON.stringify(manager.getUnlockedPages('organism-bacillus')) === '[0,1,2,3]',
+      `${label}: biofilm should update the Bacillus guide progressively`,
+    );
+
+    win.dispatchEvent(new win.KeyboardEvent('keydown', {
+      code: 'F5', ctrlKey: true, bubbles: true,
+    }));
+  }
+
   try {
     const dev = await loadGame('/index.html');
     verifyCurrentGame(dev.win, 'source');
+    await verifyTutorialFlow(dev.win, 'source');
     record('source-entrypoints');
     dev.iframe.remove();
 
     const built = await loadGame('/dist/index.html');
     verifyCurrentGame(built.win, 'build');
+    await verifyTutorialFlow(built.win, 'build');
     assert(
       built.win.document.querySelectorAll('script[type="module"]').length === 0,
       'build: module entrypoints should be replaced by the inline bundle',
