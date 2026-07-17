@@ -125,15 +125,11 @@ test('desafio de Azo so e reservado depois de Azo, exsudato e raiz colonizavel',
   assert.ok(ladder.sourceAzospirillumLogicIndex < ladder.sourceExudateLogicIndex);
   assert.ok(ladder.sourceExudateLogicIndex < ladder.hostLogicIndex);
   assert.equal(ladder.host.type, 'root');
-  assert.equal(ladder.wall.azospirillumRootWall, true);
-  assert.equal(ladder.wall.oneWay, false);
-  assert.ok(ladder.wall.h > ladder.wall.w * 3);
-  assert.ok(ladder.wall.x > ladder.host.x + ladder.host.w);
-  assert.ok(ladder.wall.x + ladder.wall.w < ladder.destination.x);
-  assert.ok(ladder.host.y - ladder.wall.y > 200);
-  assert.equal(level.platforms.some(platform => platform.recovery
-    && platform.x > ladder.host.x + ladder.host.w
-    && platform.x < ladder.destination.x), false);
+  assert.equal(ladder.host.wasRecoveryRoot, true);
+  assert.equal(ladder.host.recovery, false);
+  assert.ok(ladder.blockedRise >= 210);
+  assert.ok(ladder.hostLogicIndex <= 12);
+  assert.equal(level.platforms.some(platform => platform.azospirillumRootWall), false);
 });
 
 test('escada cresce apenas com colonia de Azo na raiz e cada degrau so colide em 100%', () => {
@@ -177,7 +173,7 @@ test('escada cresce apenas com colonia de Azo na raiz e cada degrau so colide em
   assert.equal(ladder.steps.every(step => step.collider), true);
 });
 
-test('primeira escada sobe verticalmente pela parede com pulo normal', () => {
+test('primeira escada conecta o bloco inferior ao superior com pulo normal', () => {
   const { ladder } = createFixtureLadder();
   const route = [
     ladder.host,
@@ -191,9 +187,9 @@ test('primeira escada sobe verticalmente pela parede com pulo normal', () => {
     })),
     ladder.destination,
   ];
-  const stepCenters = ladder.steps.map(step => step.centerX);
-  assert.ok(Math.max(...stepCenters) - Math.min(...stepCenters) <= 40);
-  assert.ok(ladder.steps[0].y - ladder.steps.at(-1).y > 200);
+  assert.ok(Math.abs(ladder.endX - ladder.startX) < ladder.blockedRise);
+  assert.ok(ladder.steps[0].y - ladder.steps.at(-1).y > 150);
+  assert.ok(ladder.steps.every((step, index) => index === 0 || step.y < ladder.steps[index - 1].y));
   assert.equal(validateChunk(ladder.host, ladder.destination, NORMAL_JUMP), false);
   for (let index = 0; index < route.length - 1; index++) {
     assert.equal(
@@ -203,6 +199,51 @@ test('primeira escada sobe verticalmente pela parede com pulo normal', () => {
     );
   }
   assert.equal(validateChunk(ladder.destination, ladder.following, NORMAL_JUMP), true);
+});
+
+test('degraus maduros atravessam de baixo para cima e colidem somente na queda', () => {
+  const { level, ladder } = createFixtureLadder();
+  const inoculants = {
+    colonies: [{
+      id: 'azo-colony', type: 'azospirillum', platform: ladder.host,
+      growth: 1, vigor: 1, dormant: false, x: ladder.host.x + ladder.host.w / 2,
+    }],
+  };
+  const state = {
+    gameState: 'play', time: 0, level,
+    player: { soil: 0, hope: 0 }, cameraX: 0,
+  };
+  const runtime = createAzospirillumRootGrowth({ state, inoculants, entities: { burst() {} } });
+  runtime.reset();
+  runtime.update(3);
+  const collider = ladder.steps[0].collider;
+  assert.equal(collider.oneWay, true);
+
+  const sim = createSimulator();
+  sim.state.level.platforms = [collider];
+  sim.state.level.hazards = [];
+  sim.state.level.endX = 2400;
+  sim.state.player.x = collider.x + collider.w / 2 - sim.state.player.w / 2;
+  sim.state.player.y = collider.y + 20;
+  sim.state.player.onGround = true;
+  let crossedFromBelow = false;
+  let landedFromAbove = false;
+  for (let frame = 0; frame < 180; frame++) {
+    sim.setInputs(frame === 0 ? { Space: true } : {});
+    sim.step(1 / 60);
+    const player = sim.state.player;
+    if (player.vy < 0 && player.y + player.h < collider.y) crossedFromBelow = true;
+    if (
+      crossedFromBelow
+      && player.onGround
+      && Math.abs(player.y - (collider.y - player.h)) < 2
+    ) {
+      landedFromAbove = true;
+      break;
+    }
+  }
+  assert.equal(crossedFromBelow, true);
+  assert.equal(landedFromAbove, true);
 });
 
 test('geracao da escada permanece deterministica em multiplas seeds da Fase 3', () => {
@@ -235,9 +276,8 @@ test('geracao da escada permanece deterministica em multiplas seeds da Fase 3', 
           })),
           ladder.destination,
         ];
-        const stepCenters = ladder.steps.map(step => step.centerX);
-        assert.ok(Math.max(...stepCenters) - Math.min(...stepCenters) <= 40);
-        assert.ok(ladder.hostLogicIndex <= 20, `seed ${index} nao deve adiar o alvo de Azo`);
+        assert.ok(Math.abs(ladder.endX - ladder.startX) < ladder.blockedRise);
+        assert.ok(ladder.hostLogicIndex <= 12, `seed ${index} nao deve adiar o alvo de Azo`);
         assert.equal(validateChunk(ladder.host, ladder.destination, NORMAL_JUMP), false);
         for (let routeIndex = 0; routeIndex < route.length - 1; routeIndex++) {
           assert.equal(
@@ -259,7 +299,7 @@ test('geracao da escada permanece deterministica em multiplas seeds da Fase 3', 
         azo: ladder.sourceAzospirillumLogicIndex,
         exudate: ladder.sourceExudateLogicIndex,
         blockedRise: ladder.blockedRise,
-        wall: [ladder.wall.x, ladder.wall.y, ladder.wall.w, ladder.wall.h],
+        endpoints: [ladder.startX, ladder.startY, ladder.endX, ladder.endY],
         steps: ladder.steps.map(step => [step.centerX, step.y]),
       }));
     };
