@@ -33,11 +33,11 @@
     throw new Error(message);
   }
 
-  async function loadGame(pathname) {
+  async function loadGame(pathname, query = 'test=1') {
     const iframe = document.createElement('iframe');
     iframe.width = 1280;
     iframe.height = 720;
-    iframe.src = `${pathname}?test=1`;
+    iframe.src = `${pathname}?${query}`;
     document.body.appendChild(iframe);
     await new Promise((resolve, reject) => {
       iframe.onload = resolve;
@@ -170,6 +170,28 @@
       'build: standalone document should not request an external tutorial stylesheet',
     );
     record('standalone-bundle');
+
+    const lab = await loadGame('/index.html', 'test=1&phaseLab=1');
+    await waitFor(() => lab.win.miguelitoPhaseLab?.enabled, 'Phase Lab API should become ready');
+    assert(!!lab.win.document.querySelector('.phase-lab'), 'Phase Lab panel should be mounted');
+    assert(!lab.win.document.querySelector('[data-platform-drag-editor]'), 'Phase Lab should not include a platform drag editor');
+    const config = lab.win.miguelitoPhaseLab.getConfig();
+    config.seed = 'browser-phase-lab';
+    config.allowedOrganisms = ['bacillus'];
+    config.allowedPathogens = [];
+    config.resources = { exudates: 4, crystals: 1, checkpoints: 2 };
+    lab.win.miguelitoPhaseLab.applyConfig(config);
+    await waitFor(
+      () => lab.win.miguelitoSim.state.level.exudates?.length === 4
+        && lab.win.miguelitoSim.state.level.crystals?.length === 1
+        && lab.win.miguelitoSim.state.level.checkpoints?.length === 2,
+      'Phase Lab should restart with configured resources',
+    );
+    const exported = JSON.parse(lab.win.miguelitoPhaseLab.exportManifest());
+    assert(exported.phaseLab.seed === 'browser-phase-lab', 'Phase Lab export should preserve the seed');
+    assert(JSON.stringify(exported.phaseLab.allowedOrganisms) === '["bacillus"]', 'Phase Lab export should preserve organism pool');
+    record('phase-lab-runtime');
+    lab.iframe.remove();
 
     await wait(100);
     assert(errors.length === 0, `console/page errors: ${errors.join('; ')}`);

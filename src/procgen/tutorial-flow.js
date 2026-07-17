@@ -1,5 +1,5 @@
 import {
-  campaignManifest,
+  getActiveCampaignManifest,
   getPresentationById,
   getSegmentAt,
   tutorialPacing,
@@ -7,7 +7,7 @@ import {
 import { getTutorialCard } from './tutorial-registry.js';
 
 function findPresentation(triggerId) {
-  for (const phase of campaignManifest) {
+  for (const phase of getActiveCampaignManifest()) {
     const presentation = phase.presentations.find(entry => entry.triggerIds.includes(triggerId));
     if (presentation) return { phase: phase.phase, presentation };
   }

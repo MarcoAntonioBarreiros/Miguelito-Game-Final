@@ -3,6 +3,8 @@ import { generateCampaignEncounters } from './campaign-encounters.js';
 import { createCampaignObjectiveEvaluator } from './campaign-objectives.js';
 import { applyPhaseOneVerticalSlice, createFixedBlockRuntime } from './phase-one-vertical-slice.js';
 import { getPhaseManifest } from './campaign-manifest.js';
+import { applyPhaseLabResources } from './phase-lab-config.js';
+import { createPhaseLabSession } from './phase-lab.js';
 import { createSimulator } from './simulator.js';
 import { createRenderer } from '../render/renderer.js';
 import { createPlatformVisuals } from './platform-visuals.js';
@@ -32,9 +34,12 @@ const pulseTouchButton = document.querySelector('[data-key="KeyK"]');
 
 let campaignStorage = null;
 try { campaignStorage = window.sessionStorage; } catch (_) {}
+const phaseLab = createPhaseLabSession({ windowObject: window });
+if (phaseLab.enabled) campaignStorage = null;
 
 let sim = createSimulator();
-const campaign = createCampaign(undefined, { storage: campaignStorage });
+const campaign = createCampaign(phaseLab.enabled ? phaseLab.config.seed : undefined, { storage: campaignStorage });
+if (phaseLab.enabled) phaseLab.configureCampaign(campaign);
 sim.state.campaign = campaign;
 const cameraView = createCameraView({ canvas, state: sim.state });
 const rhizoctoniaControl = createRhizoctoniaControl({
@@ -65,6 +70,8 @@ const objectiveEvaluator = createCampaignObjectiveEvaluator({
     gameplay: sim.gameplay,
     inoculants: sim.beneficialInoculants,
     pseudomonas: sim.pseudomonasSiderophores,
+    trichoderma: trichodermaRhizoctoniaControl,
+    meloidogyneControl: trichodermaMeloidogyneControl,
   },
 });
 const fixedBlockRuntime = createFixedBlockRuntime({
@@ -74,8 +81,13 @@ const fixedBlockRuntime = createFixedBlockRuntime({
   ecology: sim.ecology,
 });
 sim.goal.setCompletionGuard(() => {
-  if (campaign.phase !== 1) return { passed: true };
-  const result = objectiveEvaluator.evaluate(getPhaseManifest(1).finalTest);
+  const finalTest = getPhaseManifest(campaign.phase)?.finalTest;
+  if (!finalTest) return { passed: true };
+  const conditions = (finalTest.requires || []).filter(condition => !(
+    condition.type === 'worldState' && condition.key === 'reachedFinalRoot'
+  ));
+  if (!conditions.length) return { passed: true };
+  const result = objectiveEvaluator.evaluate(conditions);
   return {
     passed: result.passed,
     message: 'A raiz final aguarda a ativação do checkpoint de Bacillus na raiz marcada.',
@@ -121,6 +133,7 @@ function prepareLevel() {
   seed = campaignPhaseSeed(campaign);
   levelData = decorateCampaignLevel(generateLevel(seed), campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
+  if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
   installFinalGoal(levelData);
 }
 
@@ -188,6 +201,13 @@ function initGame({ announce = false } = {}) {
 }
 
 function startNewCampaign() {
+  if (phaseLab.enabled) {
+    phaseLab.configureCampaign(campaign);
+    sim.state.discoveredMicrobes.clear();
+    prepareLevel();
+    initGame({ announce: true });
+    return;
+  }
   resetCampaign(campaign);
   sim.state.discoveredMicrobes.clear();
   prepareLevel();
@@ -236,6 +256,13 @@ function maybeAdvanceCampaign() {
 
   if (sim.state.time < campaign.transitionAt) return false;
 
+  if (phaseLab.enabled) {
+    campaign.transitionRequested = false;
+    sim.state.gameState = 'end';
+    sim.state.mission = `Phase Lab concluido: ${getPhaseManifest(campaign.phase)?.finalTest?.goal || profile.mission}`;
+    return true;
+  }
+
   if (!advanceCampaignPhase(campaign)) {
     campaign.transitionRequested = false;
     sim.state.gameState = 'end';
@@ -249,9 +276,11 @@ function maybeAdvanceCampaign() {
 
 prepareLevel();
 initGame({ announce: true });
+if (phaseLab.enabled) phaseLab.mount({ onRestart: startNewCampaign });
 
 const keys = {};
 window.addEventListener('keydown', event => {
+  if (phaseLab.enabled && event.target instanceof Element && event.target.closest('.phase-lab')) return;
   keys[event.code] = true;
   if (event.code === 'KeyR' && !event.repeat) startNewCampaign();
   if (event.code === 'Tab') {
