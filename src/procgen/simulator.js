@@ -1,5 +1,6 @@
 import { createPhysicsSystem } from '../physics.js';
 import { createPlayer, resetPlayer } from '../player.js';
+import { applyPersistentUnlocks } from './campaign-progression.js';
 import { createMicrobeArt } from '../data/microbes.js';
 import { createRoamingMicrobeEcology } from './microbe-roaming.js';
 import { createMycorrhizaGrowth } from './mycorrhiza-growth.js';
@@ -91,6 +92,7 @@ export function createSimulator() {
       player.healCooldown = 2;
       player.dashSuppressed = false;
       player.airJumpAvailable = player.canDoubleJump;
+      if (state.campaign) applyPersistentUnlocks(player, state.campaign);
       player.invuln = 1.7;
       state.respawnTimer = 0;
       state.gameState = 'play';

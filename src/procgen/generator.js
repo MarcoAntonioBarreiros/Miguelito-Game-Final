@@ -214,6 +214,8 @@ export function generateLevel(seedString) {
       const cw = 56;
       const ch = 110;
       crystals.push({
+        logicIndex: i,
+        requiredFeature: 'pulse',
         x: nextPlatform.x + nextPlatform.w - cw - 5,
         y: nextPlatform.y - ch,
         w: cw,

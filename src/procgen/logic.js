@@ -1,7 +1,29 @@
+import {
+  CAMPAIGN_UNLOCKS,
+  getAvailableUnlocksAt,
+  getPhaseManifest,
+  getRequiredPracticeAbilityAt,
+} from './campaign-manifest.js';
+
+const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash', 'pulse']);
 let activeProfile = null;
 
 export function setLogicCampaignProfile(profile) {
   activeProfile = profile;
+}
+
+function defaultProfile() {
+  const manifest = getPhaseManifest(1);
+  return {
+    phase: manifest.phase,
+    theme: manifest.theme,
+    totalChunks: manifest.totalChunks,
+    unlockEvents: manifest.unlockEvents.map(event => ({ ...event, chunk: event.eventChunk, allyId: null })),
+    initialUnlocks: Object.fromEntries(CAMPAIGN_UNLOCKS.map(feature => [feature, false])),
+    hardChance: .08,
+    enemyChance: .12,
+    skillRequirementChance: .56,
+  };
 }
 
 function weightedAbility(rnd, abilities, theme) {
@@ -16,42 +38,37 @@ function weightedAbility(rnd, abilities, theme) {
   return weighted[Math.floor(rnd() * weighted.length)] || null;
 }
 
-export function generateLogicGraph(rnd) {
-  const profile = activeProfile || {
-    phase: 1,
-    theme: 'fundamentos',
-    totalChunks: 40,
-    unlockEvents: [
-      { chunk: 8, allyId: 'azo', feature: 'doubleJump' },
-      { chunk: 25, allyId: 'dash', feature: 'dash' },
-    ],
-    initialAbilities: [],
-    hardChance: .08,
-    enemyChance: .12,
-    skillRequirementChance: .56,
-  };
+function availableUnlocksForChunk(profile, chunkIndex) {
+  const planned = getAvailableUnlocksAt(profile.phase, chunkIndex);
+  const currentPhaseFeatures = new Set(profile.unlockEvents.map(event => event.feature));
+  return Object.fromEntries(CAMPAIGN_UNLOCKS.map(feature => {
+    // Eventos da fase obedecem ao manifesto: o chunk N apresenta o poder e
+    // somente N+1 em diante pode usá-lo. Poderes anteriores dependem do estado
+    // realmente obtido e restaurado na campanha.
+    const available = currentPhaseFeatures.has(feature)
+      ? planned[feature] === true
+      : profile.initialUnlocks?.[feature] === true;
+    return [feature, available];
+  }));
+}
 
+export function generateLogicGraph(rnd) {
+  const profile = activeProfile || defaultProfile();
   const chunks = [];
-  const events = new Map(profile.unlockEvents.map(event => [event.chunk, event]));
-  const movementFeatures = new Set(['doubleJump', 'dash', 'pulse']);
-  const currentAbilities = [...profile.initialAbilities];
+  const events = new Map(profile.unlockEvents.map(event => [event.eventChunk, event]));
 
   for (let i = 0; i < profile.totalChunks; i++) {
     const event = events.get(i) || null;
-    let requiredAbility = null;
-    let isSkillNode = false;
+    const availableUnlocks = availableUnlocksForChunk(profile, i);
+    const availableAbilities = [...MOVEMENT_FEATURES].filter(feature => availableUnlocks[feature]);
+    const practiceFeature = getRequiredPracticeAbilityAt(profile.phase, i);
+    const isSkillNode = Boolean(practiceFeature && availableUnlocks[practiceFeature]);
+    let requiredAbility = isSkillNode && MOVEMENT_FEATURES.has(practiceFeature)
+      ? practiceFeature
+      : null;
 
-    for (const unlockEvent of profile.unlockEvents) {
-      if (!movementFeatures.has(unlockEvent.feature)) continue;
-      if (i >= unlockEvent.chunk + 1 && i <= unlockEvent.chunk + 3) {
-        requiredAbility = unlockEvent.feature;
-        isSkillNode = true;
-        break;
-      }
-    }
-
-    if (!requiredAbility && !event && currentAbilities.length > 0 && rnd() < profile.skillRequirementChance) {
-      requiredAbility = weightedAbility(rnd, currentAbilities, profile.theme);
+    if (!requiredAbility && !event && availableAbilities.length > 0 && rnd() < profile.skillRequirementChance) {
+      requiredAbility = weightedAbility(rnd, availableAbilities, profile.theme);
     }
 
     let difficultyTarget = 'comfortable';
@@ -66,6 +83,9 @@ export function generateLogicGraph(rnd) {
     chunks.push({
       index: i,
       requires: requiredAbility ? [requiredAbility] : [],
+      availableUnlocks,
+      availableAbilities,
+      practiceFeature,
       difficultyTarget,
       isSkillIntro: isSkillNode,
       allyId: event?.allyId || null,
@@ -75,10 +95,6 @@ export function generateLogicGraph(rnd) {
       campaignPhase: profile.phase,
       phaseTheme: profile.theme,
     });
-
-    if (event && movementFeatures.has(event.feature) && !currentAbilities.includes(event.feature)) {
-      currentAbilities.push(event.feature);
-    }
   }
 
   return chunks;

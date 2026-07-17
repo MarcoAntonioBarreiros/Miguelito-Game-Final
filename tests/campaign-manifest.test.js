@@ -129,14 +129,15 @@ test('Trichoderma, oportunista e micoparasitismo são apresentações separadas'
   );
 });
 
-test('PR 1 não conecta o manifesto ao runtime do jogo', () => {
-  const runtimeFiles = [
-    'src/procgen/app.js',
-    'src/procgen/generator.js',
-    'src/procgen/tutorial-manager.js',
-    'src/procgen/tutorial-triggers.js',
-  ];
-  for (const file of runtimeFiles) {
+test('integração permanece limitada a progressão e gating', () => {
+  assert.match(readFileSync('src/procgen/campaign-progression.js', 'utf8'), /campaign-manifest/);
+  assert.match(readFileSync('src/procgen/logic.js', 'utf8'), /campaign-manifest/);
+
+  for (const file of ['src/procgen/tutorial-manager.js', 'src/procgen/tutorial-triggers.js']) {
     assert.doesNotMatch(readFileSync(file, 'utf8'), /campaign-manifest/);
   }
+  assert.doesNotMatch(
+    readFileSync('src/procgen/app.js', 'utf8'),
+    /getProceduralPoolAt|getTetheredDebutsAt|getTutorialModeAt/,
+  );
 });

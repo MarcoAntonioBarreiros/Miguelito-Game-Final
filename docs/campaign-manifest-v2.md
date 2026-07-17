@@ -70,6 +70,14 @@ Cada organismo obrigatório declara um `debutZoneId`. Uma zona pode introduzir s
 
 O manifesto, seus helpers e o validador são adicionados sem importação pelo runtime. Este PR formaliza os contratos e falha cedo para referências, intervalos ou cadeias inválidas, mas não altera progressão, geração ou tutorial existentes.
 
+## Integração de progressão e gating
+
+O runtime passa a ler do manifesto somente o perfil das fases, títulos, missões, eventos de desbloqueio e disponibilidade de habilidades por chunk. A geometria consulta essa disponibilidade antes de selecionar requisitos de salto duplo, Dash ou Pulso; cristais registram o chunk e o poder exigido. Pontes micorrízicas e raízes laterais continuam sistemas de runtime, mas não são atualizadas antes de seus respectivos desbloqueios reais.
+
+Os poderes persistem em `sessionStorage` apenas quando foram efetivamente obtidos. Morte, checkpoint, reinicialização da fase e recarga da página reidratam essas flags sem conceder automaticamente poderes esperados para a fase.
+
+O prólogo permanece definido como fase 0 no manifesto, porém a campanha jogável continua iniciando na fase 1. Ativá-lo exige um PR próprio para mudar a fase inicial e implementar seus blocos fixos de introdução, prova final e transição; antecipar somente a mudança do número inicial produziria uma fase procedural sem a sequência autoral especificada.
+
 ## Poderes e geometria
 
 Poder planejado para a fase não equivale a poder disponível no início. O gerador consulta `getAvailableUnlocksAt(phase, chunkIndex)`. O unlock do chunk N só pode ser exigido a partir de N+1.
