@@ -29,8 +29,11 @@ const toastDiv = document.getElementById('toast');
 const dashTouchButton = document.querySelector('[data-key="ShiftLeft"]');
 const pulseTouchButton = document.querySelector('[data-key="KeyK"]');
 
+let campaignStorage = null;
+try { campaignStorage = window.sessionStorage; } catch (_) {}
+
 let sim = createSimulator();
-const campaign = createCampaign();
+const campaign = createCampaign(undefined, { storage: campaignStorage });
 sim.state.campaign = campaign;
 const cameraView = createCameraView({ canvas, state: sim.state });
 const rhizoctoniaControl = createRhizoctoniaControl({
@@ -138,12 +141,18 @@ function prepareLevel() {
   installFinalGoal(levelData);
 }
 
+const FEATURE_LABELS = {
+  doubleJump: 'salto duplo',
+  dash: 'Dash',
+  pulse: 'Pulso',
+  mycorrhizaStructures: 'pontes micorrízicas',
+  azospirillumRoots: 'raízes laterais',
+};
+
 function phaseIntroText() {
-  if (campaign.phase === 1) return 'Salto duplo e dash serão liberados ao longo desta fase.';
-  if (campaign.phase === 2) return 'Pontes micorrízicas e pulso mineral serão liberados nesta fase.';
-  if (campaign.phase === 3) return 'A indução de raízes laterais por Azospirillum será liberada nesta fase.';
-  if (campaign.phase === 4) return 'Ralstonia surge como ameaça vascular: previna a entrada com Bacillus e Pseudomonas antes da murcha.';
-  return `Todos os mecanismos estão ativos. Tema procedural: ${profile.theme}.`;
+  if (!profile.unlockEvents.length) return profile.mission;
+  const names = profile.unlockEvents.map(event => FEATURE_LABELS[event.feature] || event.feature).join(' e ');
+  return `Desbloqueios desta fase: ${names}. Cada poder só será exigido depois do chunk de aquisição.`;
 }
 
 function updateTouchAbilityVisibility() {
@@ -241,7 +250,12 @@ function maybeAdvanceCampaign() {
 
   if (sim.state.time < campaign.transitionAt) return false;
 
-  advanceCampaignPhase(campaign);
+  if (!advanceCampaignPhase(campaign)) {
+    campaign.transitionRequested = false;
+    sim.state.gameState = 'end';
+    sim.state.mission = 'Campanha concluída';
+    return true;
+  }
   prepareLevel();
   initGame({ announce: true });
   return true;
