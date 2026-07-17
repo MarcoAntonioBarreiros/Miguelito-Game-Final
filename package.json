@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.cjs",
-    "test": "node scripts/build.cjs && node tests/browser-smoke.cjs",
+    "test": "npm run test:manifest && node scripts/build.cjs && node tests/browser-smoke.cjs",
+    "test:manifest": "node --test tests/campaign-manifest.test.js",
     "test:browser": "node tests/browser-smoke.cjs",
     "test:tutorial": "node --test tests/tutorial-runtime.test.js"
   }
