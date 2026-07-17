@@ -133,6 +133,22 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
           <label>Crescimento (s)<input data-nitrogen="growthDurationSeconds" type="number" min="0.1" step="0.5"></label>
         </div>
       </fieldset>
+      <fieldset><legend>Escada radicular de Azospirillum</legend>
+        <label><span><input data-azo-ladder="enabled" type="checkbox" style="width:auto"> Ativada</span></label>
+        <div class="resources">
+          <label>Quantidade<input data-azo-ladder="count" type="number" min="0" max="8"></label>
+          <label>Degraus<input data-azo-ladder="stepCount" type="number" min="2" max="10"></label>
+          <label>Espaçamento vertical<input data-azo-ladder="verticalSpacing" type="number" min="45" max="110"></label>
+          <label>Crescimento (s)<input data-azo-ladder="growthDurationSeconds" type="number" min="0.1" step="0.5"></label>
+        </div>
+      </fieldset>
+      <fieldset><legend>Nitrogênio de Azospirillum</legend><div class="resources">
+        <label>Taxa associativa<input data-azo-nitrogen="associativeRate" type="number" min="0.001" max="0.049" step="0.001"></label>
+        <label>Sinergia Rhizobium<input data-azo-nitrogen="rhizobiumSynergyMultiplier" type="number" min="1" step="0.05"></label>
+      </div></fieldset>
+      <fieldset><legend>Ponte micorrízica</legend>
+        <label><span><input data-myco-bridge="horizontalOnly" type="checkbox" style="width:auto"> Somente horizontal</span></label>
+      </fieldset>
       <label>Objetivo final <input data-field="finalGoal"></label>
       <label>Condicoes finais (JSON) <textarea data-field="finalConditions"></textarea></label>
       <div class="phase-lab-status" role="status"></div>
@@ -162,6 +178,14 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
       for (const key of ['count', 'requiredFixationRate', 'growthDurationSeconds']) {
         panel.querySelector(`[data-nitrogen="${key}"]`).value = next.nitrogenRoot?.[key] ?? '';
       }
+      panel.querySelector('[data-azo-ladder="enabled"]').checked = Boolean(next.azospirillumRootLadder?.enabled);
+      for (const key of ['count', 'stepCount', 'verticalSpacing', 'growthDurationSeconds']) {
+        panel.querySelector(`[data-azo-ladder="${key}"]`).value = next.azospirillumRootLadder?.[key] ?? '';
+      }
+      for (const key of ['associativeRate', 'rhizobiumSynergyMultiplier']) {
+        panel.querySelector(`[data-azo-nitrogen="${key}"]`).value = next.azospirillumNitrogen?.[key] ?? '';
+      }
+      panel.querySelector('[data-myco-bridge="horizontalOnly"]').checked = Boolean(next.mycorrhizaBridge?.horizontalOnly);
     }
     function read() {
       const value = key => panel.querySelector(`[data-field="${key}"]`).value;
@@ -184,6 +208,20 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
           count: Number(panel.querySelector('[data-nitrogen="count"]').value),
           requiredFixationRate: Number(panel.querySelector('[data-nitrogen="requiredFixationRate"]').value),
           growthDurationSeconds: Number(panel.querySelector('[data-nitrogen="growthDurationSeconds"]').value),
+        },
+        azospirillumRootLadder: {
+          enabled: panel.querySelector('[data-azo-ladder="enabled"]').checked,
+          count: Number(panel.querySelector('[data-azo-ladder="count"]').value),
+          stepCount: Number(panel.querySelector('[data-azo-ladder="stepCount"]').value),
+          verticalSpacing: Number(panel.querySelector('[data-azo-ladder="verticalSpacing"]').value),
+          growthDurationSeconds: Number(panel.querySelector('[data-azo-ladder="growthDurationSeconds"]').value),
+        },
+        azospirillumNitrogen: {
+          associativeRate: Number(panel.querySelector('[data-azo-nitrogen="associativeRate"]').value),
+          rhizobiumSynergyMultiplier: Number(panel.querySelector('[data-azo-nitrogen="rhizobiumSynergyMultiplier"]').value),
+        },
+        mycorrhizaBridge: {
+          horizontalOnly: panel.querySelector('[data-myco-bridge="horizontalOnly"]').checked,
         },
         finalGoal: value('finalGoal'),
         finalConditions: JSON.parse(value('finalConditions')),

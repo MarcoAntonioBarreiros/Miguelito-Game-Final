@@ -1,6 +1,7 @@
 import { generateLevel } from './generator.js';
 import { generateCampaignEncounters } from './campaign-encounters.js';
 import { generateUnderdevelopedNitrogenRoots } from './nitrogen-root.js';
+import { generateAzospirillumRootLadders } from './azospirillum-root-growth.js';
 import { createCampaignObjectiveEvaluator } from './campaign-objectives.js';
 import { applyPhaseOneVerticalSlice, createFixedBlockRuntime } from './phase-one-vertical-slice.js';
 import { getPhaseManifest } from './campaign-manifest.js';
@@ -140,6 +141,13 @@ function prepareLevel() {
     phase: campaign.phase,
     seedValue: seed,
   }).concat(levelData.authoredEncounters || []);
+  generateAzospirillumRootLadders({
+    level: levelData,
+    phase: campaign.phase,
+    seedValue: seed,
+    encounters: levelData.microbeEncounters,
+    config: getPhaseManifest(campaign.phase)?.azospirillumRootLadder,
+  });
   generateUnderdevelopedNitrogenRoots({
     level: levelData,
     phase: campaign.phase,
@@ -154,8 +162,8 @@ const FEATURE_LABELS = {
   doubleJump: 'salto duplo',
   dash: 'Dash',
   pulse: 'Pulso',
-  mycorrhizaStructures: 'pontes micorrízicas',
-  azospirillumRoots: 'raízes laterais',
+  mycorrhizaStructures: 'pontes micorrízicas horizontais',
+  azospirillumRoots: 'escadas radiculares de Azospirillum',
 };
 
 function phaseIntroText() {
@@ -412,6 +420,7 @@ function loop(now) {
       const vigor = Math.round(sim.trichodermaColonies.vigorAverage * 100);
       const beneficialVigor = Math.round(sim.beneficialInoculants.vigorAverage * 100);
       const fixation = (sim.state.level.rhizobiumNodules || []).reduce((sum, site) => sum + (site.fixationRate || 0), 0).toFixed(1);
+      const associativeNitrogen = sim.azospirillumNitrogen.associativeNitrogenRate.toFixed(3);
       const ironRecovered = sim.pseudomonasSiderophores.ironRecovered.toFixed(1);
       const liveRoots = (sim.state.level.platforms || []).filter(root => root.type === 'root' && !root.final && !root.recovery && !root.mycorrhizaStructure);
       const rootHealth = liveRoots.length
@@ -429,14 +438,14 @@ function loop(now) {
         + `\nTrichoderma anti-Meloidogyne: ${trichodermaMeloidogyneControl.activeAttackCount} ataques (${trichodermaMeloidogyneControl.eggAttackCount} ovos / ${trichodermaMeloidogyneControl.juvenileAttackCount} J2) · ${trichodermaMeloidogyneControl.eggsDestroyed} ovos inviabilizados · ${trichodermaMeloidogyneControl.eggMassesNeutralized} massas neutralizadas · ${trichodermaMeloidogyneControl.juvenilesDestroyed} J2 lisados`
         + `\nGalhas: ${sim.meloidogyneLifecycle.gallCount} totais / ${sim.meloidogyneLifecycle.matureGallCount} maduras / ${sim.meloidogyneLifecycle.femaleCount} fêmeas / saúde radicular média ${rootHealth}%`
         + `\nMicorriza AM: ${sim.mycorrhiza.tipCount} pontas / ${sim.mycorrhiza.branchCount} ramos / ${sim.mycorrhiza.arbusculeCount} arbúsculos`
-        + `\nEstruturas AM: ${sim.mycorrhizaStructures.growingCount} crescendo / ${sim.mycorrhizaStructures.matureCount} maduras (${sim.mycorrhizaStructures.ladderCount} escadas, ${sim.mycorrhizaStructures.bridgeCount} pontes)`
+        + `\nEstruturas AM: ${sim.mycorrhizaStructures.growingCount} crescendo / ${sim.mycorrhizaStructures.matureCount} maduras (${sim.mycorrhizaStructures.bridgeCount} pontes horizontais)`
         + `\nInoculantes: ${sim.beneficialInoculants.followerCount} seguindo / ${sim.beneficialInoculants.colonyCount} colônias / vigor médio ${beneficialVigor}%`
         + (sim.beneficialInoculants.colonySummary ? ` [${sim.beneficialInoculants.colonySummary}]` : '')
         + `\nBacillus: ${sim.bacillusBioprotection.matureBiofilmCount} biofilmes maduros / ${sim.bacillusBioprotection.sporulatedCount} esporulados / ${sim.bacillusBioprotection.germinatingCount} reativando`
         + `\nBioproteção: ${sim.bacillusBioprotection.fungiUnderAntibiosis} fungos sob antibiose / ${sim.bacillusBioprotection.protectedRootCount} raízes protegidas`
         + `\nSideróforos: ${sim.pseudomonasSiderophores.freeCount} livres / ${sim.pseudomonasSiderophores.loadedCount} com Fe³⁺ / Fe recuperado ${ironRecovered} / ${sim.pseudomonasSiderophores.fungiLimitedCount} fungos limitados`
         + `\nDepósitos Fe³⁺: ${sim.pseudomonasSiderophores.activeDepositCount}/${sim.pseudomonasSiderophores.depositCount} ativos / ${sim.pseudomonasSiderophores.activeColonyCount} colônias com reserva`
-        + `\nRaízes laterais: ${sim.azospirillumRootGrowth.rootCount} totais / ${sim.azospirillumRootGrowth.growingCount} crescendo / ${sim.azospirillumRootGrowth.matureCount} maduras / ${sim.azospirillumRootGrowth.pausedCount} pausadas`
+        + `\nEscadas Azo: ${sim.azospirillumRootGrowth.rootCount} totais / ${sim.azospirillumRootGrowth.growingCount} crescendo / ${sim.azospirillumRootGrowth.matureCount} maduras / ${sim.azospirillumRootGrowth.pausedCount} pausadas · N associativo ${associativeNitrogen} · sinergias ${sim.azospirillumNitrogen.synergizedNoduleCount}`
         + `\nNodulação: ${sim.rhizobiumNodulation.siteCount} sítios / ${sim.rhizobiumNodulation.matureCount} maduros / ${sim.rhizobiumNodulation.activeCount} ativos / FBN ${fixation}`
         + (sim.rhizobiumNodulation.incompatibleCount ? ` / ${sim.rhizobiumNodulation.incompatibleCount} sem hospedeiro` : '')
         + `\nTrichoderma: ${sim.trichodermaColonies.followerCount} seguindo / ${sim.trichodermaColonies.colonyCount} colônias / vigor médio ${vigor}%`

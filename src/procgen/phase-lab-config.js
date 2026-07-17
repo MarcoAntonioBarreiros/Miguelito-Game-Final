@@ -3,6 +3,9 @@ import {
   MVP_EXCLUDED_PATHOGENS,
   PATHOGEN_SYSTEMS,
   NITROGEN_ROOT_DEFAULTS,
+  AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
+  AZOSPIRILLUM_NITROGEN_DEFAULTS,
+  MYCORRHIZA_BRIDGE_DEFAULTS,
   campaignManifest,
   validateCampaignManifest,
 } from './campaign-manifest.js';
@@ -61,6 +64,17 @@ export function createDefaultPhaseLabConfig(phase = 1) {
     nitrogenRoot: {
       ...(base.nitrogenRoot || NITROGEN_ROOT_DEFAULTS),
       enabled: base.phase >= 2 && (base.nitrogenRoot?.enabled ?? NITROGEN_ROOT_DEFAULTS.enabled),
+    },
+    azospirillumRootLadder: {
+      ...(base.azospirillumRootLadder || AZOSPIRILLUM_ROOT_LADDER_DEFAULTS),
+      enabled: base.phase >= 3
+        && (base.azospirillumRootLadder?.enabled ?? AZOSPIRILLUM_ROOT_LADDER_DEFAULTS.enabled),
+    },
+    azospirillumNitrogen: {
+      ...(base.azospirillumNitrogen || AZOSPIRILLUM_NITROGEN_DEFAULTS),
+    },
+    mycorrhizaBridge: {
+      ...(base.mycorrhizaBridge || MYCORRHIZA_BRIDGE_DEFAULTS),
     },
     finalGoal: base.finalTest.goal,
     finalConditions: clone(base.finalTest.requires),
@@ -126,6 +140,30 @@ export function buildPhaseLabManifest(config) {
     requiredFixationRate: Number(nitrogenRootInput.requiredFixationRate),
     growthDurationSeconds: Number(nitrogenRootInput.growthDurationSeconds),
   };
+  const ladderInput = config.azospirillumRootLadder
+    || base.azospirillumRootLadder
+    || AZOSPIRILLUM_ROOT_LADDER_DEFAULTS;
+  const azospirillumRootLadder = {
+    ...(base.azospirillumRootLadder || AZOSPIRILLUM_ROOT_LADDER_DEFAULTS),
+    enabled: base.phase >= 3 && Boolean(ladderInput.enabled),
+    count: clamp(Math.round(Number(ladderInput.count) || 0), 0, 8),
+    stepCount: clamp(Math.round(Number(ladderInput.stepCount) || 0), 2, 10),
+    verticalSpacing: clamp(Number(ladderInput.verticalSpacing), 45, 110),
+    growthDurationSeconds: Number(ladderInput.growthDurationSeconds),
+  };
+  const nitrogenInput = config.azospirillumNitrogen
+    || base.azospirillumNitrogen
+    || AZOSPIRILLUM_NITROGEN_DEFAULTS;
+  const azospirillumNitrogen = {
+    associativeRate: Number(nitrogenInput.associativeRate),
+    rhizobiumSynergyMultiplier: Number(nitrogenInput.rhizobiumSynergyMultiplier),
+  };
+  const bridgeInput = config.mycorrhizaBridge
+    || base.mycorrhizaBridge
+    || MYCORRHIZA_BRIDGE_DEFAULTS;
+  const mycorrhizaBridge = {
+    horizontalOnly: Boolean(bridgeInput.horizontalOnly),
+  };
 
   return {
     ...clone(base),
@@ -138,6 +176,9 @@ export function buildPhaseLabManifest(config) {
     unlockEvents,
     pathogenDebuts,
     nitrogenRoot,
+    azospirillumRootLadder,
+    azospirillumNitrogen,
+    mycorrhizaBridge,
     finalTest: {
       ...clone(base.finalTest),
       goal: String(config.finalGoal || base.finalTest.goal).trim(),

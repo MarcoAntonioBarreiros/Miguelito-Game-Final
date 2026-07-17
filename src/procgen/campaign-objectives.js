@@ -33,7 +33,11 @@ export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     if (key === 'totalFixationRate') {
       return (state.level.rhizobiumNodules || []).reduce((sum, site) => sum + (site.fixationRate || 0), 0);
     }
-    if (key === 'visibleLateralRootCount') return (state.level.azospirillumRoots || []).filter(root => root.visible !== false).length;
+    if (key === 'visibleLateralRootCount') {
+      return (state.level.azospirillumRoots || []).filter(root => (
+        root.developed === true || (root.visibleProgress || 0) > .06
+      )).length;
+    }
     if (key === 'functionalMycorrhizaPathCount') {
       return (state.level.platforms || []).filter(platform => platform.mycorrhizaStructure && platform.mature !== false).length;
     }
@@ -78,4 +82,3 @@ export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
 
   return { evaluate, worldValue };
 }
-

@@ -1,4 +1,5 @@
-import { H, W } from '../core/constants.js';
+import { W } from '../core/constants.js';
+import { getPhaseManifest, MYCORRHIZA_BRIDGE_DEFAULTS } from './campaign-manifest.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -36,29 +37,7 @@ function horizontalGap(source, target) {
   return 0;
 }
 
-function findLadderTarget(state, sourceInfo) {
-  const source = sourceInfo.platform;
-  const sourceCenter = source.x + source.w / 2;
-  let best = null;
-  let bestScore = Infinity;
-
-  for (const target of state.level.platforms || []) {
-    if (target === source || target.final || target.recovery || target.mycorrhizaStructure) continue;
-    const rise = source.y - target.y;
-    if (rise < 78 || rise > 360) continue;
-    const targetPoint = topPoint(target, sourceCenter);
-    const dx = Math.abs(targetPoint.x - sourceInfo.point.x);
-    if (dx > 390) continue;
-    const score = rise + dx * .78 + (target.type === 'root' ? -18 : 0);
-    if (score < bestScore) {
-      bestScore = score;
-      best = { target, targetPoint, rise, dx };
-    }
-  }
-  return best;
-}
-
-function findBridgeTarget(state, sourceInfo, cloud) {
+function findBridgeTarget(state, sourceInfo, cloud, config) {
   const source = sourceInfo.platform;
   const sourceCenter = source.x + source.w / 2;
   const direction = cloud.x >= sourceCenter ? 1 : -1;
@@ -72,7 +51,8 @@ function findBridgeTarget(state, sourceInfo, cloud) {
     const gap = horizontalGap(source, target);
     if (gap < 58 || gap > 340) continue;
     const dy = Math.abs(target.y - source.y);
-    if (dy > 105) continue;
+    const maximumVerticalOffset = config.horizontalOnly ? 68 : 105;
+    if (dy > maximumVerticalOffset) continue;
     const score = gap + dy * 2.2 + (target.type === 'root' ? -12 : 0);
     if (score < bestScore) {
       bestScore = score;
@@ -88,36 +68,6 @@ function findBridgeTarget(state, sourceInfo, cloud) {
     }
   }
   return best;
-}
-
-function buildLadderGeometry(sourceInfo, candidate) {
-  const start = sourceInfo.point;
-  const end = candidate.targetPoint;
-  const rise = Math.max(1, start.y - end.y);
-  const steps = clamp(Math.ceil(rise / 38), 3, 9);
-  const points = [];
-  const colliders = [];
-  const sway = Math.sign(end.x - start.x || 1) * Math.min(78, 24 + candidate.dx * .22);
-
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const arc = Math.sin(t * Math.PI) * sway;
-    const x = lerp(start.x, end.x, t) + arc;
-    const y = lerp(start.y, end.y, t);
-    points.push({ x, y });
-    if (i > 0 && i < steps) {
-      colliders.push({
-        x: x - 35,
-        y: y - 5,
-        w: 70,
-        h: 10,
-        type: 'root',
-        mycorrhizaStructure: true,
-        structureType: 'ladder',
-      });
-    }
-  }
-  return { start, end, points, colliders, length: Math.hypot(end.x - start.x, end.y - start.y) };
 }
 
 function buildBridgeGeometry(candidate) {
@@ -178,9 +128,7 @@ export function createMycorrhizaStructures({ state, entities }) {
   }
 
   function createStructure(cloud, sourceInfo, type, candidate) {
-    const geometry = type === 'ladder'
-      ? buildLadderGeometry(sourceInfo, candidate)
-      : buildBridgeGeometry(candidate);
+    const geometry = buildBridgeGeometry(candidate);
     const target = candidate.target;
     if (structures.some(item => sameConnection(item, sourceInfo.platform, target))) {
       cloud.mycorrhizaStructureHandled = true;
@@ -189,7 +137,7 @@ export function createMycorrhizaStructures({ state, entities }) {
 
     const structure = {
       id: `myco-structure-${nextId++}`,
-      type,
+      type: 'bridge',
       source: sourceInfo.platform,
       target,
       start: geometry.start,
@@ -208,9 +156,7 @@ export function createMycorrhizaStructures({ state, entities }) {
     cloud.mycorrhizaStructureHandled = true;
     cloud.life = Math.max(cloud.life, 4.5);
     entities.burst(structure.start.x, structure.start.y, '#d6afff', 20, 110);
-    state.toast = type === 'ladder'
-      ? 'Micorriza orientada: a rede começou a formar uma escada hifal até a raiz superior.'
-      : 'Micorriza orientada: a rede começou a conectar as duas raízes sobre o vão.';
+    state.toast = 'Micorriza orientada: hifas finas começaram a conectar lateralmente as raízes sobre o vão.';
     state.toastTime = 4.8;
     return structure;
   }
@@ -230,29 +176,17 @@ export function createMycorrhizaStructures({ state, entities }) {
       Math.abs(cloud.x - (sourceInfo.platform.x + sourceInfo.platform.w)),
     ) < 94;
 
-    if (sourceInfo.platform.recovery) {
-      const ladder = findLadderTarget(state, sourceInfo);
-      if (ladder) {
-        createStructure(cloud, sourceInfo, 'ladder', ladder);
-        return;
-      }
-    }
-
+    const phase = state.campaign?.phase ?? state.level.campaignPhase;
+    const config = getPhaseManifest(phase)?.mycorrhizaBridge || MYCORRHIZA_BRIDGE_DEFAULTS;
     if (nearEdge) {
-      const bridge = findBridgeTarget(state, sourceInfo, cloud);
+      const bridge = findBridgeTarget(state, sourceInfo, cloud, config);
       if (bridge) {
         createStructure(cloud, sourceInfo, 'bridge', bridge);
         return;
       }
     }
 
-    const ladder = findLadderTarget(state, sourceInfo);
-    if (ladder && ladder.rise > 105) {
-      createStructure(cloud, sourceInfo, 'ladder', ladder);
-      return;
-    }
-
-    const bridge = findBridgeTarget(state, sourceInfo, cloud);
+    const bridge = findBridgeTarget(state, sourceInfo, cloud, config);
     if (bridge) {
       createStructure(cloud, sourceInfo, 'bridge', bridge);
       return;
@@ -284,13 +218,11 @@ export function createMycorrhizaStructures({ state, entities }) {
       if (structure.progress >= 1 && structure.maturity >= 1) {
         structure.mature = true;
         collisionDirty = true;
-        state.player.hope += structure.type === 'ladder' ? 3.5 : 3;
+        state.player.hope += 3;
         state.player.soil += 1.6;
         entities.burst(structure.end.x, structure.end.y, '#d6afff', 34, 175);
         if (state.time - lastToastAt > 1.5) {
-          state.toast = structure.type === 'ladder'
-            ? 'Escada micorrízica madura: os ramos espessados agora sustentam Miguelito.'
-            : 'Ponte micorrízica madura: o feixe hifal agora pode ser atravessado.';
+          state.toast = 'Ponte micorrízica madura: o feixe hifal horizontal agora pode ser atravessado.';
           state.toastTime = 5;
           lastToastAt = state.time;
         }
@@ -334,32 +266,12 @@ export function createMycorrhizaStructures({ state, entities }) {
     ctx.shadowBlur = structure.mature ? 16 : 9;
     ctx.shadowColor = '#d6afff';
 
-    if (structure.type === 'ladder') {
-      visiblePoints.forEach((point, index) => {
-        if (index === 0 || index === structure.points.length - 1) return;
-        const alpha = structure.mature ? .82 : .2 + structure.maturity * .38;
-        ctx.strokeStyle = `rgba(226,198,255,${alpha})`;
-        ctx.lineWidth = structure.mature ? 3 : 1.5;
-        const width = structure.mature ? 34 : 24;
-        ctx.beginPath();
-        ctx.moveTo(point.x - width, point.y);
-        ctx.quadraticCurveTo(point.x, point.y - 6, point.x + width, point.y);
-        ctx.stroke();
-        for (let k = -1; k <= 1; k++) {
-          ctx.fillStyle = `rgba(240,220,255,${alpha * .8})`;
-          ctx.beginPath();
-          ctx.arc(point.x + k * width * .48, point.y - 1, structure.mature ? 2.7 : 1.7, 0, TAU);
-          ctx.fill();
-        }
-      });
-    } else {
-      for (let i = 1; i < visiblePoints.length - 1; i++) {
-        const point = visiblePoints[i];
-        ctx.fillStyle = structure.mature ? '#ead3ff' : 'rgba(214,175,255,.45)';
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, structure.mature ? 4.2 : 2.4, 0, TAU);
-        ctx.fill();
-      }
+    for (let i = 1; i < visiblePoints.length - 1; i++) {
+      const point = visiblePoints[i];
+      ctx.fillStyle = structure.mature ? '#ead3ff' : 'rgba(214,175,255,.45)';
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, structure.mature ? 4.2 : 2.4, 0, TAU);
+      ctx.fill();
     }
 
     const tip = visiblePoints[visiblePoints.length - 1];
@@ -374,7 +286,7 @@ export function createMycorrhizaStructures({ state, entities }) {
       ctx.font = '700 10px Inter,system-ui';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#f4e6ff';
-      ctx.fillText(`${structure.type === 'ladder' ? 'escada' : 'ponte'} micorrízica ${percent}%`, structure.start.x, structure.start.y - 26);
+      ctx.fillText(`ponte micorrízica ${percent}%`, structure.start.x, structure.start.y - 26);
     }
   }
 
@@ -393,8 +305,9 @@ export function createMycorrhizaStructures({ state, entities }) {
     get structureCount() { return structures.length; },
     get matureCount() { return structures.filter(structure => structure.mature).length; },
     get growingCount() { return structures.filter(structure => !structure.mature).length; },
-    get ladderCount() { return structures.filter(structure => structure.type === 'ladder').length; },
+    get ladderCount() { return 0; },
     get bridgeCount() { return structures.filter(structure => structure.type === 'bridge').length; },
+    get structures() { return structures; },
     clear,
     reset,
     update,

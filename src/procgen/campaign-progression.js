@@ -173,7 +173,7 @@ function featurePresentation(feature) {
   if (feature === 'mycorrhizaStructures') {
     return {
       name: 'Mira, a Micorriza',
-      desc: 'A rede micorrízica agora pode espessar hifas e formar pontes ou escadas dirigidas por exsudatos.',
+      desc: 'A rede micorrízica agora pode orientar hifas finas horizontalmente e formar pontes laterais dirigidas por exsudatos.',
     };
   }
   if (feature === 'pulse') {
@@ -184,7 +184,7 @@ function featurePresentation(feature) {
   }
   return {
     name: 'Ari, o Azospirillum',
-    desc: 'A sinalização hormonal do Azospirillum agora pode induzir raízes laterais em raízes hospedeiras.',
+    desc: 'A sinalização hormonal do Azospirillum agora pode formar escadas de ramificações em raízes hospedeiras.',
   };
 }
 

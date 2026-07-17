@@ -20,6 +20,8 @@ function colonizableRoot(platform) {
     && platform.type === 'root'
     && !platform.mycorrhizaStructure
     && !platform.azospirillumStructure
+    && !platform.azospirillumLadderHost
+    && !platform.azospirillumLadderDestination
     && !platform.nitrogenRootCollider
     && !platform.fixedObjective,
   );
