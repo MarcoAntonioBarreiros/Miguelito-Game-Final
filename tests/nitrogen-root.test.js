@@ -27,7 +27,7 @@ function fixtureLevel({ exudateIndex = 3, includeRootAfter = true } = {}) {
     platforms: [
       { x: 100, y: 500, w: 190, h: 60, type: 'root', logicIndex: 1 },
       { x: 360, y: 490, w: 180, h: 60, type: 'root', logicIndex: 2 },
-      { x: 620, y: 500, w: 210, h: 60, type: 'soil', logicIndex: 3 },
+      { x: 620, y: 500, w: 210, h: 60, type: 'root', logicIndex: 3 },
       ...(includeRootAfter ? [
         { x: 900, y: 470, w: 205, h: 62, type: 'root', logicIndex: 4 },
         { x: 1190, y: 480, w: 190, h: 58, type: 'root', logicIndex: 5 },
@@ -62,6 +62,9 @@ test('bloco so e gerado depois de Rhizobium, exsudato e raiz colonizavel, nessa 
   });
   assert.equal(roots.length, 1);
   assert.equal(roots[0].hostPlatform.type, 'root');
+  assert.equal(roots[0].hostPlatform, roots[0].leftPlatform);
+  assert.ok(roots[0].startWidth >= 64);
+  assert.equal(roots[0].startHeight, 12);
   assert.ok(roots[0].hostLogicIndex > roots[0].sourceExudateLogicIndex);
   assert.ok(roots[0].sourceExudateLogicIndex > roots[0].sourceRhizobiumLogicIndex);
   assert.equal(level.platforms.includes(roots[0].targetPlatform), false);
@@ -180,6 +183,7 @@ test('multiplas seeds da fase 2 respeitam ordem, raiz hospedeira e determinismo'
         sourceRhizobiumLogicIndex: root.sourceRhizobiumLogicIndex,
         sourceExudateLogicIndex: root.sourceExudateLogicIndex,
         hostType: root.hostPlatform.type,
+        hostIsPreviousPlatform: root.hostPlatform === root.leftPlatform,
         targetRemoved: !level.platforms.includes(root.targetPlatform),
         blockedGapWidth: root.blockedGapWidth,
         leftLandingGap: root.leftLandingGap,
@@ -191,6 +195,7 @@ test('multiplas seeds da fase 2 respeitam ordem, raiz hospedeira e determinismo'
     assert.deepEqual(first, build());
     assert.equal(first.length, 1);
     assert.equal(first[0].hostType, 'root');
+    assert.equal(first[0].hostIsPreviousPlatform, true);
     assert.equal(first[0].targetRemoved, true);
     assert.ok(first[0].blockedGapWidth >= 210);
     assert.ok(first[0].blockedGapWidth > 142);

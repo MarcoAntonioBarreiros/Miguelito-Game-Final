@@ -8777,10 +8777,10 @@ function routeGapCandidates(level, encounters, route, firstExudate) {
 
     const leftPlatform = route[routeIndex - 1];
     const rightPlatform = route[routeIndex + 1];
-    const hostPlatform = [...route.slice(0, routeIndex)].reverse().find(platform => (
-      colonizableRoot(platform) && platform.logicIndex > firstExudate
-    ));
-    if (!hostPlatform || hostPlatform.logicIndex >= targetPlatform.logicIndex) continue;
+    // The source of the FBN must be visually unambiguous: the colonizable root
+    // immediately before the missing route platform is always its host.
+    const hostPlatform = leftPlatform;
+    if (!colonizableRoot(hostPlatform) || hostPlatform.logicIndex <= firstExudate) continue;
 
     const blockedGapWidth = rightPlatform.x - (leftPlatform.x + leftPlatform.w);
     const leftLandingGap = targetPlatform.x - (leftPlatform.x + leftPlatform.w);
@@ -8843,14 +8843,26 @@ function generateUnderdevelopedNitrogenRoots({
   if (!candidates.length) return level.nitrogenRoots;
 
   const random = createRandom(`${seedValue}:nitrogen-root:p${phase}`);
+  const orderedCandidates = [...candidates].sort((left, right) => (
+    left.targetPlatform.logicIndex - right.targetPlatform.logicIndex
+    || left.targetPlatform.x - right.targetPlatform.x
+  ));
+  // Keep seed-based variation, but only among the first valid route slots. This
+  // prevents the teaching mechanic from being hidden near the end of the phase.
+  const candidateWindow = orderedCandidates.slice(0, Math.min(
+    orderedCandidates.length,
+    Math.max(4, config.count * 4),
+  ));
   const selected = [];
-  for (const candidate of shuffled(candidates, random)) {
+  for (const candidate of shuffled(candidateWindow, random)) {
     if (selected.some(existing => Math.abs(existing.targetPlatform.logicIndex - candidate.targetPlatform.logicIndex) < 3)) continue;
     selected.push(candidate);
     if (selected.length >= Math.min(config.count, candidates.length)) break;
   }
   level.nitrogenRoots = selected.map((slot, index) => {
     const { hostPlatform, targetPlatform, leftPlatform, rightPlatform } = slot;
+    const startWidth = clamp(Math.round(targetPlatform.w * .45), 64, 92);
+    const startHeight = 12;
     removeGapPlatforms(level, slot);
     return {
       id: `nitrogen-root-${targetPlatform.logicIndex}-${index}`,
@@ -8868,12 +8880,12 @@ function generateUnderdevelopedNitrogenRoots({
       sourceExudateLogicIndex: firstExudate,
       x: targetPlatform.x,
       y: targetPlatform.y,
-      startWidth: Math.min(38, Math.round(targetPlatform.w * .2)),
-      startHeight: 8,
+      startWidth,
+      startHeight,
       targetWidth: targetPlatform.w,
       targetHeight: targetPlatform.h,
-      currentWidth: Math.min(38, Math.round(targetPlatform.w * .2)),
-      currentHeight: 8,
+      currentWidth: startWidth,
+      currentHeight: startHeight,
       progress: 0,
       functionalProgress: 0,
       stage: 'underdeveloped',
@@ -9061,6 +9073,28 @@ function createNitrogenRootDevelopment({ state, entities = null } = {}) {
         ctx.fill();
       }
       ctx.globalAlpha = 1;
+    }
+
+    if (!root.developed) {
+      const percent = Math.round(progress * 100);
+      const label = progress > 0
+        ? `Raiz recebendo N · ${percent}%`
+        : 'Raiz subdesenvolvida · forme o nódulo na raiz anterior';
+      ctx.font = '700 10px Inter, system-ui, sans-serif';
+      const labelWidth = Math.min(286, ctx.measureText(label).width + 20);
+      const labelX = root.x + root.targetWidth / 2 - labelWidth / 2;
+      const labelY = root.y - 27;
+      ctx.fillStyle = 'rgba(5, 24, 31, .9)';
+      ctx.strokeStyle = progress > 0 ? 'rgba(137, 224, 218, .92)' : 'rgba(255, 211, 111, .92)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.roundRect(labelX, labelY, labelWidth, 20, 10);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = progress > 0 ? '#a8f0ea' : '#ffd36f';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, root.x + root.targetWidth / 2, labelY + 10, labelWidth - 14);
     }
     ctx.restore();
   }
