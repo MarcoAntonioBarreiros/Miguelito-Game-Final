@@ -276,9 +276,6 @@ export function createPlatformVisuals({ state }) {
     const maxHealth = Math.round(clamp(platform.rootMaxHealth ?? 1, 0, 1) * 100);
     const stateStyle = stateInfo(platform);
     const scar = maxHealth < 100 ? ` · máx. ${maxHealth}%` : '';
-    if (platform.objectiveTarget === 'p1-intro-root') {
-      return { text: 'Raiz de treinamento · inocule Bacillus aqui', color: '#ffd56f' };
-    }
     if (platform.objectiveTarget === 'p1-exit-root') {
       return { text: 'Raiz da prova final · forme o biofilme aqui', color: '#ffd56f' };
     }

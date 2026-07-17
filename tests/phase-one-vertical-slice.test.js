@@ -52,7 +52,7 @@ test('Fase 1 segue introdução fixa, desafio procedural e prova final fixa', ()
     assert.deepEqual(level.checkpoints, [], 'Bacillus natural não pode antecipar o primeiro biofilme do jogador');
     assert.deepEqual(
       level.fixedBlocks.map(block => block.targetPlatform.objectiveTarget),
-      ['p1-intro-root', 'p1-exit-root'],
+      [undefined, 'p1-exit-root'],
     );
 
     for (const platform of mainPlatforms(level)) {
@@ -115,6 +115,7 @@ test('portão do módulo abre apenas após ação real e preserva o progresso lo
     gameState: 'play',
     campaign,
     level: { ...level, biofilms: [] },
+    cameraX: 480,
     player: { x: level.fixedBlocks[0].gateX, y: 400, w: 32, h: 48, vx: 120, vy: 0 },
     toast: '',
     toastTime: 0,
@@ -127,8 +128,16 @@ test('portão do módulo abre apenas após ação real e preserva o progresso lo
   assert.equal(intro.completed, false);
   assert.ok(state.player.x + state.player.w < intro.gateX);
 
+  const translations = [];
+  const ctx = new Proxy({
+    measureText: text => ({ width: text.length * 7 }),
+    translate: (x, y) => translations.push([x, y]),
+  }, { get: (target, key) => target[key] || (() => {}) });
+  runtime.render(ctx);
+  assert.deepEqual(translations, [[-480, 0]], 'portão e marcador usam a câmera horizontal');
+
   gameplay.deployedCloudCount = 1;
-  state.level.biofilms.push({ functional: true, platform: intro.targetPlatform });
+  state.level.biofilms.push({ functional: true, platform: { objectiveTarget: 'qualquer-outra-raiz' } });
   state.time = 4;
   runtime.update();
   assert.equal(intro.completed, true);

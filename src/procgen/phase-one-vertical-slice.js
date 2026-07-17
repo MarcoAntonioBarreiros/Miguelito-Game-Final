@@ -5,7 +5,7 @@ const BLOCK_LAYOUTS = Object.freeze({
     roles: ['coleta', 'gradiente', 'encontro', 'inoculacao', 'observacao'],
     yOffsets: [0, -24, -42, -12, 8],
     targetChunk: 7,
-    targetId: 'p1-intro-root',
+    targetId: null,
     exudateChunks: [4, 5, 7],
   }),
   'phase1-final-v1': Object.freeze({
@@ -57,8 +57,10 @@ function authorGeometry(level, segment, template) {
   });
 
   const target = mainPlatform(level, template.targetChunk);
-  target.objectiveTarget = template.targetId;
-  target.fixedObjective = true;
+  if (template.targetId) {
+    target.objectiveTarget = template.targetId;
+    target.fixedObjective = true;
+  }
 
   const last = platforms[platforms.length - 1];
   const next = mainPlatform(level, segment.to + 1);
@@ -161,11 +163,15 @@ export function createFixedBlockRuntime({ state, evaluator, entities }) {
     return state.level.fixedBlocks || [];
   }
 
-  function missingText(result) {
+  function missingText(block, result) {
     const missing = result.results.find(entry => !entry.passed);
     if (!missing) return '';
     if (missing.condition.key === 'deployedExudateCount') return 'libere pelo menos um exsudato com E';
-    if (missing.condition.key === 'functionalBiofilmCount') return 'volte à raiz marcada em amarelo e inocule Bacillus nela';
+    if (missing.condition.key === 'functionalBiofilmCount') {
+      return block.kind === 'final'
+        ? 'volte à raiz amarela da prova e forme o biofilme nela'
+        : 'forme um biofilme funcional em qualquer raiz';
+    }
     return 'complete o objetivo ecológico indicado';
   }
 
@@ -187,7 +193,7 @@ export function createFixedBlockRuntime({ state, evaluator, entities }) {
     player.vx = Math.min(0, player.vx);
     if (state.time - lastBlockedAt < 2.4) return;
     lastBlockedAt = state.time;
-    state.toast = `Saída bloqueada: ${missingText(result)}.`;
+    state.toast = `Saída bloqueada: ${missingText(block, result)}.`;
     state.toastTime = 4.2;
   }
 
@@ -201,7 +207,7 @@ export function createFixedBlockRuntime({ state, evaluator, entities }) {
       if (centerX >= block.startX - 260 && centerX <= block.gateX + 80) {
         state.mission = block.completed
           ? `${block.objective} Objetivo concluído; prossiga.`
-          : centerX > block.targetPlatform.x + block.targetPlatform.w
+          : block.kind === 'final' && centerX > block.targetPlatform.x + block.targetPlatform.w
             ? `${block.objective} ← Volte à raiz marcada em amarelo.`
             : block.objective;
       }
@@ -209,9 +215,11 @@ export function createFixedBlockRuntime({ state, evaluator, entities }) {
   }
 
   function render(ctx) {
+    ctx.save();
+    ctx.translate(-(state.cameraX || 0), 0);
     for (const block of activeBlocks()) {
       const target = block.targetPlatform;
-      if (target) {
+      if (target?.objectiveTarget) {
         const x = target.x + target.w / 2;
         const y = target.y - 92;
         const pulse = .72 + Math.sin(state.time * 3.4) * .18;
@@ -271,11 +279,16 @@ export function createFixedBlockRuntime({ state, evaluator, entities }) {
       ctx.textAlign = 'center';
       ctx.font = '800 11px Inter,system-ui';
       ctx.fillStyle = '#ffe58f';
-      ctx.fillText('PORTÃO DO TREINO', block.gateX, 82);
+      ctx.fillText(block.kind === 'final' ? 'PORTÃO DA PROVA' : 'PORTÃO DO TREINO', block.gateX, 82);
       ctx.font = '700 10px Inter,system-ui';
-      ctx.fillText('← VOLTE À RAIZ MARCADA', block.gateX, 99);
+      ctx.fillText(
+        block.kind === 'final' ? '← VOLTE À RAIZ AMARELA' : 'FORME UM BIOFILME EM QUALQUER RAIZ',
+        block.gateX,
+        99,
+      );
       ctx.restore();
     }
+    ctx.restore();
   }
 
   function finalBlockCompleted() {
