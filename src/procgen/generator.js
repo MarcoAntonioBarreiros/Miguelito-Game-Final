@@ -280,6 +280,7 @@ export function generateLevel(seedString) {
     const plat = platforms[i];
     if (plat.recovery || plat.w < 75 || rnd() >= .35) continue;
     exudates.push({
+      logicIndex: plat.logicIndex,
       x: plat.x + 30 + rnd() * Math.max(1, plat.w - 60),
       y: plat.y - 25 - rnd() * 15,
       taken: false,

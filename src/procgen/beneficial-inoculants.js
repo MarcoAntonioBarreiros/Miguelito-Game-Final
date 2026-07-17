@@ -500,6 +500,7 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     get followerCount() { return followers().length; },
     get followerSummary() { return summaryFromCounts(followers()); },
     get colonyCount() { return colonies.length; },
+    get bacillusColonyCount() { return colonies.filter(colony => colony.type === 'bacillus').length; },
     get colonySummary() { return summaryFromCounts(colonies); },
     get vigorAverage() {
       if (!colonies.length) return 0;

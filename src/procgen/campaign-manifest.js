@@ -48,6 +48,7 @@ export const FINAL_TEST_KEYS = Object.freeze({
     'visibleLateralRootCount', 'functionalMycorrhizaPathCount', 'pseudomonasIronReserve',
     'neutralizedOpportunisticFungusCount', 'recoveredRootCount', 'brokenCrystalCount',
     'neutralizedEggMassCount', 'preservedRootCount', 'ecologicalScore',
+    'deployedExudateCount', 'bacillusColonyCount',
   ]),
 });
 
@@ -124,14 +125,29 @@ const phases = [
       { id: 'p1-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: [] },
       { id: 'p1-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided',
         debutPresentationIds: ['presentation-recruitment', 'presentation-bacillus'],
-        mechanicsRequired: ['exudate', 'inoculation'] },
+        mechanicsRequired: ['exudate', 'inoculation'],
+        fixedBlock: {
+          template: 'phase1-intro-v1',
+          objective: 'Libere exsudato, recrute Bacillus e inocule a raiz de treinamento.',
+          completion: [
+            { type: 'worldState', key: 'deployedExudateCount', operator: '>=', value: 1 },
+            { type: 'worldState', key: 'functionalBiofilmCount', target: 'p1-intro-root', operator: '>=', value: 1 },
+          ],
+          exitGate: true,
+        } },
       { id: 'p1-challenge', kind: 'procedural', from: 9, to: 34, tutorialMode: 'silent',
         mechanicsRequired: ['exudate', 'inoculation'] },
       { id: 'p1-final', kind: 'final', from: 35, to: 39, tutorialMode: 'silent',
-        mechanicsRequired: ['exudate', 'inoculation'] },
+        mechanicsRequired: ['exudate', 'inoculation'],
+        fixedBlock: {
+          template: 'phase1-final-v1',
+          objective: 'Prova final: forme um biofilme funcional na raiz marcada.',
+          completionRef: 'finalTest',
+          exitGate: true,
+        } },
     ],
     finalTest: { id: 'p1-test', goal: 'Criar um biofilme funcional na raiz de saída.', requires: [
-      { type: 'worldState', key: 'functionalBiofilmCount', operator: '>=', value: 1 },
+      { type: 'worldState', key: 'functionalBiofilmCount', target: 'p1-exit-root', operator: '>=', value: 1 },
     ]}, notes: [],
   },
 
@@ -640,6 +656,13 @@ export function validateCampaignManifest({
   const triggerOwners = new Map();
   const allPresentationIds = new Set(manifest.flatMap(phase => phase.presentations.map(p => p.id)));
   const knownCards = knownCardIds ? new Set(knownCardIds) : null;
+  const validateCondition = (condition, scope) => {
+    if (!VALID_FINAL_TYPES.has(condition.type)) errors.push(`${scope}: tipo de condiÃ§Ã£o invÃ¡lido.`);
+    if (!VALID_OPERATORS.has(condition.operator)) errors.push(`${scope}: operador invÃ¡lido.`);
+    if (knownFinalTestKeys[condition.type] && !knownFinalTestKeys[condition.type].includes(condition.key)) {
+      errors.push(`${scope}: chave de prova desconhecida ${condition.type}.${condition.key}.`);
+    }
+  };
 
   manifest.forEach((phase, expectedPhase) => {
     if (phase.phase !== expectedPhase) errors.push(`Fase fora de ordem: ${phase.phase}; esperado ${expectedPhase}.`);
@@ -667,6 +690,16 @@ export function validateCampaignManifest({
       if (!TUTORIAL_MODES.includes(segment.tutorialMode)) errors.push(`${phase.id}/${segment.id}: tutorialMode inválido.`);
       if (segment.from < 0 || segment.to >= phase.totalChunks || segment.from > segment.to) {
         errors.push(`${phase.id}/${segment.id}: intervalo inválido.`); continue;
+      }
+      if (segment.fixedBlock) {
+        if (!['fixed', 'final'].includes(segment.kind)) errors.push(`${phase.id}/${segment.id}: bloco autoral exige kind fixed ou final.`);
+        if (!segment.fixedBlock.template) errors.push(`${phase.id}/${segment.id}: bloco autoral sem template.`);
+        if (!segment.fixedBlock.objective) errors.push(`${phase.id}/${segment.id}: bloco autoral sem objetivo.`);
+        const completion = segment.fixedBlock.completion || [];
+        if (segment.fixedBlock.completionRef !== 'finalTest' && completion.length === 0) {
+          errors.push(`${phase.id}/${segment.id}: bloco autoral sem condição de conclusão.`);
+        }
+        for (const condition of completion) validateCondition(condition, `${phase.id}/${segment.id}`);
       }
       for (let i = segment.from; i <= segment.to; i++) coverage[i]++;
     }

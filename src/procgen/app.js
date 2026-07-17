@@ -1,5 +1,8 @@
 import { generateLevel } from './generator.js';
 import { generateCampaignEncounters } from './campaign-encounters.js';
+import { createCampaignObjectiveEvaluator } from './campaign-objectives.js';
+import { applyPhaseOneVerticalSlice, createFixedBlockRuntime } from './phase-one-vertical-slice.js';
+import { getPhaseManifest } from './campaign-manifest.js';
 import { createSimulator } from './simulator.js';
 import { createRenderer } from '../render/renderer.js';
 import { createPlatformVisuals } from './platform-visuals.js';
@@ -56,6 +59,27 @@ const ralstoniaControl = createRalstoniaVascularWilt({
   inoculants: sim.beneficialInoculants,
   pseudomonas: sim.pseudomonasSiderophores,
 });
+const objectiveEvaluator = createCampaignObjectiveEvaluator({
+  state: sim.state,
+  systems: {
+    gameplay: sim.gameplay,
+    inoculants: sim.beneficialInoculants,
+    pseudomonas: sim.pseudomonasSiderophores,
+  },
+});
+const fixedBlockRuntime = createFixedBlockRuntime({
+  state: sim.state,
+  evaluator: objectiveEvaluator,
+  entities: sim.entities,
+});
+sim.goal.setCompletionGuard(() => {
+  if (campaign.phase !== 1) return { passed: true };
+  const result = objectiveEvaluator.evaluate(getPhaseManifest(1).finalTest);
+  return {
+    passed: result.passed,
+    message: 'A raiz principal aguarda um biofilme funcional na raiz marcada da prova final.',
+  };
+});
 let profile = null;
 let seed = '';
 let levelData = null;
@@ -95,6 +119,7 @@ function prepareLevel() {
   profile = prepareCampaignGeneration(campaign);
   seed = campaignPhaseSeed(campaign);
   levelData = decorateCampaignLevel(generateLevel(seed), campaign, profile);
+  applyPhaseOneVerticalSlice(levelData, campaign.phase);
   installFinalGoal(levelData);
 }
 
@@ -140,7 +165,7 @@ function initGame({ announce = false } = {}) {
     platforms: levelData.platforms,
     phase: campaign.phase,
     seedValue: seed,
-  });
+  }).concat(levelData.authoredEncounters || []);
   sim.resetEcology(levelData.microbeEncounters);
   sim.resetBiology();
   ralstoniaControl.initialize();
@@ -252,6 +277,7 @@ function renderWorld() {
     cameraView.apply(ctx);
     renderer.render();
     platformVisuals.drawWorld(ctx);
+    fixedBlockRuntime.render(ctx);
     rhizoctoniaControl.render(ctx);
     ralstoniaControl.render(ctx);
     sim.pseudomonasSiderophores.renderDeposits(ctx);
@@ -286,6 +312,7 @@ function loop(now) {
     trichodermaMeloidogyneControl.update(0);
     sim.setInputs(keys);
     sim.step(dt);
+    fixedBlockRuntime.update(dt);
     rhizoctoniaControl.update(dt);
     trichodermaRhizoctoniaControl.update(dt);
     trichodermaMeloidogyneControl.update(dt);

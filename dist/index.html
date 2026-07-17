@@ -299,6 +299,9 @@ const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
 const { generateLevel } = __require("src/procgen/generator.js");
 const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");
+const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");
+const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
@@ -337,6 +340,27 @@ const ralstoniaControl = createRalstoniaVascularWilt({
   entities: sim.entities,
   inoculants: sim.beneficialInoculants,
   pseudomonas: sim.pseudomonasSiderophores,
+});
+const objectiveEvaluator = createCampaignObjectiveEvaluator({
+  state: sim.state,
+  systems: {
+    gameplay: sim.gameplay,
+    inoculants: sim.beneficialInoculants,
+    pseudomonas: sim.pseudomonasSiderophores,
+  },
+});
+const fixedBlockRuntime = createFixedBlockRuntime({
+  state: sim.state,
+  evaluator: objectiveEvaluator,
+  entities: sim.entities,
+});
+sim.goal.setCompletionGuard(() => {
+  if (campaign.phase !== 1) return { passed: true };
+  const result = objectiveEvaluator.evaluate(getPhaseManifest(1).finalTest);
+  return {
+    passed: result.passed,
+    message: 'A raiz principal aguarda um biofilme funcional na raiz marcada da prova final.',
+  };
 });
 let profile = null;
 let seed = '';
@@ -377,6 +401,7 @@ function prepareLevel() {
   profile = prepareCampaignGeneration(campaign);
   seed = campaignPhaseSeed(campaign);
   levelData = decorateCampaignLevel(generateLevel(seed), campaign, profile);
+  applyPhaseOneVerticalSlice(levelData, campaign.phase);
   installFinalGoal(levelData);
 }
 
@@ -422,7 +447,7 @@ function initGame({ announce = false } = {}) {
     platforms: levelData.platforms,
     phase: campaign.phase,
     seedValue: seed,
-  });
+  }).concat(levelData.authoredEncounters || []);
   sim.resetEcology(levelData.microbeEncounters);
   sim.resetBiology();
   ralstoniaControl.initialize();
@@ -534,6 +559,7 @@ function renderWorld() {
     cameraView.apply(ctx);
     renderer.render();
     platformVisuals.drawWorld(ctx);
+    fixedBlockRuntime.render(ctx);
     rhizoctoniaControl.render(ctx);
     ralstoniaControl.render(ctx);
     sim.pseudomonasSiderophores.renderDeposits(ctx);
@@ -568,6 +594,7 @@ function loop(now) {
     trichodermaMeloidogyneControl.update(0);
     sim.setInputs(keys);
     sim.step(dt);
+    fixedBlockRuntime.update(dt);
     rhizoctoniaControl.update(dt);
     trichodermaRhizoctoniaControl.update(dt);
     trichodermaMeloidogyneControl.update(dt);
@@ -946,6 +973,7 @@ function generateLevel(seedString) {
     const plat = platforms[i];
     if (plat.recovery || plat.w < 75 || rnd() >= .35) continue;
     exudates.push({
+      logicIndex: plat.logicIndex,
       x: plat.x + 30 + rnd() * Math.max(1, plat.w - 60),
       y: plat.y - 25 - rnd() * 15,
       taken: false,
@@ -1152,6 +1180,7 @@ const FINAL_TEST_KEYS = Object.freeze({
     'visibleLateralRootCount', 'functionalMycorrhizaPathCount', 'pseudomonasIronReserve',
     'neutralizedOpportunisticFungusCount', 'recoveredRootCount', 'brokenCrystalCount',
     'neutralizedEggMassCount', 'preservedRootCount', 'ecologicalScore',
+    'deployedExudateCount', 'bacillusColonyCount',
   ]),
 });
 
@@ -1228,14 +1257,29 @@ const phases = [
       { id: 'p1-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: [] },
       { id: 'p1-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided',
         debutPresentationIds: ['presentation-recruitment', 'presentation-bacillus'],
-        mechanicsRequired: ['exudate', 'inoculation'] },
+        mechanicsRequired: ['exudate', 'inoculation'],
+        fixedBlock: {
+          template: 'phase1-intro-v1',
+          objective: 'Libere exsudato, recrute Bacillus e inocule a raiz de treinamento.',
+          completion: [
+            { type: 'worldState', key: 'deployedExudateCount', operator: '>=', value: 1 },
+            { type: 'worldState', key: 'functionalBiofilmCount', target: 'p1-intro-root', operator: '>=', value: 1 },
+          ],
+          exitGate: true,
+        } },
       { id: 'p1-challenge', kind: 'procedural', from: 9, to: 34, tutorialMode: 'silent',
         mechanicsRequired: ['exudate', 'inoculation'] },
       { id: 'p1-final', kind: 'final', from: 35, to: 39, tutorialMode: 'silent',
-        mechanicsRequired: ['exudate', 'inoculation'] },
+        mechanicsRequired: ['exudate', 'inoculation'],
+        fixedBlock: {
+          template: 'phase1-final-v1',
+          objective: 'Prova final: forme um biofilme funcional na raiz marcada.',
+          completionRef: 'finalTest',
+          exitGate: true,
+        } },
     ],
     finalTest: { id: 'p1-test', goal: 'Criar um biofilme funcional na raiz de saída.', requires: [
-      { type: 'worldState', key: 'functionalBiofilmCount', operator: '>=', value: 1 },
+      { type: 'worldState', key: 'functionalBiofilmCount', target: 'p1-exit-root', operator: '>=', value: 1 },
     ]}, notes: [],
   },
 
@@ -1744,6 +1788,13 @@ function validateCampaignManifest({
   const triggerOwners = new Map();
   const allPresentationIds = new Set(manifest.flatMap(phase => phase.presentations.map(p => p.id)));
   const knownCards = knownCardIds ? new Set(knownCardIds) : null;
+  const validateCondition = (condition, scope) => {
+    if (!VALID_FINAL_TYPES.has(condition.type)) errors.push(`${scope}: tipo de condiÃ§Ã£o invÃ¡lido.`);
+    if (!VALID_OPERATORS.has(condition.operator)) errors.push(`${scope}: operador invÃ¡lido.`);
+    if (knownFinalTestKeys[condition.type] && !knownFinalTestKeys[condition.type].includes(condition.key)) {
+      errors.push(`${scope}: chave de prova desconhecida ${condition.type}.${condition.key}.`);
+    }
+  };
 
   manifest.forEach((phase, expectedPhase) => {
     if (phase.phase !== expectedPhase) errors.push(`Fase fora de ordem: ${phase.phase}; esperado ${expectedPhase}.`);
@@ -1771,6 +1822,16 @@ function validateCampaignManifest({
       if (!TUTORIAL_MODES.includes(segment.tutorialMode)) errors.push(`${phase.id}/${segment.id}: tutorialMode inválido.`);
       if (segment.from < 0 || segment.to >= phase.totalChunks || segment.from > segment.to) {
         errors.push(`${phase.id}/${segment.id}: intervalo inválido.`); continue;
+      }
+      if (segment.fixedBlock) {
+        if (!['fixed', 'final'].includes(segment.kind)) errors.push(`${phase.id}/${segment.id}: bloco autoral exige kind fixed ou final.`);
+        if (!segment.fixedBlock.template) errors.push(`${phase.id}/${segment.id}: bloco autoral sem template.`);
+        if (!segment.fixedBlock.objective) errors.push(`${phase.id}/${segment.id}: bloco autoral sem objetivo.`);
+        const completion = segment.fixedBlock.completion || [];
+        if (segment.fixedBlock.completionRef !== 'finalTest' && completion.length === 0) {
+          errors.push(`${phase.id}/${segment.id}: bloco autoral sem condição de conclusão.`);
+        }
+        for (const condition of completion) validateCondition(condition, `${phase.id}/${segment.id}`);
       }
       for (let i = segment.from; i <= segment.to; i++) coverage[i]++;
     }
@@ -6451,6 +6512,7 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
     get followerCount() { return followers().length; },
     get followerSummary() { return summaryFromCounts(followers()); },
     get colonyCount() { return colonies.length; },
+    get bacillusColonyCount() { return colonies.filter(colony => colony.type === 'bacillus').length; },
     get colonySummary() { return summaryFromCounts(colonies); },
     get vigorAverage() {
       if (!colonies.length) return 0;
@@ -9181,9 +9243,16 @@ const TAU = Math.PI * 2;
 
 function createGoalSystem({ state, entities }) {
   let completedAt = -1;
+  let completionGuard = () => ({ passed: true, message: '' });
+  let lastBlockedAt = -Infinity;
+
+  function setCompletionGuard(guard) {
+    completionGuard = typeof guard === 'function' ? guard : () => ({ passed: true, message: '' });
+  }
 
   function reset() {
     completedAt = -1;
+    lastBlockedAt = -Infinity;
     if (state.level.goal) state.level.goal.completed = false;
   }
 
@@ -9219,7 +9288,18 @@ function createGoalSystem({ state, entities }) {
     if (!goal || goal.completed || state.gameState !== 'play') return;
     const px = state.player.x + state.player.w / 2;
     const py = state.player.y + state.player.h / 2;
-    if (Math.hypot(px - goal.x, py - (goal.y + 48)) < goal.radius) complete(goal);
+    if (Math.hypot(px - goal.x, py - (goal.y + 48)) >= goal.radius) return;
+    const guard = completionGuard();
+    if (!guard?.passed) {
+      state.player.vx = Math.min(0, state.player.vx);
+      if (state.time - lastBlockedAt > 2.4) {
+        lastBlockedAt = state.time;
+        state.toast = guard?.message || 'A prova final ainda não foi concluída.';
+        state.toastTime = 4.2;
+      }
+      return;
+    }
+    complete(goal);
   }
 
   function render(ctx) {
@@ -9311,7 +9391,7 @@ function createGoalSystem({ state, entities }) {
     ctx.restore();
   }
 
-  return { reset, clear, update, render };
+  return { reset, clear, setCompletionGuard, update, render };
 }
 Object.assign(__exports, { createGoalSystem });
 },
@@ -9332,6 +9412,7 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
   const biofilms = [];
   const formingBiofilms = new Map();
   let nextCloudId = 1;
+  let deployedCloudCount = 0;
   let eHeldLast = false;
   let infectionAnnounced = false;
 
@@ -9346,6 +9427,7 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
     formingBiofilms.clear();
     eHeldLast = false;
     infectionAnnounced = false;
+    deployedCloudCount = 0;
   }
 
   function reset() {
@@ -9389,6 +9471,7 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
       phase: Math.random() * TAU,
     };
     clouds.push(cloud);
+    deployedCloudCount++;
     entities.burst(cloud.x, cloud.y, '#b7f36b', 22, 135);
     toast('Gradiente de exsudatos', 'A nuvem atrai comunidades móveis e orienta interações ecológicas.', 3.5);
   }
@@ -9694,6 +9777,7 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
 
   return {
     get cloudCount() { return clouds.length; },
+    get deployedCloudCount() { return deployedCloudCount; },
     get biofilmCount() { return biofilms.length; },
     clear,
     reset,
@@ -10425,6 +10509,340 @@ function generateCampaignEncounters({ platforms, phase, seedValue }) {
   return encounters;
 }
 Object.assign(__exports, { generateCampaignEncounters });
+},
+"src/procgen/campaign-objectives.js": (__exports, __require) => {
+const OPERATORS = Object.freeze({
+  '===': (actual, expected) => actual === expected,
+  '!==': (actual, expected) => actual !== expected,
+  '>': (actual, expected) => actual > expected,
+  '>=': (actual, expected) => actual >= expected,
+  '<': (actual, expected) => actual < expected,
+  '<=': (actual, expected) => actual <= expected,
+});
+
+function functionalBiofilms(state, target = null) {
+  return (state.level.biofilms || []).filter(film => (
+    film.functional === true
+    && (!target || film.platform?.objectiveTarget === target)
+  ));
+}
+
+function activeNodules(state) {
+  return (state.level.rhizobiumNodules || []).filter(site => (
+    site.mature === true || site.stage === 'mature' || (site.fixationRate || 0) > 0.05
+  ));
+}
+
+function createCampaignObjectiveEvaluator({ state, systems = {} }) {
+  function worldValue(condition) {
+    const key = condition.key;
+    if (key === 'reachedFinalRoot') return Boolean(state.level.goal?.completed);
+    if (key === 'functionalBiofilmCount') return functionalBiofilms(state, condition.target).length;
+    if (key === 'deployedExudateCount') return systems.gameplay?.deployedCloudCount || 0;
+    if (key === 'bacillusColonyCount') {
+      return (systems.inoculants?.colonies || []).filter(colony => colony.type === 'bacillus').length;
+    }
+    if (key === 'activeMatureNoduleCount') return activeNodules(state).length;
+    if (key === 'totalFixationRate') {
+      return (state.level.rhizobiumNodules || []).reduce((sum, site) => sum + (site.fixationRate || 0), 0);
+    }
+    if (key === 'visibleLateralRootCount') return (state.level.azospirillumRoots || []).filter(root => root.visible !== false).length;
+    if (key === 'functionalMycorrhizaPathCount') {
+      return (state.level.platforms || []).filter(platform => platform.mycorrhizaStructure && platform.mature !== false).length;
+    }
+    if (key === 'pseudomonasIronReserve') return systems.pseudomonas?.ironRecovered || 0;
+    if (key === 'neutralizedOpportunisticFungusCount') return systems.trichoderma?.eliminatedCount || 0;
+    if (key === 'recoveredRootCount') {
+      return (state.level.platforms || []).filter(root => root.type === 'root' && root.healthTrend > 0 && (root.rootHealth || 0) >= .75).length;
+    }
+    if (key === 'brokenCrystalCount') return (state.level.crystals || []).filter(crystal => crystal.broken).length;
+    if (key === 'neutralizedEggMassCount') return systems.meloidogyneControl?.eggMassesNeutralized || 0;
+    if (key === 'preservedRootCount') {
+      return (state.level.platforms || []).filter(root => root.type === 'root' && (root.rootHealth ?? 1) >= .75).length;
+    }
+    if (key === 'ecologicalScore') return Number(state.level.ecologicalScore || 0);
+    return undefined;
+  }
+
+  function conditionValue(condition) {
+    if (condition.type === 'worldState') return worldValue(condition);
+    if (condition.type === 'playerUnlock') return Boolean(state.campaign?.unlocks?.[condition.key]);
+    return undefined;
+  }
+
+  function evaluate(testOrConditions) {
+    const conditions = Array.isArray(testOrConditions)
+      ? testOrConditions
+      : testOrConditions?.requires || [];
+    const results = conditions.map(condition => {
+      const actual = conditionValue(condition);
+      const compare = OPERATORS[condition.operator];
+      return {
+        condition,
+        actual,
+        passed: Boolean(compare && compare(actual, condition.value)),
+      };
+    });
+    return {
+      passed: results.length > 0 && results.every(result => result.passed),
+      results,
+    };
+  }
+
+  return { evaluate, worldValue };
+}
+Object.assign(__exports, { createCampaignObjectiveEvaluator });
+},
+"src/procgen/phase-one-vertical-slice.js": (__exports, __require) => {
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const BLOCK_LAYOUTS = Object.freeze({
+  'phase1-intro-v1': Object.freeze({
+    roles: ['coleta', 'gradiente', 'encontro', 'inoculacao', 'observacao'],
+    yOffsets: [0, -24, -42, -12, 8],
+    targetChunk: 7,
+    targetId: 'p1-intro-root',
+    exudateChunks: [4, 5, 7],
+  }),
+  'phase1-final-v1': Object.freeze({
+    roles: ['coleta-final', 'bacillus-conhecido', 'recrutamento-final', 'inoculacao-final', 'raiz-prova'],
+    yOffsets: [8, -18, -34, -12, 4],
+    targetChunk: 39,
+    targetId: 'p1-exit-root',
+    exudateChunks: [35, 37, 39],
+  }),
+});
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function mainPlatform(level, logicIndex) {
+  return (level.platforms || []).find(platform => (
+    !platform.recovery && !platform.final && platform.logicIndex === logicIndex
+  ));
+}
+
+function authorGeometry(level, segment, template) {
+  const platforms = [];
+  for (let chunk = segment.from; chunk <= segment.to; chunk++) {
+    const platform = mainPlatform(level, chunk);
+    if (!platform) throw new Error(`${segment.id}: plataforma principal ausente no chunk ${chunk}.`);
+    platforms.push(platform);
+  }
+
+  const left = platforms[0].x;
+  const right = platforms[platforms.length - 1].x + platforms[platforms.length - 1].w;
+  const slot = (right - left) / platforms.length;
+  const startY = platforms[0].y;
+  const endY = platforms[platforms.length - 1].y;
+
+  platforms.forEach((platform, index) => {
+    const progress = index / Math.max(1, platforms.length - 1);
+    const authoredOffset = index === 0 || index === platforms.length - 1
+      ? 0
+      : template.yOffsets[index] * .15;
+    platform.x = left + slot * index;
+    platform.y = clamp(startY + (endY - startY) * progress + authoredOffset, 285, 545);
+    platform.w = index === platforms.length - 1
+      ? right - platform.x
+      : Math.max(122, slot - 58);
+    platform.h = 64;
+    platform.type = 'root';
+    platform.authored = true;
+    platform.fixedBlockId = segment.id;
+    platform.fixedRole = template.roles[index];
+  });
+
+  const target = mainPlatform(level, template.targetChunk);
+  target.objectiveTarget = template.targetId;
+  target.fixedObjective = true;
+
+  const last = platforms[platforms.length - 1];
+  const next = mainPlatform(level, segment.to + 1);
+  const gateX = next
+    ? last.x + last.w + Math.max(26, (next.x - (last.x + last.w)) / 2)
+    : last.x + last.w + 39;
+
+  return {
+    platforms,
+    target,
+    startX: platforms[0].x,
+    endX: last.x + last.w,
+    gateX,
+  };
+}
+
+function addAuthoredExudates(level, chunks) {
+  for (const chunk of chunks) {
+    const platform = mainPlatform(level, chunk);
+    if (!platform) continue;
+    level.exudates.push({
+      logicIndex: chunk,
+      x: platform.x + platform.w * .5,
+      y: platform.y - 34,
+      taken: false,
+      authored: true,
+    });
+  }
+}
+
+function applyPhaseOneVerticalSlice(level, phase = level.campaignPhase) {
+  if (phase !== 1) return level;
+  const manifest = getPhaseManifest(1);
+  const authoredSegments = manifest.segments.filter(segment => segment.fixedBlock);
+
+  level.fixedBlocks = [];
+  level.authoredEncounters = [];
+  level.platforms = level.platforms.filter(platform => (
+    !platform.recovery
+    || !authoredSegments.some(segment => platform.logicIndex >= segment.from && platform.logicIndex <= segment.to)
+  ));
+  level.exudates = (level.exudates || []).filter(exudate => (
+    Number.isInteger(exudate.logicIndex)
+    && exudate.logicIndex >= 9
+    && !authoredSegments.some(segment => exudate.logicIndex >= segment.from && exudate.logicIndex <= segment.to)
+  ));
+
+  for (const segment of authoredSegments) {
+    const template = BLOCK_LAYOUTS[segment.fixedBlock.template];
+    if (!template) throw new Error(`${segment.id}: template fixo desconhecido ${segment.fixedBlock.template}.`);
+    const geometry = authorGeometry(level, segment, template);
+    addAuthoredExudates(level, template.exudateChunks);
+    const completion = segment.fixedBlock.completionRef === 'finalTest'
+      ? manifest.finalTest.requires
+      : segment.fixedBlock.completion;
+    level.fixedBlocks.push({
+      id: segment.id,
+      kind: segment.kind,
+      template: segment.fixedBlock.template,
+      objective: segment.fixedBlock.objective,
+      completion: completion.map(condition => ({ ...condition })),
+      exitGate: segment.fixedBlock.exitGate === true,
+      startX: geometry.startX,
+      endX: geometry.endX,
+      gateX: geometry.gateX,
+      targetPlatform: geometry.target,
+      completed: false,
+    });
+    for (let chunk = segment.from; chunk <= segment.to; chunk++) {
+      if (level.debugInfo?.[chunk]) {
+        level.debugInfo[chunk].authored = true;
+        level.debugInfo[chunk].fixedBlockId = segment.id;
+      }
+    }
+  }
+
+  const finalBacillusPlatform = mainPlatform(level, 36);
+  if (finalBacillusPlatform) {
+    level.authoredEncounters.push({
+      id: 'bacillus',
+      x: finalBacillusPlatform.x + finalBacillusPlatform.w / 2,
+      y: Math.max(95, finalBacillusPlatform.y - 104),
+      r: 155,
+      territory: 360,
+      collect: false,
+      logicIndex: 36,
+      source: 'fixed-practice',
+    });
+  }
+  return level;
+}
+
+function createFixedBlockRuntime({ state, evaluator, entities }) {
+  let lastBlockedAt = -Infinity;
+
+  function activeBlocks() {
+    return state.level.fixedBlocks || [];
+  }
+
+  function missingText(result) {
+    const missing = result.results.find(entry => !entry.passed);
+    if (!missing) return '';
+    if (missing.condition.key === 'deployedExudateCount') return 'libere pelo menos um exsudato com E';
+    if (missing.condition.key === 'functionalBiofilmCount') return 'forme um biofilme funcional na raiz marcada';
+    return 'complete o objetivo ecológico indicado';
+  }
+
+  function completeBlock(block) {
+    block.completed = true;
+    block.completedAt = state.time;
+    state.toast = block.kind === 'final'
+      ? 'Prova final concluída: a raiz de saída recebeu um biofilme funcional.'
+      : 'Módulo concluído: recrutamento, inoculação e biofilme confirmados.';
+    state.toastTime = 5.2;
+    entities.burst(block.gateX, block.targetPlatform.y - 70, '#8ff2c1', 34, 150);
+  }
+
+  function holdAtGate(block, result) {
+    const player = state.player;
+    const right = player.x + player.w;
+    if (!block.exitGate || block.completed || right <= block.gateX) return;
+    player.x = block.gateX - player.w - 2;
+    player.vx = Math.min(0, player.vx);
+    if (state.time - lastBlockedAt < 2.4) return;
+    lastBlockedAt = state.time;
+    state.toast = `Saída bloqueada: ${missingText(result)}.`;
+    state.toastTime = 4.2;
+  }
+
+  function update() {
+    if (state.gameState !== 'play') return;
+    const centerX = state.player.x + state.player.w / 2;
+    for (const block of activeBlocks()) {
+      const result = evaluator.evaluate(block.completion);
+      if (!block.completed && result.passed) completeBlock(block);
+      holdAtGate(block, result);
+      if (centerX >= block.startX - 260 && centerX <= block.gateX + 80) {
+        state.mission = block.completed
+          ? `${block.objective} Objetivo concluído; prossiga.`
+          : block.objective;
+      }
+    }
+  }
+
+  function render(ctx) {
+    for (const block of activeBlocks()) {
+      const target = block.targetPlatform;
+      if (target) {
+        const x = target.x + target.w / 2;
+        const y = target.y - 82;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.font = '800 12px Inter,system-ui';
+        ctx.fillStyle = block.completed ? '#9bea8f' : '#ffe58f';
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.fillText(block.kind === 'final' ? 'RAIZ DA PROVA FINAL' : 'RAIZ DE TREINAMENTO', x, y);
+        ctx.restore();
+      }
+      if (!block.exitGate || block.completed) continue;
+      const gateY = clamp(target?.y || 500, 300, 560);
+      const pulse = .65 + Math.sin(state.time * 3.2) * .18;
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,213,111,${pulse})`;
+      ctx.fillStyle = 'rgba(255,213,111,.08)';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([9, 8]);
+      ctx.fillRect(block.gateX - 8, 115, 16, gateY - 115);
+      ctx.beginPath();
+      ctx.moveTo(block.gateX, 115);
+      ctx.lineTo(block.gateX, gateY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.textAlign = 'center';
+      ctx.font = '800 10px Inter,system-ui';
+      ctx.fillStyle = '#ffe58f';
+      ctx.fillText('OBJETIVO PENDENTE', block.gateX, 98);
+      ctx.restore();
+    }
+  }
+
+  function finalBlockCompleted() {
+    const block = activeBlocks().find(candidate => candidate.kind === 'final');
+    return !block || block.completed;
+  }
+
+  return { update, render, finalBlockCompleted };
+}
+Object.assign(__exports, { applyPhaseOneVerticalSlice, createFixedBlockRuntime });
 },
 "src/render/renderer.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");
