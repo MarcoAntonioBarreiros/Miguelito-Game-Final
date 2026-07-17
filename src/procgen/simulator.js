@@ -34,6 +34,7 @@ export function createSimulator() {
   const state = {
     time: 0,
     gameState: 'play',
+    proceduralCampaign: true,
     player: createPlayer(),
     level: createEmptyLevel(),
     jumpHeldLast: false,

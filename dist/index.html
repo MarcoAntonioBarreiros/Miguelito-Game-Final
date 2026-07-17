@@ -1135,7 +1135,6 @@ function renderWorld() {
     cameraView.apply(ctx);
     renderer.render();
     platformVisuals.drawWorld(ctx);
-    fixedBlockRuntime.render(ctx);
     rhizoctoniaControl.render(ctx);
     ralstoniaControl.render(ctx);
     sim.pseudomonasSiderophores.renderDeposits(ctx);
@@ -1154,6 +1153,7 @@ function renderWorld() {
     sim.goal.render(ctx);
     sim.gameplay.render(ctx);
     sim.bacillusBioprotection.render(ctx);
+    fixedBlockRuntime.render(ctx);
     platformVisuals.renderLabel(ctx);
   } finally {
     ctx.restore();
@@ -2700,6 +2700,7 @@ function createSimulator() {
   const state = {
     time: 0,
     gameState: 'play',
+    proceduralCampaign: true,
     player: createPlayer(),
     level: createEmptyLevel(),
     jumpHeldLast: false,
@@ -11267,6 +11268,9 @@ function applyPhaseOneVerticalSlice(level, phase = level.campaignPhase) {
 
   level.fixedBlocks = [];
   level.authoredEncounters = [];
+  // Na primeira fase, o primeiro biofilme deve ser uma ação do jogador.
+  // Checkpoints procedurais criavam biofilmes naturais e antecipavam Bacillus.
+  level.checkpoints = [];
   level.platforms = level.platforms.filter(platform => (
     !platform.recovery
     || !authoredSegments.some(segment => platform.logicIndex >= segment.from && platform.logicIndex <= segment.to)
@@ -11333,7 +11337,7 @@ function createFixedBlockRuntime({ state, evaluator, entities }) {
     const missing = result.results.find(entry => !entry.passed);
     if (!missing) return '';
     if (missing.condition.key === 'deployedExudateCount') return 'libere pelo menos um exsudato com E';
-    if (missing.condition.key === 'functionalBiofilmCount') return 'forme um biofilme funcional na raiz marcada';
+    if (missing.condition.key === 'functionalBiofilmCount') return 'volte à raiz marcada em amarelo e inocule Bacillus nela';
     return 'complete o objetivo ecológico indicado';
   }
 
@@ -11369,7 +11373,9 @@ function createFixedBlockRuntime({ state, evaluator, entities }) {
       if (centerX >= block.startX - 260 && centerX <= block.gateX + 80) {
         state.mission = block.completed
           ? `${block.objective} Objetivo concluído; prossiga.`
-          : block.objective;
+          : centerX > block.targetPlatform.x + block.targetPlatform.w
+            ? `${block.objective} ← Volte à raiz marcada em amarelo.`
+            : block.objective;
       }
     }
   }
@@ -11379,14 +11385,45 @@ function createFixedBlockRuntime({ state, evaluator, entities }) {
       const target = block.targetPlatform;
       if (target) {
         const x = target.x + target.w / 2;
-        const y = target.y - 82;
+        const y = target.y - 92;
+        const pulse = .72 + Math.sin(state.time * 3.4) * .18;
         ctx.save();
+        ctx.strokeStyle = block.completed
+          ? `rgba(155,234,143,${pulse})`
+          : `rgba(255,213,111,${pulse})`;
+        ctx.fillStyle = block.completed ? 'rgba(155,234,143,.1)' : 'rgba(255,213,111,.12)';
+        ctx.lineWidth = 3;
+        for (let ring = 0; ring < 2; ring++) {
+          ctx.beginPath();
+          ctx.ellipse(x, target.y - 8, target.w * (.34 + ring * .12), 24 + ring * 10, 0, 0, Math.PI * 2);
+          if (ring === 0) ctx.fill();
+          ctx.stroke();
+        }
+        ctx.beginPath();
+        ctx.moveTo(x, target.y - 38);
+        ctx.lineTo(x - 9, target.y - 53);
+        ctx.lineTo(x + 9, target.y - 53);
+        ctx.closePath();
+        ctx.fillStyle = block.completed ? '#9bea8f' : '#ffd56f';
+        ctx.fill();
         ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
         ctx.font = '800 12px Inter,system-ui';
-        ctx.fillStyle = block.completed ? '#9bea8f' : '#ffe58f';
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = ctx.fillStyle;
-        ctx.fillText(block.kind === 'final' ? 'RAIZ DA PROVA FINAL' : 'RAIZ DE TREINAMENTO', x, y);
+        const label = block.completed
+          ? 'BIOFILME CONFIRMADO'
+          : block.kind === 'final'
+            ? 'FORME O BIOFILME DA PROVA AQUI'
+            : 'INOCULE BACILLUS NESTA RAIZ';
+        const width = ctx.measureText(label).width + 26;
+        ctx.fillStyle = 'rgba(3,18,24,.9)';
+        ctx.strokeStyle = block.completed ? '#9bea8f' : '#ffd56f';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(x - width / 2, y - 14, width, 28, 14);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = block.completed ? '#bff5b7' : '#ffe58f';
+        ctx.fillText(label, x, y + .5);
         ctx.restore();
       }
       if (!block.exitGate || block.completed) continue;
@@ -11394,19 +11431,21 @@ function createFixedBlockRuntime({ state, evaluator, entities }) {
       const pulse = .65 + Math.sin(state.time * 3.2) * .18;
       ctx.save();
       ctx.strokeStyle = `rgba(255,213,111,${pulse})`;
-      ctx.fillStyle = 'rgba(255,213,111,.08)';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([9, 8]);
-      ctx.fillRect(block.gateX - 8, 115, 16, gateY - 115);
+      ctx.fillStyle = 'rgba(255,213,111,.14)';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([10, 7]);
+      ctx.fillRect(block.gateX - 10, 115, 20, gateY - 115);
       ctx.beginPath();
       ctx.moveTo(block.gateX, 115);
       ctx.lineTo(block.gateX, gateY);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.textAlign = 'center';
-      ctx.font = '800 10px Inter,system-ui';
+      ctx.font = '800 11px Inter,system-ui';
       ctx.fillStyle = '#ffe58f';
-      ctx.fillText('OBJETIVO PENDENTE', block.gateX, 98);
+      ctx.fillText('PORTÃO DO TREINO', block.gateX, 82);
+      ctx.font = '700 10px Inter,system-ui';
+      ctx.fillText('← VOLTE À RAIZ MARCADA', block.gateX, 99);
       ctx.restore();
     }
   }
@@ -11973,6 +12012,15 @@ Object.assign(__exports, { createRenderer });
 },
 "src/render/microbes.js": (__exports, __require) => {
 const { W } = __require("src/core/constants.js");const { lerp } = __require("src/core/math.js");const { microbeCatalog, microbeEncounters } = __require("src/data/microbes.js");
+const PROCEDURAL_SCENERY_IDS = new Set(['rhizobium', 'myco']);
+const proceduralSceneryEncounters = microbeEncounters
+  .filter(encounter => PROCEDURAL_SCENERY_IDS.has(encounter.id))
+  .map(encounter => Object.freeze({ ...encounter, decorative: true }));
+
+function getMicrobeSceneEncounters(state = {}) {
+  return state.proceduralCampaign === true ? proceduralSceneryEncounters : microbeEncounters;
+}
+
 function createMicrobeRenderer({ ctx, state, entities }) {
   function drawAnimatedFlag(x, y, a, len, color, phase, width = 1, spread = 0) {
     const time = state.time;
@@ -12320,7 +12368,7 @@ function createMicrobeRenderer({ ctx, state, entities }) {
   }
 
   function drawMicrobeEcosystems() {
-    for (const z of microbeEncounters) {
+    for (const z of getMicrobeSceneEncounters(state)) {
       if (z.x - state.cameraX < -260 || z.x - state.cameraX > W + 260) continue;
       if (z.id === 'rhizobium') drawRhizobiumScene(z);
       else if (z.id === 'myco') drawMycorrhizaScene(z);
@@ -12330,14 +12378,14 @@ function createMicrobeRenderer({ ctx, state, entities }) {
       else if (z.id === 'trichoderma') drawTrichodermaScene(z);
       else if (z.id === 'azospirillum') drawAzospirillumScene(z);
       else if (z.id === 'pseudomonas') drawPseudomonasScene(z);
-      drawEncounterLabel(z);
+      if (!z.decorative) drawEncounterLabel(z);
     }
   }
 
   function discoverVisibleEncounters() {
     const player = state.player;
-    microbeEncounters.forEach(z => {
-      if (z.collect || state.discoveredMicrobes.has(z.id)) return;
+    getMicrobeSceneEncounters(state).forEach(z => {
+      if (z.decorative || z.collect || state.discoveredMicrobes.has(z.id)) return;
       if (Math.hypot(z.x - (player.x + 16), z.y - (player.y + 24)) < z.r) entities.discoverMicrobe(z.id, true);
     });
   }
@@ -12349,7 +12397,7 @@ function createMicrobeRenderer({ ctx, state, entities }) {
     discoverVisibleEncounters,
   };
 }
-Object.assign(__exports, { createMicrobeRenderer });
+Object.assign(__exports, { getMicrobeSceneEncounters, createMicrobeRenderer });
 },
 "src/procgen/platform-visuals.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");
@@ -12629,6 +12677,12 @@ function createPlatformVisuals({ state }) {
     const maxHealth = Math.round(clamp(platform.rootMaxHealth ?? 1, 0, 1) * 100);
     const stateStyle = stateInfo(platform);
     const scar = maxHealth < 100 ? ` · máx. ${maxHealth}%` : '';
+    if (platform.objectiveTarget === 'p1-intro-root') {
+      return { text: 'Raiz de treinamento · inocule Bacillus aqui', color: '#ffd56f' };
+    }
+    if (platform.objectiveTarget === 'p1-exit-root') {
+      return { text: 'Raiz da prova final · forme o biofilme aqui', color: '#ffd56f' };
+    }
     if (platform.azospirillumStructure) {
       return { text: `Raiz lateral ${stateStyle.label} · ${health}%${scar}`, color: stateStyle.color };
     }

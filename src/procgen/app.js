@@ -277,7 +277,6 @@ function renderWorld() {
     cameraView.apply(ctx);
     renderer.render();
     platformVisuals.drawWorld(ctx);
-    fixedBlockRuntime.render(ctx);
     rhizoctoniaControl.render(ctx);
     ralstoniaControl.render(ctx);
     sim.pseudomonasSiderophores.renderDeposits(ctx);
@@ -296,6 +295,7 @@ function renderWorld() {
     sim.goal.render(ctx);
     sim.gameplay.render(ctx);
     sim.bacillusBioprotection.render(ctx);
+    fixedBlockRuntime.render(ctx);
     platformVisuals.renderLabel(ctx);
   } finally {
     ctx.restore();

@@ -49,6 +49,11 @@ test('Fase 1 segue introdução fixa, desafio procedural e prova final fixa', ()
     const { level, encounters } = phaseOne(seed);
     assert.deepEqual(level.fixedBlocks.map(block => block.id), ['p1-intro', 'p1-final']);
     assert.equal(level.fixedBlocks.every(block => block.exitGate), true);
+    assert.deepEqual(level.checkpoints, [], 'Bacillus natural não pode antecipar o primeiro biofilme do jogador');
+    assert.deepEqual(
+      level.fixedBlocks.map(block => block.targetPlatform.objectiveTarget),
+      ['p1-intro-root', 'p1-exit-root'],
+    );
 
     for (const platform of mainPlatforms(level)) {
       const shouldBeAuthored = (platform.logicIndex >= 4 && platform.logicIndex <= 8)

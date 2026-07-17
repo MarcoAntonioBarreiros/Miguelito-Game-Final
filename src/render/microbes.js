@@ -2,6 +2,15 @@ import { W } from '../core/constants.js';
 import { lerp } from '../core/math.js';
 import { microbeCatalog, microbeEncounters } from '../data/microbes.js';
 
+const PROCEDURAL_SCENERY_IDS = new Set(['rhizobium', 'myco']);
+const proceduralSceneryEncounters = microbeEncounters
+  .filter(encounter => PROCEDURAL_SCENERY_IDS.has(encounter.id))
+  .map(encounter => Object.freeze({ ...encounter, decorative: true }));
+
+export function getMicrobeSceneEncounters(state = {}) {
+  return state.proceduralCampaign === true ? proceduralSceneryEncounters : microbeEncounters;
+}
+
 export function createMicrobeRenderer({ ctx, state, entities }) {
   function drawAnimatedFlag(x, y, a, len, color, phase, width = 1, spread = 0) {
     const time = state.time;
@@ -349,7 +358,7 @@ export function createMicrobeRenderer({ ctx, state, entities }) {
   }
 
   function drawMicrobeEcosystems() {
-    for (const z of microbeEncounters) {
+    for (const z of getMicrobeSceneEncounters(state)) {
       if (z.x - state.cameraX < -260 || z.x - state.cameraX > W + 260) continue;
       if (z.id === 'rhizobium') drawRhizobiumScene(z);
       else if (z.id === 'myco') drawMycorrhizaScene(z);
@@ -359,14 +368,14 @@ export function createMicrobeRenderer({ ctx, state, entities }) {
       else if (z.id === 'trichoderma') drawTrichodermaScene(z);
       else if (z.id === 'azospirillum') drawAzospirillumScene(z);
       else if (z.id === 'pseudomonas') drawPseudomonasScene(z);
-      drawEncounterLabel(z);
+      if (!z.decorative) drawEncounterLabel(z);
     }
   }
 
   function discoverVisibleEncounters() {
     const player = state.player;
-    microbeEncounters.forEach(z => {
-      if (z.collect || state.discoveredMicrobes.has(z.id)) return;
+    getMicrobeSceneEncounters(state).forEach(z => {
+      if (z.decorative || z.collect || state.discoveredMicrobes.has(z.id)) return;
       if (Math.hypot(z.x - (player.x + 16), z.y - (player.y + 24)) < z.r) entities.discoverMicrobe(z.id, true);
     });
   }
