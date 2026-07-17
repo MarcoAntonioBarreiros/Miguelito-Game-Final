@@ -16,7 +16,7 @@ import {
   validateCampaignManifest,
   validateFirstEncounterProximity,
 } from '../src/procgen/campaign-manifest.js';
-import { tutorialCardIds } from '../src/procgen/tutorial-registry.js';
+import { getTutorialCard, tutorialCardIds } from '../src/procgen/tutorial-registry.js';
 
 const cloneManifest = () => JSON.parse(JSON.stringify(campaignManifest));
 
@@ -129,15 +129,35 @@ test('Trichoderma, oportunista e micoparasitismo são apresentações separadas'
   );
 });
 
-test('integração permanece limitada a progressão e gating', () => {
+test('integração permanece limitada a progressão, gating e fluxo dos cartões', () => {
   assert.match(readFileSync('src/procgen/campaign-progression.js', 'utf8'), /campaign-manifest/);
   assert.match(readFileSync('src/procgen/logic.js', 'utf8'), /campaign-manifest/);
+  assert.match(readFileSync('src/procgen/tutorial-flow.js', 'utf8'), /campaign-manifest/);
+  assert.match(readFileSync('src/procgen/tutorial-triggers.js', 'utf8'), /getTutorialModeAt/);
 
-  for (const file of ['src/procgen/tutorial-manager.js', 'src/procgen/tutorial-triggers.js']) {
-    assert.doesNotMatch(readFileSync(file, 'utf8'), /campaign-manifest/);
+  for (const file of [
+    'src/procgen/app.js',
+    'src/procgen/tutorial-flow.js',
+    'src/procgen/tutorial-manager.js',
+    'src/procgen/tutorial-triggers.js',
+  ]) {
+    assert.doesNotMatch(readFileSync(file, 'utf8'), /getProceduralPoolAt|getTetheredDebutsAt/);
   }
   assert.doesNotMatch(
     readFileSync('src/procgen/app.js', 'utf8'),
-    /getProceduralPoolAt|getTetheredDebutsAt|getTutorialModeAt/,
+    /getTutorialModeAt/,
   );
+});
+
+test('desbloqueios progressivos apontam para páginas existentes nos cartões reais', () => {
+  for (const phase of campaignManifest) {
+    for (const presentation of phase.presentations) {
+      const card = getTutorialCard(presentation.cardId);
+      for (const unlock of presentation.pageUnlocks || []) {
+        for (const pageIndex of unlock.pages) {
+          assert.ok(card.pages[pageIndex], `${presentation.id}/${unlock.triggerId}: página ${pageIndex}`);
+        }
+      }
+    }
+  }
 });

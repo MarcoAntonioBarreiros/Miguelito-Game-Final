@@ -78,6 +78,16 @@ Os poderes persistem em `sessionStorage` apenas quando foram efetivamente obtido
 
 O prólogo permanece definido como fase 0 no manifesto, porém a campanha jogável continua iniciando na fase 1. Ativá-lo exige um PR próprio para mudar a fase inicial e implementar seus blocos fixos de introdução, prova final e transição; antecipar somente a mudança do número inicial produziria uma fase procedural sem a sequência autoral especificada.
 
+## Integração do fluxo dos cartões
+
+O runtime resolve cada gatilho pela apresentação correspondente no manifesto. A entrada real no raio de proximidade de um organismo ainda não explicado abre seu cartão obrigatório mesmo em trecho `silent` e mesmo quando a trava espacial está ativa. Geração distante, organismos já conhecidos, estruturas e processos derivados não recebem esse bypass.
+
+Cadeias do mesmo organismo atualizam progressivamente uma única entrada do GUIA. O primeiro encontro libera apenas as páginas declaradas para o organismo; estruturas e processos posteriores liberam as demais páginas sem abrir um novo painel fora dos módulos guiados. Organismos diferentes mantêm cartões separados e apresentações com pré-requisitos, como micoparasitismo, só são registradas depois das apresentações exigidas.
+
+A fila automática geral foi removida. Se um encontro obrigatório ocorrer enquanto outro painel estiver aberto, o gerenciador conserva no máximo um cartão obrigatório pendente de segurança. Um segundo organismo inédito simultâneo emite `miguelito:tutorial-simultaneous-first-encounters`; estreias fora da fase ou módulo esperado emitem o diagnóstico definido por `tutorialPacing.diagnosticEventName`.
+
+Apresentações secundárias respeitam `guided`, `silent` e `disabled`, além do intervalo de aproximadamente 90% da largura visível ou 60 segundos. O modo silencioso registra a descoberta e suas páginas no GUIA sem pausar o jogo. Desbloqueios de poder ignoram somente a trava espacial, não o modo silencioso.
+
 ## Poderes e geometria
 
 Poder planejado para a fase não equivale a poder disponível no início. O gerador consulta `getAvailableUnlocksAt(phase, chunkIndex)`. O unlock do chunk N só pode ser exigido a partir de N+1.

@@ -1,15 +1,21 @@
 import { getTutorialCard, tutorialCardIds, tutorialCards } from './tutorial-registry.js';
+import { tutorialPacing } from './campaign-manifest.js';
+import { createTutorialFlow } from './tutorial-flow.js';
 
 export const TUTORIAL_STORAGE_KEYS = Object.freeze({
-  seen: 'miguelito:tutorial:seen:v2',
-  unlocked: 'miguelito:tutorial:unlocked:v2',
+  seen: 'miguelito:tutorial:seen:v3',
+  unlocked: 'miguelito:tutorial:unlocked:v3',
+  pages: 'miguelito:tutorial:pages:v3',
 });
 
-const LEGACY_LOCAL_STORAGE_KEYS = Object.freeze([
+const LEGACY_STORAGE_KEYS = Object.freeze([
   'miguelito:tutorial:seen:v1',
   'miguelito:tutorial:unlocked:v1',
+  'miguelito:tutorial:seen:v2',
+  'miguelito:tutorial:unlocked:v2',
   TUTORIAL_STORAGE_KEYS.seen,
   TUTORIAL_STORAGE_KEYS.unlocked,
+  TUTORIAL_STORAGE_KEYS.pages,
 ]);
 
 export function isHardReloadShortcut(event) {
@@ -36,6 +42,15 @@ function readStoredSet(key) {
   }
 }
 
+function readStoredPages(key) {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(key) || '{}');
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch (_) {
+    return {};
+  }
+}
+
 function writeStoredSet(key, set) {
   try {
     sessionStorage.setItem(key, JSON.stringify([...set]));
@@ -54,10 +69,14 @@ function removeStoredSet(key) {
 
 function removeLegacyLocalProgress() {
   try {
-    for (const key of LEGACY_LOCAL_STORAGE_KEYS) localStorage.removeItem(key);
+    for (const key of LEGACY_STORAGE_KEYS) localStorage.removeItem(key);
   } catch (_) {
     // Versões anteriores podem permanecer quando o navegador bloqueia o armazenamento.
   }
+}
+
+function removeStoredTutorialProgress() {
+  for (const key of LEGACY_STORAGE_KEYS) removeStoredSet(key);
 }
 
 function setText(element, value) {
@@ -161,25 +180,28 @@ export function createTutorialManager({ state }) {
   const mobileLibraryButton = document.querySelector('[data-mobile-action="tutorial"]');
 
   removeLegacyLocalProgress();
-  let seen = readStoredSet(TUTORIAL_STORAGE_KEYS.seen);
-  let unlocked = readStoredSet(TUTORIAL_STORAGE_KEYS.unlocked);
-  let queue = [];
+  const flow = createTutorialFlow({
+    seen: [...readStoredSet(TUTORIAL_STORAGE_KEYS.seen)],
+    unlocked: [...readStoredSet(TUTORIAL_STORAGE_KEYS.unlocked)],
+    pages: readStoredPages(TUTORIAL_STORAGE_KEYS.pages),
+  });
   let activeId = null;
   let pageIndex = 0;
   let mode = 'closed';
   let previousGameState = 'play';
   let returnToLibrary = false;
   let activeFirstSeen = false;
+  let pendingMandatory = null;
 
   function persist() {
-    writeStoredSet(TUTORIAL_STORAGE_KEYS.seen, seen);
-    writeStoredSet(TUTORIAL_STORAGE_KEYS.unlocked, unlocked);
-  }
-
-  function unlock(id) {
-    if (!getTutorialCard(id) || unlocked.has(id)) return;
-    unlocked.add(id);
-    persist();
+    const snapshot = flow.snapshot();
+    writeStoredSet(TUTORIAL_STORAGE_KEYS.seen, new Set(snapshot.seen));
+    writeStoredSet(TUTORIAL_STORAGE_KEYS.unlocked, new Set(snapshot.unlocked));
+    try {
+      sessionStorage.setItem(TUTORIAL_STORAGE_KEYS.pages, JSON.stringify(snapshot.pages));
+    } catch (_) {
+      // As páginas continuam válidas na sessão atual mesmo sem persistência.
+    }
   }
 
   function pauseGame() {
@@ -223,7 +245,7 @@ export function createTutorialManager({ state }) {
 
   function renderDots(card) {
     pageDots.replaceChildren();
-    card.pages.forEach((_, index) => {
+    for (const index of flow.pagesFor(activeId)) {
       const dot = document.createElement('button');
       dot.type = 'button';
       dot.className = `tutorial-page-dot${index === pageIndex ? ' active' : ''}`;
@@ -233,20 +255,24 @@ export function createTutorialManager({ state }) {
         renderCard();
       });
       pageDots.appendChild(dot);
-    });
+    }
   }
 
   function renderCard() {
     const card = getTutorialCard(activeId);
     if (!card) return;
+    const availablePages = flow.pagesFor(activeId);
+    if (!availablePages.length) return;
+    if (!availablePages.includes(pageIndex)) pageIndex = availablePages[0];
     const currentPage = card.pages[pageIndex] || card.pages[0];
+    const pagePosition = availablePages.indexOf(pageIndex);
 
     panel.style.setProperty('--tutorial-accent', card.accent || '#70e5d6');
     setText(category, card.category);
     setText(title, card.title);
     setText(subtitle, card.subtitle);
     setText(glyph, card.glyph);
-    setText(pageCounter, `${pageIndex + 1} / ${card.pages.length}`);
+    setText(pageCounter, `${pagePosition + 1} / ${availablePages.length}`);
     setText(pageTitle, currentPage.title);
     setText(pageBody, currentPage.body);
     newBadge.hidden = !activeFirstSeen;
@@ -261,20 +287,23 @@ export function createTutorialManager({ state }) {
 
     renderCycle(card);
     renderDots(card);
-    previousButton.disabled = pageIndex === 0;
-    nextButton.textContent = pageIndex >= card.pages.length - 1
+    previousButton.disabled = pagePosition === 0;
+    nextButton.textContent = pagePosition >= availablePages.length - 1
       ? returnToLibrary ? 'Voltar à biblioteca' : 'Continuar'
       : 'Próximo →';
   }
 
-  function openCard(id, { fromLibrary = false, firstSeen = !seen.has(id) } = {}) {
+  function openCard(id, { fromLibrary = false, firstSeen = !flow.hasSeen(id) } = {}) {
     const card = getTutorialCard(id);
     if (!card) return false;
-    unlock(id);
+    if (!flow.isUnlocked(id)) flow.revealAll(id);
+    const availablePages = flow.pagesFor(id);
+    if (!availablePages.length) return false;
+    persist();
     pauseGame();
     mode = 'card';
     activeId = id;
-    pageIndex = 0;
+    pageIndex = availablePages[0];
     returnToLibrary = fromLibrary;
     activeFirstSeen = firstSeen;
     cardView.hidden = false;
@@ -285,34 +314,43 @@ export function createTutorialManager({ state }) {
     return true;
   }
 
-  function openNextQueuedCard() {
-    const id = queue.shift();
-    if (!id) {
-      resumeGame();
-      return;
-    }
-    openCard(id, { firstSeen: !seen.has(id) });
+  function dispatchPendingCollision(incoming) {
+    const detail = {
+      activeCardId: activeId,
+      pendingCardId: pendingMandatory?.cardId || null,
+      incomingCardId: incoming.cardId,
+      presentationId: incoming.presentationId,
+    };
+    window.dispatchEvent(new CustomEvent(tutorialPacing.simultaneousFirstEncountersEventName, { detail }));
+  }
+
+  function openPendingMandatory() {
+    const pending = pendingMandatory;
+    pendingMandatory = null;
+    if (!pending || flow.hasSeen(pending.cardId)) return false;
+    return openCard(pending.cardId, { firstSeen: true });
   }
 
   function finishActiveCard() {
     if (activeId) {
-      seen.add(activeId);
-      unlocked.add(activeId);
+      flow.markSeen(activeId);
       persist();
     }
     if (returnToLibrary) {
       openLibrary();
       return;
     }
-    if (queue.length) openNextQueuedCard();
-    else resumeGame();
+    if (openPendingMandatory()) return;
+    resumeGame();
   }
 
   function nextPage() {
     const card = getTutorialCard(activeId);
     if (!card) return;
-    if (pageIndex < card.pages.length - 1) {
-      pageIndex += 1;
+    const availablePages = flow.pagesFor(activeId);
+    const pagePosition = availablePages.indexOf(pageIndex);
+    if (pagePosition >= 0 && pagePosition < availablePages.length - 1) {
+      pageIndex = availablePages[pagePosition + 1];
       renderCard();
       return;
     }
@@ -320,8 +358,10 @@ export function createTutorialManager({ state }) {
   }
 
   function previousPage() {
-    if (pageIndex <= 0) return;
-    pageIndex -= 1;
+    const availablePages = flow.pagesFor(activeId);
+    const pagePosition = availablePages.indexOf(pageIndex);
+    if (pagePosition <= 0) return;
+    pageIndex = availablePages[pagePosition - 1];
     renderCard();
   }
 
@@ -346,16 +386,16 @@ export function createTutorialManager({ state }) {
 
     const unread = document.createElement('span');
     unread.className = 'tutorial-library-card-state';
-    unread.textContent = seen.has(id) ? '✓' : 'NOVO';
+    unread.textContent = flow.hasSeen(id) ? '✓' : 'NOVO';
 
     button.append(icon, copy, unread);
-    button.addEventListener('click', () => openCard(id, { fromLibrary: true, firstSeen: !seen.has(id) }));
+    button.addEventListener('click', () => openCard(id, { fromLibrary: true, firstSeen: !flow.hasSeen(id) }));
     return button;
   }
 
   function renderLibrary() {
     libraryGrid.replaceChildren();
-    const ids = tutorialCardIds.filter(id => unlocked.has(id));
+    const ids = tutorialCardIds.filter(id => flow.isUnlocked(id));
     ids.forEach(id => libraryGrid.appendChild(createLibraryCard(id)));
     libraryEmpty.hidden = ids.length > 0;
     setText(libraryCount, `${ids.length} / ${tutorialCardIds.length} descobertos`);
@@ -375,31 +415,50 @@ export function createTutorialManager({ state }) {
   }
 
   function closeLibrary() {
-    if (queue.length) openNextQueuedCard();
-    else resumeGame();
+    if (openPendingMandatory()) return;
+    resumeGame();
   }
 
-  function trigger(id, { force = false } = {}) {
-    if (!getTutorialCard(id)) return false;
-    unlock(id);
-    if (!force && seen.has(id)) return false;
-    if (activeId === id || queue.includes(id)) return false;
-    queue.push(id);
-    if (mode === 'closed') openNextQueuedCard();
+  function trigger(id, context = {}) {
+    const action = flow.handle(id, {
+      ...context,
+      panelOpen: mode !== 'closed',
+      nowSeconds: Number.isFinite(context.nowSeconds) ? context.nowSeconds : performance.now() / 1000,
+    });
+    if (!action.handled) return false;
+    persist();
+    if (action.diagnostic) {
+      window.dispatchEvent(new CustomEvent(tutorialPacing.diagnosticEventName, {
+        detail: action.diagnostic,
+      }));
+    }
+    if (action.mandatoryFirstAppearance && !action.open) {
+      if (!pendingMandatory || pendingMandatory.cardId === action.cardId) {
+        pendingMandatory = action;
+      } else {
+        dispatchPendingCollision(action);
+      }
+    }
+    if (action.open && mode === 'closed') {
+      if (pendingMandatory?.cardId === action.cardId) pendingMandatory = null;
+      openCard(action.cardId, { firstSeen: !flow.hasSeen(action.cardId) });
+    }
     return true;
   }
 
   function clearStoredTutorialProgress() {
-    seen = new Set();
-    unlocked = new Set();
-    queue = [];
-    removeStoredSet(TUTORIAL_STORAGE_KEYS.seen);
-    removeStoredSet(TUTORIAL_STORAGE_KEYS.unlocked);
+    flow.clear();
+    pendingMandatory = null;
+    removeStoredTutorialProgress();
   }
 
   function resetTutorialProgress() {
     clearStoredTutorialProgress();
-    trigger('system-welcome', { force: true });
+    trigger('system-welcome', {
+      force: true,
+      tutorialMode: 'guided',
+      affectsPacing: false,
+    });
     setText(libraryStatus, 'Progresso apagado. Ao voltar, a apresentação será exibida novamente.');
     renderLibrary();
     window.dispatchEvent(new CustomEvent('miguelito:tutorial-reset'));
@@ -448,11 +507,12 @@ export function createTutorialManager({ state }) {
   return {
     get isOpen() { return mode !== 'closed'; },
     get currentCardId() { return activeId; },
-    get discoveredCount() { return unlocked.size; },
-    hasSeen: id => seen.has(id),
-    isUnlocked: id => unlocked.has(id),
+    get discoveredCount() { return flow.discoveredCount; },
+    hasSeen: id => flow.hasSeen(id),
+    isUnlocked: id => flow.isUnlocked(id),
+    getUnlockedPages: id => flow.pagesFor(id),
     trigger,
-    openCard: id => openCard(id, { fromLibrary: false, firstSeen: !seen.has(id) }),
+    openCard: id => openCard(id, { fromLibrary: false, firstSeen: !flow.hasSeen(id) }),
     openLibrary,
     resetTutorialProgress,
     resetAutomaticTutorials: resetTutorialProgress,

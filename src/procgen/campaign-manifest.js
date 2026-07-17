@@ -59,6 +59,7 @@ export const tutorialPacing = Object.freeze({
   organismFirstAppearanceBypassesSpatialGate: true,
   powerUnlockBypassesSpatialGate: true,
   diagnosticEventName: 'miguelito:tutorial-unexpected-first-appearance',
+  simultaneousFirstEncountersEventName: 'miguelito:tutorial-simultaneous-first-encounters',
 });
 
 const phases = [

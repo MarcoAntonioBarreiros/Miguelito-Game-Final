@@ -1178,6 +1178,7 @@ const tutorialPacing = Object.freeze({
   organismFirstAppearanceBypassesSpatialGate: true,
   powerUnlockBypassesSpatialGate: true,
   diagnosticEventName: 'miguelito:tutorial-unexpected-first-appearance',
+  simultaneousFirstEncountersEventName: 'miguelito:tutorial-simultaneous-first-encounters',
 });
 
 const phases = [
@@ -13382,7 +13383,9 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
 Object.assign(__exports, { createRalstoniaVascularWilt });
 },
 "src/procgen/mobile-controls.js": (__exports, __require) => {
-const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");const { createTutorialManager } = __require("src/procgen/tutorial-manager.js");const { createTutorialTriggers, TUTORIAL_RUNTIME_VERSION } = __require("src/procgen/tutorial-triggers.js");
+const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");
+const { createTutorialManager } = __require("src/procgen/tutorial-manager.js");
+const { createTutorialTriggers, TUTORIAL_RUNTIME_VERSION } = __require("src/procgen/tutorial-triggers.js");
 ensureTutorialInterface();
 
 const coarsePointer = window.matchMedia('(pointer: coarse)').matches
@@ -13592,16 +13595,22 @@ Object.assign(__exports, { ensureTutorialInterface });
 },
 "src/procgen/tutorial-manager.js": (__exports, __require) => {
 const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");
+const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");
+const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");
 const TUTORIAL_STORAGE_KEYS = Object.freeze({
-  seen: 'miguelito:tutorial:seen:v2',
-  unlocked: 'miguelito:tutorial:unlocked:v2',
+  seen: 'miguelito:tutorial:seen:v3',
+  unlocked: 'miguelito:tutorial:unlocked:v3',
+  pages: 'miguelito:tutorial:pages:v3',
 });
 
-const LEGACY_LOCAL_STORAGE_KEYS = Object.freeze([
+const LEGACY_STORAGE_KEYS = Object.freeze([
   'miguelito:tutorial:seen:v1',
   'miguelito:tutorial:unlocked:v1',
+  'miguelito:tutorial:seen:v2',
+  'miguelito:tutorial:unlocked:v2',
   TUTORIAL_STORAGE_KEYS.seen,
   TUTORIAL_STORAGE_KEYS.unlocked,
+  TUTORIAL_STORAGE_KEYS.pages,
 ]);
 
 function isHardReloadShortcut(event) {
@@ -13628,6 +13637,15 @@ function readStoredSet(key) {
   }
 }
 
+function readStoredPages(key) {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(key) || '{}');
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch (_) {
+    return {};
+  }
+}
+
 function writeStoredSet(key, set) {
   try {
     sessionStorage.setItem(key, JSON.stringify([...set]));
@@ -13646,10 +13664,14 @@ function removeStoredSet(key) {
 
 function removeLegacyLocalProgress() {
   try {
-    for (const key of LEGACY_LOCAL_STORAGE_KEYS) localStorage.removeItem(key);
+    for (const key of LEGACY_STORAGE_KEYS) localStorage.removeItem(key);
   } catch (_) {
     // Versões anteriores podem permanecer quando o navegador bloqueia o armazenamento.
   }
+}
+
+function removeStoredTutorialProgress() {
+  for (const key of LEGACY_STORAGE_KEYS) removeStoredSet(key);
 }
 
 function setText(element, value) {
@@ -13753,25 +13775,28 @@ function createTutorialManager({ state }) {
   const mobileLibraryButton = document.querySelector('[data-mobile-action="tutorial"]');
 
   removeLegacyLocalProgress();
-  let seen = readStoredSet(TUTORIAL_STORAGE_KEYS.seen);
-  let unlocked = readStoredSet(TUTORIAL_STORAGE_KEYS.unlocked);
-  let queue = [];
+  const flow = createTutorialFlow({
+    seen: [...readStoredSet(TUTORIAL_STORAGE_KEYS.seen)],
+    unlocked: [...readStoredSet(TUTORIAL_STORAGE_KEYS.unlocked)],
+    pages: readStoredPages(TUTORIAL_STORAGE_KEYS.pages),
+  });
   let activeId = null;
   let pageIndex = 0;
   let mode = 'closed';
   let previousGameState = 'play';
   let returnToLibrary = false;
   let activeFirstSeen = false;
+  let pendingMandatory = null;
 
   function persist() {
-    writeStoredSet(TUTORIAL_STORAGE_KEYS.seen, seen);
-    writeStoredSet(TUTORIAL_STORAGE_KEYS.unlocked, unlocked);
-  }
-
-  function unlock(id) {
-    if (!getTutorialCard(id) || unlocked.has(id)) return;
-    unlocked.add(id);
-    persist();
+    const snapshot = flow.snapshot();
+    writeStoredSet(TUTORIAL_STORAGE_KEYS.seen, new Set(snapshot.seen));
+    writeStoredSet(TUTORIAL_STORAGE_KEYS.unlocked, new Set(snapshot.unlocked));
+    try {
+      sessionStorage.setItem(TUTORIAL_STORAGE_KEYS.pages, JSON.stringify(snapshot.pages));
+    } catch (_) {
+      // As páginas continuam válidas na sessão atual mesmo sem persistência.
+    }
   }
 
   function pauseGame() {
@@ -13815,7 +13840,7 @@ function createTutorialManager({ state }) {
 
   function renderDots(card) {
     pageDots.replaceChildren();
-    card.pages.forEach((_, index) => {
+    for (const index of flow.pagesFor(activeId)) {
       const dot = document.createElement('button');
       dot.type = 'button';
       dot.className = `tutorial-page-dot${index === pageIndex ? ' active' : ''}`;
@@ -13825,20 +13850,24 @@ function createTutorialManager({ state }) {
         renderCard();
       });
       pageDots.appendChild(dot);
-    });
+    }
   }
 
   function renderCard() {
     const card = getTutorialCard(activeId);
     if (!card) return;
+    const availablePages = flow.pagesFor(activeId);
+    if (!availablePages.length) return;
+    if (!availablePages.includes(pageIndex)) pageIndex = availablePages[0];
     const currentPage = card.pages[pageIndex] || card.pages[0];
+    const pagePosition = availablePages.indexOf(pageIndex);
 
     panel.style.setProperty('--tutorial-accent', card.accent || '#70e5d6');
     setText(category, card.category);
     setText(title, card.title);
     setText(subtitle, card.subtitle);
     setText(glyph, card.glyph);
-    setText(pageCounter, `${pageIndex + 1} / ${card.pages.length}`);
+    setText(pageCounter, `${pagePosition + 1} / ${availablePages.length}`);
     setText(pageTitle, currentPage.title);
     setText(pageBody, currentPage.body);
     newBadge.hidden = !activeFirstSeen;
@@ -13853,20 +13882,23 @@ function createTutorialManager({ state }) {
 
     renderCycle(card);
     renderDots(card);
-    previousButton.disabled = pageIndex === 0;
-    nextButton.textContent = pageIndex >= card.pages.length - 1
+    previousButton.disabled = pagePosition === 0;
+    nextButton.textContent = pagePosition >= availablePages.length - 1
       ? returnToLibrary ? 'Voltar à biblioteca' : 'Continuar'
       : 'Próximo →';
   }
 
-  function openCard(id, { fromLibrary = false, firstSeen = !seen.has(id) } = {}) {
+  function openCard(id, { fromLibrary = false, firstSeen = !flow.hasSeen(id) } = {}) {
     const card = getTutorialCard(id);
     if (!card) return false;
-    unlock(id);
+    if (!flow.isUnlocked(id)) flow.revealAll(id);
+    const availablePages = flow.pagesFor(id);
+    if (!availablePages.length) return false;
+    persist();
     pauseGame();
     mode = 'card';
     activeId = id;
-    pageIndex = 0;
+    pageIndex = availablePages[0];
     returnToLibrary = fromLibrary;
     activeFirstSeen = firstSeen;
     cardView.hidden = false;
@@ -13877,34 +13909,43 @@ function createTutorialManager({ state }) {
     return true;
   }
 
-  function openNextQueuedCard() {
-    const id = queue.shift();
-    if (!id) {
-      resumeGame();
-      return;
-    }
-    openCard(id, { firstSeen: !seen.has(id) });
+  function dispatchPendingCollision(incoming) {
+    const detail = {
+      activeCardId: activeId,
+      pendingCardId: pendingMandatory?.cardId || null,
+      incomingCardId: incoming.cardId,
+      presentationId: incoming.presentationId,
+    };
+    window.dispatchEvent(new CustomEvent(tutorialPacing.simultaneousFirstEncountersEventName, { detail }));
+  }
+
+  function openPendingMandatory() {
+    const pending = pendingMandatory;
+    pendingMandatory = null;
+    if (!pending || flow.hasSeen(pending.cardId)) return false;
+    return openCard(pending.cardId, { firstSeen: true });
   }
 
   function finishActiveCard() {
     if (activeId) {
-      seen.add(activeId);
-      unlocked.add(activeId);
+      flow.markSeen(activeId);
       persist();
     }
     if (returnToLibrary) {
       openLibrary();
       return;
     }
-    if (queue.length) openNextQueuedCard();
-    else resumeGame();
+    if (openPendingMandatory()) return;
+    resumeGame();
   }
 
   function nextPage() {
     const card = getTutorialCard(activeId);
     if (!card) return;
-    if (pageIndex < card.pages.length - 1) {
-      pageIndex += 1;
+    const availablePages = flow.pagesFor(activeId);
+    const pagePosition = availablePages.indexOf(pageIndex);
+    if (pagePosition >= 0 && pagePosition < availablePages.length - 1) {
+      pageIndex = availablePages[pagePosition + 1];
       renderCard();
       return;
     }
@@ -13912,8 +13953,10 @@ function createTutorialManager({ state }) {
   }
 
   function previousPage() {
-    if (pageIndex <= 0) return;
-    pageIndex -= 1;
+    const availablePages = flow.pagesFor(activeId);
+    const pagePosition = availablePages.indexOf(pageIndex);
+    if (pagePosition <= 0) return;
+    pageIndex = availablePages[pagePosition - 1];
     renderCard();
   }
 
@@ -13938,16 +13981,16 @@ function createTutorialManager({ state }) {
 
     const unread = document.createElement('span');
     unread.className = 'tutorial-library-card-state';
-    unread.textContent = seen.has(id) ? '✓' : 'NOVO';
+    unread.textContent = flow.hasSeen(id) ? '✓' : 'NOVO';
 
     button.append(icon, copy, unread);
-    button.addEventListener('click', () => openCard(id, { fromLibrary: true, firstSeen: !seen.has(id) }));
+    button.addEventListener('click', () => openCard(id, { fromLibrary: true, firstSeen: !flow.hasSeen(id) }));
     return button;
   }
 
   function renderLibrary() {
     libraryGrid.replaceChildren();
-    const ids = tutorialCardIds.filter(id => unlocked.has(id));
+    const ids = tutorialCardIds.filter(id => flow.isUnlocked(id));
     ids.forEach(id => libraryGrid.appendChild(createLibraryCard(id)));
     libraryEmpty.hidden = ids.length > 0;
     setText(libraryCount, `${ids.length} / ${tutorialCardIds.length} descobertos`);
@@ -13967,31 +14010,50 @@ function createTutorialManager({ state }) {
   }
 
   function closeLibrary() {
-    if (queue.length) openNextQueuedCard();
-    else resumeGame();
+    if (openPendingMandatory()) return;
+    resumeGame();
   }
 
-  function trigger(id, { force = false } = {}) {
-    if (!getTutorialCard(id)) return false;
-    unlock(id);
-    if (!force && seen.has(id)) return false;
-    if (activeId === id || queue.includes(id)) return false;
-    queue.push(id);
-    if (mode === 'closed') openNextQueuedCard();
+  function trigger(id, context = {}) {
+    const action = flow.handle(id, {
+      ...context,
+      panelOpen: mode !== 'closed',
+      nowSeconds: Number.isFinite(context.nowSeconds) ? context.nowSeconds : performance.now() / 1000,
+    });
+    if (!action.handled) return false;
+    persist();
+    if (action.diagnostic) {
+      window.dispatchEvent(new CustomEvent(tutorialPacing.diagnosticEventName, {
+        detail: action.diagnostic,
+      }));
+    }
+    if (action.mandatoryFirstAppearance && !action.open) {
+      if (!pendingMandatory || pendingMandatory.cardId === action.cardId) {
+        pendingMandatory = action;
+      } else {
+        dispatchPendingCollision(action);
+      }
+    }
+    if (action.open && mode === 'closed') {
+      if (pendingMandatory?.cardId === action.cardId) pendingMandatory = null;
+      openCard(action.cardId, { firstSeen: !flow.hasSeen(action.cardId) });
+    }
     return true;
   }
 
   function clearStoredTutorialProgress() {
-    seen = new Set();
-    unlocked = new Set();
-    queue = [];
-    removeStoredSet(TUTORIAL_STORAGE_KEYS.seen);
-    removeStoredSet(TUTORIAL_STORAGE_KEYS.unlocked);
+    flow.clear();
+    pendingMandatory = null;
+    removeStoredTutorialProgress();
   }
 
   function resetTutorialProgress() {
     clearStoredTutorialProgress();
-    trigger('system-welcome', { force: true });
+    trigger('system-welcome', {
+      force: true,
+      tutorialMode: 'guided',
+      affectsPacing: false,
+    });
     setText(libraryStatus, 'Progresso apagado. Ao voltar, a apresentação será exibida novamente.');
     renderLibrary();
     window.dispatchEvent(new CustomEvent('miguelito:tutorial-reset'));
@@ -14040,11 +14102,12 @@ function createTutorialManager({ state }) {
   return {
     get isOpen() { return mode !== 'closed'; },
     get currentCardId() { return activeId; },
-    get discoveredCount() { return unlocked.size; },
-    hasSeen: id => seen.has(id),
-    isUnlocked: id => unlocked.has(id),
+    get discoveredCount() { return flow.discoveredCount; },
+    hasSeen: id => flow.hasSeen(id),
+    isUnlocked: id => flow.isUnlocked(id),
+    getUnlockedPages: id => flow.pagesFor(id),
     trigger,
-    openCard: id => openCard(id, { fromLibrary: false, firstSeen: !seen.has(id) }),
+    openCard: id => openCard(id, { fromLibrary: false, firstSeen: !flow.hasSeen(id) }),
     openLibrary,
     resetTutorialProgress,
     resetAutomaticTutorials: resetTutorialProgress,
@@ -14792,10 +14855,256 @@ const structureTutorialCards = {
 };
 Object.assign(__exports, { structureTutorialCards });
 },
+"src/procgen/tutorial-flow.js": (__exports, __require) => {
+const { campaignManifest, getPresentationById, getSegmentAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
+const { getTutorialCard } = __require("src/procgen/tutorial-registry.js");
+function findPresentation(triggerId) {
+  for (const phase of campaignManifest) {
+    const presentation = phase.presentations.find(entry => entry.triggerIds.includes(triggerId));
+    if (presentation) return { phase: phase.phase, presentation };
+  }
+  return { phase: null, presentation: null };
+}
+
+function allPageIndexes(card) {
+  return card.pages.map((_, index) => index);
+}
+
+function pageIndexesForTrigger(card, presentation, triggerId) {
+  if (!presentation?.pageUnlocks) return allPageIndexes(card);
+  return presentation.pageUnlocks.find(entry => entry.triggerId === triggerId)?.pages || [];
+}
+
+function normalizePages(source = {}) {
+  const pages = new Map();
+  for (const [cardId, indexes] of Object.entries(source || {})) {
+    const card = getTutorialCard(cardId);
+    if (!card || !Array.isArray(indexes)) continue;
+    const valid = indexes.filter(index => Number.isInteger(index) && index >= 0 && index < card.pages.length);
+    if (valid.length) pages.set(cardId, new Set(valid));
+  }
+  return pages;
+}
+
+function minimumSpatialDistance(visibleWorldWidth) {
+  const width = Number.isFinite(visibleWorldWidth) ? visibleWorldWidth : 0;
+  return Math.max(
+    tutorialPacing.minimumWorldDistance,
+    width * tutorialPacing.distanceViewportFactor,
+  );
+}
+
+function createTutorialFlow({ seen = [], unlocked = [], pages = {} } = {}) {
+  const seenCards = new Set(seen.filter(id => getTutorialCard(id)));
+  const unlockedCards = new Set(unlocked.filter(id => getTutorialCard(id)));
+  const unlockedPages = normalizePages(pages);
+  let lastAutomaticPresentation = null;
+
+  for (const cardId of unlockedPages.keys()) unlockedCards.add(cardId);
+
+  function pagesFor(cardId) {
+    const card = getTutorialCard(cardId);
+    if (!card) return [];
+    const indexes = unlockedPages.get(cardId);
+    if (indexes?.size) return [...indexes].sort((a, b) => a - b);
+    return unlockedCards.has(cardId) ? allPageIndexes(card) : [];
+  }
+
+  function reveal(cardId, indexes) {
+    const card = getTutorialCard(cardId);
+    if (!card) return [];
+    const target = unlockedPages.get(cardId) || new Set();
+    const added = [];
+    for (const index of indexes) {
+      if (!Number.isInteger(index) || index < 0 || index >= card.pages.length || target.has(index)) continue;
+      target.add(index);
+      added.push(index);
+    }
+    if (target.size) unlockedPages.set(cardId, target);
+    unlockedCards.add(cardId);
+    return added;
+  }
+
+  function revealAll(cardId) {
+    const card = getTutorialCard(cardId);
+    return card ? reveal(cardId, allPageIndexes(card)) : [];
+  }
+
+  function prerequisitesMet(presentation) {
+    return (presentation?.prerequisitePresentationIds || []).every(id => {
+      const prerequisite = getPresentationById(id);
+      return prerequisite && seenCards.has(prerequisite.cardId);
+    });
+  }
+
+  function diagnoseUnexpectedFirstAppearance(expectedPhase, presentation, context) {
+    if (!presentation || !Number.isInteger(context.phase) || !Number.isInteger(context.chunkIndex)) return null;
+    const segment = getSegmentAt(context.phase, context.chunkIndex);
+    if (context.phase === expectedPhase && segment?.id === presentation.moduleId) return null;
+    return {
+      phase: context.phase,
+      chunkIndex: context.chunkIndex,
+      expectedPhase,
+      expectedModuleId: presentation.moduleId,
+      actualModuleId: segment?.id || null,
+      presentationId: presentation.id,
+      cardId: presentation.cardId,
+      organismType: context.organismType || null,
+      worldX: Number.isFinite(context.worldX) ? context.worldX : null,
+      source: context.organismSource || null,
+    };
+  }
+
+  function spatialGate(context) {
+    if (!lastAutomaticPresentation) return { allowed: true, distance: Infinity, elapsed: Infinity };
+    const worldX = Number.isFinite(context.worldX) ? context.worldX : lastAutomaticPresentation.worldX;
+    const nowSeconds = Number.isFinite(context.nowSeconds) ? context.nowSeconds : lastAutomaticPresentation.at;
+    const distance = Math.abs(worldX - lastAutomaticPresentation.worldX);
+    const elapsed = Math.max(0, nowSeconds - lastAutomaticPresentation.at);
+    return {
+      allowed: distance >= minimumSpatialDistance(context.visibleWorldWidth)
+        || elapsed >= tutorialPacing.fallbackSeconds,
+      distance,
+      elapsed,
+    };
+  }
+
+  function handle(triggerId, context = {}) {
+    const { phase: expectedPhase, presentation } = findPresentation(triggerId);
+    const cardId = presentation?.cardId || triggerId;
+    const card = getTutorialCard(cardId);
+    if (!card) return { handled: false, open: false, reason: 'unknown-card', cardId };
+
+    const force = context.force === true;
+    const tutorialMode = context.tutorialMode || 'guided';
+    const isPrimaryTrigger = !presentation || triggerId === presentation.autoOpenTrigger;
+    const mandatoryFirstAppearance = Boolean(
+      presentation?.policy === 'mandatory-first-appearance'
+      && isPrimaryTrigger
+      && context.source === tutorialPacing.firstAppearanceEvent
+      && !seenCards.has(cardId)
+    );
+
+    if (tutorialMode === 'disabled' && !force) {
+      return { handled: false, open: false, reason: 'disabled', cardId };
+    }
+    if (!force && !prerequisitesMet(presentation)) {
+      return { handled: false, open: false, reason: 'prerequisite', cardId };
+    }
+
+    const pagesAdded = reveal(cardId, pageIndexesForTrigger(card, presentation, triggerId));
+    const alreadySeen = seenCards.has(cardId);
+    let open = false;
+    let reason = pagesAdded.length ? 'guide-updated' : 'already-recorded';
+
+    if (context.panelOpen) {
+      reason = 'panel-open';
+    } else if (force) {
+      open = true;
+      reason = 'forced';
+    } else if (!isPrimaryTrigger) {
+      if (presentation?.derivedTriggerBehavior === 'open-in-guided'
+        && tutorialMode === 'guided'
+        && !alreadySeen) {
+        open = true;
+        reason = 'derived-guided';
+      } else {
+        reason = 'guide-only';
+      }
+    } else if (presentation?.policy === 'mandatory-first-appearance') {
+      if (mandatoryFirstAppearance) {
+        open = true;
+        reason = 'mandatory-first-appearance';
+      } else {
+        reason = alreadySeen ? 'already-seen' : 'proximity-required';
+      }
+    } else if (alreadySeen) {
+      reason = 'already-seen';
+    } else if (tutorialMode === 'silent' || presentation?.policy === 'silent-only') {
+      reason = 'silent';
+    } else {
+      const bypassSpatialGate = presentation?.policy === 'event-immediate';
+      const gate = bypassSpatialGate ? { allowed: true } : spatialGate(context);
+      if (gate.allowed) {
+        open = true;
+        reason = bypassSpatialGate ? 'event-immediate' : 'guided';
+      } else {
+        reason = 'spatial-suppression';
+      }
+    }
+
+    if (open && context.affectsPacing !== false) {
+      lastAutomaticPresentation = {
+        cardId,
+        worldX: Number.isFinite(context.worldX) ? context.worldX : 0,
+        at: Number.isFinite(context.nowSeconds) ? context.nowSeconds : 0,
+      };
+    }
+
+    const diagnostic = mandatoryFirstAppearance
+      ? diagnoseUnexpectedFirstAppearance(expectedPhase, presentation, context)
+      : null;
+
+    return {
+      handled: pagesAdded.length > 0 || open || mandatoryFirstAppearance,
+      open,
+      reason,
+      triggerId,
+      cardId,
+      presentationId: presentation?.id || null,
+      pagesAdded,
+      unlockedPages: pagesFor(cardId),
+      mandatoryFirstAppearance,
+      diagnostic,
+    };
+  }
+
+  function markSeen(cardId) {
+    if (!getTutorialCard(cardId)) return false;
+    unlockedCards.add(cardId);
+    seenCards.add(cardId);
+    return true;
+  }
+
+  function clear() {
+    seenCards.clear();
+    unlockedCards.clear();
+    unlockedPages.clear();
+    lastAutomaticPresentation = null;
+  }
+
+  function snapshot() {
+    return {
+      seen: [...seenCards],
+      unlocked: [...unlockedCards],
+      pages: Object.fromEntries(
+        [...unlockedPages.entries()].map(([cardId, indexes]) => [cardId, [...indexes].sort((a, b) => a - b)]),
+      ),
+    };
+  }
+
+  return {
+    handle,
+    markSeen,
+    revealAll,
+    pagesFor,
+    snapshot,
+    clear,
+    hasSeen: cardId => seenCards.has(cardId),
+    isUnlocked: cardId => unlockedCards.has(cardId),
+    get discoveredCount() { return unlockedCards.size; },
+  };
+}
+Object.assign(__exports, { createTutorialFlow });
+},
 "src/procgen/tutorial-triggers.js": (__exports, __require) => {
+const { W } = __require("src/core/constants.js");
+const { getTutorialModeAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-const TUTORIAL_RUNTIME_VERSION = '2026.07.16.7';
+const TUTORIAL_RUNTIME_VERSION = '2026.07.17.1';
+const TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT =
+  tutorialPacing.simultaneousFirstEncountersEventName;
 
 const TUTORIAL_PROXIMITY = Object.freeze({
   microbeAgent: 220,
@@ -14825,6 +15134,8 @@ function createTutorialTriggers({
 }) {
   let lastCheckAt = -Infinity;
   let resumeDelayUntil = 0;
+  let lastUnexpectedFirstAppearance = null;
+  let lastSimultaneousFirstEncounters = null;
 
   function conditionSnapshot() {
     return {
@@ -14841,6 +15152,12 @@ function createTutorialTriggers({
 
   window.addEventListener('miguelito:tutorial-close', () => {
     resumeDelayUntil = performance.now() + 520;
+  });
+  window.addEventListener(tutorialPacing.diagnosticEventName, event => {
+    lastUnexpectedFirstAppearance = event.detail || null;
+  });
+  window.addEventListener(TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT, event => {
+    lastSimultaneousFirstEncounters = event.detail || null;
   });
 
   function playerPoint() {
@@ -14872,8 +15189,34 @@ function createTutorialTriggers({
     return Math.hypot(x - player.x, y - player.y);
   }
 
-  function trigger(id, condition) {
-    return Boolean(condition && manager.trigger(id));
+  function currentChunkIndex() {
+    let chunkIndex = -1;
+    for (const platform of state.level.platforms || []) {
+      if (!platform.recovery && !platform.final && state.player.x >= platform.x) {
+        chunkIndex = Math.max(chunkIndex, platform.logicIndex ?? -1);
+      }
+    }
+    return Math.max(0, chunkIndex);
+  }
+
+  function tutorialContext(extra = {}) {
+    const phase = Number.isInteger(state.campaign?.phase)
+      ? state.campaign.phase
+      : Number.isInteger(state.level.campaignPhase) ? state.level.campaignPhase : 1;
+    const chunkIndex = currentChunkIndex();
+    return {
+      phase,
+      chunkIndex,
+      tutorialMode: getTutorialModeAt(phase, chunkIndex),
+      worldX: playerPoint().x,
+      visibleWorldWidth: W / Math.max(0.1, state.cameraZoom || 1),
+      nowSeconds: performance.now() / 1000,
+      ...extra,
+    };
+  }
+
+  function trigger(id, condition, extra = {}) {
+    return Boolean(condition && manager.trigger(id, tutorialContext(extra)));
   }
 
   function organismCandidates() {
@@ -14941,8 +15284,32 @@ function createTutorialTriggers({
   }
 
   function triggerNearestOrganism() {
-    for (const candidate of organismCandidates()) {
-      if (!manager.trigger(candidate.cardId)) continue;
+    const candidates = organismCandidates();
+    if (candidates.length > 1) {
+      const context = tutorialContext();
+      const detail = {
+        phase: context.phase,
+        chunkIndex: context.chunkIndex,
+        candidates: candidates.map(candidate => ({
+          cardId: candidate.cardId,
+          type: candidate.type || null,
+          source: candidate.source,
+          distance: Math.round(candidate.distance),
+        })),
+      };
+      lastSimultaneousFirstEncounters = detail;
+      const event = typeof CustomEvent === 'function'
+        ? new CustomEvent(TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT, { detail })
+        : Object.assign(new Event(TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT), { detail });
+      window.dispatchEvent(event);
+    }
+
+    for (const candidate of candidates) {
+      if (!manager.trigger(candidate.cardId, tutorialContext({
+        source: tutorialPacing.firstAppearanceEvent,
+        organismType: candidate.type || null,
+        organismSource: candidate.source,
+      }))) continue;
       if (candidate.type) state.discoveredMicrobes.add(candidate.type);
       return true;
     }
@@ -14960,7 +15327,7 @@ function createTutorialTriggers({
     ];
     previousConditions = current;
     for (const [id, active] of transitions) {
-      if (active && manager.trigger(id)) return true;
+      if (active && manager.trigger(id, tutorialContext())) return true;
     }
     return false;
   }
@@ -15067,7 +15434,13 @@ function createTutorialTriggers({
   }
 
   function showWelcome() {
-    manager.trigger('system-welcome');
+    manager.trigger('system-welcome', {
+      tutorialMode: 'guided',
+      worldX: playerPoint().x,
+      visibleWorldWidth: W / Math.max(0.1, state.cameraZoom || 1),
+      nowSeconds: performance.now() / 1000,
+      affectsPacing: false,
+    });
   }
 
   function rearm() {
@@ -15079,6 +15452,8 @@ function createTutorialTriggers({
 
   function diagnostics() {
     const player = playerPoint();
+    const chunkIndex = currentChunkIndex();
+    const phase = Number.isInteger(state.campaign?.phase) ? state.campaign.phase : 1;
     const nearbyAgents = (sim.ecology.agents || [])
       .map(agent => ({
         type: agent.type,
@@ -15091,16 +15466,21 @@ function createTutorialTriggers({
       version: TUTORIAL_RUNTIME_VERSION,
       gameState: state.gameState,
       tutorialOpen: manager.isOpen,
+      phase,
+      chunkIndex,
+      tutorialMode: getTutorialModeAt(phase, chunkIndex),
       conditions: conditionSnapshot(),
       discovered: [...state.discoveredMicrobes],
       nearbyAgents,
       closestCandidate: organismCandidates()[0] || null,
+      lastUnexpectedFirstAppearance,
+      lastSimultaneousFirstEncounters,
     };
   }
 
   return { update, showWelcome, rearm, diagnostics };
 }
-Object.assign(__exports, { TUTORIAL_RUNTIME_VERSION, TUTORIAL_PROXIMITY, createTutorialTriggers });
+Object.assign(__exports, { TUTORIAL_RUNTIME_VERSION, TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT, TUTORIAL_PROXIMITY, createTutorialTriggers });
 }
 };
 const __cache = Object.create(null);
