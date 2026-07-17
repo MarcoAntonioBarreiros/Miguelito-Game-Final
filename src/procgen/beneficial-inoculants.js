@@ -472,6 +472,11 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#effff5';
     ctx.fillText(`${profile.short} — ${colony.stage}`, 0, barY - 5);
+    if (colony.type === 'azospirillum' && colony.associativeNitrogenActive) {
+      ctx.font = '650 8px Inter,system-ui';
+      ctx.fillStyle = 'rgba(255,215,131,.9)';
+      ctx.fillText('Fixação associativa de N', 0, barY - 16);
+    }
     ctx.restore();
   }
 

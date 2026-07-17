@@ -43,6 +43,18 @@ test('configuracao altera perfil, segmentos, organismos, recursos e prova final 
     requiredFixationRate: .08,
     growthDurationSeconds: 6,
   };
+  config.azospirillumRootLadder = {
+    enabled: true,
+    count: 2,
+    stepCount: 5,
+    verticalSpacing: 78,
+    growthDurationSeconds: 4.5,
+  };
+  config.azospirillumNitrogen = {
+    associativeRate: .012,
+    rhizobiumSynergyMultiplier: 1.25,
+  };
+  config.mycorrhizaBridge = { horizontalOnly: true };
   config.finalGoal = 'Neutralizar um foco e alcancar a raiz.';
   config.finalConditions = [
     { type: 'worldState', key: 'neutralizedOpportunisticFungusCount', operator: '>=', value: 1 },
@@ -60,6 +72,9 @@ test('configuracao altera perfil, segmentos, organismos, recursos e prova final 
   assert.deepEqual(getPathogensAt(5, 0), ['rhizoctonia']);
   assert.deepEqual(active.phaseLab.resources, config.resources);
   assert.deepEqual(active.nitrogenRoot, config.nitrogenRoot);
+  assert.deepEqual(active.azospirillumRootLadder, config.azospirillumRootLadder);
+  assert.deepEqual(active.azospirillumNitrogen, config.azospirillumNitrogen);
+  assert.deepEqual(active.mycorrhizaBridge, config.mycorrhizaBridge);
   assert.equal(active.finalTest.goal, config.finalGoal);
 });
 
@@ -94,4 +109,7 @@ test('exporta uma entrada completa compativel com o formato do manifesto', () =>
   assert.ok(Array.isArray(exported.finalTest.requires));
   assert.deepEqual(exported.phaseLab.allowedOrganisms, ['azospirillum']);
   assert.deepEqual(exported.nitrogenRoot, config.nitrogenRoot);
+  assert.deepEqual(exported.azospirillumRootLadder, config.azospirillumRootLadder);
+  assert.deepEqual(exported.azospirillumNitrogen, config.azospirillumNitrogen);
+  assert.deepEqual(exported.mycorrhizaBridge, config.mycorrhizaBridge);
 });

@@ -32,6 +32,20 @@ export const NITROGEN_ROOT_DEFAULTS = Object.freeze({
   requiredFixationRate: 0.05,
   growthDurationSeconds: 4,
 });
+export const AZOSPIRILLUM_ROOT_LADDER_DEFAULTS = Object.freeze({
+  enabled: true,
+  count: 1,
+  stepCount: 4,
+  verticalSpacing: 85,
+  growthDurationSeconds: 3,
+});
+export const AZOSPIRILLUM_NITROGEN_DEFAULTS = Object.freeze({
+  associativeRate: 0.01,
+  rhizobiumSynergyMultiplier: 1.2,
+});
+export const MYCORRHIZA_BRIDGE_DEFAULTS = Object.freeze({
+  horizontalOnly: true,
+});
 
 export const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
   'action-exudate': Object.freeze(['action-exudate', 'action-inoculation']),
@@ -186,6 +200,8 @@ const phases = [
   {
     id: 'phase-3', phase: 3, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS },
+    azospirillumNitrogen: { ...AZOSPIRILLUM_NITROGEN_DEFAULTS },
     title: 'Azospirillum e arquitetura radicular', theme: 'arquitetura',
     mission: 'Induza raízes laterais e use o salto duplo para alcançar novas rotas.',
     newConcepts: ['Azospirillum→raiz lateral'], newCommand: 'doubleJump',
@@ -228,6 +244,7 @@ const phases = [
   {
     id: 'phase-4', phase: 4, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    mycorrhizaBridge: { ...MYCORRHIZA_BRIDGE_DEFAULTS },
     title: 'Micorriza e expansão do solo explorado', theme: 'expansão',
     mission: 'Estabeleça a micorriza, atravesse uma ponte hifal e domine o Dash.',
     newConcepts: ['micorriza→arbúsculo→absorção→ponte'], newCommand: 'dash',
@@ -749,6 +766,38 @@ export function validateCampaignManifest({
       if (!Number.isFinite(nitrogenRoot.growthDurationSeconds) || nitrogenRoot.growthDurationSeconds <= 0) {
         errors.push(`${phase.id}: nitrogenRoot.growthDurationSeconds invalido.`);
       }
+    }
+
+    if (phase.azospirillumRootLadder) {
+      const ladder = phase.azospirillumRootLadder;
+      if (typeof ladder.enabled !== 'boolean') errors.push(`${phase.id}: azospirillumRootLadder.enabled invalido.`);
+      if (ladder.enabled && phase.phase < 3) errors.push(`${phase.id}: azospirillumRootLadder nao pode existir antes da fase 3.`);
+      if (!Number.isInteger(ladder.count) || ladder.count < 0 || ladder.count > 8) {
+        errors.push(`${phase.id}: azospirillumRootLadder.count invalido.`);
+      }
+      if (!Number.isInteger(ladder.stepCount) || ladder.stepCount < 2 || ladder.stepCount > 10) {
+        errors.push(`${phase.id}: azospirillumRootLadder.stepCount invalido.`);
+      }
+      if (!Number.isFinite(ladder.verticalSpacing) || ladder.verticalSpacing < 45 || ladder.verticalSpacing > 110) {
+        errors.push(`${phase.id}: azospirillumRootLadder.verticalSpacing invalido.`);
+      }
+      if (!Number.isFinite(ladder.growthDurationSeconds) || ladder.growthDurationSeconds <= 0) {
+        errors.push(`${phase.id}: azospirillumRootLadder.growthDurationSeconds invalido.`);
+      }
+    }
+
+    if (phase.azospirillumNitrogen) {
+      const nitrogen = phase.azospirillumNitrogen;
+      if (!Number.isFinite(nitrogen.associativeRate) || nitrogen.associativeRate <= 0 || nitrogen.associativeRate >= .05) {
+        errors.push(`${phase.id}: azospirillumNitrogen.associativeRate deve ser positivo e inferior a FBN nodular.`);
+      }
+      if (!Number.isFinite(nitrogen.rhizobiumSynergyMultiplier) || nitrogen.rhizobiumSynergyMultiplier < 1) {
+        errors.push(`${phase.id}: azospirillumNitrogen.rhizobiumSynergyMultiplier invalido.`);
+      }
+    }
+
+    if (phase.mycorrhizaBridge && typeof phase.mycorrhizaBridge.horizontalOnly !== 'boolean') {
+      errors.push(`${phase.id}: mycorrhizaBridge.horizontalOnly invalido.`);
     }
 
     const coverage = new Array(phase.totalChunks).fill(0);

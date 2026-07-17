@@ -182,8 +182,12 @@ export function createPlatformVisuals({ state }) {
     }
 
     if (!platform.mycorrhizaStructure) {
-      const hairCount = Math.max(0, Math.min(9, Math.floor(platform.w / 44 * health)));
-      ctx.strokeStyle = platform.healthTrend > 0 ? 'rgba(184,255,198,.78)' : `rgba(233,213,180,${.12 + health * .46})`;
+      const azospirillumHairDensity = clamp(platform.azospirillumHairDensity || 0, 0, 1);
+      const baseHairCount = Math.floor(platform.w / 44 * health);
+      const hairCount = Math.max(0, Math.min(18, baseHairCount + Math.round(azospirillumHairDensity * 10)));
+      ctx.strokeStyle = azospirillumHairDensity > .05
+        ? `rgba(190,244,211,${.34 + azospirillumHairDensity * .5})`
+        : platform.healthTrend > 0 ? 'rgba(184,255,198,.78)' : `rgba(233,213,180,${.12 + health * .46})`;
       ctx.lineWidth = 1;
       for (let i = 0; i < hairCount; i++) {
         const x = platform.x + 14 + (i + .5) / Math.max(1, hairCount) * Math.max(12, platform.w - 28);

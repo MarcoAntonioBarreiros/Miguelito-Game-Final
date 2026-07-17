@@ -25,7 +25,7 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
       color = '#d6afff';
       player.soil += 8;
       player.hope += 5;
-      hud.setMission('Libere exsudatos nas bordas para formar pontes e escadas micorrízicas');
+      hud.setMission('Libere exsudatos nas bordas para formar pontes micorrízicas horizontais');
       entities.discoverMicrobe('myco', false);
     } else if (feature === 'pulse') {
       color = '#8db8ff';
