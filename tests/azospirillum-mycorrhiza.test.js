@@ -180,6 +180,33 @@ test('inocular Azo em qualquer raiz faz nascer a escada, sem hospedeiro marcado'
   assert.equal(scene.level.azospirillumRootLadders.length, 1);
 });
 
+test('os degraus nunca ficam empilhados, seja a escada curta ou longa', () => {
+  // Um numero fixo de degraus empilhava tudo quase encostado quando o alcance
+  // era pequeno. O espacamento precisa continuar subivel nos dois extremos.
+  for (const nitrogen of [0, 2, 6, 40]) {
+    const scene = runtimeLadderScene({ nitrogen });
+    scene.inoculants.colonies.push({
+      id: `azo-${nitrogen}`, type: 'azospirillum', platform: scene.host,
+      growth: 1, vigor: 1, dormant: false, x: scene.host.x,
+    });
+    scene.runtime.update(.1);
+
+    const ladder = scene.level.azospirillumRootLadders[0];
+    const alturas = [ladder.startY, ...ladder.steps.map(step => step.y), ladder.endY];
+    for (let i = 1; i < alturas.length; i++) {
+      const vao = alturas[i - 1] - alturas[i];
+      assert.ok(
+        vao >= 28,
+        `N=${nitrogen}: degraus a ${Math.round(vao)}px ficam empilhados`,
+      );
+      assert.ok(
+        vao <= 96,
+        `N=${nitrogen}: degraus a ${Math.round(vao)}px passam do salto simples`,
+      );
+    }
+  }
+});
+
 test('o estoque de nitrogenio decide a altura, e um bloco proximo decide a inclinacao', () => {
   const pobre = runtimeLadderScene({ nitrogen: 0 });
   pobre.inoculants.colonies.push({
