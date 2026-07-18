@@ -429,28 +429,32 @@ export function createRenderer({ canvas, state, entities }) {
   function drawFungalAttachment(player, time) {
     const infection = clamp(Math.max(player.infection || 0, player.fungalContamination || 0), 0, 1);
     if (infection < .06) return;
-    const count = 2 + Math.floor(infection * 10);
+    const opportunisticContact = clamp(Math.max(
+      player.fungalAttachmentLevel || 0,
+      (player.fungalContamination || 0) * .38,
+    ), 0, 1);
+    const count = 2 + Math.floor((opportunisticContact || infection) * 7);
     ctx.save();
-    ctx.globalAlpha = .28 + infection * .65;
+    ctx.globalAlpha = .24 + infection * .58;
     ctx.strokeStyle = infection > .7 ? '#ff657f' : '#c86b85';
     ctx.fillStyle = infection > .7 ? '#8e2949' : '#71334f';
-    ctx.lineWidth = 1 + infection * 1.2;
+    ctx.lineWidth = .8 + infection * .9;
     for (let i = 0; i < count; i++) {
       const seed = i * 1.73;
-      const x = -10 + ((i * 7) % 21);
-      const y = -12 + ((i * 11) % 31);
-      const radius = 1.4 + (i % 3) * .7 + infection;
+      const x = -9 + ((i * 7) % 19);
+      const y = -4 + ((i * 9) % 23);
+      const radius = .8 + (i % 3) * .4 + infection * .45;
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
-      if (i % 2 === 0) {
+      if (i % 2 === 0 && opportunisticContact > .04) {
         ctx.beginPath();
         ctx.moveTo(x, y);
         ctx.quadraticCurveTo(
-          x + Math.sin(time * 2 + seed) * 6,
-          y - 5 - infection * 5,
-          x + Math.cos(time + seed) * (7 + infection * 6),
-          y + Math.sin(seed) * 6,
+          x + Math.sin(time * 2 + seed) * 4,
+          y - 3 - opportunisticContact * 4,
+          x + Math.cos(time + seed) * (5 + opportunisticContact * 5),
+          y + Math.sin(seed) * 4,
         );
         ctx.stroke();
       }

@@ -339,6 +339,7 @@ export function createRoamingMicrobeEcology({ state, entities }) {
 
   function applyContinuousFields(dt) {
     for (const agent of base.agents) {
+      if (agent.rootedFungus) continue;
       const tuning = PROFILE_TUNING[agent.type] || PROFILE_TUNING.rhizobium;
       const field = smoothField(agent.x, agent.y, state.time, agent.noiseSeed);
       let fx = field.x * agent.turbulence;

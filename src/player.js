@@ -25,6 +25,7 @@ const initialPlayer = {
   infection: 0,
   infectionExposure: 0,
   fungalContamination: 0,
+  fungalAttachmentLevel: 0,
   fungalDamageCooldown: 0,
   nematodeDamageCooldown: 0,
   healCooldown: 0,
