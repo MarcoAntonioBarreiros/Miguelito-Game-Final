@@ -1878,6 +1878,22 @@ const PSEUDOMONAS_IRON_CONTROL_DEFAULTS = Object.freeze({
   sporulationSuppression: .8,
   adhesionSuppression: .7,
 });
+// A dificuldade da fase do nematoide esta na populacao, nao numa femea drenando:
+// e por isso que estes numeros — quantos focos, quao espacados, quantas geracoes
+// cada linhagem encadeia — decidem a fase inteira e precisam ser ajustaveis.
+const MELOIDOGYNE_DEFAULTS = Object.freeze({
+  // Um foco a cada N chunks elegiveis, para a infestacao acompanhar o tamanho da
+  // fase em vez de se concentrar toda no comeco.
+  focusSpacingChunks: 9,
+  maxFoci: 5,
+  // Geracoes que uma linhagem pode encadear sem controle, por foco.
+  maxGenerations: 4,
+  maxSimultaneousEggMasses: 14,
+  // Da oviposicao ate a morte da femea.
+  senescenceSeconds: 26,
+  // Cicatriz adicional deixada por uma femea que completou o ciclo na raiz.
+  completedCycleScar: .06,
+});
 const PHOSPHATE_SOLUBILIZATION_DEFAULTS = Object.freeze({
   absorptionRadius: 175,
   chargeTimeSeconds: 1.8,
@@ -2886,7 +2902,7 @@ function validateCampaignManifest({
 
   return errors;
 }
-Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getActiveCampaignManifest, setPhaseManifestOverride, clearPhaseManifestOverride, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
+Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, MELOIDOGYNE_DEFAULTS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getActiveCampaignManifest, setPhaseManifestOverride, clearPhaseManifestOverride, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
 },
 "src/procgen/primitives.js": (__exports, __require) => {
 const { createSimulator } = __require("src/procgen/simulator.js");
@@ -11291,15 +11307,8 @@ function createAzospirillumNitrogen({ state, inoculants }) {
 Object.assign(__exports, { sameRootSystem, createAzospirillumNitrogen });
 },
 "src/procgen/meloidogyne-lifecycle.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { createRootHealthGameplay } = __require("src/procgen/root-health-gameplay.js");
+const { W } = __require("src/core/constants.js");const { createRootHealthGameplay } = __require("src/procgen/root-health-gameplay.js");const { MELOIDOGYNE_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
-// Tempo entre a oviposicao e a morte da femea. Nao e o desafio da fase: o
-// desafio e a geracao seguinte, e por isso a linhagem precisa poder crescer.
-const SENESCENCE_SECONDS = 26;
-// Quantas geracoes a linhagem pode encadear sem controle. Com o teto antigo de
-// duas, nao dava para ver a populacao escalar — que e onde mora a dificuldade.
-const MAX_GENERATIONS = 4;
-const MAX_SIMULTANEOUS_EGG_MASSES = 14;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const hash = (p, s = 0) => {
   const v = Math.sin(((p.x || 0) * 12.9898 + (p.y || 0) * 78.233 + (p.w || 0) * 37.719 + s * 31.17) * .001) * 43758.5453;
@@ -11334,6 +11343,11 @@ function createMeloidogyneLifecycle({ state, entities }) {
     state.level.rootGalls = galls;
   }
 
+  // Parametros ajustaveis pelo Phase Lab, como nas outras mecanicas.
+  function settings() {
+    return { ...MELOIDOGYNE_DEFAULTS, ...(state.level.phaseProfile?.meloidogyne || {}) };
+  }
+
   function addEggMass(platform, x, generation = 0, sourceGallId = null, initial = false) {
     prepareRoot(platform);
     const maxEggs = initial ? 7 + Math.floor(hash(platform, 113 + generation) * 4) : 5 + generation + Math.floor(Math.random() * 3);
@@ -11349,17 +11363,33 @@ function createMeloidogyneLifecycle({ state, entities }) {
     return mass;
   }
 
+  // Os focos se distribuem ao longo da fase em vez de se concentrarem no comeco.
+  // Antes a infestacao inteira nascia nos primeiros blocos e gastava ali todas
+  // as geracoes, deixando o final da fase vazio.
   function seedInfestation() {
     const startChunk = state.level.pathogenSchedule?.meloidogyne;
     if (!Number.isInteger(startChunk)) return;
-    const candidates = roots().filter(p => (p.logicIndex ?? -1) >= startChunk && p.w >= 120 && !p.azospirillumStructure);
+    const candidates = roots()
+      .filter(p => (p.logicIndex ?? -1) >= startChunk && p.w >= 120 && !p.azospirillumStructure)
+      .sort((a, b) => (a.logicIndex ?? 0) - (b.logicIndex ?? 0));
     if (!candidates.length) return;
-    const first = candidates.reduce((best, candidate) => (
-      (candidate.logicIndex ?? Infinity) < (best.logicIndex ?? Infinity) ? candidate : best
-    ), candidates[0]);
-    let chosen = candidates.filter((p, i) => i % 5 === 2 || hash(p, 17) > .79);
-    chosen = [first, ...chosen.filter(candidate => candidate !== first)]
-      .slice(0, Math.max(1, Math.min(3, Math.ceil(candidates.length / 7))));
+
+    const config = settings();
+    const spacing = Math.max(2, config.focusSpacingChunks);
+    const span = (candidates.at(-1).logicIndex ?? 0) - (candidates[0].logicIndex ?? 0) + 1;
+    const wanted = clamp(Math.round(span / spacing), 1, Math.max(1, config.maxFoci));
+
+    const chosen = [];
+    for (let i = 0; i < wanted; i++) {
+      // Distribui os focos por posicao na lista, do primeiro bloco elegivel ate
+      // o ultimo, para a pressao acompanhar o jogador ao longo da fase.
+      const at = Math.min(
+        candidates.length - 1,
+        Math.round(i * (candidates.length - 1) / Math.max(1, wanted - 1 || 1)),
+      );
+      const platform = candidates[at];
+      if (!chosen.includes(platform)) chosen.push(platform);
+    }
     for (const p of chosen) addEggMass(p, p.x + p.w * (.28 + hash(p, 29) * .44), 0, null, true);
   }
 
@@ -11532,7 +11562,10 @@ function createMeloidogyneLifecycle({ state, entities }) {
     return g.eggMassesLaid ? 'egg-laying-female' : 'adult-female';
   }
   function layEggs(g) {
-    if (g.generation >= MAX_GENERATIONS || g.eggMassesLaid || eggs.length >= MAX_SIMULTANEOUS_EGG_MASSES) return;
+    const config = settings();
+    if (g.generation >= config.maxGenerations
+      || g.eggMassesLaid
+      || eggs.length >= config.maxSimultaneousEggMasses) return;
     const x = clamp(g.x + 22, g.platform.x + 20, g.platform.x + g.platform.w - 20);
     addEggMass(g.platform, x, g.generation + 1, g.id); g.eggMassesLaid = 1;
     entities.burst(x, g.platform.y - 6, '#ffe0a6', 18, 72);
@@ -11550,7 +11583,7 @@ function createMeloidogyneLifecycle({ state, entities }) {
       } else if (!g.dead) {
         // Depois de ovipor, a femea entra em senescencia: para de produzir e a
         // drenagem cai ate zero. Ela nao poe uma segunda massa.
-        g.senescence = clamp(g.senescence + dt / SENESCENCE_SECONDS, 0, 1);
+        g.senescence = clamp(g.senescence + dt / Math.max(1, settings().senescenceSeconds), 0, 1);
         if (g.senescence >= 1) {
           g.dead = true;
           g.adultDrain = 0;
@@ -11803,8 +11836,12 @@ function createRootHealthGameplay({ state, entities }) {
         penalty += .055;
       }
       if (gall.eggMassesLaid) penalty += .035;
+      // Uma femea que completou o ciclo e morreu deixa cicatriz maior: o tecido
+      // foi reorganizado em celulas gigantes e nao se refaz. Sem isso a raiz
+      // voltava a quase cheia depois da morte dela e a sequela nao se lia.
+      if (gall.dead) penalty += .06;
     }
-    return { penalty: clamp(penalty, 0, .48), adults, mature };
+    return { penalty: clamp(penalty, 0, .52), adults, mature };
   }
 
   function noduleSupport(root) {
@@ -14493,7 +14530,7 @@ function applyPhaseSixTutorialEncounters(level, encounters, phase = level.campai
 Object.assign(__exports, { applyPhaseSixTutorialGeometry, applyPhaseSixTutorialEncounters });
 },
 "src/procgen/phase-lab-config.js": (__exports, __require) => {
-const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, campaignManifest, getProceduralPoolAt, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
+const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, MELOIDOGYNE_DEFAULTS, campaignManifest, getProceduralPoolAt, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
 const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v4';
 const PHASE_LAB_MAX_RESOURCES = 100;
 
@@ -14541,9 +14578,9 @@ function createDefaultPhaseLabConfig(phase = 1) {
     theme: base.theme,
     mission: base.mission,
     segments: clone(base.segments),
-    // O ensaio nasce somente com os organismos que participam da mecânica
-    // nova da fase. Organismos já conhecidos continuam disponíveis no
-    // seletor, mas não invadem o teste focado por padrão.
+    // O ensaio nasce somente com os organismos que participam da mec??nica
+    // nova da fase. Organismos j?? conhecidos continuam dispon??veis no
+    // seletor, mas n??o invadem o teste focado por padr??o.
     allowedOrganisms: phaseOrganisms.length
       ? phaseOrganisms
       : getProceduralPoolAt(base.phase, 0).filter(type => (
@@ -14558,17 +14595,17 @@ function createDefaultPhaseLabConfig(phase = 1) {
     },
     nitrogenRoot: {
       ...(base.nitrogenRoot || NITROGEN_ROOT_DEFAULTS),
-      // O laboratório abre cada fase focado em sua mecânica nova. A raiz de
-      // FBN continua disponível manualmente nas fases posteriores, mas não
-      // antecede por padrão o ensaio da escada de Azospirillum na Fase 3.
+      // O laborat??rio abre cada fase focado em sua mec??nica nova. A raiz de
+      // FBN continua dispon??vel manualmente nas fases posteriores, mas n??o
+      // antecede por padr??o o ensaio da escada de Azospirillum na Fase 3.
       enabled: base.phase === 2
         && (base.nitrogenRoot?.enabled ?? NITROGEN_ROOT_DEFAULTS.enabled),
     },
     azospirillumRootLadder: {
       ...(base.azospirillumRootLadder || AZOSPIRILLUM_ROOT_LADDER_DEFAULTS),
-      // A Fase 4 fica reservada à estreia da micorriza. Da Fase 5 em diante,
-      // a habilidade já aprendida pode responder a desníveis naturais, sem
-      // criar nem deslocar plataformas para forçar uma recapitulação.
+      // A Fase 4 fica reservada ?? estreia da micorriza. Da Fase 5 em diante,
+      // a habilidade j?? aprendida pode responder a desn??veis naturais, sem
+      // criar nem deslocar plataformas para for??ar uma recapitula????o.
       enabled: base.phase === 3
         ? (base.azospirillumRootLadder?.enabled ?? true)
         : base.phase >= 5,
@@ -14589,6 +14626,9 @@ function createDefaultPhaseLabConfig(phase = 1) {
     },
     phosphateSolubilization: {
       ...(base.phosphateSolubilization || PHOSPHATE_SOLUBILIZATION_DEFAULTS),
+    },
+    meloidogyne: {
+      ...(base.meloidogyne || MELOIDOGYNE_DEFAULTS),
     },
     finalGoal: base.finalTest.goal,
     finalConditions: clone(base.finalTest.requires),
@@ -14699,6 +14739,11 @@ function buildPhaseLabManifest(config) {
   const phosphateSolubilization = Object.fromEntries(
     Object.keys(PHOSPHATE_SOLUBILIZATION_DEFAULTS).map(key => [key, Number(phosphateInput[key])]),
   );
+  // A pressao do nematoide e o coracao da fase 8: precisa ser calibravel aqui.
+  const meloidogyneInput = config.meloidogyne || base.meloidogyne || MELOIDOGYNE_DEFAULTS;
+  const meloidogyne = Object.fromEntries(
+    Object.keys(MELOIDOGYNE_DEFAULTS).map(key => [key, Number(meloidogyneInput[key])]),
+  );
 
   return {
     ...clone(base),
@@ -14717,6 +14762,7 @@ function buildPhaseLabManifest(config) {
     opportunisticFungus,
     pseudomonasIronControl,
     phosphateSolubilization,
+    meloidogyne,
     finalTest: {
       ...clone(base.finalTest),
       goal: String(config.finalGoal || base.finalTest.goal).trim(),
@@ -14824,6 +14870,11 @@ Object.assign(__exports, { PHASE_LAB_STORAGE_KEY, PHASE_LAB_MAX_RESOURCES, isPha
 "src/procgen/phase-lab.js": (__exports, __require) => {
 const { campaignManifest, ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
 const clone = value => JSON.parse(JSON.stringify(value));
+
+const MELOIDOGYNE_FIELDS = Object.freeze([
+  'focusSpacingChunks', 'maxFoci', 'maxGenerations',
+  'maxSimultaneousEggMasses', 'senescenceSeconds', 'completedCycleScar',
+]);
 
 function readConfig(storage) {
   try {
@@ -14991,6 +15042,14 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
         <label>Transporte micorrizico<input data-phosphate="mycorrhizalTransportRate" type="number" min="0" step="0.01"></label>
         <label>P minimo transportado<input data-phosphate="minimumTransportedPhosphate" type="number" min="0" step="0.05"></label>
       </div></fieldset>
+      <fieldset><legend>Meloidogyne</legend><div class="resources">
+        <label>Focos: 1 a cada N chunks<input data-meloidogyne="focusSpacingChunks" type="number" min="2" max="40"></label>
+        <label>Máximo de focos<input data-meloidogyne="maxFoci" type="number" min="1" max="12"></label>
+        <label>Gerações por foco<input data-meloidogyne="maxGenerations" type="number" min="1" max="10"></label>
+        <label>Massas simultâneas<input data-meloidogyne="maxSimultaneousEggMasses" type="number" min="1" max="40"></label>
+        <label>Senescência (s)<input data-meloidogyne="senescenceSeconds" type="number" min="2" step="2"></label>
+        <label>Cicatriz do ciclo<input data-meloidogyne="completedCycleScar" type="number" min="0" max="0.3" step="0.01"></label>
+      </div></fieldset>
       <label>Objetivo final <input data-field="finalGoal"></label>
       <label>Condicoes finais (JSON) <textarea data-field="finalConditions"></textarea></label>
       <div class="phase-lab-status" role="status"></div>
@@ -15033,6 +15092,9 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
       }
       for (const key of ['minimumIronReserve', 'minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']) {
         panel.querySelector(`[data-iron-control="${key}"]`).value = next.pseudomonasIronControl?.[key] ?? '';
+      }
+      for (const key of MELOIDOGYNE_FIELDS) {
+        panel.querySelector(`[data-meloidogyne="${key}"]`).value = next.meloidogyne?.[key] ?? '';
       }
       for (const key of ['absorptionRadius', 'chargeTimeSeconds', 'minimumCharge', 'maximumCharge', 'shotRange', 'shotSpeed', 'amountSolubilizedPerCharge', 'metaboliteProductionRate', 'exudateProductionMultiplier', 'localPoolCaptureRadius', 'mycorrhizalTransportRate', 'minimumTransportedPhosphate']) {
         panel.querySelector(`[data-phosphate="${key}"]`).value = next.phosphateSolubilization?.[key] ?? '';
@@ -15081,6 +15143,9 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
         pseudomonasIronControl: Object.fromEntries(
           ['minimumIronReserve', 'minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']
             .map(key => [key, Number(panel.querySelector(`[data-iron-control="${key}"]`).value)]),
+        ),
+        meloidogyne: Object.fromEntries(
+          MELOIDOGYNE_FIELDS.map(key => [key, Number(panel.querySelector(`[data-meloidogyne="${key}"]`).value)]),
         ),
         phosphateSolubilization: {
           ...config.phosphateSolubilization,

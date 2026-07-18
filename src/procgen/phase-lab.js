@@ -18,6 +18,11 @@ import {
 
 const clone = value => JSON.parse(JSON.stringify(value));
 
+const MELOIDOGYNE_FIELDS = Object.freeze([
+  'focusSpacingChunks', 'maxFoci', 'maxGenerations',
+  'maxSimultaneousEggMasses', 'senescenceSeconds', 'completedCycleScar',
+]);
+
 function readConfig(storage) {
   try {
     const parsed = JSON.parse(storage?.getItem(PHASE_LAB_STORAGE_KEY));
@@ -184,6 +189,14 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
         <label>Transporte micorrizico<input data-phosphate="mycorrhizalTransportRate" type="number" min="0" step="0.01"></label>
         <label>P minimo transportado<input data-phosphate="minimumTransportedPhosphate" type="number" min="0" step="0.05"></label>
       </div></fieldset>
+      <fieldset><legend>Meloidogyne</legend><div class="resources">
+        <label>Focos: 1 a cada N chunks<input data-meloidogyne="focusSpacingChunks" type="number" min="2" max="40"></label>
+        <label>Máximo de focos<input data-meloidogyne="maxFoci" type="number" min="1" max="12"></label>
+        <label>Gerações por foco<input data-meloidogyne="maxGenerations" type="number" min="1" max="10"></label>
+        <label>Massas simultâneas<input data-meloidogyne="maxSimultaneousEggMasses" type="number" min="1" max="40"></label>
+        <label>Senescência (s)<input data-meloidogyne="senescenceSeconds" type="number" min="2" step="2"></label>
+        <label>Cicatriz do ciclo<input data-meloidogyne="completedCycleScar" type="number" min="0" max="0.3" step="0.01"></label>
+      </div></fieldset>
       <label>Objetivo final <input data-field="finalGoal"></label>
       <label>Condicoes finais (JSON) <textarea data-field="finalConditions"></textarea></label>
       <div class="phase-lab-status" role="status"></div>
@@ -226,6 +239,9 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
       }
       for (const key of ['minimumIronReserve', 'minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']) {
         panel.querySelector(`[data-iron-control="${key}"]`).value = next.pseudomonasIronControl?.[key] ?? '';
+      }
+      for (const key of MELOIDOGYNE_FIELDS) {
+        panel.querySelector(`[data-meloidogyne="${key}"]`).value = next.meloidogyne?.[key] ?? '';
       }
       for (const key of ['absorptionRadius', 'chargeTimeSeconds', 'minimumCharge', 'maximumCharge', 'shotRange', 'shotSpeed', 'amountSolubilizedPerCharge', 'metaboliteProductionRate', 'exudateProductionMultiplier', 'localPoolCaptureRadius', 'mycorrhizalTransportRate', 'minimumTransportedPhosphate']) {
         panel.querySelector(`[data-phosphate="${key}"]`).value = next.phosphateSolubilization?.[key] ?? '';
@@ -274,6 +290,9 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
         pseudomonasIronControl: Object.fromEntries(
           ['minimumIronReserve', 'minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']
             .map(key => [key, Number(panel.querySelector(`[data-iron-control="${key}"]`).value)]),
+        ),
+        meloidogyne: Object.fromEntries(
+          MELOIDOGYNE_FIELDS.map(key => [key, Number(panel.querySelector(`[data-meloidogyne="${key}"]`).value)]),
         ),
         phosphateSolubilization: {
           ...config.phosphateSolubilization,

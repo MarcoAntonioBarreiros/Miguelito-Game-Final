@@ -42,6 +42,54 @@ function avanca(system, segundos, passo = .5) {
   for (let t = 0; t < segundos; t += passo) system.update(passo);
 }
 
+// Antes a infestacao nascia toda nos primeiros blocos e gastava ali as geracoes,
+// deixando o final da fase vazio. Os focos precisam acompanhar o tamanho dela.
+function faseCom(totalChunks, meloidogyne = {}) {
+  const platforms = Array.from({ length: totalChunks }, (_, i) => ({
+    x: 200 + i * 300, y: 420, w: 200, h: 60, type: 'root', logicIndex: i,
+    rootHealth: 1, rootMaxHealth: 1,
+  }));
+  const state = {
+    gameState: 'play', time: 0, cameraX: 0,
+    campaign: { phase: 8 },
+    player: { x: 0, y: 0, w: 32, h: 48, soil: 0, hope: 0, nematodeLoad: 0 },
+    level: {
+      platforms, particles: [],
+      nematodeEggMasses: [], nematodeJuveniles: [], rootGalls: [],
+      pathogenSchedule: { meloidogyne: 2 },
+      phaseProfile: Object.keys(meloidogyne).length ? { meloidogyne } : undefined,
+    },
+  };
+  const system = createMeloidogyneLifecycle({ state, entities: { burst() {} } });
+  system.reset();
+  return system.eggMasses.map(m => m.platform.logicIndex).sort((a, b) => a - b);
+}
+
+test('os focos se espalham pela fase em vez de se concentrarem no comeco', () => {
+  const curta = faseCom(16);
+  const longa = faseCom(40);
+
+  assert.ok(longa.length > curta.length, 'fase maior recebe mais focos');
+  assert.ok(
+    Math.max(...longa) >= 35,
+    `o ultimo foco (${Math.max(...longa)}) precisa alcancar o fim da fase de 40 chunks`,
+  );
+  assert.equal(Math.min(...longa), 2, 'o primeiro foco continua no inicio da agenda do patogeno');
+
+  // Os focos nao podem ficar amontoados num trecho so.
+  const intervalos = longa.slice(1).map((chunk, i) => chunk - longa[i]);
+  assert.ok(Math.min(...intervalos) >= 5, 'os focos ficam separados entre si');
+});
+
+test('o Phase Lab consegue ajustar a densidade dos focos', () => {
+  const padrao = faseCom(40);
+  const denso = faseCom(40, {
+    focusSpacingChunks: 5, maxFoci: 8, maxGenerations: 4,
+    maxSimultaneousEggMasses: 14, senescenceSeconds: 26, completedCycleScar: .06,
+  });
+  assert.ok(denso.length > padrao.length, 'reduzir o espacamento aumenta o numero de focos');
+});
+
 test('a femea ovipoe uma unica vez e entra em senescencia', () => {
   const { system, root } = cena();
   const femea = femeaAdulta(system, root);

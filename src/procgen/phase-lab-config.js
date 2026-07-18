@@ -9,6 +9,7 @@ import {
   OPPORTUNISTIC_FUNGUS_DEFAULTS,
   PSEUDOMONAS_IRON_CONTROL_DEFAULTS,
   PHOSPHATE_SOLUBILIZATION_DEFAULTS,
+  MELOIDOGYNE_DEFAULTS,
   campaignManifest,
   getProceduralPoolAt,
   validateCampaignManifest,
@@ -62,9 +63,9 @@ export function createDefaultPhaseLabConfig(phase = 1) {
     theme: base.theme,
     mission: base.mission,
     segments: clone(base.segments),
-    // O ensaio nasce somente com os organismos que participam da mecânica
-    // nova da fase. Organismos já conhecidos continuam disponíveis no
-    // seletor, mas não invadem o teste focado por padrão.
+    // O ensaio nasce somente com os organismos que participam da mec??nica
+    // nova da fase. Organismos j?? conhecidos continuam dispon??veis no
+    // seletor, mas n??o invadem o teste focado por padr??o.
     allowedOrganisms: phaseOrganisms.length
       ? phaseOrganisms
       : getProceduralPoolAt(base.phase, 0).filter(type => (
@@ -79,17 +80,17 @@ export function createDefaultPhaseLabConfig(phase = 1) {
     },
     nitrogenRoot: {
       ...(base.nitrogenRoot || NITROGEN_ROOT_DEFAULTS),
-      // O laboratório abre cada fase focado em sua mecânica nova. A raiz de
-      // FBN continua disponível manualmente nas fases posteriores, mas não
-      // antecede por padrão o ensaio da escada de Azospirillum na Fase 3.
+      // O laborat??rio abre cada fase focado em sua mec??nica nova. A raiz de
+      // FBN continua dispon??vel manualmente nas fases posteriores, mas n??o
+      // antecede por padr??o o ensaio da escada de Azospirillum na Fase 3.
       enabled: base.phase === 2
         && (base.nitrogenRoot?.enabled ?? NITROGEN_ROOT_DEFAULTS.enabled),
     },
     azospirillumRootLadder: {
       ...(base.azospirillumRootLadder || AZOSPIRILLUM_ROOT_LADDER_DEFAULTS),
-      // A Fase 4 fica reservada à estreia da micorriza. Da Fase 5 em diante,
-      // a habilidade já aprendida pode responder a desníveis naturais, sem
-      // criar nem deslocar plataformas para forçar uma recapitulação.
+      // A Fase 4 fica reservada ?? estreia da micorriza. Da Fase 5 em diante,
+      // a habilidade j?? aprendida pode responder a desn??veis naturais, sem
+      // criar nem deslocar plataformas para for??ar uma recapitula????o.
       enabled: base.phase === 3
         ? (base.azospirillumRootLadder?.enabled ?? true)
         : base.phase >= 5,
@@ -110,6 +111,9 @@ export function createDefaultPhaseLabConfig(phase = 1) {
     },
     phosphateSolubilization: {
       ...(base.phosphateSolubilization || PHOSPHATE_SOLUBILIZATION_DEFAULTS),
+    },
+    meloidogyne: {
+      ...(base.meloidogyne || MELOIDOGYNE_DEFAULTS),
     },
     finalGoal: base.finalTest.goal,
     finalConditions: clone(base.finalTest.requires),
@@ -220,6 +224,11 @@ export function buildPhaseLabManifest(config) {
   const phosphateSolubilization = Object.fromEntries(
     Object.keys(PHOSPHATE_SOLUBILIZATION_DEFAULTS).map(key => [key, Number(phosphateInput[key])]),
   );
+  // A pressao do nematoide e o coracao da fase 8: precisa ser calibravel aqui.
+  const meloidogyneInput = config.meloidogyne || base.meloidogyne || MELOIDOGYNE_DEFAULTS;
+  const meloidogyne = Object.fromEntries(
+    Object.keys(MELOIDOGYNE_DEFAULTS).map(key => [key, Number(meloidogyneInput[key])]),
+  );
 
   return {
     ...clone(base),
@@ -238,6 +247,7 @@ export function buildPhaseLabManifest(config) {
     opportunisticFungus,
     pseudomonasIronControl,
     phosphateSolubilization,
+    meloidogyne,
     finalTest: {
       ...clone(base.finalTest),
       goal: String(config.finalGoal || base.finalTest.goal).trim(),
