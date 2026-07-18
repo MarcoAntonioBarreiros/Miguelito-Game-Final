@@ -873,9 +873,7 @@ html.tutorial-open #tutorial-library-button {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");
-const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");
-const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
+const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
@@ -2947,9 +2945,7 @@ function generatePrimitives() {
 Object.assign(__exports, { generatePrimitives });
 },
 "src/procgen/simulator.js": (__exports, __require) => {
-const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");
-const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");
-const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
+const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
 function createEmptyLevel() {
   return {
     platforms: [], hazards: [], crystals: [], enemies: [], exudates: [],
@@ -7336,8 +7332,7 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
 Object.assign(__exports, { createBeneficialInoculants });
 },
 "src/procgen/pseudomonas-siderophores.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");
-const { createRandom } = __require("src/procgen/random.js");
+const { W } = __require("src/core/constants.js");const { createRandom } = __require("src/procgen/random.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -7867,8 +7862,7 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
 Object.assign(__exports, { createPseudomonasSiderophores });
 },
 "src/procgen/opportunistic-fungus.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");
-const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { H, W } = __require("src/core/constants.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -12504,8 +12498,7 @@ function validateChunk(fromPlatform, toPlatform, primitive, agentType = 'normal'
 Object.assign(__exports, { validateChunk });
 },
 "src/procgen/campaign-encounters.js": (__exports, __require) => {
-const { createRandom } = __require("src/procgen/random.js");
-const { getPhaseManifest, getProceduralPoolAt, getRoamingDebutsAt } = __require("src/procgen/campaign-manifest.js");
+const { createRandom } = __require("src/procgen/random.js");const { getPhaseManifest, getProceduralPoolAt, getRoamingDebutsAt } = __require("src/procgen/campaign-manifest.js");
 const MIN_ZONE_SPACING = 390;
 const MIN_DEBUT_CLEARANCE = 430;
 const MIN_NEWCOMER_SEPARATION = 440;
@@ -17176,9 +17169,7 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
 Object.assign(__exports, { createRalstoniaVascularWilt });
 },
 "src/procgen/mobile-controls.js": (__exports, __require) => {
-const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");
-const { createTutorialManager } = __require("src/procgen/tutorial-manager.js");
-const { createTutorialTriggers, TUTORIAL_RUNTIME_VERSION } = __require("src/procgen/tutorial-triggers.js");
+const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");const { createTutorialManager } = __require("src/procgen/tutorial-manager.js");const { createTutorialTriggers, TUTORIAL_RUNTIME_VERSION } = __require("src/procgen/tutorial-triggers.js");
 ensureTutorialInterface();
 
 const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
@@ -17389,9 +17380,7 @@ function ensureTutorialInterface() {
 Object.assign(__exports, { ensureTutorialInterface });
 },
 "src/procgen/tutorial-manager.js": (__exports, __require) => {
-const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");
-const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");
-const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");
+const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");const { getCardsTaughtBeforePhase } = __require("src/procgen/tutorial-prior-knowledge.js");
 const TUTORIAL_STORAGE_KEYS = Object.freeze({
   seen: 'miguelito:tutorial:seen:v3',
   unlocked: 'miguelito:tutorial:unlocked:v3',
@@ -17836,6 +17825,20 @@ function createTutorialManager({ state }) {
     return true;
   }
 
+  // Ao entrar numa fase, tudo que fases anteriores ensinaram passa a valer como
+  // já visto: o cartão continua disponível no GUIA, mas não volta a interromper
+  // a partida. É o equivalente didático dos poderes persistentes da campanha.
+  // Organismos que estreiam nesta fase não são tocados aqui.
+  function syncPriorKnowledge(phase) {
+    const recorded = [];
+    for (const cardId of getCardsTaughtBeforePhase(phase)) {
+      if (flow.hasSeen(cardId)) continue;
+      if (flow.markSeen(cardId)) recorded.push(cardId);
+    }
+    if (recorded.length) persist();
+    return recorded;
+  }
+
   function clearStoredTutorialProgress() {
     flow.clear();
     pendingMandatory = null;
@@ -17902,6 +17905,7 @@ function createTutorialManager({ state }) {
     isUnlocked: id => flow.isUnlocked(id),
     getUnlockedPages: id => flow.pagesFor(id),
     trigger,
+    syncPriorKnowledge,
     openCard: id => openCard(id, { fromLibrary: false, firstSeen: !flow.hasSeen(id) }),
     openLibrary,
     resetTutorialProgress,
@@ -18667,8 +18671,7 @@ const structureTutorialCards = {
 Object.assign(__exports, { structureTutorialCards });
 },
 "src/procgen/tutorial-flow.js": (__exports, __require) => {
-const { getActiveCampaignManifest, getPresentationById, getSegmentAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
-const { getTutorialCard } = __require("src/procgen/tutorial-registry.js");
+const { getActiveCampaignManifest, getPresentationById, getSegmentAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { getTutorialCard } = __require("src/procgen/tutorial-registry.js");
 function findPresentation(triggerId) {
   for (const phase of getActiveCampaignManifest()) {
     const presentation = phase.presentations.find(entry => entry.triggerIds.includes(triggerId));
@@ -18908,6 +18911,32 @@ function createTutorialFlow({ seen = [], unlocked = [], pages = {} } = {}) {
 }
 Object.assign(__exports, { createTutorialFlow });
 },
+"src/procgen/tutorial-prior-knowledge.js": (__exports, __require) => {
+const { getActiveCampaignManifest } = __require("src/procgen/campaign-manifest.js");
+// Um cartão apresentado numa fase anterior já foi ensinado. Quando a campanha
+// começa direto numa fase adiantada — pelo Phase Lab ou por uma retomada — esse
+// conhecimento precisa nascer registrado, do mesmo modo que
+// getPersistentUnlocksBeforePhase devolve os poderes já conquistados. Sem isso o
+// pool procedural da fase reapresenta Bacillus e Rhizobium como se fossem
+// inéditos, e quanto mais curta a fase mais os cartões antigos dominam a cena.
+//
+// Isto não alcança os organismos que estreiam na fase atual: uma estreia
+// continua sendo apresentada na primeira aparição, sem espera.
+function getCardsTaughtBeforePhase(phase) {
+  const limit = Number(phase);
+  if (!Number.isInteger(limit)) return [];
+
+  const cards = new Set();
+  for (const entry of getActiveCampaignManifest()) {
+    if (!Number.isInteger(entry.phase) || entry.phase >= limit) continue;
+    for (const presentation of entry.presentations || []) {
+      if (presentation.cardId) cards.add(presentation.cardId);
+    }
+  }
+  return [...cards];
+}
+Object.assign(__exports, { getCardsTaughtBeforePhase });
+},
 "src/procgen/tutorial-triggers.js": (__exports, __require) => {
 const { W } = __require("src/core/constants.js");const { getTutorialModeAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -18946,6 +18975,7 @@ function createTutorialTriggers({
   let resumeDelayUntil = 0;
   let lastUnexpectedFirstAppearance = null;
   let lastSimultaneousFirstEncounters = null;
+  let knownPhase = null;
 
   function conditionSnapshot() {
     return {
@@ -19028,6 +19058,17 @@ function createTutorialTriggers({
   function trigger(id, condition, extra = {}) {
     return Boolean(condition && manager.trigger(id, tutorialContext(extra)));
   }
+
+  // Cada fase entra assumindo o que as anteriores já ensinaram. Roda na criação
+  // e a cada troca de fase, sem depender do primeiro quadro do loop.
+  function syncPhaseKnowledge() {
+    const phase = state.campaign?.phase;
+    if (!Number.isInteger(phase) || phase === knownPhase) return;
+    knownPhase = phase;
+    manager.syncPriorKnowledge?.(phase);
+  }
+
+  syncPhaseKnowledge();
 
   function organismCandidates() {
     const candidatesByCard = new Map();
@@ -19162,6 +19203,8 @@ function createTutorialTriggers({
 
   function update() {
     if (manager.isOpen || state.gameState !== 'play' || state.campaign?.transitionRequested) return;
+
+    syncPhaseKnowledge();
 
     const now = performance.now();
     if (now < resumeDelayUntil || now - lastCheckAt < 140) return;

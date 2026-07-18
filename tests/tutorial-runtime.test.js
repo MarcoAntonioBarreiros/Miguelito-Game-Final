@@ -15,6 +15,7 @@ import {
   TUTORIAL_PROXIMITY,
   TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT,
 } from '../src/procgen/tutorial-triggers.js';
+import { getCardsTaughtBeforePhase } from '../src/procgen/tutorial-prior-knowledge.js';
 
 test('simuladores auxiliares não substituem o simulador ativo exposto', () => {
   const previousWindow = globalThis.window;
@@ -321,6 +322,95 @@ test('poder ignora somente a trava espacial e não o modo silencioso', () => {
   }));
   assert.equal(silentPower.open, false);
   assert.equal(silentPower.reason, 'silent');
+});
+
+test('só fases anteriores contam como já ensinadas', () => {
+  const antesDaTres = getCardsTaughtBeforePhase(3);
+  assert.ok(antesDaTres.includes('organism-bacillus'));
+  assert.ok(antesDaTres.includes('organism-rhizobium'));
+  assert.ok(
+    !antesDaTres.includes('organism-azospirillum'),
+    'a estreia da própria fase 3 não pode nascer marcada como vista',
+  );
+
+  const antesDaCinco = getCardsTaughtBeforePhase(5);
+  assert.ok(antesDaCinco.includes('organism-mycorrhiza'));
+  assert.ok(
+    !antesDaCinco.includes('organism-opportunistic-fungus'),
+    'a estreia da própria fase 5 não pode nascer marcada como vista',
+  );
+
+  assert.deepEqual(getCardsTaughtBeforePhase(0), []);
+  assert.deepEqual(getCardsTaughtBeforePhase(undefined), []);
+});
+
+test('a fase avisa o manager do que já foi ensinado antes dela', () => {
+  const previousWindow = globalThis.window;
+  globalThis.window = new EventTarget();
+  const syncedPhases = [];
+  const state = {
+    gameState: 'play',
+    campaign: { phase: 4, transitionRequested: false },
+    player: {
+      x: 0, y: 0, w: 0, h: 0, exudates: 0,
+      canDoubleJump: false, canDash: false, canPulse: false,
+    },
+    discoveredMicrobes: new Set(),
+    level: {
+      enemies: [], rhizobiumNodules: [], biofilms: [],
+      mycorrhizaArbuscules: [], platforms: [], azospirillumRoots: [],
+    },
+  };
+  const sim = {
+    ecology: { agents: [], encounters: [] },
+    beneficialInoculants: { followerCount: 0 },
+    trichodermaColonies: { followerCount: 0 },
+    meloidogyneLifecycle: { juveniles: [], eggMasses: [], galls: [] },
+    pseudomonasSiderophores: { freeCount: 0, loadedCount: 0, ironRecovered: 0 },
+    trichoderma: { attackCount: 0 },
+  };
+
+  try {
+    const triggers = createTutorialTriggers({
+      state,
+      sim,
+      manager: {
+        isOpen: false,
+        hasSeen: () => false,
+        trigger: () => true,
+        syncPriorKnowledge: phase => { syncedPhases.push(phase); },
+      },
+      ralstoniaControl: { foci: [] },
+      trichodermaRhizoctoniaControl: { activeAttackCount: 0 },
+    });
+
+    triggers.update();
+    triggers.update();
+    assert.deepEqual(syncedPhases, [4], 'a mesma fase não é sincronizada duas vezes');
+
+    state.campaign.phase = 5;
+    triggers.update();
+    assert.deepEqual(syncedPhases, [4, 5], 'trocar de fase reavalia o que já foi ensinado');
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
+});
+
+test('organismo inédito continua abrindo na primeira aparição, sem espera', () => {
+  const primeira = runTriggerScenario({
+    agents: [{ type: 'bacillus', x: 40, y: 0 }],
+  });
+  assert.deepEqual(primeira.triggered, ['organism-bacillus']);
+
+  // Dois inéditos lado a lado: o mais próximo abre já, sem trava de intervalo.
+  const juntos = runTriggerScenario({
+    agents: [
+      { type: 'bacillus', x: 90, y: 0 },
+      { type: 'rhizobium', x: 40, y: 0 },
+    ],
+  });
+  assert.deepEqual(juntos.triggered, ['organism-rhizobium']);
 });
 
 test('painel aberto não cria fila geral e preserva um encontro obrigatório como pendente', () => {
