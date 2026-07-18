@@ -116,7 +116,7 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
     panel.setAttribute('aria-label', 'Phase Lab');
     panel.innerHTML = `
       <h2>Phase Lab</h2><p>Runtime real · Ctrl+Enter reinicia · sem editor de plataformas</p>
-      <label>Fase <select data-field="phase">${[...Array(9)].map((_, phase) => `<option value="${phase}">Fase ${phase}</option>`).join('')}</select></label>
+      <label>Fase <select data-field="phase">${[...Array(10)].map((_, phase) => `<option value="${phase}">Fase ${phase}</option>`).join('')}</select></label>
       <label>Seed <input data-field="seed"></label>
       <label>Quantidade de chunks <input data-field="totalChunks" type="number" min="3" max="120"></label>
       <label>Titulo <input data-field="title"></label>
@@ -170,6 +170,20 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
         <label>Supressão esporos<input data-iron-control="sporulationSuppression" type="number" min="0" max="1" step="0.05"></label>
         <label>Supressão aderência<input data-iron-control="adhesionSuppression" type="number" min="0" max="1" step="0.05"></label>
       </div></fieldset>
+      <fieldset><legend>Solubilizacao e transporte de fosfato</legend><div class="resources">
+        <label>Raio de carga<input data-phosphate="absorptionRadius" type="number" min="40" step="5"></label>
+        <label>Tempo de carga (s)<input data-phosphate="chargeTimeSeconds" type="number" min="0.1" step="0.1"></label>
+        <label>Carga minima<input data-phosphate="minimumCharge" type="number" min="0.01" max="1" step="0.01"></label>
+        <label>Carga maxima<input data-phosphate="maximumCharge" type="number" min="0.01" max="2" step="0.01"></label>
+        <label>Alcance<input data-phosphate="shotRange" type="number" min="80" step="10"></label>
+        <label>Velocidade do disparo<input data-phosphate="shotSpeed" type="number" min="50" step="10"></label>
+        <label>Solubilizacao/carga<input data-phosphate="amountSolubilizedPerCharge" type="number" min="0.01" step="0.05"></label>
+        <label>Producao metabolitos<input data-phosphate="metaboliteProductionRate" type="number" min="0" step="0.01"></label>
+        <label>Multiplicador exsudato<input data-phosphate="exudateProductionMultiplier" type="number" min="1" step="0.1"></label>
+        <label>Raio de captacao<input data-phosphate="localPoolCaptureRadius" type="number" min="20" step="5"></label>
+        <label>Transporte micorrizico<input data-phosphate="mycorrhizalTransportRate" type="number" min="0" step="0.01"></label>
+        <label>P minimo transportado<input data-phosphate="minimumTransportedPhosphate" type="number" min="0" step="0.05"></label>
+      </div></fieldset>
       <label>Objetivo final <input data-field="finalGoal"></label>
       <label>Condicoes finais (JSON) <textarea data-field="finalConditions"></textarea></label>
       <div class="phase-lab-status" role="status"></div>
@@ -212,6 +226,9 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
       }
       for (const key of ['minimumIronReserve', 'minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']) {
         panel.querySelector(`[data-iron-control="${key}"]`).value = next.pseudomonasIronControl?.[key] ?? '';
+      }
+      for (const key of ['absorptionRadius', 'chargeTimeSeconds', 'minimumCharge', 'maximumCharge', 'shotRange', 'shotSpeed', 'amountSolubilizedPerCharge', 'metaboliteProductionRate', 'exudateProductionMultiplier', 'localPoolCaptureRadius', 'mycorrhizalTransportRate', 'minimumTransportedPhosphate']) {
+        panel.querySelector(`[data-phosphate="${key}"]`).value = next.phosphateSolubilization?.[key] ?? '';
       }
     }
     function read() {
@@ -258,6 +275,13 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
           ['minimumIronReserve', 'minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']
             .map(key => [key, Number(panel.querySelector(`[data-iron-control="${key}"]`).value)]),
         ),
+        phosphateSolubilization: {
+          ...config.phosphateSolubilization,
+          ...Object.fromEntries(
+            ['absorptionRadius', 'chargeTimeSeconds', 'minimumCharge', 'maximumCharge', 'shotRange', 'shotSpeed', 'amountSolubilizedPerCharge', 'metaboliteProductionRate', 'exudateProductionMultiplier', 'localPoolCaptureRadius', 'mycorrhizalTransportRate', 'minimumTransportedPhosphate']
+              .map(key => [key, Number(panel.querySelector(`[data-phosphate="${key}"]`).value)]),
+          ),
+        },
         finalGoal: value('finalGoal'),
         finalConditions: JSON.parse(value('finalConditions')),
       };

@@ -67,7 +67,7 @@ export const organismTutorialCards = {
         'Função biológica',
         'As hifas exploram o solo além da zona alcançada pelos pelos radiculares. Dentro das células corticais, os arbúsculos funcionam como interfaces de troca.',
       ),
-      page('Função no jogo', 'A micorriza melhora recuperação e sustentação da raiz. Também pode formar pontes e escadas jogáveis.'),
+      page('Função no jogo', 'A micorriza forma pontes horizontais e transporta fosfato disponível pela rede hifal até o arbúsculo e a raiz.'),
       page(
         'Atenção didática',
         'As estruturas capazes de sustentar Miguelito são uma metáfora visual. Hifas reais ampliam absorção e conectividade, mas não formam plataformas para pessoas.',
@@ -149,20 +149,20 @@ export const organismTutorialCards = {
   'organism-phosphate-solubilizer': card(
     'organism-phosphate-solubilizer',
     'Organismo benéfico',
-    'Microrganismo solubilizador de fósforo',
-    'Mobilização de fósforo pouco disponível',
+    'Bacillus — cepa solubilizadora',
+    'Uma cepa específica mobiliza fósforo pouco disponível',
     'P',
     '#8db8ff',
     [
-      page('Quem é?', 'Não se trata de uma única espécie. Diferentes bactérias e fungos podem aumentar a disponibilidade de formas pouco solúveis de fósforo.'),
+      page('Cepa específica', 'Nem todo Bacillus realiza esta função. A fase apresenta uma cepa solubilizadora especializada, diferente das colônias comuns de Bacillus.'),
       page(
-        'Função biológica',
-        'Ácidos orgânicos, prótons, enzimas e outros mecanismos podem mobilizar fósforo, dependendo do composto e das condições do solo.',
+        'Metabólitos solubilizadores',
+        'Ácidos orgânicos, prótons e outros metabólitos alteram a química ao redor do mineral e liberam fosfato gradualmente.',
       ),
-      page('Função no jogo', 'Sua descoberta está ligada ao pulso mineral e à liberação de recursos presos nos cristais alaranjados.'),
+      page('Como carregar', 'A colônia madura acumula uma reserva própria de metabólitos. Exsudatos aumentam a produção; dormência e endósporos interrompem-na.'),
       page(
-        'Atenção didática',
-        'O rompimento instantâneo dos cristais é uma metáfora. Na natureza, a mobilização é gradual e depende da química do solo.',
+        'Solubilização e transporte',
+        'A cepa libera o P do depósito, mas não o transporta à raiz. O fosfato fica local e depende da rede micorrízica e do arbúsculo para chegar à planta.',
       ),
     ],
     ['Colonização', 'Secreção', 'Interação com mineral', 'Mobilização de P', 'Absorção'],

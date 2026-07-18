@@ -144,7 +144,8 @@ test('distribuicao de recursos usa a geometria real e e deterministica por seed'
   assert.equal(first.exudates.length, 6);
   assert.equal(first.crystals.length, 3);
   assert.equal(first.checkpoints.length, 2);
-  assert.ok(first.crystals.every(crystal => crystal.requiredFeature === 'pulse'));
+  assert.ok(first.crystals.every(crystal => crystal.requiredFeature === 'phosphateSolubilization'));
+  assert.ok(first.crystals.every(crystal => crystal.phosphateDeposit));
 });
 
 test('exporta uma entrada completa compativel com o formato do manifesto', () => {

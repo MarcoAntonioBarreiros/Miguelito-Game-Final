@@ -65,12 +65,14 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
   }
 
   function createEntry(colony) {
+    const authoredMature = Boolean(colony.authored && colony.growth >= .95 && !colony.dormant);
     const entry = {
       colony,
       film: ensureBiofilm(colony),
-      mode: 'adhesion',
-      maturity: .08,
+      mode: authoredMature ? 'mature' : 'adhesion',
+      maturity: authoredMature ? 1 : .08,
       antibioticReserve: 0,
+      phosphateMetaboliteReserve: colony.solubilizerStrain && authoredMature ? .7 : 0,
       sporulation: 0,
       germination: 0,
       activePressure: 0,
@@ -179,6 +181,7 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
       colony.dormant = true;
       colony.vigor = Math.min(colony.vigor, .08);
       entry.antibioticReserve = Math.max(0, entry.antibioticReserve - dt * .01);
+      entry.phosphateMetaboliteReserve = Math.max(0, entry.phosphateMetaboliteReserve - dt * .008);
       if (fuel > .08) {
         colony.dormant = false;
         colony.vigor = Math.max(colony.vigor, .065);
@@ -222,6 +225,22 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
       const production = dt * (.009 + fuel * .075 + colony.vigor * .012) * sourceBoost;
       entry.antibioticReserve = clamp(entry.antibioticReserve + production, 0, 1.25);
       if (entry.antibioticReserve > .12 && entry.mode === 'mature') enterMode(entry, 'antibiosis');
+    }
+
+
+    if (entry.colony.solubilizerStrain
+      && entry.maturity >= .72
+      && isMetabolicallyActive(entry)
+      && entry.mode !== 'sporulating') {
+      const config = state.level.phaseProfile?.phosphateSolubilization || {};
+      const baseRate = Number(config.metaboliteProductionRate) || .11;
+      const exudateMultiplier = Number(config.exudateProductionMultiplier) || 2.4;
+      const multiplier = 1 + fuel * Math.max(0, exudateMultiplier - 1);
+      entry.phosphateMetaboliteReserve = clamp(
+        entry.phosphateMetaboliteReserve + dt * baseRate * multiplier * colony.vigor,
+        0,
+        1,
+      );
     }
 
     const carbonStress = colony.vigor < .15 && fuel < .035;
@@ -455,6 +474,21 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
     ctx.fillStyle = 'rgba(255,227,164,.9)';
     ctx.fillText('antibiose', 0, 41);
     ctx.restore();
+
+    if (entry.colony.solubilizerStrain && entry.mode !== 'spores') {
+      const phosphate = clamp(entry.phosphateMetaboliteReserve || 0, 0, 1);
+      ctx.save();
+      ctx.translate(colony.x, colony.y);
+      ctx.fillStyle = 'rgba(3,18,24,.76)';
+      ctx.fillRect(-width / 2 - 2, 45, width + 4, 7);
+      ctx.fillStyle = '#dc8cff';
+      ctx.fillRect(-width / 2, 47, width * phosphate, 3);
+      ctx.font = '700 8px Inter,system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#f2c7ff';
+      ctx.fillText('metabolitos P', 0, 61);
+      ctx.restore();
+    }
   }
 
   function render(ctx) {
@@ -489,6 +523,10 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
       return [...colonyStates.values()].filter(entry => entry.mode === 'germinating').length;
     },
     get fungiUnderAntibiosis() { return fungiUnderAntibiosis; },
+    get entries() { return [...colonyStates.values()]; },
+    get solubilizerEntries() {
+      return [...colonyStates.values()].filter(entry => entry.colony.solubilizerStrain);
+    },
     get protectedRootCount() {
       const platforms = new Set();
       for (const entry of colonyStates.values()) {

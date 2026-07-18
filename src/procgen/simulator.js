@@ -23,6 +23,7 @@ import { createGoalSystem } from './goal-system.js';
 import { createEcologicalGameplay } from './ecological-gameplay.js';
 import { createPathogenSurvival } from './pathogen-survival.js';
 import { createInoculumSelection } from './inoculum-selection.js';
+import { createPhosphateSolubilization } from './phosphate-solubilization.js';
 
 function createEmptyLevel() {
   return {
@@ -31,6 +32,7 @@ function createEmptyLevel() {
     exudateClouds: [], biofilms: [], beneficialColonies: [], rhizobiumNodules: [],
     nitrogenRoots: [],
     azospirillumRootLadders: [], azospirillumRoots: [], ironDeposits: [], siderophores: [],
+    phosphateDeposits: [], availablePhosphatePools: [], phosphateTransportParticles: [],
     nematodeEggMasses: [], nematodeJuveniles: [], rootGalls: [],
   };
 }
@@ -57,7 +59,7 @@ export function createSimulator() {
       ArrowRight: false, KeyD: false,
       Space: false, KeyW: false, ArrowUp: false,
       ShiftLeft: false, ShiftRight: false, KeyJ: false,
-      KeyK: false, KeyE: false,
+      KeyE: false,
       // Seta para baixo cicla o inoculo carregado. A de cima nao serve: e pulo.
       ArrowDown: false,
     },
@@ -171,6 +173,13 @@ export function createSimulator() {
   trichodermaColonies.setSelection(inoculumSelection);
   gameplay.setSelection(inoculumSelection);
   state.inoculumSelection = inoculumSelection;
+  const phosphateSolubilization = createPhosphateSolubilization({
+    state,
+    input,
+    entities,
+    selection: inoculumSelection,
+    bacillus: bacillusBioprotection,
+  });
 
   state.microbeEcology = ecology;
   state.mycorrhizaGrowth = mycorrhiza;
@@ -191,6 +200,7 @@ export function createSimulator() {
   state.goalSystem = goal;
   state.ecologicalGameplay = gameplay;
   state.pathogenSurvival = pathogenSurvival;
+  state.phosphateSolubilization = phosphateSolubilization;
 
   const physics = createPhysicsSystem({ state, input, entities, hud, audio });
 
@@ -219,6 +229,7 @@ export function createSimulator() {
     goal.clear();
     gameplay.clear();
     pathogenSurvival.clear();
+    phosphateSolubilization.clear();
     state.level = createEmptyLevel();
     for (const key in input.keys) input.keys[key] = false;
   }
@@ -245,6 +256,7 @@ export function createSimulator() {
     nitrogenRootDevelopment.reset();
     meloidogyneLifecycle.reset();
     pathogenSurvival.reset();
+    phosphateSolubilization.reset();
   }
 
   function setInputs(newKeys) {
@@ -254,6 +266,7 @@ export function createSimulator() {
 
   function step(dt) {
     inoculumSelection.prepare(dt);
+    phosphateSolubilization.prepare(dt);
     trichodermaColonies.prepare(dt);
     beneficialInoculants.prepare(dt);
     gameplay.prepare(dt);
@@ -280,6 +293,7 @@ export function createSimulator() {
     trichodermaColonies.update(dt);
     gameplay.update(dt);
     bacillusBioprotection.update(dt);
+    phosphateSolubilization.update(dt);
     bacillusBioprotectionSafety.update(dt);
     meloidogyneLifecycle.update(dt);
     trichoderma.update(dt);
@@ -302,6 +316,7 @@ export function createSimulator() {
     rhizobiumNodulation, nitrogenRootDevelopment, azospirillumRootGrowth, azospirillumRootSafety,
     azospirillumNitrogen,
     meloidogyneLifecycle, pathogenSurvival, goal, gameplay,
+    phosphateSolubilization,
     inoculumSelection,
     reset, resetEcology, resetBiology, setInputs, step,
   };

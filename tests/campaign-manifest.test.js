@@ -22,9 +22,9 @@ const cloneManifest = () => JSON.parse(JSON.stringify(campaignManifest));
 
 test('manifesto completo valida contra os cartões reais', () => {
   assert.deepEqual(validateCampaignManifest({ knownCardIds: tutorialCardIds }), []);
-  assert.equal(campaignManifest.length, 9);
+  assert.equal(campaignManifest.length, 10);
   assert.equal(getPhaseManifest(0)?.id, 'prologue');
-  assert.equal(getPhaseManifest(8)?.id, 'phase-8');
+  assert.equal(getPhaseManifest(9)?.id, 'phase-9');
 });
 
 test('segmentos cobrem os chunks e expõem o modo tutorial esperado', () => {
@@ -47,12 +47,12 @@ test('unlock do chunk N só fica disponível a partir do chunk N+1', () => {
   assert.equal(getAvailableUnlocksAt(3, 20).doubleJump, false);
   assert.equal(getAvailableUnlocksAt(3, 21).doubleJump, true);
   assert.equal(getRequiredPracticeAbilityAt(3, 21), 'doubleJump');
-  assert.equal(getAvailableUnlocksAt(6, 20).pulse, false);
-  assert.equal(getAvailableUnlocksAt(6, 21).pulse, true);
+  assert.equal(getAvailableUnlocksAt(7, 3).phosphateSolubilization, false);
+  assert.equal(getAvailableUnlocksAt(7, 4).phosphateSolubilization, true);
 });
 
 test('Ralstonia permanece fora do MVP', () => {
-  for (let phase = 0; phase <= 8; phase++) {
+  for (let phase = 0; phase <= 9; phase++) {
     for (let chunk = 0; chunk < 40; chunk++) {
       assert.equal(getPathogensAt(phase, chunk).includes('ralstonia'), false);
     }

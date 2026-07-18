@@ -17,7 +17,7 @@ export const ECOLOGY_ROAMING_TYPES = Object.freeze([
 
 export const PATHOGEN_SYSTEMS = Object.freeze(['rhizoctonia', 'meloidogyne', 'ralstonia']);
 export const CAMPAIGN_UNLOCKS = Object.freeze([
-  'doubleJump', 'dash', 'pulse', 'mycorrhizaStructures', 'azospirillumRoots',
+  'doubleJump', 'dash', 'phosphateSolubilization', 'mycorrhizaStructures', 'azospirillumRoots',
 ]);
 export const TUTORIAL_MODES = Object.freeze(['guided', 'silent', 'disabled']);
 export const PRESENTATION_POLICIES = Object.freeze([
@@ -63,6 +63,20 @@ export const PSEUDOMONAS_IRON_CONTROL_DEFAULTS = Object.freeze({
   sporulationSuppression: .8,
   adhesionSuppression: .7,
 });
+export const PHOSPHATE_SOLUBILIZATION_DEFAULTS = Object.freeze({
+  absorptionRadius: 175,
+  chargeTimeSeconds: 1.8,
+  minimumCharge: .18,
+  maximumCharge: 1,
+  shotRange: 430,
+  shotSpeed: 620,
+  amountSolubilizedPerCharge: 1,
+  metaboliteProductionRate: .11,
+  exudateProductionMultiplier: 2.4,
+  localPoolCaptureRadius: 92,
+  mycorrhizalTransportRate: .16,
+  minimumTransportedPhosphate: .65,
+});
 
 export const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
   'action-exudate': Object.freeze(['action-exudate', 'action-inoculation']),
@@ -79,14 +93,15 @@ export const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
 });
 
 export const FINAL_TEST_KEYS = Object.freeze({
-  playerUnlock: Object.freeze(['doubleJump', 'dash', 'pulse']),
+  playerUnlock: Object.freeze(['doubleJump', 'dash', 'phosphateSolubilization']),
   worldState: Object.freeze([
     'reachedFinalRoot', 'functionalBiofilmCount', 'activeMatureNoduleCount', 'totalFixationRate',
     'visibleLateralRootCount', 'functionalMycorrhizaPathCount', 'pseudomonasIronReserve',
     'neutralizedOpportunisticFungusCount', 'recoveredRootCount', 'brokenCrystalCount',
     'neutralizedEggMassCount', 'preservedRootCount', 'ecologicalScore',
     'deployedExudateCount', 'bacillusColonyCount',
-    'opportunisticFungusVigor',
+    'opportunisticFungusVigor', 'solubilizedPhosphateDepositCount',
+    'mycorrhizalPhosphateTransported', 'rootPhosphateStock',
   ]),
 });
 
@@ -362,7 +377,7 @@ const phases = [
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Trichoderma contra Rhizoctonia', theme: 'patologia',
     mission: 'Observe a lesão de Rhizoctonia, recrute Trichoderma e inocule-o próximo ao foco para recuperar a raiz.',
-    newConcepts: ['Rhizoctonia→lesão', 'Trichoderma→micoparasitismo→recuperação'], newCommand: 'pulse',
+    newConcepts: ['Rhizoctonia→lesão', 'Trichoderma→micoparasitismo→recuperação'], newCommand: null,
     presentations: [
       { id: 'presentation-root-health', cardId: 'organism-rhizoctonia',
         triggerIds: ['organism-rhizoctonia', 'process-root-health', 'process-root-recovery', 'process-root-collapse'],
@@ -388,41 +403,65 @@ const phases = [
         prerequisitePresentationIds: ['presentation-root-health', 'presentation-trichoderma'],
         debutChunk: 4, moduleId: 'p6-tricho-intro',
         pages: ['Micoparasitismo', 'Reconhecimento', 'Enovelamento e lise', 'Recuperação da raiz'] },
-      { id: 'presentation-phosphate-solubilizer', cardId: 'organism-phosphate-solubilizer',
-        triggerIds: ['organism-phosphate-solubilizer'], autoOpenTrigger: 'organism-phosphate-solubilizer',
-        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
-        debutChunk: 18, moduleId: 'p6-pulse-intro', debutZoneId: 'p6-phosphate-solubilizer-debut',
-        pages: ['Quem é?', 'Função biológica', 'Função no jogo', 'Atenção didática'] },
-      { id: 'presentation-pulse', cardId: 'power-pulse',
-        triggerIds: ['power-pulse'], autoOpenTrigger: 'power-pulse',
-        policy: 'event-immediate', suppressIndividualCards: false,
-        debutChunk: 20, moduleId: 'p6-pulse-intro',
-        pages: ['Função no jogo', 'Relação com a biologia', 'Como usar'] },
     ],
-    unlockEvents: [
-      { feature: 'pulse', eventChunk: 20, afterModule: 'p6-pulse-intro', practiceWindowChunks: 3, mandatory: true },
-    ],
+    unlockEvents: [],
     pathogenDebuts: [{ pathogen: 'rhizoctonia', fromChunk: 1, presentationId: 'presentation-root-health' }],
     segments: [
       { id: 'p6-rhizo-intro', kind: 'fixed', from: 0, to: 1, tutorialMode: 'guided',
         debutPresentationIds: ['presentation-root-health'], mechanicsRequired: [] },
       { id: 'p6-tricho-intro', kind: 'fixed', from: 2, to: 10, tutorialMode: 'guided',
         debutPresentationIds: ['presentation-trichoderma', 'presentation-mycoparasitism'], mechanicsRequired: ['exudate', 'inoculation'] },
-      { id: 'p6-rhizo-practice', kind: 'procedural', from: 11, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
-      { id: 'p6-pulse-intro', kind: 'fixed', from: 18, to: 20, tutorialMode: 'guided',
-        debutPresentationIds: ['presentation-phosphate-solubilizer', 'presentation-pulse'], mechanicsRequired: [] },
-      { id: 'p6-challenge', kind: 'procedural', from: 21, to: 35, tutorialMode: 'silent', mechanicsRequired: ['pulse', 'doubleJump', 'dash', 'inoculation'] },
-      { id: 'p6-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['pulse'] },
+      { id: 'p6-rhizo-practice', kind: 'procedural', from: 11, to: 35, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
+      { id: 'p6-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
     ],
-    finalTest: { id: 'p6-test', goal: 'Recuperar uma raiz e quebrar o cristal da saída.', requires: [
-      { type: 'playerUnlock', key: 'pulse', operator: '===', value: true },
+    finalTest: { id: 'p6-test', goal: 'Conter Rhizoctonia com Trichoderma e recuperar uma raiz.', requires: [
       { type: 'worldState', key: 'recoveredRootCount', operator: '>=', value: 1 },
-      { type: 'worldState', key: 'brokenCrystalCount', operator: '>=', value: 1 },
     ]}, notes: [],
   },
 
   {
-    id: 'phase-7', phase: 7, totalChunks: 40,
+    id: 'phase-7', phase: 7, totalChunks: 16,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    phosphateSolubilization: { ...PHOSPHATE_SOLUBILIZATION_DEFAULTS },
+    title: 'Fósforo: solubilização e transporte', theme: 'fósforo',
+    mission: 'Use uma cepa solubilizadora de Bacillus para liberar o fósforo preso no mineral e permita que a micorriza o transporte até a raiz.',
+    newConcepts: ['Bacillus solubilizador→P disponível', 'micorriza→transporte→raiz'], newCommand: 'phosphateSolubilization',
+    presentations: [
+      { id: 'presentation-phosphate-solubilizer', cardId: 'organism-phosphate-solubilizer',
+        triggerIds: ['organism-phosphate-solubilizer'], autoOpenTrigger: 'organism-phosphate-solubilizer',
+        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
+        debutChunk: 2, moduleId: 'p7-solubilizer-intro', debutZoneId: 'p7-phosphate-solubilizer-debut',
+        pages: ['Cepa específica', 'Metabólitos solubilizadores', 'Como carregar', 'Solubilização e transporte'] },
+      { id: 'presentation-pulse', cardId: 'power-pulse',
+        triggerIds: ['power-pulse'], autoOpenTrigger: 'power-pulse',
+        policy: 'event-immediate', suppressIndividualCards: false,
+        debutChunk: 3, moduleId: 'p7-solubilizer-intro',
+        pages: ['Selecionar', 'Carregar', 'Disparar', 'Alvo exclusivo'] },
+    ],
+    unlockEvents: [
+      { feature: 'phosphateSolubilization', eventChunk: 3, afterModule: 'p7-solubilizer-intro', practiceWindowChunks: 4, mandatory: true },
+    ],
+    pathogenDebuts: [],
+    segments: [
+      { id: 'p7-solubilizer-intro', kind: 'fixed', from: 0, to: 3, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-phosphate-solubilizer', 'presentation-pulse'], mechanicsRequired: [] },
+      { id: 'p7-phosphate-chain', kind: 'fixed', from: 4, to: 11, tutorialMode: 'guided',
+        debutPresentationIds: [], mechanicsRequired: ['phosphateSolubilization', 'mycorrhizaStructures'] },
+      { id: 'p7-short-challenge', kind: 'procedural', from: 12, to: 13, tutorialMode: 'silent',
+        mechanicsRequired: ['doubleJump', 'dash'] },
+      { id: 'p7-final', kind: 'final', from: 14, to: 15, tutorialMode: 'silent',
+        mechanicsRequired: ['phosphateSolubilization'] },
+    ],
+    finalTest: { id: 'p7-test', goal: 'Solubilizar o depósito, transportar P pela micorriza e entregá-lo à raiz final.', requires: [
+      { type: 'worldState', key: 'solubilizedPhosphateDepositCount', operator: '>=', value: 1 },
+      { type: 'worldState', key: 'mycorrhizalPhosphateTransported', operator: '>=', value: PHOSPHATE_SOLUBILIZATION_DEFAULTS.minimumTransportedPhosphate },
+      { type: 'worldState', key: 'rootPhosphateStock', operator: '>=', value: PHOSPHATE_SOLUBILIZATION_DEFAULTS.minimumTransportedPhosphate },
+      { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
+    ]}, notes: [],
+  },
+
+  {
+    id: 'phase-8', phase: 8, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Meloidogyne: infecção, reprodução e sequela', theme: 'infestação',
     mission: 'Impeça novas penetrações, neutralize massas de ovos e preserve uma raiz.',
@@ -431,7 +470,7 @@ const phases = [
       { id: 'presentation-meloidogyne-infection', cardId: 'organism-meloidogyne-j2',
         triggerIds: ['organism-meloidogyne-j2', 'structure-gall'], autoOpenTrigger: 'organism-meloidogyne-j2',
         policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        debutChunk: 4, moduleId: 'p7-infection-intro', debutZoneId: 'p7-meloidogyne-j2-debut',
+        debutChunk: 4, moduleId: 'p8-infection-intro', debutZoneId: 'p8-meloidogyne-j2-debut',
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
           { triggerId: 'organism-meloidogyne-j2', pages: [0] },
@@ -441,7 +480,7 @@ const phases = [
       { id: 'presentation-meloidogyne-reproduction', cardId: 'organism-meloidogyne-female',
         triggerIds: ['organism-meloidogyne-female', 'structure-egg-mass'], autoOpenTrigger: 'organism-meloidogyne-female',
         policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        debutChunk: 18, moduleId: 'p7-reproduction-intro', debutZoneId: 'p7-meloidogyne-female-debut',
+        debutChunk: 18, moduleId: 'p8-reproduction-intro', debutZoneId: 'p8-meloidogyne-female-debut',
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
           { triggerId: 'organism-meloidogyne-female', pages: [0] },
@@ -452,21 +491,21 @@ const phases = [
     unlockEvents: [],
     pathogenDebuts: [{ pathogen: 'meloidogyne', fromChunk: 4, presentationId: 'presentation-meloidogyne-infection' }],
     segments: [
-      { id: 'p7-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'dash', 'pulse'] },
-      { id: 'p7-infection-intro', kind: 'fixed', from: 4, to: 10, tutorialMode: 'guided', debutPresentationIds: ['presentation-meloidogyne-infection'], mechanicsRequired: [] },
-      { id: 'p7-infection-practice', kind: 'procedural', from: 11, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
-      { id: 'p7-reproduction-intro', kind: 'fixed', from: 18, to: 23, tutorialMode: 'guided', debutPresentationIds: ['presentation-meloidogyne-reproduction'], mechanicsRequired: [] },
-      { id: 'p7-challenge', kind: 'procedural', from: 24, to: 35, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash', 'pulse'] },
-      { id: 'p7-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
+      { id: 'p8-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'dash'] },
+      { id: 'p8-infection-intro', kind: 'fixed', from: 4, to: 10, tutorialMode: 'guided', debutPresentationIds: ['presentation-meloidogyne-infection'], mechanicsRequired: [] },
+      { id: 'p8-infection-practice', kind: 'procedural', from: 11, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
+      { id: 'p8-reproduction-intro', kind: 'fixed', from: 18, to: 23, tutorialMode: 'guided', debutPresentationIds: ['presentation-meloidogyne-reproduction'], mechanicsRequired: [] },
+      { id: 'p8-challenge', kind: 'procedural', from: 24, to: 35, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
+      { id: 'p8-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
     ],
-    finalTest: { id: 'p7-test', goal: 'Neutralizar uma massa de ovos e preservar uma raiz.', requires: [
+    finalTest: { id: 'p8-test', goal: 'Neutralizar uma massa de ovos e preservar uma raiz.', requires: [
       { type: 'worldState', key: 'neutralizedEggMassCount', operator: '>=', value: 1 },
       { type: 'worldState', key: 'preservedRootCount', operator: '>=', value: 1 },
     ]}, notes: [],
   },
 
   {
-    id: 'phase-8', phase: 8, totalChunks: 40,
+    id: 'phase-9', phase: 9, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Ecossistema integrado', theme: 'síntese',
     mission: 'Proteja, controle, recupere e atravesse usando tudo o que aprendeu.',
@@ -477,12 +516,12 @@ const phases = [
       { pathogen: 'meloidogyne', fromChunk: 0, presentationId: null },
     ],
     segments: [
-      { id: 'p8-integrated', kind: 'procedural', from: 0, to: 35, tutorialMode: 'silent',
-        mechanicsRequired: ['doubleJump', 'dash', 'pulse', 'inoculation'] },
-      { id: 'p8-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent',
-        mechanicsRequired: ['doubleJump', 'dash', 'pulse', 'inoculation'] },
+      { id: 'p9-integrated', kind: 'procedural', from: 0, to: 35, tutorialMode: 'silent',
+        mechanicsRequired: ['doubleJump', 'dash', 'inoculation'] },
+      { id: 'p9-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent',
+        mechanicsRequired: ['doubleJump', 'dash', 'inoculation'] },
     ],
-    finalTest: { id: 'p8-test', goal: 'Concluir o desafio integrado com pontuação mínima.', requires: [
+    finalTest: { id: 'p9-test', goal: 'Concluir o desafio integrado com pontuação mínima.', requires: [
       { type: 'worldState', key: 'ecologicalScore', operator: '>=', value: 1 },
       { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
     ]},
@@ -677,7 +716,7 @@ export function globalPresentationOrder() {
 
 const VALID_FINAL_TYPES = new Set(['worldState', 'playerUnlock']);
 const VALID_OPERATORS = new Set(['===', '!==', '>', '>=', '<', '<=']);
-const VALID_COMMANDS = new Set(['doubleJump', 'dash', 'pulse']);
+const VALID_COMMANDS = new Set(['doubleJump', 'dash', 'phosphateSolubilization']);
 
 function availableUnlocksIn(manifest, phaseNumber, chunkIndex, knownUnlocks) {
   const active = Object.fromEntries(knownUnlocks.map(flag => [flag, false]));
@@ -800,6 +839,21 @@ export function validateCampaignManifest({
       }
       if (!Number.isFinite(nitrogenRoot.growthDurationSeconds) || nitrogenRoot.growthDurationSeconds <= 0) {
         errors.push(`${phase.id}: nitrogenRoot.growthDurationSeconds invalido.`);
+      }
+    }
+
+    if (phase.phosphateSolubilization) {
+      const phosphate = phase.phosphateSolubilization;
+      for (const key of Object.keys(PHOSPHATE_SOLUBILIZATION_DEFAULTS)) {
+        if (!Number.isFinite(phosphate[key]) || phosphate[key] < 0) {
+          errors.push(`${phase.id}: phosphateSolubilization.${key} invalido.`);
+        }
+      }
+      if (phosphate.minimumCharge <= 0 || phosphate.minimumCharge > phosphate.maximumCharge) {
+        errors.push(`${phase.id}: faixa de carga da solubilizacao de P invalida.`);
+      }
+      if (phosphate.minimumTransportedPhosphate <= 0) {
+        errors.push(`${phase.id}: phosphateSolubilization.minimumTransportedPhosphate invalido.`);
       }
     }
 

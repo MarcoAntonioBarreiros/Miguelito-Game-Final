@@ -40,7 +40,7 @@ export function createHud({ dom, state }) {
     dom.hopeMeter.style.width = clamp(player.hope, 0, 100) + '%';
     dom.jumpCard.classList.toggle('active', player.canDoubleJump);
     dom.dashCard.classList.toggle('active', player.canDash);
-    dom.pulseCard.classList.toggle('active', player.canPulse);
+    dom.pulseCard.classList.toggle('active', player.canPhosphateSolubilization);
     dom.microbeCount.textContent = state.discoveredMicrobes.size;
   }
 

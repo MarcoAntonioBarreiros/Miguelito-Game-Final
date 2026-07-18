@@ -8,6 +8,7 @@ import {
   MYCORRHIZA_BRIDGE_DEFAULTS,
   OPPORTUNISTIC_FUNGUS_DEFAULTS,
   PSEUDOMONAS_IRON_CONTROL_DEFAULTS,
+  PHOSPHATE_SOLUBILIZATION_DEFAULTS,
   campaignManifest,
   getProceduralPoolAt,
   validateCampaignManifest,
@@ -106,6 +107,9 @@ export function createDefaultPhaseLabConfig(phase = 1) {
     },
     pseudomonasIronControl: {
       ...(base.pseudomonasIronControl || PSEUDOMONAS_IRON_CONTROL_DEFAULTS),
+    },
+    phosphateSolubilization: {
+      ...(base.phosphateSolubilization || PHOSPHATE_SOLUBILIZATION_DEFAULTS),
     },
     finalGoal: base.finalTest.goal,
     finalConditions: clone(base.finalTest.requires),
@@ -210,6 +214,12 @@ export function buildPhaseLabManifest(config) {
   const pseudomonasIronControl = Object.fromEntries(
     Object.keys(PSEUDOMONAS_IRON_CONTROL_DEFAULTS).map(key => [key, Number(ironInput[key])]),
   );
+  const phosphateInput = config.phosphateSolubilization
+    || base.phosphateSolubilization
+    || PHOSPHATE_SOLUBILIZATION_DEFAULTS;
+  const phosphateSolubilization = Object.fromEntries(
+    Object.keys(PHOSPHATE_SOLUBILIZATION_DEFAULTS).map(key => [key, Number(phosphateInput[key])]),
+  );
 
   return {
     ...clone(base),
@@ -227,6 +237,7 @@ export function buildPhaseLabManifest(config) {
     mycorrhizaBridge,
     opportunisticFungus,
     pseudomonasIronControl,
+    phosphateSolubilization,
     finalTest: {
       ...clone(base.finalTest),
       goal: String(config.finalGoal || base.finalTest.goal).trim(),
@@ -314,7 +325,10 @@ export function applyPhaseLabResources(level, phaseManifest, seedValue) {
       const height = 110;
       return {
         logicIndex: platform?.logicIndex ?? -1,
-        requiredFeature: 'pulse',
+        requiredFeature: 'phosphateSolubilization',
+        phosphateDeposit: true,
+        remainingPhosphate: 1,
+        initialPhosphate: 1,
         x: (platform?.x || 160) + Math.max(5, (platform?.w || 140) - width - 5),
         y: (platform?.y || 500) - height,
         w: width,

@@ -17,7 +17,6 @@ export function validateChunk(fromPlatform, toPlatform, primitive, agentType = '
   sim.state.player.canDoubleJump = primitive.requires.includes('doubleJump');
   sim.state.player.airJumpAvailable = primitive.requires.includes('doubleJump');
   sim.state.player.canDash = primitive.requires.includes('dash');
-  sim.state.player.canPulse = primitive.requires.includes('pulse');
 
   let jumpTiming = 0;
   if (agentType === 'conservative') jumpTiming = -5;

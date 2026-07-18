@@ -122,7 +122,7 @@ test('geração falha se dois organismos inéditos puderem compartilhar o raio',
 
 test('pool por fase/chunk nunca antecipa organismo e exige cartão visto na fase de estreia', () => {
   for (const seed of SEEDS) {
-    for (let phase = 0; phase <= 8; phase++) {
+    for (let phase = 0; phase <= 9; phase++) {
       const { encounters } = generatePhase(phase, `${seed}:pool-${phase}`);
       for (const encounter of encounters.filter(zone => zone.source === 'procedural')) {
         assert.ok(
@@ -165,12 +165,12 @@ test('micorriza e solubilizador têm estreias fixas, sem entrar no pool vagante'
     assert.equal(mycoDebut?.unlockFeature, 'mycorrhizaStructures');
     assert.equal(mycorrhiza.level.allies.filter(ally => ally.id === 'myco').length, 1);
 
-    const phosphate = generatePhase(6, `${seed}:phos`);
+    const phosphate = generatePhase(7, `${seed}:phos`);
     const phosDebut = phosphate.level.allies.find(ally => ally.presentationOnly && ally.id === 'phos');
-    assert.equal(phosDebut?.logicIndex, 18);
+    assert.equal(phosDebut?.logicIndex, 2);
     assert.equal(phosDebut?.cardId, 'organism-phosphate-solubilizer');
 
-    for (let phase = 0; phase <= 8; phase++) {
+    for (let phase = 0; phase <= 9; phase++) {
       const pool = getProceduralPoolAt(phase, 39);
       assert.equal(pool.includes('myco'), false);
       assert.equal(pool.includes('phos'), false);
@@ -228,16 +228,16 @@ test('Rhizoctonia e Meloidogyne respeitam a agenda dos subsistemas próprios', (
     assert.equal(getPathogensAt(6, 0).includes('rhizoctonia'), false);
     assert.equal(getPathogensAt(6, 1).includes('rhizoctonia'), true);
 
-    for (let phase = 0; phase <= 8; phase++) {
+    for (let phase = 0; phase <= 9; phase++) {
       const { level } = generatePhase(phase, `${seed}:melo-${phase}`);
       const sim = createSimulator();
       sim.reset();
       Object.assign(sim.state.level, level);
       sim.meloidogyneLifecycle.reset();
       const masses = sim.meloidogyneLifecycle.eggMasses;
-      if (phase < 7) assert.equal(masses.length, 0);
-      if (phase === 7) assert.ok(masses.length > 0 && masses.every(mass => mass.platform.logicIndex >= 4));
-      if (phase === 8) assert.ok(masses.length > 0 && masses.every(mass => mass.platform.logicIndex >= 0));
+      if (phase < 8) assert.equal(masses.length, 0);
+      if (phase === 8) assert.ok(masses.length > 0 && masses.every(mass => mass.platform.logicIndex >= 4));
+      if (phase === 9) assert.ok(masses.length > 0 && masses.every(mass => mass.platform.logicIndex >= 0));
     }
   }
 });

@@ -6,7 +6,7 @@ import {
 } from './campaign-manifest.js';
 import { setLogicCampaignProfile } from './logic.js';
 
-const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash', 'pulse']);
+const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash']);
 const DEFAULT_START_PHASE = 1;
 const campaignStorage = new WeakMap();
 
@@ -15,7 +15,7 @@ export const CAMPAIGN_STORAGE_KEY = 'miguelito:campaign:v2';
 const FEATURE_ALLIES = Object.freeze({
   doubleJump: 'azo',
   dash: 'dash',
-  pulse: 'phos',
+  phosphateSolubilization: 'phos-power',
   mycorrhizaStructures: 'myco',
   azospirillumRoots: 'azo',
 });
@@ -141,6 +141,9 @@ export function getPhaseProfile(campaign) {
     newConcepts: [...manifest.newConcepts],
     newCommand: manifest.newCommand,
     unlockEvents: manifest.unlockEvents.map(runtimeUnlockEvent),
+    phosphateSolubilization: manifest.phosphateSolubilization
+      ? { ...manifest.phosphateSolubilization }
+      : undefined,
     initialUnlocks,
     initialAbilities: [...MOVEMENT_FEATURES].filter(feature => initialUnlocks[feature]),
     ...tuning,
@@ -176,10 +179,10 @@ function featurePresentation(feature) {
       desc: 'A rede micorrízica agora pode orientar hifas finas horizontalmente e formar pontes laterais dirigidas por exsudatos.',
     };
   }
-  if (feature === 'pulse') {
+  if (feature === 'phosphateSolubilization') {
     return {
-      name: 'Sol, a Solubilizadora',
-      desc: 'O pulso mineral rompe cristais alaranjados e libera nutrientes antes inacessíveis.',
+      name: 'Pulso de solubilização',
+      desc: 'Selecione Solubilização P, carregue metabólitos perto da cepa de Bacillus e solte E para disparar no depósito.',
     };
   }
   return {
@@ -276,7 +279,7 @@ export function applyPersistentUnlocks(player, campaign) {
   const unlocks = blankUnlocks(campaign?.unlocks);
   player.canDoubleJump = unlocks.doubleJump;
   player.canDash = unlocks.dash;
-  player.canPulse = unlocks.pulse;
+  player.canPhosphateSolubilization = unlocks.phosphateSolubilization;
   player.airJumpAvailable = player.canDoubleJump;
 }
 

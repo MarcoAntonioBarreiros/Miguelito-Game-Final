@@ -7,10 +7,7 @@ const LABELS = Object.freeze({
   trichoderma: 'Trichoderma',
 });
 
-// Carregando mais de um organismo, o E soltava todos de uma vez ou obedecia a
-// uma ordem fixa de prioridade — nao havia como escolher. Aqui existe uma
-// selecao unica: cada sistema so responde ao E quando e ele o selecionado, e o
-// exsudato disputa a mesma vaga, para decidir entre inocular e capturar.
+// Uma unica selecao decide qual acao responde ao E.
 export function createInoculumSelection({ state, input, inoculants, trichodermaColonies }) {
   let index = 0;
   let cycleHeldLast = false;
@@ -26,8 +23,16 @@ export function createInoculumSelection({ state, input, inoculants, trichodermaC
       list.push({ kind: 'trichoderma', type: 'trichoderma', count: trichoderma, label: LABELS.trichoderma });
     }
     const exudates = state.player.exudates || 0;
-    if (exudates > 0) {
-      list.push({ kind: 'exudate', type: 'exudate', count: exudates, label: 'Exsudato' });
+    if (exudates > 0) list.push({ kind: 'exudate', type: 'exudate', count: exudates, label: 'Exsudato' });
+    if (state.player.canPhosphateSolubilization) {
+      const reserve = state.bacillusBioprotection?.solubilizerEntries
+        ?.reduce((sum, entry) => sum + (entry.phosphateMetaboliteReserve || 0), 0) || 0;
+      list.push({
+        kind: 'phosphate-solubilization',
+        type: 'phosphate-solubilization',
+        count: `${Math.round(Math.min(1, reserve) * 100)}%`,
+        label: 'Solubilizacao P',
+      });
     }
     return list;
   }
@@ -48,9 +53,13 @@ export function createInoculumSelection({ state, input, inoculants, trichodermaC
 
   function announce(selected) {
     if (state.time - lastToastAt < .5) return;
-    state.toast = selected.kind === 'exudate'
-      ? `Selecionado: exsudato (${selected.count}) — E lança para capturar ou reforçar colônia.`
-      : `Selecionado: ${selected.label} (${selected.count}) — E inocula na raiz.`;
+    if (selected.kind === 'phosphate-solubilization') {
+      state.toast = 'Selecionado: Solubilizacao P — segure E perto da cepa solubilizadora e solte para disparar.';
+    } else if (selected.kind === 'exudate') {
+      state.toast = `Selecionado: exsudato (${selected.count}) — E lanca para capturar ou reforcar colonia.`;
+    } else {
+      state.toast = `Selecionado: ${selected.label} (${selected.count}) — E inocula na raiz.`;
+    }
     state.toastTime = 2.4;
     lastToastAt = state.time;
   }
@@ -87,8 +96,8 @@ export function createInoculumSelection({ state, input, inoculants, trichodermaC
       const selected = current();
       if (!selected) return '';
       const total = options().length;
-      const posicao = total > 1 ? ` ${index + 1}/${total}` : '';
-      return `${selected.label} (${selected.count})${posicao}`;
+      const position = total > 1 ? ` ${index + 1}/${total}` : '';
+      return `${selected.label} (${selected.count})${position}`;
     },
   };
 }

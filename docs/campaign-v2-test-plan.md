@@ -65,7 +65,7 @@ Testar morte, checkpoint, reload, avanço de fase e restauração de unlocks rea
 ## Patógenos
 
 - Rhizoctonia só na Fase 6/chunk de estreia;
-- Meloidogyne só na Fase 7/chunk de estreia;
+- Meloidogyne só na Fase 8/chunk de estreia;
 - ordem J2→galha→fêmea→massa;
 - Ralstonia ausente do MVP.
 

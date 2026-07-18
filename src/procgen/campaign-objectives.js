@@ -48,6 +48,9 @@ export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
       return (state.level.platforms || []).filter(root => root.type === 'root' && root.healthTrend > 0 && (root.rootHealth || 0) >= .75).length;
     }
     if (key === 'brokenCrystalCount') return (state.level.crystals || []).filter(crystal => crystal.broken).length;
+    if (key === 'solubilizedPhosphateDepositCount') return systems.phosphate?.solubilizedDepositCount || 0;
+    if (key === 'mycorrhizalPhosphateTransported') return systems.phosphate?.transportedPhosphate || 0;
+    if (key === 'rootPhosphateStock') return systems.phosphate?.rootPhosphateStock || 0;
     if (key === 'neutralizedEggMassCount') return systems.meloidogyneControl?.eggMassesNeutralized || 0;
     if (key === 'preservedRootCount') {
       return (state.level.platforms || []).filter(root => root.type === 'root' && (root.rootHealth ?? 1) >= .75).length;

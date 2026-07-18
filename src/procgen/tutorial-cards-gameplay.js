@@ -142,25 +142,26 @@ export const gameplayTutorialCards = {
   'power-pulse': card(
     'power-pulse',
     'Poder',
-    'Pulso mineral',
-    'Ação direta de curto alcance',
+    'Pulso de solubilização',
+    'Metabólitos de Bacillus liberam P do mineral',
     '✦',
     '#ffb15c',
     [
       page(
-        'Função no jogo',
-        'O pulso rompe cristais minerais, reduz contaminação aderida, remove J2 transportados e interrompe certos patógenos.',
+        'Selecionar',
+        'Escolha Solubilização P no seletor. Somente essa opção transforma o E em carga e disparo; as demais ações continuam instantâneas.',
       ),
       page(
-        'Relação com a biologia',
-        'O pulso é uma simplificação fictícia. Plantas não emitem uma onda instantânea com todos esses efeitos. A mecânica reúne respostas químicas e intervenções de manejo em uma ação jogável.',
+        'Carregar',
+        'Segure E perto de uma colônia madura da cepa solubilizadora. A carga consome uma reserva separada de metabólitos, produzida mais rapidamente com exsudatos.',
       ),
       page(
-        'Como usar',
-        'Use perto do alvo. Rhizoctonia exige vários pulsos; controles biológicos bem estabelecidos podem ser mais eficientes.',
+        'Disparar',
+        'Solte E para lançar os metabólitos na direção de Miguelito. O cone se alarga com a distância e dissolve apenas depósitos de fosfato.',
       ),
+      page('Alvo exclusivo', 'O disparo não remove patógenos, nematoides ou contaminação. O P liberado fica local até uma micorriza funcional transportá-lo à raiz.'),
     ],
-    ['Acionamento', 'Expansão', 'Interação com alvos', 'Recarga'],
+    ['Selecionar', 'Carregar', 'Disparar', 'Solubilizar', 'Transportar'],
     'Etapas no jogo',
   ),
 

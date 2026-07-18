@@ -147,22 +147,10 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
       player.hope = Math.max(0, player.hope - dt * (.18 + player.infection * .58));
       if (!infectionAnnounced) {
         infectionAnnounced = true;
-        toast('Contaminação oportunista', 'Propágulos aderiram. Procure Bacillus, Trichoderma ou use o Pulso para reduzir a infecção.', 5.2);
+        toast('Contaminação oportunista', 'Propágulos aderiram. Afaste-se ou procure Bacillus e Trichoderma para reduzir a pressão.', 5.2);
       }
     } else if (player.infection <= .015) {
       infectionAnnounced = false;
-    }
-    for (const pulse of state.level.pulses) {
-      if (pulse.ecologyApplied) continue;
-      pulse.ecologyApplied = true;
-      if (player.infection > 0) {
-        player.infection = Math.max(0, player.infection - .38);
-        player.infectionExposure = 0;
-        entities.burst(center.x, center.y, '#ffcf8a', 18, 155);
-      }
-      if (player.fungalContamination > 0) {
-        player.fungalContamination = Math.max(0, player.fungalContamination - .22);
-      }
     }
   }
 

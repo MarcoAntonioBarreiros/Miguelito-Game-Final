@@ -46,7 +46,7 @@ export function createTutorialTriggers({
         || sim.trichodermaColonies.followerCount > 0,
       doubleJump: Boolean(state.player.canDoubleJump),
       dash: Boolean(state.player.canDash),
-      pulse: Boolean(state.player.canPulse),
+      phosphateSolubilization: Boolean(state.player.canPhosphateSolubilization),
     };
   }
 
@@ -254,7 +254,7 @@ export function createTutorialTriggers({
       ['action-inoculation', current.inoculation && !previousConditions.inoculation],
       ['power-double-jump', current.doubleJump && !previousConditions.doubleJump],
       ['power-dash', current.dash && !previousConditions.dash],
-      ['power-pulse', current.pulse && !previousConditions.pulse],
+      ['power-pulse', current.phosphateSolubilization && !previousConditions.phosphateSolubilization],
     ];
     previousConditions = current;
     for (const [id, active] of transitions) {

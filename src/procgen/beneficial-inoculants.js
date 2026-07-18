@@ -126,6 +126,7 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
   function reset() {
     clear();
     state.level.beneficialColonies = colonies;
+    for (const spec of state.level.authoredBeneficialColonies || []) createAuthoredColony(spec);
   }
 
   function recruitFromClouds() {
@@ -292,6 +293,34 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
       colony.stage = 'biofilme';
     }
     entities.burst(colony.x, colony.y, profile.color, 24 + count * 5, 125);
+    return colony;
+  }
+
+  function createAuthoredColony(spec) {
+    const platform = spec.platform || state.level.platforms?.[spec.platformIndex];
+    if (!platform) return null;
+    const colony = {
+      id: spec.id || `beneficial-colony-${nextColonyId++}`,
+      type: spec.type || 'bacillus',
+      x: Number.isFinite(spec.x) ? spec.x : platform.x + platform.w / 2,
+      y: Number.isFinite(spec.y) ? spec.y : platform.y - 8,
+      platform,
+      sourceCount: spec.sourceCount || 4,
+      vigor: clamp(spec.vigor ?? 1, 0, 1),
+      growth: clamp(spec.growth ?? 1, 0, 1),
+      age: spec.age || 30,
+      stage: spec.stage || 'biofilme maduro',
+      dormant: Boolean(spec.dormant),
+      rechargeIntensity: clamp(spec.rechargeIntensity ?? .35, 0, 1),
+      radius: spec.radius || 82,
+      phase: Number.isFinite(spec.phase) ? spec.phase : 0,
+      linkedBiofilm: null,
+      authored: true,
+      solubilizerStrain: Boolean(spec.solubilizerStrain),
+    };
+    colonies.push(colony);
+    if (colony.type === 'bacillus') colony.linkedBiofilm = createBacillusBiofilm(colony);
+    state.discoveredMicrobes.add(colony.type);
     return colony;
   }
 
@@ -538,6 +567,7 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
       return colonies.reduce((sum, colony) => sum + colony.vigor, 0) / colonies.length;
     },
     get colonies() { return colonies; },
+    createAuthoredColony,
     clear,
     reset,
     prepare,

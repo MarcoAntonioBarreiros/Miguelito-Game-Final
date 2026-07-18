@@ -268,6 +268,7 @@ export function createRenderer({ canvas, state, entities }) {
     }
 
     level.crystals.forEach(c => {
+      if (c.phosphateDeposit) return;
       if (c.broken) return;
       ctx.save();
       ctx.translate(c.x + c.w / 2, c.y + c.h);
@@ -413,14 +414,6 @@ export function createRenderer({ canvas, state, entities }) {
       ctx.fill();
     });
     ctx.globalAlpha = 1;
-    level.pulses.forEach(p => {
-      ctx.globalAlpha = clamp(p.life / .34, 0, 1);
-      ctx.strokeStyle = '#ffb15c';
-      ctx.lineWidth = 6 * ctx.globalAlpha;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.stroke();
-    });
     ctx.globalAlpha = 1;
     drawPlayer();
     ctx.restore();
@@ -512,12 +505,12 @@ export function createRenderer({ canvas, state, entities }) {
 
     drawFungalAttachment(player, time);
 
-    if (player.canPulse) {
+    if (player.canPhosphateSolubilization) {
       ctx.shadowBlur = 16;
-      ctx.shadowColor = '#ffb15c';
-      ctx.fillStyle = '#ffb15c';
+      ctx.shadowColor = '#df91ff';
+      ctx.fillStyle = '#df91ff';
       ctx.beginPath();
-      ctx.arc(15, -2, 4, 0, Math.PI * 2);
+      ctx.arc(15, -2, 3 + (player.phosphateCharge || 0) * 4, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
     }

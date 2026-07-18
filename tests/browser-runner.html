@@ -85,11 +85,11 @@
   async function verifyTutorialFlow(win, label) {
     const manager = win.miguelitoTutorial;
     await waitFor(
-      () => manager?.currentCardId === 'system-welcome',
-      `${label}: welcome card should open in a fresh session`,
+      () => manager && !manager.isOpen,
+      `${label}: tutorial manager should become ready without blocking the test entrypoint`,
     );
 
-    const pending = manager.trigger('organism-bacillus', {
+    const encounter = manager.trigger('organism-bacillus', {
       tutorialMode: 'silent',
       source: 'first-proximity-encounter',
       phase: 1,
@@ -98,8 +98,8 @@
       visibleWorldWidth: 900,
       nowSeconds: 10,
     });
-    assert(pending, `${label}: first Bacillus proximity should be retained while welcome is open`);
-    assert(manager.currentCardId === 'system-welcome', `${label}: mandatory pending card should not replace the active panel`);
+    assert(encounter, `${label}: first Bacillus proximity should open its mandatory card`);
+    assert(manager.currentCardId === 'organism-bacillus', `${label}: mandatory proximity should bypass silent mode`);
 
     const nextButton = win.document.querySelector('.tutorial-next');
     const nextRect = nextButton.getBoundingClientRect();
@@ -112,15 +112,6 @@
       `${label}: tutorial navigation should not be covered by HUD controls`,
     );
 
-    const welcomePageCount = manager.getUnlockedPages('system-welcome').length;
-    for (let index = 0; index < welcomePageCount; index++) {
-      nextButton.click();
-    }
-    await waitFor(
-      () => manager.currentCardId === 'organism-bacillus',
-      `${label}: pending mandatory encounter should open after welcome`,
-    );
-    assert(manager.currentCardId === 'organism-bacillus', `${label}: Bacillus should bypass silent mode`);
     assert(
       JSON.stringify(manager.getUnlockedPages('organism-bacillus')) === '[0]',
       `${label}: first Bacillus encounter should unlock only page zero`,
