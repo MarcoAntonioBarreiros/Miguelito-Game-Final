@@ -72,7 +72,10 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
       mode: authoredMature ? 'mature' : 'adhesion',
       maturity: authoredMature ? 1 : .08,
       antibioticReserve: 0,
-      phosphateMetaboliteReserve: colony.solubilizerStrain && authoredMature ? .7 : 0,
+      // Nao existe "cepa solubilizadora" separada: e o mesmo Bacillus do
+      // checkpoint. Solubilizar fosfato e mais uma funcao dele quando maduro,
+      // como a antibiose. Uma colonia autoral ja madura comeca com reserva.
+      phosphateMetaboliteReserve: authoredMature ? .7 : 0,
       sporulation: 0,
       germination: 0,
       activePressure: 0,
@@ -228,8 +231,9 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
     }
 
 
-    if (entry.colony.solubilizerStrain
-      && entry.maturity >= .72
+    // Todo Bacillus maduro e metabolicamente ativo produz os acidos organicos
+    // que solubilizam o fosfato mineral. Nao ha cepa especial.
+    if (entry.maturity >= .72
       && isMetabolicallyActive(entry)
       && entry.mode !== 'sporulating') {
       const config = state.level.phaseProfile?.phosphateSolubilization || {};
@@ -475,7 +479,9 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
     ctx.fillText('antibiose', 0, 41);
     ctx.restore();
 
-    if (entry.colony.solubilizerStrain && entry.mode !== 'spores') {
+    // A barra de fosfato so aparece quando ha reserva: qualquer Bacillus pode
+    // te-la, mas ela nao polui a tela das colonias que ainda nao produziram.
+    if (entry.mode !== 'spores' && (entry.phosphateMetaboliteReserve || 0) > .01) {
       const phosphate = clamp(entry.phosphateMetaboliteReserve || 0, 0, 1);
       ctx.save();
       ctx.translate(colony.x, colony.y);
@@ -525,7 +531,9 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
     get fungiUnderAntibiosis() { return fungiUnderAntibiosis; },
     get entries() { return [...colonyStates.values()]; },
     get solubilizerEntries() {
-      return [...colonyStates.values()].filter(entry => entry.colony.solubilizerStrain);
+      // Qualquer colonia de Bacillus e candidata: quem decide e a maturidade e
+      // a reserva, verificadas por quem consome esta lista.
+      return [...colonyStates.values()].filter(entry => entry.colony.type === 'bacillus');
     },
     get protectedRootCount() {
       const platforms = new Set();
