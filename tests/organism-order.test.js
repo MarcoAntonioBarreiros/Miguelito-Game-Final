@@ -26,6 +26,7 @@ const ROAMING_DEBUTS = [
   { phase: 3, chunk: 4, type: 'azospirillum', cardId: 'organism-azospirillum' },
   { phase: 5, chunk: 2, type: 'oportunista', cardId: 'organism-opportunistic-fungus' },
   { phase: 5, chunk: 8, type: 'pseudomonas', cardId: 'organism-pseudomonas' },
+  { phase: 6, chunk: 3, type: 'trichoderma', cardId: 'organism-trichoderma' },
 ];
 
 test('campanha mantém somente os sinais cenográficos antigos, sem função didática', () => {
@@ -63,6 +64,8 @@ test('sequência global preserva a ordem pedagógica do manifesto', () => {
     'presentation-opportunistic-fungus',
     'presentation-pseudomonas',
     'presentation-root-health',
+    'presentation-trichoderma',
+    'presentation-mycoparasitism',
     'presentation-meloidogyne-infection',
   ];
   const actual = campaignManifest
@@ -86,7 +89,7 @@ test('ordem curricular cobre todas as estreias vagantes e as mantém separadas',
   }
 
   for (const seed of SEEDS) {
-    for (const phase of [1, 2, 3, 5]) {
+    for (const phase of [1, 2, 3, 5, 6]) {
       const { encounters } = generatePhase(phase, `${seed}:phase-${phase}`);
       const debuts = encounters.filter(encounter => encounter.source === 'debut');
       const expected = ROAMING_DEBUTS.filter(debut => debut.phase === phase);
@@ -138,6 +141,8 @@ test('pool por fase/chunk nunca antecipa organismo e exige cartão visto na fase
   assert.equal(getProceduralPoolAt(5, 6).includes('oportunista'), true);
   assert.equal(getProceduralPoolAt(5, 11).includes('pseudomonas'), false);
   assert.equal(getProceduralPoolAt(5, 12).includes('pseudomonas'), true);
+  assert.equal(getProceduralPoolAt(6, 10).includes('trichoderma'), false);
+  assert.equal(getProceduralPoolAt(6, 11).includes('trichoderma'), true);
 });
 
 test('organismos conhecidos reaparecem e os vagantes apresentados integram a síntese', () => {
@@ -218,10 +223,10 @@ test('Rhizoctonia e Meloidogyne respeitam a agenda dos subsistemas próprios', (
     }
 
     const phase6 = generatePhase(6, `${seed}:rhizo`).level;
-    assert.ok(phase6.enemies.some(enemy => enemy.type === 'rhizoctonia' && enemy.logicIndex === 4 && enemy.debut));
-    assert.ok(phase6.enemies.every(enemy => enemy.logicIndex >= 4));
-    assert.equal(getPathogensAt(6, 3).includes('rhizoctonia'), false);
-    assert.equal(getPathogensAt(6, 4).includes('rhizoctonia'), true);
+    assert.ok(phase6.enemies.some(enemy => enemy.type === 'rhizoctonia' && enemy.logicIndex === 1 && enemy.debut));
+    assert.ok(phase6.enemies.every(enemy => enemy.logicIndex >= 1));
+    assert.equal(getPathogensAt(6, 0).includes('rhizoctonia'), false);
+    assert.equal(getPathogensAt(6, 1).includes('rhizoctonia'), true);
 
     for (let phase = 0; phase <= 8; phase++) {
       const { level } = generatePhase(phase, `${seed}:melo-${phase}`);
