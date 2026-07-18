@@ -86,7 +86,11 @@ test('configuracao altera perfil, segmentos, organismos, recursos e prova final 
   assert.deepEqual(getPathogensAt(5, 0), ['rhizoctonia']);
   assert.deepEqual(active.phaseLab.resources, config.resources);
   assert.deepEqual(active.nitrogenRoot, config.nitrogenRoot);
-  assert.deepEqual(active.azospirillumRootLadder, config.azospirillumRootLadder);
+  assert.deepEqual(active.azospirillumRootLadder, {
+    ...config.azospirillumRootLadder,
+    recapAccessChunk: 5,
+    preserveDestinationHeight: true,
+  });
   assert.deepEqual(active.azospirillumNitrogen, config.azospirillumNitrogen);
   assert.deepEqual(active.mycorrhizaBridge, config.mycorrhizaBridge);
   assert.deepEqual(active.opportunisticFungus, config.opportunisticFungus);

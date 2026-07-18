@@ -2087,6 +2087,16 @@ const phases = [
   {
     id: 'phase-5', phase: 5, totalChunks: 20,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    // Recapitulação funcional: a mesma elevação pode ser vencida pela escada
+    // vertical de Azo (a partir da raiz inferior) ou pela ponte micorrízica
+    // horizontal (a partir da raiz superior anterior).
+    azospirillumRootLadder: {
+      ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
+      count: 1,
+      recapAccessChunk: 5,
+      preserveDestinationHeight: true,
+    },
+    mycorrhizaBridge: { ...MYCORRHIZA_BRIDGE_DEFAULTS },
     opportunisticFungus: { ...OPPORTUNISTIC_FUNGUS_DEFAULTS },
     pseudomonasIronControl: { ...PSEUDOMONAS_IRON_CONTROL_DEFAULTS },
     title: 'Ferro e biocontrole fúngico', theme: 'equilíbrio',
@@ -8099,6 +8109,9 @@ function createOpportunisticFungus({ state, entities, ecology }) {
       sporeAccumulator: 0,
       response: null,
       attached: 0,
+      attachmentGrace: 0,
+      activated: false,
+      activatedAt: null,
       reachedLesions: 1,
     };
     const availableTargets = Math.max(1, network.lesions.length - 1);
@@ -8249,8 +8262,22 @@ function createOpportunisticFungus({ state, entities, ecology }) {
     for (const agent of network.agents) agent.fungalVigor = response.vigor;
     maximumIronLimitation = Math.max(maximumIronLimitation, limitation);
 
+    const distanceToPlayer = Math.hypot(
+      network.anchor.x - target.x,
+      network.anchor.y - target.y,
+    );
+    const insideActiveView = network.anchor.x >= state.cameraX - 90
+      && network.anchor.x <= state.cameraX + W + 140;
+    if (!network.activated && insideActiveView && distanceToPlayer <= 560) {
+      network.activated = true;
+      network.activatedAt = state.time;
+    }
+    if (!network.activated) return;
+
     if (network.segments.length < MAX_HYPHAL_SEGMENTS_PER_FOCUS) {
-      network.growthAccumulator += dt * 10 * response.growth;
+      // Crescimento suficientemente lento para que as pontas apicais sejam
+      // observadas quando o jogador encontra o foco, sem elevar o orçamento.
+      network.growthAccumulator += dt * 4.6 * response.growth;
       while (network.growthAccumulator >= 1 && network.segments.length < MAX_HYPHAL_SEGMENTS_PER_FOCUS) {
         network.growthAccumulator -= 1;
         const tips = [...network.tips];
@@ -8268,8 +8295,17 @@ function createOpportunisticFungus({ state, entities, ecology }) {
       const pressure = clamp(touching / 5, .16, 1) * response.adhesion;
       contactIntensity += pressure;
       network.attached = clamp(network.attached + dt * pressure * 1.4, 0, 1);
+      network.attachmentGrace = 3.2;
     } else {
-      network.attached = Math.max(0, network.attached - dt * (.18 + limitation * 1.15));
+      network.attachmentGrace = Math.max(
+        0,
+        network.attachmentGrace - dt * (1 + limitation * 3.5),
+      );
+      const graceDecay = network.attachmentGrace > 0 ? .018 : .075;
+      network.attached = Math.max(
+        0,
+        network.attached - dt * (graceDecay + limitation * .62),
+      );
     }
   }
 
@@ -8315,16 +8351,23 @@ function createOpportunisticFungus({ state, entities, ecology }) {
         0,
         1,
       );
+      player.fungalContactGrace = 3.2;
       if (!contactAnnounced && player.fungalContamination > .12) {
         contactAnnounced = true;
         state.toast = 'Contaminação fúngica: fragmentos de hifa aderidos reduzem aceleração, velocidade e impulso do pulo.';
         state.toastTime = 5.2;
       }
     } else {
-      const acceleratedDetachment = 1 + maximumIronLimitation * 2.2;
+      player.fungalContactGrace = Math.max(
+        0,
+        (player.fungalContactGrace || 0) - dt * (1 + maximumIronLimitation * 3.5),
+      );
+      const graceFactor = player.fungalContactGrace > 0 ? .08 : 1;
+      const acceleratedDetachment = 1 + maximumIronLimitation * 2.8;
       player.fungalContamination = Math.max(
         0,
-        (player.fungalContamination || 0) - dt * settings.fungus.recoveryRate * acceleratedDetachment,
+        (player.fungalContamination || 0)
+          - dt * settings.fungus.recoveryRate * acceleratedDetachment * graceFactor,
       );
       if (player.fungalContamination <= .02) contactAnnounced = false;
     }
@@ -8490,6 +8533,7 @@ function createOpportunisticFungus({ state, entities, ecology }) {
     clear();
     state.player.fungalContamination = 0;
     state.player.fungalAttachmentLevel = 0;
+    state.player.fungalContactGrace = 0;
   }
 
   return {
@@ -13074,6 +13118,28 @@ function platformAt(level, chunk) {
   ));
 }
 
+function movePlatform(level, platform, { x = platform.x, y = platform.y, w = platform.w } = {}) {
+  if (!platform) return;
+  const dx = x - platform.x;
+  const dy = y - platform.y;
+  platform.x = x;
+  platform.y = y;
+  platform.w = w;
+  for (const collection of [
+    level.exudates,
+    level.crystals,
+    level.enemies,
+    level.allies,
+    level.checkpoints,
+  ]) {
+    for (const entity of collection || []) {
+      if (entity.logicIndex !== platform.logicIndex) continue;
+      if (Number.isFinite(entity.x)) entity.x += dx;
+      if (Number.isFinite(entity.y)) entity.y += dy;
+    }
+  }
+}
+
 function addExudate(level, chunk, lateral = .5) {
   const platform = platformAt(level, chunk);
   if (!platform) return;
@@ -13104,6 +13170,43 @@ function applyPhaseFiveTutorialGeometry(level, phase = level.campaignPhase) {
     }
   }
 
+  // Recapitulação com duas soluções reais. A raiz 4 fica no mesmo nível da
+  // raiz 6 e pode originar uma ponte micorrízica horizontal. A raiz 5 fica
+  // abaixo e é o hospedeiro da escada vertical de Azospirillum.
+  const recapEntry = platformAt(level, 3);
+  const mycorrhizaHost = platformAt(level, 4);
+  const azospirillumHost = platformAt(level, 5);
+  const recapDestination = platformAt(level, 6);
+  if (recapEntry && mycorrhizaHost && azospirillumHost && recapDestination) {
+    movePlatform(level, mycorrhizaHost, {
+      x: recapEntry.x + recapEntry.w + 92,
+      y: 315,
+      w: Math.max(210, mycorrhizaHost.w),
+    });
+    movePlatform(level, azospirillumHost, {
+      x: mycorrhizaHost.x + mycorrhizaHost.w + 80,
+      y: 525,
+      w: 170,
+    });
+    movePlatform(level, recapDestination, {
+      x: azospirillumHost.x + azospirillumHost.w + 80,
+      y: 315,
+      w: Math.max(220, recapDestination.w),
+    });
+
+    let previous = recapDestination;
+    for (let chunk = 7; chunk <= 14; chunk++) {
+      const platform = platformAt(level, chunk);
+      if (!platform) continue;
+      movePlatform(level, platform, {
+        x: previous.x + previous.w + 92,
+        y: clamp(455 + Math.sin(chunk * .72) * 34, 405, 515),
+        w: Math.max(platform.w, 200),
+      });
+      previous = platform;
+    }
+  }
+
   // Corredor final curto: sem a limitação por ferro, a rede hifal alcança
   // Miguelito durante a travessia; com Pseudomonas, o mesmo percurso é controlável.
   const corridor = [15, 16, 17, 18, 19].map(chunk => platformAt(level, chunk)).filter(Boolean);
@@ -13111,22 +13214,29 @@ function applyPhaseFiveTutorialGeometry(level, phase = level.campaignPhase) {
     platform.y = index < 3 ? 470 - index * 18 : 442 + (index - 3) * 12;
     platform.w = index === 1 ? 210 : index < 3 ? 185 : 220;
     platform.fungalChallenge = index < 3;
-    if (index > 0) {
+    if (index === 0) {
+      const previous = platformAt(level, 14);
+      if (previous) platform.x = previous.x + previous.w + 110;
+    } else {
       const previous = corridor[index - 1];
       platform.x = previous.x + previous.w + (index < 3 ? 148 : 92);
     }
   });
 
   level.exudates = (level.exudates || []).filter(item => item.logicIndex < 18);
+  addExudate(level, 4, .86);
+  addExudate(level, 5, .56);
   addExudate(level, 7, .55);
   addExudate(level, 9, .42);
   addExudate(level, 12, .5);
+  addExudate(level, 13, .48);
   addExudate(level, 15, .38);
 
-  const ironHost = platformAt(level, 10) || platformAt(level, 9);
+  const ironHost = platformAt(level, 8) || platformAt(level, 9);
+  const interactionHost = platformAt(level, 13);
   const challengeHost = platformAt(level, 15);
   level.ironDeposits = [];
-  for (const [index, platform] of [ironHost, challengeHost].filter(Boolean).entries()) {
+  for (const [index, platform] of [ironHost, interactionHost, challengeHost].filter(Boolean).entries()) {
     level.ironDeposits.push({
       id: `p5-authored-iron-${index}`,
       platform,
@@ -13170,6 +13280,15 @@ function applyPhaseFiveTutorialEncounters(level, encounters, phase, seedValue) {
     encounter.source === 'debut'
     || !['oportunista', 'pseudomonas', 'trichoderma'].includes(encounter.id)
   ));
+  const azospirillumRecap = encounterAt(level, 3, 'azospirillum', 'recap-access', seedValue, {
+    r: 120,
+    territory: 230,
+  });
+  const interactionSupport = encounterAt(level, 13, 'pseudomonas', 'interaction-support', seedValue, {
+    r: 118,
+    territory: 210,
+    requiresSeenCardId: 'organism-pseudomonas',
+  });
   const interaction = encounterAt(level, 13, 'oportunista', 'interaction', seedValue, {
     r: 125,
     territory: 250,
@@ -13180,9 +13299,16 @@ function applyPhaseFiveTutorialEncounters(level, encounters, phase, seedValue) {
     territory: 310,
     requiresSeenCardId: 'organism-opportunistic-fungus',
   });
+  if (azospirillumRecap) result.push(azospirillumRecap);
+  if (interactionSupport) result.push(interactionSupport);
   if (interaction) result.push(interaction);
   if (challenge) result.push(challenge);
-  level.authoredEncounters = [interaction, challenge].filter(Boolean);
+  level.authoredEncounters = [
+    azospirillumRecap,
+    interactionSupport,
+    interaction,
+    challenge,
+  ].filter(Boolean);
   return result;
 }
 Object.assign(__exports, { applyPhaseFiveTutorialGeometry, applyPhaseFiveTutorialEncounters });

@@ -1,7 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { getPhaseManifest } from '../src/procgen/campaign-manifest.js';
+import {
+  getPersistentUnlocksBeforePhase,
+  getPhaseManifest,
+} from '../src/procgen/campaign-manifest.js';
+import {
+  campaignPhaseSeed,
+  createCampaign,
+  decorateCampaignLevel,
+  prepareCampaignGeneration,
+} from '../src/procgen/campaign-progression.js';
+import { generateCampaignEncounters } from '../src/procgen/campaign-encounters.js';
+import { generateLevel } from '../src/procgen/generator.js';
 import {
   createOpportunisticFungus,
   fungalResponse,
@@ -10,6 +21,8 @@ import {
   PSEUDOMONAS_IRON_CONTROL_DEFAULTS,
 } from '../src/procgen/opportunistic-fungus.js';
 import { createPseudomonasSiderophores } from '../src/procgen/pseudomonas-siderophores.js';
+import { generateAzospirillumRootLadders } from '../src/procgen/azospirillum-root-growth.js';
+import { createMycorrhizaStructures } from '../src/procgen/mycorrhiza-structures.js';
 import {
   applyPhaseFiveTutorialEncounters,
   applyPhaseFiveTutorialGeometry,
@@ -179,8 +192,15 @@ test('um foco produz uma única rede ancorada na raiz e não persegue Miguelito'
   run(harness, 5);
   assert.equal(harness.system.networks.size, 1);
   const [network] = harness.system.networks.values();
+  assert.equal(network.activated, false);
+  assert.equal(network.segments.length, 0);
   assert.equal(network.hostRoot, harness.root);
   assert.equal(network.anchor.y, harness.root.y - 5);
+
+  harness.state.player.x = network.anchor.x - harness.state.player.w / 2;
+  harness.state.player.y = network.anchor.y - harness.state.player.h / 2;
+  run(harness, 5);
+  assert.equal(network.activated, true);
   assert.deepEqual(network.segments[0].start, { x: network.anchor.x, y: network.anchor.y });
   assert.ok(network.lesions.every(lesion => lesion.root === harness.root || lesion.root === null));
   assert.ok(harness.ecology.agents.every(agent => (
@@ -199,7 +219,10 @@ test('um foco produz uma única rede ancorada na raiz e não persegue Miguelito'
 
 test('fragmentos aderem somente quando Miguelito toca uma hifa', () => {
   const harness = rootedFungalHarness('contact-on-touch');
-  run(harness, 4);
+  const focusX = harness.ecology.encounters[0].x;
+  harness.state.player.x = focusX + 260;
+  harness.state.player.y = 300;
+  run(harness, 5);
   assert.equal(harness.state.player.fungalContamination, 0);
   const [network] = harness.system.networks.values();
   const segment = network.segments[Math.floor(network.segments.length / 2)];
@@ -208,10 +231,18 @@ test('fragmentos aderem somente quando Miguelito toca uma hifa', () => {
   run(harness, .6);
   assert.ok(harness.state.player.fungalContamination > 0);
   assert.ok(harness.state.player.fungalAttachmentLevel > 0);
+
+  const attached = harness.state.player.fungalAttachmentLevel;
+  harness.state.player.x = 1200;
+  run(harness, 1.5);
+  assert.ok(harness.state.player.fungalAttachmentLevel > 0);
+  assert.ok(harness.state.player.fungalAttachmentLevel >= attached * .8);
 });
 
 test('a rede preserva a ligação basal e respeita o orçamento de segmentos', () => {
   const harness = rootedFungalHarness('segment-budget');
+  harness.state.player.x = 520;
+  harness.state.player.y = 350;
   run(harness, 35);
   const [network] = harness.system.networks.values();
   assert.ok(network.segments.length <= MAX_HYPHAL_SEGMENTS_PER_FOCUS);
@@ -240,16 +271,101 @@ test('tutorial curto cria encontro, controle e corredor final determinísticos',
       { id: 'pseudomonas', source: 'debut', logicIndex: 8, x: 2200, y: 350 },
       { id: 'oportunista', source: 'procedural', logicIndex: 12, x: 3300, y: 350 },
     ], 5, 'fixed-seed');
-    return { level, encounters };
+    const ladders = generateAzospirillumRootLadders({
+      level,
+      phase: 5,
+      seedValue: 'fixed-seed',
+      encounters,
+      config: getPhaseManifest(5).azospirillumRootLadder,
+    });
+    return { level, encounters, ladders };
   };
   const first = build();
   const second = build();
   assert.deepEqual(first, second);
   assert.deepEqual(first.encounters.map(item => [item.source, item.logicIndex]), [
-    ['debut', 2], ['debut', 8], ['interaction', 13], ['challenge', 16],
+    ['debut', 2],
+    ['debut', 8],
+    ['recap-access', 3],
+    ['interaction-support', 13],
+    ['interaction', 13],
+    ['challenge', 16],
   ]);
-  assert.equal(first.level.ironDeposits.length, 2);
+  assert.equal(first.level.ironDeposits.length, 3);
+  assert.deepEqual(first.level.ironDeposits.map(item => item.platform.logicIndex), [8, 13, 15]);
+  assert.equal(first.ladders.length, 1);
+  assert.equal(first.ladders[0].hostLogicIndex, 5);
+  assert.equal(first.ladders[0].destinationLogicIndex, 6);
+
+  const mycorrhizaHost = first.level.platforms.find(platform => platform.logicIndex === 4);
+  const recapDestination = first.level.platforms.find(platform => platform.logicIndex === 6);
+  const horizontalGap = recapDestination.x - (mycorrhizaHost.x + mycorrhizaHost.w);
+  assert.ok(horizontalGap >= 58 && horizontalGap <= 340);
+  assert.ok(Math.abs(recapDestination.y - mycorrhizaHost.y) <= 68);
   assert.ok(first.level.platforms.filter(platform => platform.fungalChallenge).length === 3);
   const route = first.level.platforms.slice(15, 20);
   assert.ok(route.every((platform, index) => index === 0 || platform.x > route[index - 1].x + route[index - 1].w));
+});
+
+test('pipeline real do Phase Lab 5 oferece acesso por Azo ou micorriza e ferro no foco controlado', () => {
+  const campaign = createCampaign('phase-lab-5');
+  campaign.phase = 5;
+  campaign.unlocks = getPersistentUnlocksBeforePhase(5);
+  const profile = prepareCampaignGeneration(campaign);
+  const seedValue = campaignPhaseSeed(campaign);
+  const rawLevel = generateLevel(seedValue);
+  applyPhaseFiveTutorialGeometry(rawLevel, 5);
+  const level = decorateCampaignLevel(rawLevel, campaign, profile);
+  let encounters = generateCampaignEncounters({
+    platforms: level.platforms,
+    phase: 5,
+    seedValue,
+  });
+  encounters = applyPhaseFiveTutorialEncounters(level, encounters, 5, seedValue);
+  const ladders = generateAzospirillumRootLadders({
+    level,
+    phase: 5,
+    seedValue,
+    encounters,
+    config: getPhaseManifest(5).azospirillumRootLadder,
+  });
+
+  assert.equal(ladders.length, 1);
+  assert.deepEqual(
+    [ladders[0].hostLogicIndex, ladders[0].destinationLogicIndex],
+    [5, 6],
+  );
+
+  const mycorrhizaHost = level.platforms.find(platform => platform.logicIndex === 4);
+  level.exudateClouds = [{
+    id: 'phase-lab-5-myco-route',
+    x: mycorrhizaHost.x + mycorrhizaHost.w - 18,
+    y: mycorrhizaHost.y - 20,
+    radius: 95,
+    maxLife: 10,
+    life: 9,
+  }];
+  const state = {
+    gameState: 'play',
+    time: 0,
+    cameraX: 0,
+    campaign: { phase: 5 },
+    player: { soil: 0, hope: 0 },
+    level,
+  };
+  const structures = createMycorrhizaStructures({ state, entities: { burst() {} } });
+  structures.update(.8);
+  assert.equal(structures.bridgeCount, 1);
+  assert.equal(structures.structures[0].source.logicIndex, 4);
+  assert.equal(structures.structures[0].target.logicIndex, 6);
+
+  const interactionFungus = encounters.find(item => item.source === 'interaction');
+  const interactionPseudomonas = encounters.find(item => item.source === 'interaction-support');
+  const interactionIron = level.ironDeposits.find(item => item.platform.logicIndex === 13);
+  assert.ok(interactionFungus && interactionPseudomonas && interactionIron);
+  assert.ok(Math.hypot(
+    interactionFungus.x - interactionPseudomonas.x,
+    interactionFungus.y - interactionPseudomonas.y,
+  ) < 60);
+  assert.equal(interactionIron.platform.logicIndex, interactionFungus.logicIndex);
 });
