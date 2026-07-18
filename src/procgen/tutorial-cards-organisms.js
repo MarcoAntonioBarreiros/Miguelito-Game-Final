@@ -37,21 +37,21 @@ export const organismTutorialCards = {
     'Azo',
     '#72e8dd',
     [
-      page('Quem é?', 'Azospirillum reúne bactérias associadas à superfície e às regiões próximas das raízes de várias plantas.'),
+      page('Quem é?', 'Azospirillum reúne bactérias de colonização associativa que vivem no rizoplano e nas regiões próximas das raízes, sem formar nódulos.'),
       page(
-        'Função biológica',
-        'Pode contribuir para o crescimento vegetal por sinalização hormonal, mudanças na arquitetura radicular e outros mecanismos dependentes da estirpe e do hospedeiro.',
+        'Fitormônios e arquitetura',
+        'A colonização associativa pode produzir sinais semelhantes a fitormônios, estimulando ramificações laterais e aumentando a quantidade de pelos radiculares.',
       ),
       page(
         'Função no jogo',
-        'Quando inoculado em uma raiz e sustentado por exsudatos, induz o desenvolvimento de raízes laterais que ampliam a área explorável.',
+        'Quando inoculado em uma raiz, Azospirillum desenvolve progressivamente uma escada de ramificações. Cada degrau só sustenta Miguelito depois de atingir 100%.',
       ),
       page(
-        'Atenção didática',
-        'Azospirillum não forma os nódulos típicos de Rhizobium. As raízes laterais representam seu efeito sobre a arquitetura da planta.',
+        'Nitrogênio e co-inoculação',
+        'Sua fixação associativa oferece uma pequena contribuição de N. Na mesma raiz de um nódulo maduro, pode potencializar a FBN de Rhizobium, mas nunca cria ou substitui o nódulo.',
       ),
     ],
-    ['Rizoplano', 'Sinalização', 'Primórdio lateral', 'Emergência', 'Alongamento', 'Raiz madura'],
+    ['Rizoplano', 'Fitormônios', 'Ramificações', 'Pelos radiculares', 'N associativo', 'Sinergia com Rhizobium'],
   ),
 
   'organism-mycorrhiza': card(

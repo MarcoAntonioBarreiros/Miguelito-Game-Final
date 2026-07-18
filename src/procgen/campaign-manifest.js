@@ -26,6 +26,26 @@ export const PRESENTATION_POLICIES = Object.freeze([
 export const SEGMENT_KINDS = Object.freeze(['fixed', 'procedural', 'final']);
 export const DERIVED_TRIGGER_BEHAVIORS = Object.freeze(['guide-only', 'open-in-guided']);
 export const MVP_EXCLUDED_PATHOGENS = Object.freeze(['ralstonia']);
+export const NITROGEN_ROOT_DEFAULTS = Object.freeze({
+  enabled: true,
+  count: 1,
+  requiredFixationRate: 0.05,
+  growthDurationSeconds: 4,
+});
+export const AZOSPIRILLUM_ROOT_LADDER_DEFAULTS = Object.freeze({
+  enabled: true,
+  count: 1,
+  stepCount: 4,
+  verticalSpacing: 85,
+  growthDurationSeconds: 3,
+});
+export const AZOSPIRILLUM_NITROGEN_DEFAULTS = Object.freeze({
+  associativeRate: 0.01,
+  rhizobiumSynergyMultiplier: 1.2,
+});
+export const MYCORRHIZA_BRIDGE_DEFAULTS = Object.freeze({
+  horizontalOnly: true,
+});
 
 export const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
   'action-exudate': Object.freeze(['action-exudate', 'action-inoculation']),
@@ -145,6 +165,7 @@ const phases = [
 
   {
     id: 'phase-2', phase: 2, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Rhizobium, nódulo e FBN', theme: 'simbiose',
     mission: 'Estabeleça um nódulo maduro e mantenha a fixação de nitrogênio ativa.',
     newConcepts: ['Rhizobium→nódulo→FBN'], newCommand: null,
@@ -178,6 +199,9 @@ const phases = [
 
   {
     id: 'phase-3', phase: 3, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS },
+    azospirillumNitrogen: { ...AZOSPIRILLUM_NITROGEN_DEFAULTS },
     title: 'Azospirillum e arquitetura radicular', theme: 'arquitetura',
     mission: 'Induza raízes laterais e use o salto duplo para alcançar novas rotas.',
     newConcepts: ['Azospirillum→raiz lateral'], newCommand: 'doubleJump',
@@ -219,6 +243,14 @@ const phases = [
 
   {
     id: 'phase-4', phase: 4, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    mycorrhizaBridge: {
+      ...MYCORRHIZA_BRIDGE_DEFAULTS,
+      introSourceChunk: 3,
+      introTargetChunk: 4,
+      introGap: 325,
+      introVerticalOffset: 54,
+    },
     title: 'Micorriza e expansão do solo explorado', theme: 'expansão',
     mission: 'Estabeleça a micorriza, atravesse uma ponte hifal e domine o Dash.',
     newConcepts: ['micorriza→arbúsculo→absorção→ponte'], newCommand: 'dash',
@@ -226,7 +258,7 @@ const phases = [
       { id: 'presentation-mycorrhiza', cardId: 'organism-mycorrhiza',
         triggerIds: ['organism-mycorrhiza', 'structure-arbuscule', 'structure-mycorrhiza-path'],
         autoOpenTrigger: 'organism-mycorrhiza', policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        debutChunk: 4, moduleId: 'p4-myco-intro', debutZoneId: 'p4-mycorrhiza-debut',
+        debutChunk: 3, moduleId: 'p4-myco-intro', debutZoneId: 'p4-mycorrhiza-debut',
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
           { triggerId: 'organism-mycorrhiza', pages: [0] },
@@ -239,12 +271,12 @@ const phases = [
         debutChunk: 18, moduleId: 'p4-power-intro', pages: ['mecânica de gameplay', 'impulso horizontal'] },
     ],
     unlockEvents: [
-      { feature: 'mycorrhizaStructures', eventChunk: 8, afterModule: 'p4-myco-intro', practiceWindowChunks: 3, mandatory: true },
+      { feature: 'mycorrhizaStructures', eventChunk: 3, afterModule: 'p4-myco-intro', practiceWindowChunks: 3, mandatory: true },
       { feature: 'dash', eventChunk: 20, afterModule: 'p4-power-intro', practiceWindowChunks: 3, mandatory: true },
     ], pathogenDebuts: [],
     segments: [
-      { id: 'p4-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
-      { id: 'p4-myco-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided', debutPresentationIds: ['presentation-mycorrhiza'], mechanicsRequired: ['inoculation'] },
+      { id: 'p4-warmup', kind: 'procedural', from: 0, to: 2, tutorialMode: 'silent', mechanicsRequired: ['doubleJump'] },
+      { id: 'p4-myco-intro', kind: 'fixed', from: 3, to: 8, tutorialMode: 'guided', debutPresentationIds: ['presentation-mycorrhiza'], mechanicsRequired: ['inoculation'] },
       { id: 'p4-myco-practice', kind: 'procedural', from: 9, to: 17, tutorialMode: 'silent', mechanicsRequired: ['mycorrhizaStructures', 'doubleJump'] },
       { id: 'p4-power-intro', kind: 'fixed', from: 18, to: 20, tutorialMode: 'guided', debutPresentationIds: ['presentation-dash'], mechanicsRequired: ['doubleJump'] },
       { id: 'p4-challenge', kind: 'procedural', from: 21, to: 35, tutorialMode: 'silent', mechanicsRequired: ['dash', 'doubleJump', 'mycorrhizaStructures'] },
@@ -258,6 +290,7 @@ const phases = [
 
   {
     id: 'phase-5', phase: 5, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Ferro e biocontrole fúngico', theme: 'equilíbrio',
     mission: 'Construa reserva de ferro e use Trichoderma contra fungos oportunistas.',
     newConcepts: ['Pseudomonas→sideróforo→ferro', 'oportunista→Trichoderma→micoparasitismo'], newCommand: null,
@@ -311,6 +344,7 @@ const phases = [
 
   {
     id: 'phase-6', phase: 6, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Rhizoctonia, saúde da raiz e Pulso', theme: 'patologia',
     mission: 'Controle Rhizoctonia, recupere a sustentação da raiz e libere o Pulso.',
     newConcepts: ['Rhizoctonia→lesão→saúde/recuperação'], newCommand: 'pulse',
@@ -360,6 +394,7 @@ const phases = [
 
   {
     id: 'phase-7', phase: 7, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Meloidogyne: infecção, reprodução e sequela', theme: 'infestação',
     mission: 'Impeça novas penetrações, neutralize massas de ovos e preserve uma raiz.',
     newConcepts: ['J2→penetração→galha', 'fêmea→massa de ovos→sequela'], newCommand: null,
@@ -403,6 +438,7 @@ const phases = [
 
   {
     id: 'phase-8', phase: 8, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Ecossistema integrado', theme: 'síntese',
     mission: 'Proteja, controle, recupere e atravesse usando tudo o que aprendeu.',
     newConcepts: [], newCommand: null,
@@ -721,6 +757,68 @@ export function validateCampaignManifest({
     if (!Number.isInteger(phase.totalChunks) || phase.totalChunks <= 0) {
       errors.push(`${phase.id}: totalChunks inválido.`);
       return;
+    }
+
+    if (phase.nitrogenRoot) {
+      const nitrogenRoot = phase.nitrogenRoot;
+      if (typeof nitrogenRoot.enabled !== 'boolean') errors.push(`${phase.id}: nitrogenRoot.enabled invalido.`);
+      if (nitrogenRoot.enabled && phase.phase < 2) errors.push(`${phase.id}: nitrogenRoot nao pode existir antes da fase 2.`);
+      if (!Number.isInteger(nitrogenRoot.count) || nitrogenRoot.count < 0 || nitrogenRoot.count > 8) {
+        errors.push(`${phase.id}: nitrogenRoot.count invalido.`);
+      }
+      if (!Number.isFinite(nitrogenRoot.requiredFixationRate) || nitrogenRoot.requiredFixationRate <= 0) {
+        errors.push(`${phase.id}: nitrogenRoot.requiredFixationRate invalido.`);
+      }
+      if (!Number.isFinite(nitrogenRoot.growthDurationSeconds) || nitrogenRoot.growthDurationSeconds <= 0) {
+        errors.push(`${phase.id}: nitrogenRoot.growthDurationSeconds invalido.`);
+      }
+    }
+
+    if (phase.azospirillumRootLadder) {
+      const ladder = phase.azospirillumRootLadder;
+      if (typeof ladder.enabled !== 'boolean') errors.push(`${phase.id}: azospirillumRootLadder.enabled invalido.`);
+      if (ladder.enabled && phase.phase < 3) errors.push(`${phase.id}: azospirillumRootLadder nao pode existir antes da fase 3.`);
+      if (!Number.isInteger(ladder.count) || ladder.count < 0 || ladder.count > 8) {
+        errors.push(`${phase.id}: azospirillumRootLadder.count invalido.`);
+      }
+      if (!Number.isInteger(ladder.stepCount) || ladder.stepCount < 2 || ladder.stepCount > 10) {
+        errors.push(`${phase.id}: azospirillumRootLadder.stepCount invalido.`);
+      }
+      if (!Number.isFinite(ladder.verticalSpacing) || ladder.verticalSpacing < 45 || ladder.verticalSpacing > 110) {
+        errors.push(`${phase.id}: azospirillumRootLadder.verticalSpacing invalido.`);
+      }
+      if (!Number.isFinite(ladder.growthDurationSeconds) || ladder.growthDurationSeconds <= 0) {
+        errors.push(`${phase.id}: azospirillumRootLadder.growthDurationSeconds invalido.`);
+      }
+    }
+
+    if (phase.azospirillumNitrogen) {
+      const nitrogen = phase.azospirillumNitrogen;
+      if (!Number.isFinite(nitrogen.associativeRate) || nitrogen.associativeRate <= 0 || nitrogen.associativeRate >= .05) {
+        errors.push(`${phase.id}: azospirillumNitrogen.associativeRate deve ser positivo e inferior a FBN nodular.`);
+      }
+      if (!Number.isFinite(nitrogen.rhizobiumSynergyMultiplier) || nitrogen.rhizobiumSynergyMultiplier < 1) {
+        errors.push(`${phase.id}: azospirillumNitrogen.rhizobiumSynergyMultiplier invalido.`);
+      }
+    }
+
+    if (phase.mycorrhizaBridge) {
+      const bridge = phase.mycorrhizaBridge;
+      if (typeof bridge.horizontalOnly !== 'boolean') {
+        errors.push(`${phase.id}: mycorrhizaBridge.horizontalOnly invalido.`);
+      }
+      for (const key of ['introSourceChunk', 'introTargetChunk']) {
+        if (bridge[key] !== undefined && (!Number.isInteger(bridge[key]) || bridge[key] < 0 || bridge[key] >= phase.totalChunks)) {
+          errors.push(`${phase.id}: mycorrhizaBridge.${key} invalido.`);
+        }
+      }
+      if (bridge.introGap !== undefined && (!Number.isFinite(bridge.introGap) || bridge.introGap < 58 || bridge.introGap > 340)) {
+        errors.push(`${phase.id}: mycorrhizaBridge.introGap invalido.`);
+      }
+      if (bridge.introVerticalOffset !== undefined
+        && (!Number.isFinite(bridge.introVerticalOffset) || Math.abs(bridge.introVerticalOffset) > 68)) {
+        errors.push(`${phase.id}: mycorrhizaBridge.introVerticalOffset invalido.`);
+      }
     }
 
     const coverage = new Array(phase.totalChunks).fill(0);

@@ -182,8 +182,12 @@ export function createPlatformVisuals({ state }) {
     }
 
     if (!platform.mycorrhizaStructure) {
-      const hairCount = Math.max(0, Math.min(9, Math.floor(platform.w / 44 * health)));
-      ctx.strokeStyle = platform.healthTrend > 0 ? 'rgba(184,255,198,.78)' : `rgba(233,213,180,${.12 + health * .46})`;
+      const azospirillumHairDensity = clamp(platform.azospirillumHairDensity || 0, 0, 1);
+      const baseHairCount = Math.floor(platform.w / 44 * health);
+      const hairCount = Math.max(0, Math.min(18, baseHairCount + Math.round(azospirillumHairDensity * 10)));
+      ctx.strokeStyle = azospirillumHairDensity > .05
+        ? `rgba(190,244,211,${.34 + azospirillumHairDensity * .5})`
+        : platform.healthTrend > 0 ? 'rgba(184,255,198,.78)' : `rgba(233,213,180,${.12 + health * .46})`;
       ctx.lineWidth = 1;
       for (let i = 0; i < hairCount; i++) {
         const x = platform.x + 14 + (i + .5) / Math.max(1, hairCount) * Math.max(12, platform.w - 28);
@@ -255,7 +259,7 @@ export function createPlatformVisuals({ state }) {
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
+      if (platform.mycorrhizaStructure || platform.azospirillumStructure || platform.nitrogenRootCollider) continue;
       if (platform.x + platform.w < state.cameraX - 80 || platform.x > state.cameraX + W + 80) continue;
       if (platform.type === 'root') drawRoot(ctx, platform);
       else drawSoil(ctx, platform);
@@ -271,7 +275,7 @@ export function createPlatformVisuals({ state }) {
     let bestScore = 76;
 
     for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure) continue;
+      if (platform.mycorrhizaStructure || platform.nitrogenRootCollider) continue;
       const horizontal = centerX < platform.x
         ? platform.x - centerX
         : centerX > platform.x + platform.w

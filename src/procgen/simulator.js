@@ -13,8 +13,10 @@ import { createPseudomonasSiderophores } from './pseudomonas-siderophores.js';
 import { createBacillusBioprotection } from './bacillus-bioprotection.js';
 import { createBacillusBioprotectionSafety } from './bacillus-bioprotection-safety.js';
 import { createRhizobiumNodulation } from './rhizobium-nodulation.js';
+import { createNitrogenRootDevelopment } from './nitrogen-root.js';
 import { createAzospirillumRootGrowth } from './azospirillum-root-growth.js';
 import { createAzospirillumRootSafety } from './azospirillum-root-safety.js';
+import { createAzospirillumNitrogen } from './azospirillum-nitrogen.js';
 import { createMeloidogyneLifecycle } from './meloidogyne-lifecycle.js';
 import { createGoalSystem } from './goal-system.js';
 import { createEcologicalGameplay } from './ecological-gameplay.js';
@@ -25,7 +27,8 @@ function createEmptyLevel() {
     platforms: [], hazards: [], crystals: [], enemies: [], exudates: [],
     allies: [], checkpoints: [], particles: [], pulses: [], goal: null,
     exudateClouds: [], biofilms: [], beneficialColonies: [], rhizobiumNodules: [],
-    azospirillumRoots: [], ironDeposits: [], siderophores: [],
+    nitrogenRoots: [],
+    azospirillumRootLadders: [], azospirillumRoots: [], ironDeposits: [], siderophores: [],
     nematodeEggMasses: [], nematodeJuveniles: [], rootGalls: [],
   };
 }
@@ -142,8 +145,10 @@ export function createSimulator() {
     inoculants: beneficialInoculants,
   });
   const rhizobiumNodulation = createRhizobiumNodulation({ state, entities, inoculants: beneficialInoculants });
+  const nitrogenRootDevelopment = createNitrogenRootDevelopment({ state, entities });
   const azospirillumRootGrowth = createAzospirillumRootGrowth({ state, entities, inoculants: beneficialInoculants });
   const azospirillumRootSafety = createAzospirillumRootSafety({ state, rootGrowth: azospirillumRootGrowth });
+  const azospirillumNitrogen = createAzospirillumNitrogen({ state, inoculants: beneficialInoculants });
   const meloidogyneLifecycle = createMeloidogyneLifecycle({ state, entities });
   const pathogenSurvival = createPathogenSurvival({ state, entities, ecology });
 
@@ -157,8 +162,10 @@ export function createSimulator() {
   state.pseudomonasSiderophores = pseudomonasSiderophores;
   state.bacillusBioprotection = bacillusBioprotection;
   state.rhizobiumNodulation = rhizobiumNodulation;
+  state.nitrogenRootDevelopment = nitrogenRootDevelopment;
   state.azospirillumRootGrowth = azospirillumRootGrowth;
   state.azospirillumRootSafety = azospirillumRootSafety;
+  state.azospirillumNitrogen = azospirillumNitrogen;
   state.meloidogyneLifecycle = meloidogyneLifecycle;
   state.goalSystem = goal;
   state.ecologicalGameplay = gameplay;
@@ -177,10 +184,12 @@ export function createSimulator() {
     trichoderma.clear();
     trichodermaColonies.clear();
     azospirillumRootGrowth.clear();
+    azospirillumNitrogen.clear();
     pseudomonasSiderophores.clear();
     bacillusBioprotection.clear();
     meloidogyneLifecycle.clear();
     beneficialInoculants.clear();
+    nitrogenRootDevelopment.clear();
     rhizobiumNodulation.clear();
     mycorrhizaStructures.clear();
     ecology.clear();
@@ -205,10 +214,12 @@ export function createSimulator() {
     goal.reset();
     gameplay.reset();
     azospirillumRootGrowth.reset();
+    azospirillumNitrogen.reset();
     beneficialInoculants.reset();
     pseudomonasSiderophores.reset();
     bacillusBioprotection.reset();
     rhizobiumNodulation.reset();
+    nitrogenRootDevelopment.reset();
     meloidogyneLifecycle.reset();
     pathogenSurvival.reset();
   }
@@ -238,6 +249,8 @@ export function createSimulator() {
     }
 
     rhizobiumNodulation.update(dt);
+    azospirillumNitrogen.update(dt);
+    nitrogenRootDevelopment.update(dt);
     trichodermaColonies.update(dt);
     gameplay.update(dt);
     bacillusBioprotection.update(dt);
@@ -260,7 +273,8 @@ export function createSimulator() {
     state, input, entities, ecology, mycorrhiza, mycorrhizaStructures,
     trichoderma, recruitment, trichodermaColonies, beneficialInoculants,
     pseudomonasSiderophores, bacillusBioprotection, bacillusBioprotectionSafety,
-    rhizobiumNodulation, azospirillumRootGrowth, azospirillumRootSafety,
+    rhizobiumNodulation, nitrogenRootDevelopment, azospirillumRootGrowth, azospirillumRootSafety,
+    azospirillumNitrogen,
     meloidogyneLifecycle, pathogenSurvival, goal, gameplay,
     reset, resetEcology, resetBiology, setInputs, step,
   };

@@ -1,5 +1,6 @@
 import { H, W } from '../core/constants.js';
 import { clamp } from '../core/math.js';
+import { drawArbuscule } from '../procgen/hyphal-growth.js';
 import { createMicrobeRenderer } from './microbes.js';
 
 function mixHex(a, b, t) {
@@ -213,6 +214,7 @@ export function createRenderer({ canvas, state, entities }) {
     }
 
     level.platforms.forEach(p => {
+      if (p.nitrogenRootCollider) return;
       const health = p.type === 'root' ? clamp(p.rootHealth ?? 1, .06, 1) : 1;
       const damage = 1 - health;
       const grad = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
@@ -350,21 +352,30 @@ export function createRenderer({ canvas, state, entities }) {
           ctx.stroke();
         }
       } else if (a.id === 'myco') {
-        ctx.shadowBlur = 26;
-        ctx.shadowColor = '#d6afff';
-        ctx.strokeStyle = '#d6afff';
-        ctx.lineWidth = 2.4;
-        for (let k = 0; k < 7; k++) {
-          const ang = k / 7 * Math.PI * 2 + time * .06;
+        if (a.mycorrhizaArbusculeDebut) {
+          // A estreia usa a mesma morfologia arbuscular das pequenas estruturas
+          // de colonizacao, apenas ampliada para ser reconhecida pelo jogador.
+          ctx.save();
+          ctx.scale(3, 3);
+          drawArbuscule(ctx, { x: 0, y: 8, seed: i + 1, life: 1 }, time, '#d6afff');
+          ctx.restore();
+        } else {
+          ctx.shadowBlur = 26;
+          ctx.shadowColor = '#d6afff';
+          ctx.strokeStyle = '#d6afff';
+          ctx.lineWidth = 2.4;
+          for (let k = 0; k < 7; k++) {
+            const ang = k / 7 * Math.PI * 2 + time * .06;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.bezierCurveTo(Math.cos(ang) * 18, Math.sin(ang) * 12, Math.cos(ang + .4) * 30, Math.sin(ang + .4) * 24, Math.cos(ang) * 38, Math.sin(ang) * 30);
+            ctx.stroke();
+          }
+          ctx.fillStyle = '#f0dcff';
           ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.bezierCurveTo(Math.cos(ang) * 18, Math.sin(ang) * 12, Math.cos(ang + .4) * 30, Math.sin(ang + .4) * 24, Math.cos(ang) * 38, Math.sin(ang) * 30);
-          ctx.stroke();
+          ctx.arc(0, 0, 11, 0, Math.PI * 2);
+          ctx.fill();
         }
-        ctx.fillStyle = '#f0dcff';
-        ctx.beginPath();
-        ctx.arc(0, 0, 11, 0, Math.PI * 2);
-        ctx.fill();
       } else {
         ctx.shadowBlur = 24;
         ctx.shadowColor = '#8db8ff';

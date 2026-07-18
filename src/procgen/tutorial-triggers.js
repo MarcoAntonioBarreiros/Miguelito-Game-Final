@@ -156,7 +156,7 @@ export function createTutorialTriggers({
     }
 
     for (const ally of state.level.allies || []) {
-      if (!ally.presentationOnly) continue;
+      if (!ally.presentationOnly && !ally.fixedDebut) continue;
       const cardId = ally.cardId || discoveryCards[ally.id];
       const distance = distanceToPlayer(ally.x, ally.y);
       if (distance > TUTORIAL_PROXIMITY.organism) continue;

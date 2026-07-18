@@ -873,14 +873,9 @@ html.tutorial-open #tutorial-library-button {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel } = __require("src/procgen/generator.js");
-const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");
-const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");
-const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");
-const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
-const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");
-const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");
-const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
+const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");
+const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
@@ -989,9 +984,34 @@ function installFinalGoal(level) {
 function prepareLevel() {
   profile = prepareCampaignGeneration(campaign);
   seed = campaignPhaseSeed(campaign);
-  levelData = decorateCampaignLevel(generateLevel(seed), campaign, profile);
+  levelData = generateLevel(seed);
+  applyPhaseFourMycorrhizaIntro(
+    levelData,
+    campaign.phase,
+    getPhaseManifest(campaign.phase)?.mycorrhizaBridge,
+  );
+  levelData = decorateCampaignLevel(levelData, campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
+  levelData.microbeEncounters = generateCampaignEncounters({
+    platforms: levelData.platforms,
+    phase: campaign.phase,
+    seedValue: seed,
+  }).concat(levelData.authoredEncounters || []);
+  generateAzospirillumRootLadders({
+    level: levelData,
+    phase: campaign.phase,
+    seedValue: seed,
+    encounters: levelData.microbeEncounters,
+    config: getPhaseManifest(campaign.phase)?.azospirillumRootLadder,
+  });
+  generateUnderdevelopedNitrogenRoots({
+    level: levelData,
+    phase: campaign.phase,
+    seedValue: seed,
+    encounters: levelData.microbeEncounters,
+    config: getPhaseManifest(campaign.phase)?.nitrogenRoot,
+  });
   installFinalGoal(levelData);
 }
 
@@ -999,8 +1019,8 @@ const FEATURE_LABELS = {
   doubleJump: 'salto duplo',
   dash: 'Dash',
   pulse: 'Pulso',
-  mycorrhizaStructures: 'pontes micorrízicas',
-  azospirillumRoots: 'raízes laterais',
+  mycorrhizaStructures: 'pontes micorrízicas horizontais',
+  azospirillumRoots: 'escadas radiculares de Azospirillum',
 };
 
 function phaseIntroText() {
@@ -1033,11 +1053,6 @@ function initGame({ announce = false } = {}) {
   sim.state.gameState = 'play';
   sim.state.mission = profile.mission;
   cameraView.resetTracking();
-  levelData.microbeEncounters = generateCampaignEncounters({
-    platforms: levelData.platforms,
-    phase: campaign.phase,
-    seedValue: seed,
-  }).concat(levelData.authoredEncounters || []);
   sim.resetEcology(levelData.microbeEncounters);
   sim.resetBiology();
   ralstoniaControl.initialize();
@@ -1174,6 +1189,7 @@ function renderWorld() {
     sim.pseudomonasSiderophores.render(ctx);
     sim.azospirillumRootGrowth.render(ctx);
     sim.rhizobiumNodulation.render(ctx);
+    sim.nitrogenRootDevelopment.render(ctx);
     sim.trichodermaColonies.render(ctx);
     sim.trichoderma.render(ctx);
     trichodermaRhizoctoniaControl.render(ctx);
@@ -1261,6 +1277,7 @@ function loop(now) {
       const vigor = Math.round(sim.trichodermaColonies.vigorAverage * 100);
       const beneficialVigor = Math.round(sim.beneficialInoculants.vigorAverage * 100);
       const fixation = (sim.state.level.rhizobiumNodules || []).reduce((sum, site) => sum + (site.fixationRate || 0), 0).toFixed(1);
+      const associativeNitrogen = sim.azospirillumNitrogen.associativeNitrogenRate.toFixed(3);
       const ironRecovered = sim.pseudomonasSiderophores.ironRecovered.toFixed(1);
       const liveRoots = (sim.state.level.platforms || []).filter(root => root.type === 'root' && !root.final && !root.recovery && !root.mycorrhizaStructure);
       const rootHealth = liveRoots.length
@@ -1278,14 +1295,14 @@ function loop(now) {
         + `\nTrichoderma anti-Meloidogyne: ${trichodermaMeloidogyneControl.activeAttackCount} ataques (${trichodermaMeloidogyneControl.eggAttackCount} ovos / ${trichodermaMeloidogyneControl.juvenileAttackCount} J2) · ${trichodermaMeloidogyneControl.eggsDestroyed} ovos inviabilizados · ${trichodermaMeloidogyneControl.eggMassesNeutralized} massas neutralizadas · ${trichodermaMeloidogyneControl.juvenilesDestroyed} J2 lisados`
         + `\nGalhas: ${sim.meloidogyneLifecycle.gallCount} totais / ${sim.meloidogyneLifecycle.matureGallCount} maduras / ${sim.meloidogyneLifecycle.femaleCount} fêmeas / saúde radicular média ${rootHealth}%`
         + `\nMicorriza AM: ${sim.mycorrhiza.tipCount} pontas / ${sim.mycorrhiza.branchCount} ramos / ${sim.mycorrhiza.arbusculeCount} arbúsculos`
-        + `\nEstruturas AM: ${sim.mycorrhizaStructures.growingCount} crescendo / ${sim.mycorrhizaStructures.matureCount} maduras (${sim.mycorrhizaStructures.ladderCount} escadas, ${sim.mycorrhizaStructures.bridgeCount} pontes)`
+        + `\nEstruturas AM: ${sim.mycorrhizaStructures.growingCount} crescendo / ${sim.mycorrhizaStructures.matureCount} maduras (${sim.mycorrhizaStructures.bridgeCount} pontes horizontais)`
         + `\nInoculantes: ${sim.beneficialInoculants.followerCount} seguindo / ${sim.beneficialInoculants.colonyCount} colônias / vigor médio ${beneficialVigor}%`
         + (sim.beneficialInoculants.colonySummary ? ` [${sim.beneficialInoculants.colonySummary}]` : '')
         + `\nBacillus: ${sim.bacillusBioprotection.matureBiofilmCount} biofilmes maduros / ${sim.bacillusBioprotection.sporulatedCount} esporulados / ${sim.bacillusBioprotection.germinatingCount} reativando`
         + `\nBioproteção: ${sim.bacillusBioprotection.fungiUnderAntibiosis} fungos sob antibiose / ${sim.bacillusBioprotection.protectedRootCount} raízes protegidas`
         + `\nSideróforos: ${sim.pseudomonasSiderophores.freeCount} livres / ${sim.pseudomonasSiderophores.loadedCount} com Fe³⁺ / Fe recuperado ${ironRecovered} / ${sim.pseudomonasSiderophores.fungiLimitedCount} fungos limitados`
         + `\nDepósitos Fe³⁺: ${sim.pseudomonasSiderophores.activeDepositCount}/${sim.pseudomonasSiderophores.depositCount} ativos / ${sim.pseudomonasSiderophores.activeColonyCount} colônias com reserva`
-        + `\nRaízes laterais: ${sim.azospirillumRootGrowth.rootCount} totais / ${sim.azospirillumRootGrowth.growingCount} crescendo / ${sim.azospirillumRootGrowth.matureCount} maduras / ${sim.azospirillumRootGrowth.pausedCount} pausadas`
+        + `\nEscadas Azo: ${sim.azospirillumRootGrowth.rootCount} totais / ${sim.azospirillumRootGrowth.growingCount} crescendo / ${sim.azospirillumRootGrowth.matureCount} maduras / ${sim.azospirillumRootGrowth.pausedCount} pausadas · N associativo ${associativeNitrogen} · sinergias ${sim.azospirillumNitrogen.synergizedNoduleCount}`
         + `\nNodulação: ${sim.rhizobiumNodulation.siteCount} sítios / ${sim.rhizobiumNodulation.matureCount} maduros / ${sim.rhizobiumNodulation.activeCount} ativos / FBN ${fixation}`
         + (sim.rhizobiumNodulation.incompatibleCount ? ` / ${sim.rhizobiumNodulation.incompatibleCount} sem hospedeiro` : '')
         + `\nTrichoderma: ${sim.trichodermaColonies.followerCount} seguindo / ${sim.trichodermaColonies.colonyCount} colônias / vigor médio ${vigor}%`
@@ -1491,7 +1508,16 @@ function generateLevel(seedString) {
         name = 'Sol, a Solubilizadora';
         desc = 'A comunidade concentra secreções junto ao mineral e libera parte do fósforo antes inacessível. Pressione K para o Pulso Mineral.';
       }
-      allies.push({ id: chunk.allyId, x: nextPlatform.x + nextPlatform.w / 2, y: nextPlatform.y - 40, r: 28, taken: false, name, desc });
+      allies.push({
+        id: chunk.allyId,
+        x: nextPlatform.x + nextPlatform.w / 2,
+        y: nextPlatform.y - 40,
+        r: 28,
+        taken: false,
+        name,
+        desc,
+        logicIndex: i,
+      });
     }
 
     if (chunk.isPathogenDebut && chunk.pathogenType === 'rhizoctonia') {
@@ -1764,6 +1790,26 @@ const PRESENTATION_POLICIES = Object.freeze([
 const SEGMENT_KINDS = Object.freeze(['fixed', 'procedural', 'final']);
 const DERIVED_TRIGGER_BEHAVIORS = Object.freeze(['guide-only', 'open-in-guided']);
 const MVP_EXCLUDED_PATHOGENS = Object.freeze(['ralstonia']);
+const NITROGEN_ROOT_DEFAULTS = Object.freeze({
+  enabled: true,
+  count: 1,
+  requiredFixationRate: 0.05,
+  growthDurationSeconds: 4,
+});
+const AZOSPIRILLUM_ROOT_LADDER_DEFAULTS = Object.freeze({
+  enabled: true,
+  count: 1,
+  stepCount: 4,
+  verticalSpacing: 85,
+  growthDurationSeconds: 3,
+});
+const AZOSPIRILLUM_NITROGEN_DEFAULTS = Object.freeze({
+  associativeRate: 0.01,
+  rhizobiumSynergyMultiplier: 1.2,
+});
+const MYCORRHIZA_BRIDGE_DEFAULTS = Object.freeze({
+  horizontalOnly: true,
+});
 
 const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
   'action-exudate': Object.freeze(['action-exudate', 'action-inoculation']),
@@ -1883,6 +1929,7 @@ const phases = [
 
   {
     id: 'phase-2', phase: 2, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Rhizobium, nódulo e FBN', theme: 'simbiose',
     mission: 'Estabeleça um nódulo maduro e mantenha a fixação de nitrogênio ativa.',
     newConcepts: ['Rhizobium→nódulo→FBN'], newCommand: null,
@@ -1916,6 +1963,9 @@ const phases = [
 
   {
     id: 'phase-3', phase: 3, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS },
+    azospirillumNitrogen: { ...AZOSPIRILLUM_NITROGEN_DEFAULTS },
     title: 'Azospirillum e arquitetura radicular', theme: 'arquitetura',
     mission: 'Induza raízes laterais e use o salto duplo para alcançar novas rotas.',
     newConcepts: ['Azospirillum→raiz lateral'], newCommand: 'doubleJump',
@@ -1957,6 +2007,14 @@ const phases = [
 
   {
     id: 'phase-4', phase: 4, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    mycorrhizaBridge: {
+      ...MYCORRHIZA_BRIDGE_DEFAULTS,
+      introSourceChunk: 3,
+      introTargetChunk: 4,
+      introGap: 325,
+      introVerticalOffset: 54,
+    },
     title: 'Micorriza e expansão do solo explorado', theme: 'expansão',
     mission: 'Estabeleça a micorriza, atravesse uma ponte hifal e domine o Dash.',
     newConcepts: ['micorriza→arbúsculo→absorção→ponte'], newCommand: 'dash',
@@ -1964,7 +2022,7 @@ const phases = [
       { id: 'presentation-mycorrhiza', cardId: 'organism-mycorrhiza',
         triggerIds: ['organism-mycorrhiza', 'structure-arbuscule', 'structure-mycorrhiza-path'],
         autoOpenTrigger: 'organism-mycorrhiza', policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        debutChunk: 4, moduleId: 'p4-myco-intro', debutZoneId: 'p4-mycorrhiza-debut',
+        debutChunk: 3, moduleId: 'p4-myco-intro', debutZoneId: 'p4-mycorrhiza-debut',
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
           { triggerId: 'organism-mycorrhiza', pages: [0] },
@@ -1977,12 +2035,12 @@ const phases = [
         debutChunk: 18, moduleId: 'p4-power-intro', pages: ['mecânica de gameplay', 'impulso horizontal'] },
     ],
     unlockEvents: [
-      { feature: 'mycorrhizaStructures', eventChunk: 8, afterModule: 'p4-myco-intro', practiceWindowChunks: 3, mandatory: true },
+      { feature: 'mycorrhizaStructures', eventChunk: 3, afterModule: 'p4-myco-intro', practiceWindowChunks: 3, mandatory: true },
       { feature: 'dash', eventChunk: 20, afterModule: 'p4-power-intro', practiceWindowChunks: 3, mandatory: true },
     ], pathogenDebuts: [],
     segments: [
-      { id: 'p4-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
-      { id: 'p4-myco-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided', debutPresentationIds: ['presentation-mycorrhiza'], mechanicsRequired: ['inoculation'] },
+      { id: 'p4-warmup', kind: 'procedural', from: 0, to: 2, tutorialMode: 'silent', mechanicsRequired: ['doubleJump'] },
+      { id: 'p4-myco-intro', kind: 'fixed', from: 3, to: 8, tutorialMode: 'guided', debutPresentationIds: ['presentation-mycorrhiza'], mechanicsRequired: ['inoculation'] },
       { id: 'p4-myco-practice', kind: 'procedural', from: 9, to: 17, tutorialMode: 'silent', mechanicsRequired: ['mycorrhizaStructures', 'doubleJump'] },
       { id: 'p4-power-intro', kind: 'fixed', from: 18, to: 20, tutorialMode: 'guided', debutPresentationIds: ['presentation-dash'], mechanicsRequired: ['doubleJump'] },
       { id: 'p4-challenge', kind: 'procedural', from: 21, to: 35, tutorialMode: 'silent', mechanicsRequired: ['dash', 'doubleJump', 'mycorrhizaStructures'] },
@@ -1996,6 +2054,7 @@ const phases = [
 
   {
     id: 'phase-5', phase: 5, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Ferro e biocontrole fúngico', theme: 'equilíbrio',
     mission: 'Construa reserva de ferro e use Trichoderma contra fungos oportunistas.',
     newConcepts: ['Pseudomonas→sideróforo→ferro', 'oportunista→Trichoderma→micoparasitismo'], newCommand: null,
@@ -2049,6 +2108,7 @@ const phases = [
 
   {
     id: 'phase-6', phase: 6, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Rhizoctonia, saúde da raiz e Pulso', theme: 'patologia',
     mission: 'Controle Rhizoctonia, recupere a sustentação da raiz e libere o Pulso.',
     newConcepts: ['Rhizoctonia→lesão→saúde/recuperação'], newCommand: 'pulse',
@@ -2098,6 +2158,7 @@ const phases = [
 
   {
     id: 'phase-7', phase: 7, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Meloidogyne: infecção, reprodução e sequela', theme: 'infestação',
     mission: 'Impeça novas penetrações, neutralize massas de ovos e preserve uma raiz.',
     newConcepts: ['J2→penetração→galha', 'fêmea→massa de ovos→sequela'], newCommand: null,
@@ -2141,6 +2202,7 @@ const phases = [
 
   {
     id: 'phase-8', phase: 8, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Ecossistema integrado', theme: 'síntese',
     mission: 'Proteja, controle, recupere e atravesse usando tudo o que aprendeu.',
     newConcepts: [], newCommand: null,
@@ -2461,6 +2523,68 @@ function validateCampaignManifest({
       return;
     }
 
+    if (phase.nitrogenRoot) {
+      const nitrogenRoot = phase.nitrogenRoot;
+      if (typeof nitrogenRoot.enabled !== 'boolean') errors.push(`${phase.id}: nitrogenRoot.enabled invalido.`);
+      if (nitrogenRoot.enabled && phase.phase < 2) errors.push(`${phase.id}: nitrogenRoot nao pode existir antes da fase 2.`);
+      if (!Number.isInteger(nitrogenRoot.count) || nitrogenRoot.count < 0 || nitrogenRoot.count > 8) {
+        errors.push(`${phase.id}: nitrogenRoot.count invalido.`);
+      }
+      if (!Number.isFinite(nitrogenRoot.requiredFixationRate) || nitrogenRoot.requiredFixationRate <= 0) {
+        errors.push(`${phase.id}: nitrogenRoot.requiredFixationRate invalido.`);
+      }
+      if (!Number.isFinite(nitrogenRoot.growthDurationSeconds) || nitrogenRoot.growthDurationSeconds <= 0) {
+        errors.push(`${phase.id}: nitrogenRoot.growthDurationSeconds invalido.`);
+      }
+    }
+
+    if (phase.azospirillumRootLadder) {
+      const ladder = phase.azospirillumRootLadder;
+      if (typeof ladder.enabled !== 'boolean') errors.push(`${phase.id}: azospirillumRootLadder.enabled invalido.`);
+      if (ladder.enabled && phase.phase < 3) errors.push(`${phase.id}: azospirillumRootLadder nao pode existir antes da fase 3.`);
+      if (!Number.isInteger(ladder.count) || ladder.count < 0 || ladder.count > 8) {
+        errors.push(`${phase.id}: azospirillumRootLadder.count invalido.`);
+      }
+      if (!Number.isInteger(ladder.stepCount) || ladder.stepCount < 2 || ladder.stepCount > 10) {
+        errors.push(`${phase.id}: azospirillumRootLadder.stepCount invalido.`);
+      }
+      if (!Number.isFinite(ladder.verticalSpacing) || ladder.verticalSpacing < 45 || ladder.verticalSpacing > 110) {
+        errors.push(`${phase.id}: azospirillumRootLadder.verticalSpacing invalido.`);
+      }
+      if (!Number.isFinite(ladder.growthDurationSeconds) || ladder.growthDurationSeconds <= 0) {
+        errors.push(`${phase.id}: azospirillumRootLadder.growthDurationSeconds invalido.`);
+      }
+    }
+
+    if (phase.azospirillumNitrogen) {
+      const nitrogen = phase.azospirillumNitrogen;
+      if (!Number.isFinite(nitrogen.associativeRate) || nitrogen.associativeRate <= 0 || nitrogen.associativeRate >= .05) {
+        errors.push(`${phase.id}: azospirillumNitrogen.associativeRate deve ser positivo e inferior a FBN nodular.`);
+      }
+      if (!Number.isFinite(nitrogen.rhizobiumSynergyMultiplier) || nitrogen.rhizobiumSynergyMultiplier < 1) {
+        errors.push(`${phase.id}: azospirillumNitrogen.rhizobiumSynergyMultiplier invalido.`);
+      }
+    }
+
+    if (phase.mycorrhizaBridge) {
+      const bridge = phase.mycorrhizaBridge;
+      if (typeof bridge.horizontalOnly !== 'boolean') {
+        errors.push(`${phase.id}: mycorrhizaBridge.horizontalOnly invalido.`);
+      }
+      for (const key of ['introSourceChunk', 'introTargetChunk']) {
+        if (bridge[key] !== undefined && (!Number.isInteger(bridge[key]) || bridge[key] < 0 || bridge[key] >= phase.totalChunks)) {
+          errors.push(`${phase.id}: mycorrhizaBridge.${key} invalido.`);
+        }
+      }
+      if (bridge.introGap !== undefined && (!Number.isFinite(bridge.introGap) || bridge.introGap < 58 || bridge.introGap > 340)) {
+        errors.push(`${phase.id}: mycorrhizaBridge.introGap invalido.`);
+      }
+      if (bridge.introVerticalOffset !== undefined
+        && (!Number.isFinite(bridge.introVerticalOffset) || Math.abs(bridge.introVerticalOffset) > 68)) {
+        errors.push(`${phase.id}: mycorrhizaBridge.introVerticalOffset invalido.`);
+      }
+    }
+
     const coverage = new Array(phase.totalChunks).fill(0);
     const segmentIds = new Set();
     const segmentById = new Map();
@@ -2599,7 +2723,7 @@ function validateCampaignManifest({
 
   return errors;
 }
-Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getActiveCampaignManifest, setPhaseManifestOverride, clearPhaseManifestOverride, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
+Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getActiveCampaignManifest, setPhaseManifestOverride, clearPhaseManifestOverride, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
 },
 "src/procgen/primitives.js": (__exports, __require) => {
 const { createSimulator } = __require("src/procgen/simulator.js");
@@ -2757,15 +2881,14 @@ function generatePrimitives() {
 Object.assign(__exports, { generatePrimitives });
 },
 "src/procgen/simulator.js": (__exports, __require) => {
-const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");
-const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");
-const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
+const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
 function createEmptyLevel() {
   return {
     platforms: [], hazards: [], crystals: [], enemies: [], exudates: [],
     allies: [], checkpoints: [], particles: [], pulses: [], goal: null,
     exudateClouds: [], biofilms: [], beneficialColonies: [], rhizobiumNodules: [],
-    azospirillumRoots: [], ironDeposits: [], siderophores: [],
+    nitrogenRoots: [],
+    azospirillumRootLadders: [], azospirillumRoots: [], ironDeposits: [], siderophores: [],
     nematodeEggMasses: [], nematodeJuveniles: [], rootGalls: [],
   };
 }
@@ -2882,8 +3005,10 @@ function createSimulator() {
     inoculants: beneficialInoculants,
   });
   const rhizobiumNodulation = createRhizobiumNodulation({ state, entities, inoculants: beneficialInoculants });
+  const nitrogenRootDevelopment = createNitrogenRootDevelopment({ state, entities });
   const azospirillumRootGrowth = createAzospirillumRootGrowth({ state, entities, inoculants: beneficialInoculants });
   const azospirillumRootSafety = createAzospirillumRootSafety({ state, rootGrowth: azospirillumRootGrowth });
+  const azospirillumNitrogen = createAzospirillumNitrogen({ state, inoculants: beneficialInoculants });
   const meloidogyneLifecycle = createMeloidogyneLifecycle({ state, entities });
   const pathogenSurvival = createPathogenSurvival({ state, entities, ecology });
 
@@ -2897,8 +3022,10 @@ function createSimulator() {
   state.pseudomonasSiderophores = pseudomonasSiderophores;
   state.bacillusBioprotection = bacillusBioprotection;
   state.rhizobiumNodulation = rhizobiumNodulation;
+  state.nitrogenRootDevelopment = nitrogenRootDevelopment;
   state.azospirillumRootGrowth = azospirillumRootGrowth;
   state.azospirillumRootSafety = azospirillumRootSafety;
+  state.azospirillumNitrogen = azospirillumNitrogen;
   state.meloidogyneLifecycle = meloidogyneLifecycle;
   state.goalSystem = goal;
   state.ecologicalGameplay = gameplay;
@@ -2917,10 +3044,12 @@ function createSimulator() {
     trichoderma.clear();
     trichodermaColonies.clear();
     azospirillumRootGrowth.clear();
+    azospirillumNitrogen.clear();
     pseudomonasSiderophores.clear();
     bacillusBioprotection.clear();
     meloidogyneLifecycle.clear();
     beneficialInoculants.clear();
+    nitrogenRootDevelopment.clear();
     rhizobiumNodulation.clear();
     mycorrhizaStructures.clear();
     ecology.clear();
@@ -2945,10 +3074,12 @@ function createSimulator() {
     goal.reset();
     gameplay.reset();
     azospirillumRootGrowth.reset();
+    azospirillumNitrogen.reset();
     beneficialInoculants.reset();
     pseudomonasSiderophores.reset();
     bacillusBioprotection.reset();
     rhizobiumNodulation.reset();
+    nitrogenRootDevelopment.reset();
     meloidogyneLifecycle.reset();
     pathogenSurvival.reset();
   }
@@ -2978,6 +3109,8 @@ function createSimulator() {
     }
 
     rhizobiumNodulation.update(dt);
+    azospirillumNitrogen.update(dt);
+    nitrogenRootDevelopment.update(dt);
     trichodermaColonies.update(dt);
     gameplay.update(dt);
     bacillusBioprotection.update(dt);
@@ -3000,7 +3133,8 @@ function createSimulator() {
     state, input, entities, ecology, mycorrhiza, mycorrhizaStructures,
     trichoderma, recruitment, trichodermaColonies, beneficialInoculants,
     pseudomonasSiderophores, bacillusBioprotection, bacillusBioprotectionSafety,
-    rhizobiumNodulation, azospirillumRootGrowth, azospirillumRootSafety,
+    rhizobiumNodulation, nitrogenRootDevelopment, azospirillumRootGrowth, azospirillumRootSafety,
+    azospirillumNitrogen,
     meloidogyneLifecycle, pathogenSurvival, goal, gameplay,
     reset, resetEcology, resetBiology, setInputs, step,
   };
@@ -3033,7 +3167,7 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
       color = '#d6afff';
       player.soil += 8;
       player.hope += 5;
-      hud.setMission('Libere exsudatos nas bordas para formar pontes e escadas micorrízicas');
+      hud.setMission('Libere exsudatos nas bordas para formar pontes micorrízicas horizontais');
       entities.discoverMicrobe('myco', false);
     } else if (feature === 'pulse') {
       color = '#8db8ff';
@@ -3520,8 +3654,7 @@ function createMicrobeArt() {
 Object.assign(__exports, { microbeCatalog, microbeEncounters, createMicrobeArt });
 },
 "src/procgen/campaign-progression.js": (__exports, __require) => {
-const { CAMPAIGN_UNLOCKS, campaignManifest, getPathogenStartChunk, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
-const { setLogicCampaignProfile } = __require("src/procgen/logic.js");
+const { CAMPAIGN_UNLOCKS, campaignManifest, getPathogenStartChunk, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { setLogicCampaignProfile } = __require("src/procgen/logic.js");
 const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash', 'pulse']);
 const DEFAULT_START_PHASE = 1;
 const campaignStorage = new WeakMap();
@@ -3689,7 +3822,7 @@ function featurePresentation(feature) {
   if (feature === 'mycorrhizaStructures') {
     return {
       name: 'Mira, a Micorriza',
-      desc: 'A rede micorrízica agora pode espessar hifas e formar pontes ou escadas dirigidas por exsudatos.',
+      desc: 'A rede micorrízica agora pode orientar hifas finas horizontalmente e formar pontes laterais dirigidas por exsudatos.',
     };
   }
   if (feature === 'pulse') {
@@ -3700,7 +3833,7 @@ function featurePresentation(feature) {
   }
   return {
     name: 'Ari, o Azospirillum',
-    desc: 'A sinalização hormonal do Azospirillum agora pode induzir raízes laterais em raízes hospedeiras.',
+    desc: 'A sinalização hormonal do Azospirillum agora pode formar escadas de ramificações em raízes hospedeiras.',
   };
 }
 
@@ -3728,6 +3861,19 @@ function decorateCampaignLevel(level, campaign, profile = getPhaseProfile(campai
   for (const presentation of manifest.presentations) {
     const fixed = fixedDebutTypes[presentation.cardId];
     if (!fixed || presentation.roamingType || presentation.roamingTypes) continue;
+    const functionalDebut = (level.allies || []).find(ally => (
+      ally.id === fixed.id && ally.logicIndex === presentation.debutChunk && !ally.presentationOnly
+    ));
+    if (functionalDebut) {
+      Object.assign(functionalDebut, fixed, {
+        fixedDebut: true,
+        cardId: presentation.cardId,
+        presentationId: presentation.id,
+        debutZoneId: presentation.debutZoneId,
+        mycorrhizaArbusculeDebut: presentation.cardId === 'organism-mycorrhiza',
+      });
+      continue;
+    }
     const platform = (level.platforms || []).find(candidate => (
       !candidate.recovery && !candidate.final && candidate.logicIndex === presentation.debutChunk
     ));
@@ -5421,7 +5567,7 @@ function colorWithAlpha(color, alpha) {
 Object.assign(__exports, { TAU, clamp, angleDelta, smoothHyphalNoise, HYPHAL_PROFILES, createHyphalTip, createHyphalNetwork, updateHyphalNetwork, renderHyphalNetwork, drawArbuscule });
 },
 "src/procgen/mycorrhiza-structures.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");
+const { W } = __require("src/core/constants.js");const { getPhaseManifest, MYCORRHIZA_BRIDGE_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -5458,29 +5604,7 @@ function horizontalGap(source, target) {
   return 0;
 }
 
-function findLadderTarget(state, sourceInfo) {
-  const source = sourceInfo.platform;
-  const sourceCenter = source.x + source.w / 2;
-  let best = null;
-  let bestScore = Infinity;
-
-  for (const target of state.level.platforms || []) {
-    if (target === source || target.final || target.recovery || target.mycorrhizaStructure) continue;
-    const rise = source.y - target.y;
-    if (rise < 78 || rise > 360) continue;
-    const targetPoint = topPoint(target, sourceCenter);
-    const dx = Math.abs(targetPoint.x - sourceInfo.point.x);
-    if (dx > 390) continue;
-    const score = rise + dx * .78 + (target.type === 'root' ? -18 : 0);
-    if (score < bestScore) {
-      bestScore = score;
-      best = { target, targetPoint, rise, dx };
-    }
-  }
-  return best;
-}
-
-function findBridgeTarget(state, sourceInfo, cloud) {
+function findBridgeTarget(state, sourceInfo, cloud, config) {
   const source = sourceInfo.platform;
   const sourceCenter = source.x + source.w / 2;
   const direction = cloud.x >= sourceCenter ? 1 : -1;
@@ -5494,7 +5618,8 @@ function findBridgeTarget(state, sourceInfo, cloud) {
     const gap = horizontalGap(source, target);
     if (gap < 58 || gap > 340) continue;
     const dy = Math.abs(target.y - source.y);
-    if (dy > 105) continue;
+    const maximumVerticalOffset = config.horizontalOnly ? 68 : 105;
+    if (dy > maximumVerticalOffset) continue;
     const score = gap + dy * 2.2 + (target.type === 'root' ? -12 : 0);
     if (score < bestScore) {
       bestScore = score;
@@ -5510,36 +5635,6 @@ function findBridgeTarget(state, sourceInfo, cloud) {
     }
   }
   return best;
-}
-
-function buildLadderGeometry(sourceInfo, candidate) {
-  const start = sourceInfo.point;
-  const end = candidate.targetPoint;
-  const rise = Math.max(1, start.y - end.y);
-  const steps = clamp(Math.ceil(rise / 38), 3, 9);
-  const points = [];
-  const colliders = [];
-  const sway = Math.sign(end.x - start.x || 1) * Math.min(78, 24 + candidate.dx * .22);
-
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const arc = Math.sin(t * Math.PI) * sway;
-    const x = lerp(start.x, end.x, t) + arc;
-    const y = lerp(start.y, end.y, t);
-    points.push({ x, y });
-    if (i > 0 && i < steps) {
-      colliders.push({
-        x: x - 35,
-        y: y - 5,
-        w: 70,
-        h: 10,
-        type: 'root',
-        mycorrhizaStructure: true,
-        structureType: 'ladder',
-      });
-    }
-  }
-  return { start, end, points, colliders, length: Math.hypot(end.x - start.x, end.y - start.y) };
 }
 
 function buildBridgeGeometry(candidate) {
@@ -5600,9 +5695,7 @@ function createMycorrhizaStructures({ state, entities }) {
   }
 
   function createStructure(cloud, sourceInfo, type, candidate) {
-    const geometry = type === 'ladder'
-      ? buildLadderGeometry(sourceInfo, candidate)
-      : buildBridgeGeometry(candidate);
+    const geometry = buildBridgeGeometry(candidate);
     const target = candidate.target;
     if (structures.some(item => sameConnection(item, sourceInfo.platform, target))) {
       cloud.mycorrhizaStructureHandled = true;
@@ -5611,7 +5704,7 @@ function createMycorrhizaStructures({ state, entities }) {
 
     const structure = {
       id: `myco-structure-${nextId++}`,
-      type,
+      type: 'bridge',
       source: sourceInfo.platform,
       target,
       start: geometry.start,
@@ -5630,15 +5723,16 @@ function createMycorrhizaStructures({ state, entities }) {
     cloud.mycorrhizaStructureHandled = true;
     cloud.life = Math.max(cloud.life, 4.5);
     entities.burst(structure.start.x, structure.start.y, '#d6afff', 20, 110);
-    state.toast = type === 'ladder'
-      ? 'Micorriza orientada: a rede começou a formar uma escada hifal até a raiz superior.'
-      : 'Micorriza orientada: a rede começou a conectar as duas raízes sobre o vão.';
+    state.toast = 'Micorriza orientada: hifas finas começaram a conectar lateralmente as raízes sobre o vão.';
     state.toastTime = 4.8;
     return structure;
   }
 
   function tryCreateFromCloud(cloud) {
-    if (!state.player.canDash || cloud.mycorrhizaStructureHandled) return;
+    // O runtime desta estrutura ja e chamado somente depois do desbloqueio de
+    // mycorrhizaStructures. O Dash pertence a um evento posterior da Fase 4 e
+    // nao pode impedir a demonstracao nem a pratica da ponte micorrizica.
+    if (cloud.mycorrhizaStructureHandled) return;
     const age = (cloud.maxLife || 10) - cloud.life;
     if (age < .55 || cloud.radius < 72) return;
     const sourceInfo = nearestSourcePlatform(state, cloud);
@@ -5652,29 +5746,17 @@ function createMycorrhizaStructures({ state, entities }) {
       Math.abs(cloud.x - (sourceInfo.platform.x + sourceInfo.platform.w)),
     ) < 94;
 
-    if (sourceInfo.platform.recovery) {
-      const ladder = findLadderTarget(state, sourceInfo);
-      if (ladder) {
-        createStructure(cloud, sourceInfo, 'ladder', ladder);
-        return;
-      }
-    }
-
+    const phase = state.campaign?.phase ?? state.level.campaignPhase;
+    const config = getPhaseManifest(phase)?.mycorrhizaBridge || MYCORRHIZA_BRIDGE_DEFAULTS;
     if (nearEdge) {
-      const bridge = findBridgeTarget(state, sourceInfo, cloud);
+      const bridge = findBridgeTarget(state, sourceInfo, cloud, config);
       if (bridge) {
         createStructure(cloud, sourceInfo, 'bridge', bridge);
         return;
       }
     }
 
-    const ladder = findLadderTarget(state, sourceInfo);
-    if (ladder && ladder.rise > 105) {
-      createStructure(cloud, sourceInfo, 'ladder', ladder);
-      return;
-    }
-
-    const bridge = findBridgeTarget(state, sourceInfo, cloud);
+    const bridge = findBridgeTarget(state, sourceInfo, cloud, config);
     if (bridge) {
       createStructure(cloud, sourceInfo, 'bridge', bridge);
       return;
@@ -5706,13 +5788,11 @@ function createMycorrhizaStructures({ state, entities }) {
       if (structure.progress >= 1 && structure.maturity >= 1) {
         structure.mature = true;
         collisionDirty = true;
-        state.player.hope += structure.type === 'ladder' ? 3.5 : 3;
+        state.player.hope += 3;
         state.player.soil += 1.6;
         entities.burst(structure.end.x, structure.end.y, '#d6afff', 34, 175);
         if (state.time - lastToastAt > 1.5) {
-          state.toast = structure.type === 'ladder'
-            ? 'Escada micorrízica madura: os ramos espessados agora sustentam Miguelito.'
-            : 'Ponte micorrízica madura: o feixe hifal agora pode ser atravessado.';
+          state.toast = 'Ponte micorrízica madura: o feixe hifal horizontal agora pode ser atravessado.';
           state.toastTime = 5;
           lastToastAt = state.time;
         }
@@ -5756,32 +5836,12 @@ function createMycorrhizaStructures({ state, entities }) {
     ctx.shadowBlur = structure.mature ? 16 : 9;
     ctx.shadowColor = '#d6afff';
 
-    if (structure.type === 'ladder') {
-      visiblePoints.forEach((point, index) => {
-        if (index === 0 || index === structure.points.length - 1) return;
-        const alpha = structure.mature ? .82 : .2 + structure.maturity * .38;
-        ctx.strokeStyle = `rgba(226,198,255,${alpha})`;
-        ctx.lineWidth = structure.mature ? 3 : 1.5;
-        const width = structure.mature ? 34 : 24;
-        ctx.beginPath();
-        ctx.moveTo(point.x - width, point.y);
-        ctx.quadraticCurveTo(point.x, point.y - 6, point.x + width, point.y);
-        ctx.stroke();
-        for (let k = -1; k <= 1; k++) {
-          ctx.fillStyle = `rgba(240,220,255,${alpha * .8})`;
-          ctx.beginPath();
-          ctx.arc(point.x + k * width * .48, point.y - 1, structure.mature ? 2.7 : 1.7, 0, TAU);
-          ctx.fill();
-        }
-      });
-    } else {
-      for (let i = 1; i < visiblePoints.length - 1; i++) {
-        const point = visiblePoints[i];
-        ctx.fillStyle = structure.mature ? '#ead3ff' : 'rgba(214,175,255,.45)';
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, structure.mature ? 4.2 : 2.4, 0, TAU);
-        ctx.fill();
-      }
+    for (let i = 1; i < visiblePoints.length - 1; i++) {
+      const point = visiblePoints[i];
+      ctx.fillStyle = structure.mature ? '#ead3ff' : 'rgba(214,175,255,.45)';
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, structure.mature ? 4.2 : 2.4, 0, TAU);
+      ctx.fill();
     }
 
     const tip = visiblePoints[visiblePoints.length - 1];
@@ -5796,7 +5856,7 @@ function createMycorrhizaStructures({ state, entities }) {
       ctx.font = '700 10px Inter,system-ui';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#f4e6ff';
-      ctx.fillText(`${structure.type === 'ladder' ? 'escada' : 'ponte'} micorrízica ${percent}%`, structure.start.x, structure.start.y - 26);
+      ctx.fillText(`ponte micorrízica ${percent}%`, structure.start.x, structure.start.y - 26);
     }
   }
 
@@ -5815,8 +5875,9 @@ function createMycorrhizaStructures({ state, entities }) {
     get structureCount() { return structures.length; },
     get matureCount() { return structures.filter(structure => structure.mature).length; },
     get growingCount() { return structures.filter(structure => !structure.mature).length; },
-    get ladderCount() { return structures.filter(structure => structure.type === 'ladder').length; },
+    get ladderCount() { return 0; },
     get bridgeCount() { return structures.filter(structure => structure.type === 'bridge').length; },
+    get structures() { return structures; },
     clear,
     reset,
     update,
@@ -7135,6 +7196,11 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#effff5';
     ctx.fillText(`${profile.short} — ${colony.stage}`, 0, barY - 5);
+    if (colony.type === 'azospirillum' && colony.associativeNitrogenActive) {
+      ctx.font = '650 8px Inter,system-ui';
+      ctx.fillStyle = 'rgba(255,215,131,.9)';
+      ctx.fillText('Fixação associativa de N', 0, barY - 16);
+    }
     ctx.restore();
   }
 
@@ -8671,526 +8737,1144 @@ function createRhizobiumNodulation({ state, entities, inoculants }) {
 }
 Object.assign(__exports, { createRhizobiumNodulation });
 },
-"src/procgen/azospirillum-root-growth.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");
+"src/procgen/nitrogen-root.js": (__exports, __require) => {
+const { W } = __require("src/core/constants.js");const { createRandom } = __require("src/procgen/random.js");
+const NITROGEN_ROOT_BLOCK_TYPE = 'underdeveloped-nitrogen-root';
+
 const TAU = Math.PI * 2;
+const PHASE_TWO_MAX_ORDINARY_GAP = 142;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
-const STAGES = ['rhizoplane', 'auxin-signal', 'primordium', 'emergence', 'elongation', 'mature'];
-const STAGE_DURATION = {
-  rhizoplane: 1.8,
-  'auxin-signal': 2.5,
-  primordium: 3.2,
-  emergence: 2.2,
-  elongation: 5.6,
-};
+function routePlatforms(level) {
+  return (level.platforms || [])
+    .filter(platform => !platform.recovery && !platform.final && Number.isInteger(platform.logicIndex))
+    .sort((left, right) => left.logicIndex - right.logicIndex || left.x - right.x);
+}
 
-function compatibleHost(colony) {
+function colonizableRoot(platform) {
   return Boolean(
-    colony?.platform
-    && colony.platform.type === 'root'
-    && !colony.platform.mycorrhizaStructure,
+    platform
+    && platform.type === 'root'
+    && !platform.mycorrhizaStructure
+    && !platform.azospirillumStructure
+    && !platform.azospirillumLadderHost
+    && !platform.azospirillumLadderDestination
+    && !platform.nitrogenRootCollider
+    && !platform.fixedObjective,
   );
 }
 
-function bezierPoint(root, t) {
-  const u = 1 - t;
-  return {
-    x: u * u * u * root.startX
-      + 3 * u * u * t * root.c1x
-      + 3 * u * t * t * root.c2x
-      + t * t * t * root.endX,
-    y: u * u * u * root.startY
-      + 3 * u * u * t * root.c1y
-      + 3 * u * t * t * root.c2y
-      + t * t * t * root.endY,
-  };
+function shuffled(values, random) {
+  const result = [...values];
+  for (let index = result.length - 1; index > 0; index--) {
+    const target = Math.floor(random() * (index + 1));
+    [result[index], result[target]] = [result[target], result[index]];
+  }
+  return result;
 }
 
-function stageLabel(root, site) {
-  if (!site.compatible) return 'sem raiz hospedeira';
-  if (root?.paused) return 'desenvolvimento pausado — pouco carbono';
-  if (!root) return site.roots.length ? 'aguardando novo exsudato' : 'rizoplano ativo';
-  if (root.stage === 'rhizoplane') return 'aderência ao rizoplano';
-  if (root.stage === 'auxin-signal') return 'sinalização hormonal';
-  if (root.stage === 'primordium') return 'primórdio de raiz lateral';
-  if (root.stage === 'emergence') return 'emergência da raiz lateral';
-  if (root.stage === 'elongation') return 'alongamento da raiz lateral';
-  return 'raiz lateral madura';
+function occupiesPlatform(entity, platform) {
+  if (Number.isInteger(entity?.logicIndex)) return entity.logicIndex === platform.logicIndex;
+  return Number.isFinite(entity?.x) && entity.x >= platform.x && entity.x <= platform.x + platform.w;
 }
 
-function createAzospirillumRootGrowth({ state, entities, inoculants }) {
-  const sites = new Map();
-  const roots = [];
-  let nextRootId = 1;
-  let lastToastAt = -Infinity;
+function hasCriticalContent(level, encounters, platform) {
+  const collections = [
+    level.exudates,
+    level.crystals,
+    level.enemies,
+    level.allies,
+    level.checkpoints,
+    encounters,
+  ];
+  return collections.some(collection => (collection || []).some(entity => occupiesPlatform(entity, platform)));
+}
 
-  function generatedPlatforms() {
-    return (state.level.platforms || []).filter(platform => platform.azospirillumStructure);
+function routeGapCandidates(level, encounters, route, firstExudate) {
+  const candidates = [];
+  for (let routeIndex = 2; routeIndex < route.length - 1; routeIndex++) {
+    const targetPlatform = route[routeIndex];
+    if (!colonizableRoot(targetPlatform) || hasCriticalContent(level, encounters, targetPlatform)) continue;
+
+    const leftPlatform = route[routeIndex - 1];
+    const rightPlatform = route[routeIndex + 1];
+    // The source of the FBN must be visually unambiguous: the colonizable root
+    // immediately before the missing route platform is always its host.
+    const hostPlatform = leftPlatform;
+    if (!colonizableRoot(hostPlatform) || hostPlatform.logicIndex <= firstExudate) continue;
+
+    const blockedGapWidth = rightPlatform.x - (leftPlatform.x + leftPlatform.w);
+    const leftLandingGap = targetPlatform.x - (leftPlatform.x + leftPlatform.w);
+    const rightLandingGap = rightPlatform.x - (targetPlatform.x + targetPlatform.w);
+    if (
+      blockedGapWidth <= PHASE_TWO_MAX_ORDINARY_GAP
+      || leftLandingGap > PHASE_TWO_MAX_ORDINARY_GAP
+      || rightLandingGap > PHASE_TWO_MAX_ORDINARY_GAP
+    ) continue;
+    candidates.push({
+      hostPlatform,
+      targetPlatform,
+      leftPlatform,
+      rightPlatform,
+      blockedGapWidth,
+      leftLandingGap,
+      rightLandingGap,
+    });
   }
+  return candidates;
+}
 
-  function removeGeneratedPlatforms() {
-    const platforms = state.level.platforms || [];
-    for (let i = platforms.length - 1; i >= 0; i--) {
-      if (platforms[i].azospirillumStructure) platforms.splice(i, 1);
-    }
+function removeGapPlatforms(level, slot) {
+  const gapStart = slot.leftPlatform.x + slot.leftPlatform.w;
+  const gapEnd = slot.rightPlatform.x;
+  level.platforms = (level.platforms || []).filter(platform => {
+    if (platform === slot.targetPlatform) return false;
+    if (!platform.recovery) return true;
+    const center = platform.x + platform.w / 2;
+    return center <= gapStart || center >= gapEnd;
+  });
+}
+
+function generateUnderdevelopedNitrogenRoots({
+  level,
+  phase,
+  seedValue,
+  encounters = [],
+  config,
+} = {}) {
+  level.nitrogenRoots = [];
+  if (phase < 2 || !config?.enabled || config.count <= 0) return level.nitrogenRoots;
+
+  const rhizobiumIndexes = encounters
+    .filter(encounter => encounter.id === 'rhizobium' && Number.isInteger(encounter.logicIndex))
+    .map(encounter => encounter.logicIndex)
+    .sort((left, right) => left - right);
+  if (!rhizobiumIndexes.length) return level.nitrogenRoots;
+
+  const firstRhizobium = rhizobiumIndexes[0];
+  const exudateIndexes = (level.exudates || [])
+    .filter(exudate => Number.isInteger(exudate.logicIndex) && exudate.logicIndex > firstRhizobium)
+    .map(exudate => exudate.logicIndex)
+    .sort((left, right) => left - right);
+  if (!exudateIndexes.length) return level.nitrogenRoots;
+
+  const firstExudate = exudateIndexes[0];
+  const route = routePlatforms(level);
+  const candidates = routeGapCandidates(level, encounters, route, firstExudate);
+  if (!candidates.length) return level.nitrogenRoots;
+
+  const random = createRandom(`${seedValue}:nitrogen-root:p${phase}`);
+  const orderedCandidates = [...candidates].sort((left, right) => (
+    left.targetPlatform.logicIndex - right.targetPlatform.logicIndex
+    || left.targetPlatform.x - right.targetPlatform.x
+  ));
+  // Keep seed-based variation, but only among the first valid route slots. This
+  // prevents the teaching mechanic from being hidden near the end of the phase.
+  const candidateWindow = orderedCandidates.slice(0, Math.min(
+    orderedCandidates.length,
+    Math.max(4, config.count * 4),
+  ));
+  const selected = [];
+  for (const candidate of shuffled(candidateWindow, random)) {
+    if (selected.some(existing => Math.abs(existing.targetPlatform.logicIndex - candidate.targetPlatform.logicIndex) < 3)) continue;
+    selected.push(candidate);
+    if (selected.length >= Math.min(config.count, candidates.length)) break;
   }
+  level.nitrogenRoots = selected.map((slot, index) => {
+    const { hostPlatform, targetPlatform, leftPlatform, rightPlatform } = slot;
+    const startWidth = clamp(Math.round(targetPlatform.w * .45), 64, 92);
+    const startHeight = 12;
+    removeGapPlatforms(level, slot);
+    return {
+      id: `nitrogen-root-${targetPlatform.logicIndex}-${index}`,
+      blockType: NITROGEN_ROOT_BLOCK_TYPE,
+      hostPlatform,
+      hostLogicIndex: hostPlatform.logicIndex,
+      targetPlatform,
+      targetLogicIndex: targetPlatform.logicIndex,
+      leftPlatform,
+      rightPlatform,
+      blockedGapWidth: slot.blockedGapWidth,
+      leftLandingGap: slot.leftLandingGap,
+      rightLandingGap: slot.rightLandingGap,
+      sourceRhizobiumLogicIndex: firstRhizobium,
+      sourceExudateLogicIndex: firstExudate,
+      x: targetPlatform.x,
+      y: targetPlatform.y,
+      startWidth,
+      startHeight,
+      targetWidth: targetPlatform.w,
+      targetHeight: targetPlatform.h,
+      currentWidth: startWidth,
+      currentHeight: startHeight,
+      progress: 0,
+      functionalProgress: 0,
+      stage: 'underdeveloped',
+      developed: false,
+      paused: false,
+      requiredFixationRate: config.requiredFixationRate,
+      growthDurationSeconds: config.growthDurationSeconds,
+      phase: random() * TAU,
+      collider: null,
+      activeSite: null,
+      announced: false,
+    };
+  });
+  return level.nitrogenRoots;
+}
 
+function removeCollider(state, root) {
+  if (!root.collider) return;
+  const index = (state.level.platforms || []).indexOf(root.collider);
+  if (index >= 0) state.level.platforms.splice(index, 1);
+  root.collider = null;
+}
+
+function updateCollider(state, root) {
+  const fullyDeveloped = root.developed && root.progress >= 1;
+  root.functionalProgress = fullyDeveloped ? 1 : 0;
+  if (!fullyDeveloped) {
+    removeCollider(state, root);
+    return;
+  }
+  if (!root.collider) {
+    root.collider = {
+      ...root.targetPlatform,
+      type: 'root',
+      nitrogenRootCollider: true,
+      nitrogenRootId: root.id,
+      logicIndex: root.targetLogicIndex,
+      rootHealth: 1,
+      rootMaxHealth: 1,
+      supportIntegrity: 1,
+    };
+    state.level.platforms.push(root.collider);
+  }
+  Object.assign(root.collider, {
+    x: root.x,
+    y: root.y,
+    w: root.targetWidth,
+    h: root.targetHeight,
+    oneWay: false,
+    mature: true,
+  });
+}
+
+function associatedNodule(state, root) {
+  return (state.level.rhizobiumNodules || []).find(site => site.platform === root.hostPlatform) || null;
+}
+
+function createNitrogenRootDevelopment({ state, entities = null } = {}) {
   function clear() {
-    removeGeneratedPlatforms();
-    sites.clear();
-    roots.length = 0;
-    nextRootId = 1;
-    lastToastAt = -Infinity;
-    state.level.azospirillumRoots = roots;
+    for (const root of state.level.nitrogenRoots || []) removeCollider(state, root);
+    state.level.nitrogenRoots = [];
   }
 
   function reset() {
-    clear();
-  }
-
-  function cloudKey(cloud, index) {
-    return cloud.id ?? `${Math.round(cloud.x)}:${Math.round(cloud.y)}:${index}`;
-  }
-
-  function nearbyClouds(colony) {
-    return (state.level.exudateClouds || [])
-      .map((cloud, index) => ({ cloud, key: cloudKey(cloud, index) }))
-      .filter(({ cloud }) => Math.hypot(cloud.x - colony.x, cloud.y - colony.y) < Math.max(170, cloud.radius * 2.25));
-  }
-
-  function createSite(colony) {
-    const site = {
-      colony,
-      compatible: compatibleHost(colony),
-      roots: [],
-      activeRoot: null,
-      cooldown: 0,
-      usedClouds: new Set(nearbyClouds(colony).map(item => item.key)),
-      announcedIncompatible: false,
-    };
-    sites.set(colony.id, site);
-    return site;
-  }
-
-  function syncSites() {
-    const colonies = (inoculants.colonies || []).filter(colony => colony.type === 'azospirillum');
-    const activeIds = new Set(colonies.map(colony => colony.id));
-    for (const colony of colonies) {
-      let site = sites.get(colony.id);
-      if (!site) site = createSite(colony);
-      site.colony = colony;
-      site.compatible = compatibleHost(colony);
-    }
-    for (const [id, site] of sites) {
-      if (activeIds.has(id)) continue;
-      for (const root of site.roots) removeRootPlatforms(root);
-      sites.delete(id);
-    }
-    state.level.azospirillumRoots = roots;
-  }
-
-  function announce(text, seconds = 4.8) {
-    if (state.time - lastToastAt < 1.7) return;
-    state.toast = text;
-    state.toastTime = seconds;
-    lastToastAt = state.time;
-  }
-
-  function sideClearance(parent, direction) {
-    const edge = direction > 0 ? parent.x + parent.w : parent.x;
-    let clearance = 270;
-    for (const platform of state.level.platforms || []) {
-      if (platform === parent || platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
-      const verticalNear = platform.y < parent.y + 125 && platform.y + platform.h > parent.y - 75;
-      if (!verticalNear) continue;
-      if (direction > 0 && platform.x >= edge) clearance = Math.min(clearance, platform.x - edge - 16);
-      if (direction < 0 && platform.x + platform.w <= edge) clearance = Math.min(clearance, edge - (platform.x + platform.w) - 16);
-    }
-    return clamp(clearance, 115, 270);
-  }
-
-  function chooseDirection(site, cueCloud = null) {
-    const colony = site.colony;
-    const parent = colony.platform;
-    if (cueCloud && Math.abs(cueCloud.x - colony.x) > 28) return Math.sign(cueCloud.x - colony.x);
-    const left = sideClearance(parent, -1);
-    const right = sideClearance(parent, 1);
-    if (Math.abs(left - right) > 28) return right > left ? 1 : -1;
-    return colony.x >= parent.x + parent.w / 2 ? 1 : -1;
-  }
-
-  function createRoot(site, cueCloud = null) {
-    const colony = site.colony;
-    const parent = colony.platform;
-    const direction = chooseDirection(site, cueCloud);
-    const clearance = sideClearance(parent, direction);
-    const sourceBoost = Math.max(0, (colony.sourceCount || 1) - 1) * 18;
-    const length = clamp(145 + sourceBoost + colony.vigor * 58, 145, clearance);
-    const startX = clamp(colony.x, parent.x + 18, parent.x + parent.w - 18);
-    const startY = parent.y + clamp(parent.h * .2, 8, 18);
-    const cloudDrop = cueCloud ? clamp(cueCloud.y - startY, 18, 88) : 44;
-    const drop = clamp(34 + cloudDrop * .35 + site.roots.length * 13, 38, 86);
-    const root = {
-      id: `azo-root-${nextRootId++}`,
-      site,
-      colony,
-      parent,
-      direction,
-      startX,
-      startY,
-      c1x: startX + direction * length * .26,
-      c1y: startY + 5,
-      c2x: startX + direction * length * .72,
-      c2y: startY + drop * .58,
-      endX: startX + direction * length,
-      endY: startY + drop,
-      length,
-      stage: 'rhizoplane',
-      progress: 0,
-      visibleProgress: 0,
-      paused: false,
-      mature: false,
-      colliders: [],
-      phase: Math.random() * TAU,
-      age: 0,
-    };
-    site.activeRoot = root;
-    site.roots.push(root);
-    roots.push(root);
-    colony.vigor = clamp(colony.vigor - .045, 0, 1);
-    announce('Azospirillum aderido: a sinalização hormonal começou a reorganizar a arquitetura da raiz.');
-    return root;
-  }
-
-  function removeRootPlatforms(root) {
-    const platforms = state.level.platforms || [];
-    const id = root.id;
-    for (let i = platforms.length - 1; i >= 0; i--) {
-      if (platforms[i].rootStructureId === id) platforms.splice(i, 1);
-    }
-    root.colliders.length = 0;
-  }
-
-  function buildColliders(root) {
-    if (root.colliders.length) return;
-    const count = clamp(Math.round(root.length / 44), 4, 7);
-    for (let i = 0; i < count; i++) {
-      const t = .26 + (i / Math.max(1, count - 1)) * .72;
-      const point = bezierPoint(root, t);
-      const next = bezierPoint(root, Math.min(1, t + .025));
-      const slope = Math.abs(next.x - point.x) < 1 ? 0 : (next.y - point.y) / (next.x - point.x);
-      const width = clamp(root.length / count * 1.12, 38, 58);
-      const platform = {
-        x: point.x - width / 2,
-        y: point.y - 5 + Math.min(4, Math.abs(slope) * 5),
-        w: width,
-        h: 11,
-        type: 'root',
-        oneWay: true,
-        azospirillumStructure: true,
-        rootStructureId: root.id,
-        logicIndex: root.parent.logicIndex ?? -1,
-      };
-      root.colliders.push(platform);
-      state.level.platforms.push(platform);
-    }
-  }
-
-  function advanceStage(root) {
-    const index = STAGES.indexOf(root.stage);
-    const next = STAGES[Math.min(STAGES.length - 1, index + 1)];
-    root.stage = next;
-    root.progress = 0;
-    if (next === 'auxin-signal') {
-      announce('Sinalização hormonal: o Azospirillum estimula um novo ponto de ramificação na raiz.');
-    } else if (next === 'primordium') {
-      announce('Primórdio lateral: células internas da raiz iniciaram a formação de um novo meristema.');
-    } else if (next === 'emergence') {
-      announce('Emergência: a nova raiz lateral rompeu os tecidos externos e começou a explorar o solo.');
-    } else if (next === 'elongation') {
-      entities.burst(root.startX, root.startY, '#72e8dd', 24, 105);
-    } else if (next === 'mature') {
-      root.mature = true;
-      root.visibleProgress = 1;
-      buildColliders(root);
-      root.site.activeRoot = null;
-      root.site.cooldown = 9.5;
-      root.colony.vigor = clamp(root.colony.vigor - .12, 0, 1);
-      state.player.soil += 4.5;
-      state.player.hope += 3.2;
-      entities.burst(root.endX, root.endY, '#d7ba7d', 34, 145);
-      announce('Raiz lateral madura: uma nova superfície radicular agora pode sustentar Miguelito e receber outros simbiontes.', 5.6);
+    for (const root of state.level.nitrogenRoots || []) {
+      removeCollider(state, root);
+      root.progress = 0;
+      root.functionalProgress = 0;
+      root.currentWidth = root.startWidth;
+      root.currentHeight = root.startHeight;
+      root.stage = 'underdeveloped';
+      root.developed = false;
+      root.paused = false;
+      root.activeSite = null;
+      root.announced = false;
     }
   }
 
   function updateRoot(root, dt) {
-    root.age += dt;
-    const colony = root.colony;
-    const carbon = clamp(colony.vigor * .82 + (colony.rechargeIntensity || 0) * .42, 0, 1.18);
-    root.paused = colony.dormant || colony.vigor < .07;
-    colony.stage = stageLabel(root, root.site);
-    if (root.mature || root.paused) return;
-
-    const duration = STAGE_DURATION[root.stage] || 1;
-    const sourceBoost = 1 + Math.max(0, (colony.sourceCount || 1) - 1) * .11;
-    root.progress = clamp(root.progress + dt * Math.max(.12, carbon) * sourceBoost / duration, 0, 1);
-    if (root.stage === 'elongation') root.visibleProgress = root.progress;
-    else if (STAGES.indexOf(root.stage) >= STAGES.indexOf('emergence')) root.visibleProgress = Math.max(root.visibleProgress, .08 + root.progress * .12);
-
-    const stageCost = root.stage === 'elongation' ? .0105 : .0065;
-    colony.vigor = clamp(colony.vigor - dt * stageCost * (1 + root.length / 260), 0, 1);
-    if (root.progress >= 1) advanceStage(root);
-  }
-
-  function newCueCloud(site) {
-    const candidates = nearbyClouds(site.colony)
-      .filter(item => !site.usedClouds.has(item.key))
-      .sort((a, b) => b.cloud.life - a.cloud.life);
-    if (!candidates.length) return null;
-    const chosen = candidates[0];
-    site.usedClouds.add(chosen.key);
-    return chosen.cloud;
-  }
-
-  function updateSite(site, dt) {
-    const colony = site.colony;
-    site.cooldown = Math.max(0, site.cooldown - dt);
-
-    if (!site.compatible) {
-      colony.stage = 'rizosfera sem raiz hospedeira';
-      if (!site.announcedIncompatible) {
-        site.announcedIncompatible = true;
-        announce('Azospirillum sem hospedeiro: a comunidade permanece no solo, mas não induz raízes laterais fora de uma raiz viva.');
-      }
+    if (root.developed) {
+      root.progress = 1;
+      root.currentWidth = root.targetWidth;
+      root.currentHeight = root.targetHeight;
+      updateCollider(state, root);
       return;
     }
 
-    if (site.activeRoot) {
-      updateRoot(site.activeRoot, dt);
+    const site = associatedNodule(state, root);
+    root.activeSite = site;
+    const mature = Boolean(site?.mature || site?.stage === 'mature-nodule');
+    const fixationActive = mature && (site.fixationRate || 0) >= root.requiredFixationRate;
+    root.paused = root.progress > 0 && !fixationActive;
+    if (!fixationActive) {
+      updateCollider(state, root);
       return;
     }
 
-    colony.stage = stageLabel(null, site);
-    if (site.roots.length === 0) {
-      if (colony.growth >= .68 && colony.vigor > .24 && !colony.dormant) createRoot(site);
-      return;
-    }
+    const wasStarted = root.progress > 0;
+    root.progress = clamp(root.progress + dt / Math.max(.1, root.growthDurationSeconds), 0, 1);
+    root.currentWidth = lerp(root.startWidth, root.targetWidth, root.progress);
+    root.currentHeight = lerp(root.startHeight, root.targetHeight, root.progress);
+    root.stage = root.progress < .22
+      ? 'receiving-nitrogen'
+      : root.progress < 1 ? 'growing' : 'developed';
+    root.developed = root.progress >= 1;
+    root.paused = false;
+    updateCollider(state, root);
 
-    if (site.roots.length >= 2 || site.cooldown > 0 || colony.vigor < .34 || colony.dormant) return;
-    const cue = newCueCloud(site);
-    if (cue) createRoot(site, cue);
+    if (!wasStarted) entities?.burst?.(site.x, site.surfaceY + site.depth, '#ffd783', 18, 75);
+    if (root.developed && !root.announced) {
+      root.announced = true;
+      state.toast = 'FBN ativa: o nitrogenio sustentou o desenvolvimento de uma nova plataforma radicular.';
+      state.toastTime = 4.8;
+      entities?.burst?.(root.x + root.targetWidth * .65, root.y, '#d9c48b', 34, 120);
+    }
   }
 
   function update(dt) {
     if (state.gameState !== 'play') return;
-    syncSites();
-    for (const site of sites.values()) updateSite(site, dt);
+    for (const root of state.level.nitrogenRoots || []) updateRoot(root, dt);
   }
 
-  function drawSignal(ctx, root) {
-    const stageIndex = STAGES.indexOf(root.stage);
-    if (stageIndex < 1 || stageIndex > 2) return;
-    const intensity = root.stage === 'auxin-signal' ? root.progress : 1 - root.progress * .45;
-    for (let i = 0; i < 4; i++) {
-      const angle = state.time * .75 + root.phase + i * TAU / 4;
-      const radius = 12 + i * 5 + Math.sin(state.time * 2 + i) * 2;
-      ctx.globalAlpha = .18 + intensity * .28;
-      ctx.fillStyle = i % 2 ? '#ffd783' : '#72e8dd';
-      ctx.beginPath();
-      ctx.arc(root.startX + Math.cos(angle) * radius, root.startY + Math.sin(angle) * radius * .45, 2.2, 0, TAU);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-  }
+  function drawRoot(ctx, root) {
+    const progress = clamp(root.progress, 0, 1);
+    const colorProgress = .18 + progress * .82;
+    const width = root.currentWidth;
+    const height = root.currentHeight;
 
-  function drawPrimordium(ctx, root) {
-    const stageIndex = STAGES.indexOf(root.stage);
-    if (stageIndex < 2) return;
-    const development = root.stage === 'primordium' ? root.progress : 1;
-    const radius = 3 + development * 8;
-    ctx.save();
-    ctx.translate(root.startX, root.startY + 4);
-    ctx.scale(1, .7);
-    const gradient = ctx.createRadialGradient(-2, -2, 1, 0, 0, radius * 1.2);
-    gradient.addColorStop(0, '#ffe6b0');
-    gradient.addColorStop(.62, '#c78f5d');
-    gradient.addColorStop(1, 'rgba(76,43,42,.9)');
-    ctx.fillStyle = gradient;
-    ctx.strokeStyle = '#f2c98e';
-    ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, radius, radius * .8, 0, 0, TAU);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawRootPath(ctx, root) {
-    const stageIndex = STAGES.indexOf(root.stage);
-    if (stageIndex < 3) return;
-    const visible = root.mature ? 1 : clamp(root.visibleProgress, 0, 1);
-    if (visible <= 0) return;
-    const samples = Math.max(4, Math.ceil(visible * 28));
     ctx.save();
     ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = root.mature ? '#b98b58' : '#caa36e';
-    ctx.lineWidth = root.mature ? 11 : 5 + visible * 5;
-    ctx.shadowBlur = root.mature ? 5 : 12;
-    ctx.shadowColor = root.paused ? '#8a6470' : '#72e8dd';
-    ctx.beginPath();
-    for (let i = 0; i <= samples; i++) {
-      const t = visible * i / samples;
-      const point = bezierPoint(root, t);
-      if (i === 0) ctx.moveTo(point.x, point.y);
-      else ctx.lineTo(point.x, point.y);
-    }
-    ctx.stroke();
-    ctx.shadowBlur = 0;
 
-    ctx.strokeStyle = 'rgba(255,226,170,.65)';
-    ctx.lineWidth = 2;
+    const gradient = ctx.createLinearGradient(0, root.y, 0, root.y + height);
+    gradient.addColorStop(0, progress < .35 ? '#c8c3a6' : '#d9b477');
+    gradient.addColorStop(.28, progress < .35 ? '#9b9786' : '#ad774e');
+    gradient.addColorStop(1, progress < .35 ? '#5f5b58' : '#2b1c25');
+    ctx.fillStyle = gradient;
+    ctx.strokeStyle = progress >= 1 ? '#98e287' : `rgba(222,213,173,${.35 + progress * .45})`;
+    ctx.lineWidth = 1.4 + progress;
     ctx.beginPath();
-    for (let i = 0; i <= samples; i++) {
-      const t = visible * i / samples;
-      const point = bezierPoint(root, t);
-      if (i === 0) ctx.moveTo(point.x, point.y - 1);
-      else ctx.lineTo(point.x, point.y - 1);
-    }
+    ctx.roundRect(root.x, root.y, width, height, 5 + progress * 10);
+    ctx.fill();
     ctx.stroke();
 
-    const hairLimit = root.mature ? 1 : visible;
-    ctx.strokeStyle = 'rgba(235,217,184,.55)';
-    ctx.lineWidth = 1;
-    for (let t = .34; t < hairLimit; t += .095) {
-      const point = bezierPoint(root, t);
-      const next = bezierPoint(root, Math.min(1, t + .02));
-      const angle = Math.atan2(next.y - point.y, next.x - point.x);
-      const side = Math.floor(t * 100) % 2 ? 1 : -1;
-      const normal = angle + side * Math.PI / 2;
-      const length = 8 + Math.sin(t * 49 + root.phase) * 2;
-      ctx.beginPath();
-      ctx.moveTo(point.x, point.y);
-      ctx.lineTo(point.x + Math.cos(normal) * length, point.y + Math.sin(normal) * length);
-      ctx.stroke();
+    ctx.strokeStyle = `rgba(255,235,181,${.16 + progress * .4})`;
+    ctx.lineWidth = 2 + progress * 3;
+    ctx.beginPath();
+    ctx.moveTo(root.x + 8, root.y + 3);
+    ctx.lineTo(root.x + width - 8, root.y + 3);
+    ctx.stroke();
+
+    if (progress > .38) {
+      const hairProgress = clamp((progress - .38) / .62, 0, 1);
+      const count = Math.floor(2 + hairProgress * 11);
+      ctx.strokeStyle = `rgba(230,218,185,${.24 + hairProgress * .52})`;
+      ctx.lineWidth = 1;
+      for (let index = 0; index < count; index++) {
+        const x = root.x + 14 + (index + .5) / count * Math.max(8, width - 28);
+        const direction = index % 2 ? 1 : -1;
+        ctx.beginPath();
+        ctx.moveTo(x, root.y + height - 2);
+        ctx.quadraticCurveTo(x + direction * 6, root.y + height + 8, x + direction * 10, root.y + height + 15 + (index % 3) * 3);
+        ctx.stroke();
+      }
     }
 
-    if (!root.mature) {
-      const tip = bezierPoint(root, visible);
-      ctx.fillStyle = root.paused ? '#b98592' : '#8ff4e8';
-      ctx.shadowBlur = 14;
-      ctx.shadowColor = ctx.fillStyle;
+    const site = root.activeSite;
+    if (site?.mature && (site.fixationRate || 0) >= root.requiredFixationRate && !root.developed) {
+      const sourceX = site.x;
+      const sourceY = site.surfaceY + site.depth;
+      const targetX = root.x + Math.min(width * .58, root.targetWidth * .52);
+      const targetY = root.y + height * .42;
+      const distance = Math.max(80, targetX - sourceX);
+      const controlOne = { x: sourceX + distance * .28, y: sourceY - 48 };
+      const controlTwo = { x: targetX - distance * .24, y: targetY - 34 };
+      const bezierPoint = (start, controlA, controlB, end, travel) => {
+        const inverse = 1 - travel;
+        return inverse ** 3 * start
+          + 3 * inverse ** 2 * travel * controlA
+          + 3 * inverse * travel ** 2 * controlB
+          + travel ** 3 * end;
+      };
+      for (let index = 0; index < 9; index++) {
+        const travel = (state.time * .42 + index / 9 + root.phase) % 1;
+        const x = bezierPoint(sourceX, controlOne.x, controlTwo.x, targetX, travel);
+        const y = bezierPoint(sourceY, controlOne.y, controlTwo.y, targetY, travel);
+        const visibility = Math.sin(travel * Math.PI);
+        ctx.globalAlpha = .2 + .8 * visibility;
+        ctx.fillStyle = index % 2 ? '#ffd783' : '#8db8ff';
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(x, y, 3.2 + (index % 2) * 1.2, 0, TAU);
+        ctx.fill();
+        if (index % 3 === 0 && travel > .12 && travel < .88) {
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#fff3c4';
+          ctx.font = '800 8px Inter, system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('N', x, y - 9);
+        }
+      }
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    }
+
+    if (!root.developed) {
+      const percent = Math.round(progress * 100);
+      const label = progress > 0
+        ? `Raiz recebendo N · ${percent}%`
+        : 'Raiz subdesenvolvida · forme o nódulo na raiz anterior';
+      ctx.font = '700 10px Inter, system-ui, sans-serif';
+      const labelWidth = Math.min(286, ctx.measureText(label).width + 20);
+      const labelX = root.x + root.targetWidth / 2 - labelWidth / 2;
+      const labelY = root.y - 27;
+      ctx.fillStyle = 'rgba(5, 24, 31, .9)';
+      ctx.strokeStyle = progress > 0 ? 'rgba(137, 224, 218, .92)' : 'rgba(255, 211, 111, .92)';
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.arc(tip.x, tip.y, 5.5, 0, TAU);
+      ctx.roundRect(labelX, labelY, labelWidth, 20, 10);
       ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = progress > 0 ? '#a8f0ea' : '#ffd36f';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, root.x + root.targetWidth / 2, labelY + 10, labelWidth - 14);
     }
     ctx.restore();
   }
 
   function render(ctx) {
+    const roots = state.level.nitrogenRoots || [];
     if (!roots.length) return;
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     for (const root of roots) {
-      const minX = Math.min(root.startX, root.endX) - 80;
-      const maxX = Math.max(root.startX, root.endX) + 80;
-      if (maxX < state.cameraX || minX > state.cameraX + W) continue;
-      drawSignal(ctx, root);
-      drawPrimordium(ctx, root);
-      drawRootPath(ctx, root);
+      if (root.x + root.currentWidth < state.cameraX - 100 || root.x > state.cameraX + W + 100) continue;
+      drawRoot(ctx, root);
     }
     ctx.restore();
   }
 
   return {
-    get siteCount() { return sites.size; },
-    get rootCount() { return roots.length; },
-    get matureCount() { return roots.filter(root => root.mature).length; },
-    get growingCount() { return roots.filter(root => !root.mature).length; },
-    get pausedCount() { return roots.filter(root => !root.mature && root.paused).length; },
-    get platformCount() { return generatedPlatforms().length; },
+    clear,
+    reset,
+    update,
+    render,
+    get rootCount() { return (state.level.nitrogenRoots || []).length; },
+    get developedCount() { return (state.level.nitrogenRoots || []).filter(root => root.developed).length; },
+    get growingCount() { return (state.level.nitrogenRoots || []).filter(root => root.progress > 0 && !root.developed).length; },
+  };
+}
+Object.assign(__exports, { NITROGEN_ROOT_BLOCK_TYPE, generateUnderdevelopedNitrogenRoots, createNitrogenRootDevelopment });
+},
+"src/procgen/azospirillum-root-growth.js": (__exports, __require) => {
+const { W } = __require("src/core/constants.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
+const AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE = 'azospirillum-root-ladder';
+
+const TAU = Math.PI * 2;
+const PRACTICE_WINDOW_CHUNKS = 4;
+const MIN_VERTICAL_RISE = 210;
+const MAX_VERTICAL_RISE = 300;
+const FIRST_DEMONSTRATION_VERTICAL_SPACING = 58;
+const BRANCH_WIDTH = 90;
+const ROOT_SWAY_MAX = 74;
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const lerp = (a, b, t) => a + (b - a) * t;
+
+function routePlatforms(level) {
+  return (level.platforms || [])
+    .filter(platform => !platform.recovery && !platform.final && Number.isInteger(platform.logicIndex))
+    .sort((left, right) => left.logicIndex - right.logicIndex || left.x - right.x);
+}
+
+function topPoint(platform, x) {
+  return {
+    x: clamp(x, platform.x + 18, platform.x + platform.w - 18),
+    y: platform.y - 6,
+  };
+}
+
+function occupiesPlatform(entity, platform) {
+  if (Number.isFinite(entity?.x)) {
+    return entity.x >= platform.x && entity.x <= platform.x + platform.w;
+  }
+  return Number.isInteger(entity?.logicIndex) && entity.logicIndex === platform.logicIndex;
+}
+
+function shiftContentsWithPlatform(level, encounters, platform, deltaY) {
+  if (!deltaY) return;
+  for (const collection of [
+    level.exudates,
+    level.crystals,
+    level.enemies,
+    level.allies,
+    level.checkpoints,
+    encounters,
+  ]) {
+    for (const entity of collection || []) {
+      if (occupiesPlatform(entity, platform) && Number.isFinite(entity.y)) entity.y += deltaY;
+    }
+  }
+}
+
+function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChunk, config) {
+  const candidates = [];
+  const platforms = (level.platforms || [])
+    .filter(platform => !platform.final && Number.isInteger(platform.logicIndex));
+  const mainRoute = routePlatforms(level);
+
+  for (const host of platforms) {
+    const recapAccess = Number.isInteger(config.recapAccessChunk)
+      && host.logicIndex === config.recapAccessChunk
+      && !host.recovery;
+    if (
+      (!recapAccess && host.type !== 'root')
+      || (!recapAccess && !host.recovery)
+      || host.logicIndex <= firstExudate
+      || host.logicIndex < minimumHostChunk
+      || host.logicIndex > maximumHostChunk
+    ) continue;
+
+    const hostCenter = host.x + host.w / 2;
+    const targets = mainRoute.filter(target => (
+      target.logicIndex >= host.logicIndex
+      && target.logicIndex <= host.logicIndex + 1
+      && target !== host
+      && target.y < host.y - 60
+    ));
+    let bestForHost = null;
+    for (const destination of targets) {
+      const naturalRise = host.y - destination.y;
+      const destinationPoint = topPoint(destination, hostCenter);
+      const dx = Math.abs(destinationPoint.x - hostCenter);
+      if (naturalRise > 360 || dx > 390) continue;
+
+      const verticalSpacing = Math.min(
+        Number(config.verticalSpacing) || FIRST_DEMONSTRATION_VERTICAL_SPACING,
+        FIRST_DEMONSTRATION_VERTICAL_SPACING,
+      );
+      const desiredRise = clamp(
+        verticalSpacing * (config.stepCount + 1),
+        MIN_VERTICAL_RISE,
+        MAX_VERTICAL_RISE,
+      );
+      const destinationY = recapAccess && config.preserveDestinationHeight
+        ? destination.y
+        : Math.min(destination.y, host.y - desiredRise);
+      const following = mainRoute.find(platform => platform.logicIndex > destination.logicIndex) || null;
+      const score = (host.logicIndex - minimumHostChunk) * 1000
+        + Math.abs(desiredRise - naturalRise)
+        + dx * .35;
+      const candidate = {
+        host,
+        destination,
+        following,
+        destinationY,
+        desiredRise,
+        dx,
+        recapAccess,
+        score,
+      };
+      if (!bestForHost || candidate.score < bestForHost.score) bestForHost = candidate;
+    }
+    if (bestForHost) candidates.push(bestForHost);
+  }
+  return candidates;
+}
+
+function buildSteps(slot, config, ladderId) {
+  const start = topPoint(slot.host, slot.host.x + slot.host.w / 2);
+  const end = topPoint(slot.destination, start.x);
+  const swayDirection = Math.sign(end.x - start.x || 1);
+  const sway = swayDirection * Math.min(ROOT_SWAY_MAX, 24 + slot.dx * .22);
+  return Array.from({ length: config.stepCount }, (_, index) => {
+    const t = (index + 1) / (config.stepCount + 1);
+    const centerX = lerp(start.x, end.x, t) + Math.sin(t * Math.PI) * sway;
+    const y = lerp(start.y, end.y, t);
+    return {
+      id: `${ladderId}-step-${index + 1}`,
+      index,
+      centerX,
+      y,
+      startWidth: 14,
+      startHeight: 4,
+      targetWidth: BRANCH_WIDTH,
+      targetHeight: 12,
+      currentWidth: 14,
+      currentHeight: 4,
+      progress: 0,
+      mature: false,
+      collider: null,
+    };
+  });
+}
+
+function generateAzospirillumRootLadders({
+  level,
+  phase,
+  seedValue,
+  encounters = [],
+  config,
+} = {}) {
+  level.azospirillumRootLadders = [];
+  level.azospirillumRoots = [];
+  if (phase < 3 || !config?.enabled || config.count <= 0) return level.azospirillumRootLadders;
+  // Fora da fase de estreia, a escada so existe quando o manifesto declara
+  // explicitamente um trecho de recapitulacao. Isso impede o Phase Lab de
+  // inserir uma escada de Azo por padrao na introducao da micorriza.
+  if (phase > 3 && !Number.isInteger(config.recapAccessChunk)) return level.azospirillumRootLadders;
+
+  const firstAzospirillum = encounters
+    .filter(encounter => encounter.id === 'azospirillum' && Number.isInteger(encounter.logicIndex))
+    .map(encounter => encounter.logicIndex)
+    .sort((left, right) => left - right)[0];
+  if (!Number.isInteger(firstAzospirillum)) return level.azospirillumRootLadders;
+
+  const unlockChunk = getPhaseManifest(phase)?.unlockEvents
+    .find(event => event.feature === 'azospirillumRoots')?.eventChunk ?? firstAzospirillum + 4;
+  const recapAccessChunk = Number.isInteger(config.recapAccessChunk)
+    ? config.recapAccessChunk
+    : null;
+  const prerequisiteDeadline = recapAccessChunk ?? unlockChunk;
+  const route = routePlatforms(level);
+  let firstExudate = (level.exudates || [])
+    .filter(exudate => (
+      Number.isInteger(exudate.logicIndex)
+      && exudate.logicIndex > firstAzospirillum
+      && exudate.logicIndex <= prerequisiteDeadline
+    ))
+    .map(exudate => exudate.logicIndex)
+    .sort((left, right) => left - right)[0];
+  if (!Number.isInteger(firstExudate)) {
+    const prerequisitePlatform = route.find(platform => (
+      platform.logicIndex > firstAzospirillum
+      && platform.logicIndex <= prerequisiteDeadline
+      && platform.w >= 100
+    ));
+    if (!prerequisitePlatform) return level.azospirillumRootLadders;
+    const prerequisiteExudate = {
+      logicIndex: prerequisitePlatform.logicIndex,
+      x: prerequisitePlatform.x + prerequisitePlatform.w * .62,
+      y: prerequisitePlatform.y - 32,
+      taken: false,
+      azospirillumLadderPrerequisite: true,
+    };
+    level.exudates = [...(level.exudates || []), prerequisiteExudate];
+    firstExudate = prerequisiteExudate.logicIndex;
+  }
+
+  const minimumHostChunk = recapAccessChunk
+    ?? Math.max(firstExudate + 1, unlockChunk + 1);
+  const maximumHostChunk = recapAccessChunk
+    ?? unlockChunk + PRACTICE_WINDOW_CHUNKS;
+  const candidates = ladderCandidates(
+    level,
+    firstExudate,
+    minimumHostChunk,
+    maximumHostChunk,
+    config,
+  );
+  if (!candidates.length) return level.azospirillumRootLadders;
+
+  const ordered = [...candidates].sort((left, right) => (
+    left.host.logicIndex - right.host.logicIndex
+    || left.score - right.score
+    || left.host.x - right.host.x
+  ));
+  const random = createRandom(`${seedValue}:azospirillum-root-ladder:p${phase}`);
+  const selected = [];
+  for (const candidate of ordered) {
+    if (selected.some(item => Math.abs(item.host.logicIndex - candidate.host.logicIndex) < 4)) continue;
+    selected.push(candidate);
+    if (selected.length >= Math.min(config.count, ordered.length)) break;
+  }
+
+  level.azospirillumRootLadders = selected
+    .sort((left, right) => left.host.x - right.host.x)
+    .map((slot, index) => {
+      const id = `azo-ladder-${slot.host.logicIndex}-${index}`;
+      const originalDestinationY = slot.destination.y;
+      const originalDestinationX = slot.destination.x;
+      shiftContentsWithPlatform(level, encounters, slot.destination, slot.destinationY - originalDestinationY);
+      slot.destination.y = slot.destinationY;
+      if (Number.isFinite(slot.destination.rootBaseY)) {
+        slot.destination.rootBaseY = slot.destinationY;
+      }
+      slot.host.wasRecoveryRoot = Boolean(slot.host.recovery);
+      slot.host.recovery = false;
+      if (slot.recapAccess) slot.host.type = 'root';
+      slot.host.azospirillumLadderHost = true;
+      slot.host.rootHealth = Number.isFinite(slot.host.rootHealth) ? slot.host.rootHealth : 1;
+      slot.host.rootMaxHealth = Number.isFinite(slot.host.rootMaxHealth) ? slot.host.rootMaxHealth : 1;
+      slot.destination.azospirillumLadderDestination = true;
+      const start = topPoint(slot.host, slot.host.x + slot.host.w / 2);
+      const end = topPoint(slot.destination, start.x);
+      const ladder = {
+        id,
+        blockType: AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE,
+        host: slot.host,
+        parent: slot.host,
+        destination: slot.destination,
+        following: slot.following,
+        hostLogicIndex: slot.host.logicIndex,
+        destinationLogicIndex: slot.destination.logicIndex,
+        originalDestinationY,
+        originalDestinationX,
+        blockedRise: slot.host.y - slot.destination.y,
+        blockedGap: Math.abs(end.x - start.x),
+        actualVerticalSpacing: (slot.host.y - slot.destination.y) / (config.stepCount + 1),
+        horizontalSpacing: slot.dx,
+        sourceAzospirillumLogicIndex: firstAzospirillum,
+        sourceExudateLogicIndex: firstExudate,
+        recapAccess: slot.recapAccess,
+        growthDurationSeconds: config.growthDurationSeconds,
+        progress: 0,
+        visibleProgress: 0,
+        mature: false,
+        developed: false,
+        paused: false,
+        colony: null,
+        announced: false,
+        phase: random() * TAU,
+        startX: start.x,
+        startY: start.y,
+        endX: end.x,
+        endY: end.y,
+        steps: [],
+      };
+      ladder.steps = buildSteps(slot, config, id);
+      return ladder;
+    });
+  level.azospirillumRoots = level.azospirillumRootLadders;
+  return level.azospirillumRootLadders;
+}
+
+function activeAzospirillumColony(inoculants, ladder) {
+  return (inoculants.colonies || []).find(colony => (
+    colony.type === 'azospirillum'
+    && colony.platform === ladder.host
+    && colony.growth >= .68
+    && colony.vigor > .05
+    && !colony.dormant
+  )) || null;
+}
+
+function createAzospirillumRootGrowth({ state, entities, inoculants }) {
+  let lastToastAt = -Infinity;
+
+  function ladders() {
+    return state.level.azospirillumRootLadders || [];
+  }
+
+  function removeStepCollider(step) {
+    if (!step.collider) return;
+    const position = (state.level.platforms || []).indexOf(step.collider);
+    if (position >= 0) state.level.platforms.splice(position, 1);
+    step.collider = null;
+  }
+
+  function removeStepPlatforms() {
+    state.level.platforms = (state.level.platforms || [])
+      .filter(platform => !platform.azospirillumLadderStep);
+    for (const ladder of ladders()) {
+      for (const step of ladder.steps || []) step.collider = null;
+    }
+  }
+
+  function clear() {
+    state.level.platforms = (state.level.platforms || [])
+      .filter(platform => !platform.azospirillumStructure);
+    state.level.azospirillumRootLadders = [];
+    state.level.azospirillumRoots = [];
+    lastToastAt = -Infinity;
+  }
+
+  function reset() {
+    removeStepPlatforms();
+    for (const ladder of ladders()) {
+      ladder.progress = 0;
+      ladder.visibleProgress = 0;
+      ladder.mature = false;
+      ladder.developed = false;
+      ladder.paused = false;
+      ladder.colony = null;
+      ladder.announced = false;
+      ladder.host.azospirillumHairDensity = 0;
+      for (const step of ladder.steps || []) {
+        step.progress = 0;
+        step.currentWidth = step.startWidth;
+        step.currentHeight = step.startHeight;
+        step.mature = false;
+        step.collider = null;
+      }
+    }
+    state.level.azospirillumRoots = ladders();
+    lastToastAt = -Infinity;
+  }
+
+  function announce(text, seconds = 4.6) {
+    if (state.time - lastToastAt < 1.6) return;
+    state.toast = text;
+    state.toastTime = seconds;
+    lastToastAt = state.time;
+  }
+
+  function activateStepCollider(ladder, step) {
+    if (step.collider || !step.mature) return;
+    step.collider = {
+      x: step.centerX - step.targetWidth / 2,
+      y: step.y,
+      w: step.targetWidth,
+      h: step.targetHeight,
+      type: 'root',
+      oneWay: true,
+      azospirillumStructure: true,
+      azospirillumLadderStep: true,
+      azospirillumRootLadder: true,
+      ladderId: ladder.id,
+      stepId: step.id,
+      logicIndex: ladder.hostLogicIndex,
+      mature: true,
+      rootHealth: 1,
+      rootMaxHealth: 1,
+    };
+    state.level.platforms.push(step.collider);
+  }
+
+  function updateStep(ladder, step) {
+    const localProgress = clamp(ladder.progress * ladder.steps.length - step.index, 0, 1);
+    step.progress = Math.max(step.progress, localProgress);
+    step.currentWidth = lerp(step.startWidth, step.targetWidth, step.progress);
+    step.currentHeight = lerp(step.startHeight, step.targetHeight, step.progress);
+    step.mature = step.progress >= 1;
+    if (step.mature) activateStepCollider(ladder, step);
+    else removeStepCollider(step);
+  }
+
+  function updateLadder(ladder, dt) {
+    if (ladder.developed) {
+      ladder.progress = 1;
+      ladder.visibleProgress = 1;
+      ladder.mature = true;
+      ladder.host.azospirillumHairDensity = 1;
+      for (const step of ladder.steps) {
+        step.progress = 1;
+        step.currentWidth = step.targetWidth;
+        step.currentHeight = step.targetHeight;
+        step.mature = true;
+        activateStepCollider(ladder, step);
+      }
+      return;
+    }
+
+    const colony = activeAzospirillumColony(inoculants, ladder);
+    ladder.colony = colony;
+    ladder.paused = ladder.progress > 0 && !colony;
+    if (!colony) return;
+
+    if (ladder.progress === 0) {
+      announce('Azospirillum inoculado: fitormônios iniciaram a escada de ramificações radiculares.');
+      entities?.burst?.(colony.x, ladder.host.y, '#72e8dd', 22, 90);
+    }
+    ladder.progress = clamp(
+      ladder.progress + dt / Math.max(.1, ladder.growthDurationSeconds),
+      0,
+      1,
+    );
+    ladder.visibleProgress = ladder.progress;
+    ladder.host.azospirillumHairDensity = Math.max(
+      ladder.host.azospirillumHairDensity || 0,
+      ladder.progress,
+    );
+    colony.stage = ladder.progress < 1 ? 'formando escada radicular' : 'escada radicular madura';
+    for (const step of ladder.steps) updateStep(ladder, step);
+
+    ladder.developed = ladder.progress >= 1 && ladder.steps.every(step => step.mature);
+    ladder.mature = ladder.developed;
+    ladder.paused = false;
+    if (ladder.developed && !ladder.announced) {
+      ladder.announced = true;
+      ladder.destination.rootSystemId = ladder.host.rootSystemId || `root-system-${ladder.hostLogicIndex}`;
+      ladder.host.rootSystemId = ladder.destination.rootSystemId;
+      state.player.soil += 4.5;
+      state.player.hope += 3.2;
+      entities?.burst?.(ladder.endX, ladder.endY, '#d7ba7d', 34, 140);
+      announce('Escada radicular madura: todos os degraus agora sustentam Miguelito.', 5.2);
+    }
+  }
+
+  function update(dt) {
+    if (state.gameState !== 'play') return;
+    for (const ladder of ladders()) updateLadder(ladder, dt);
+    state.level.azospirillumRoots = ladders();
+  }
+
+  function drawLadder(ctx, ladder) {
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const points = [
+      { x: ladder.startX, y: ladder.startY },
+      ...ladder.steps.map(step => ({ x: step.centerX, y: step.y + step.currentHeight / 2 })),
+      { x: ladder.endX, y: ladder.endY },
+    ];
+    const visibleSegments = clamp(
+      Math.ceil(ladder.visibleProgress * (points.length - 1)),
+      0,
+      points.length - 1,
+    );
+
+    // Mesma topologia da antiga ponte vertical da micorriza: a estrutura
+    // detecta a raiz superior e cresce do bloco inferior até ela. Aqui o
+    // traço é radicular, não hifal.
+    if (visibleSegments > 0) {
+      ctx.strokeStyle = ladder.developed ? '#a7784f' : '#c3a172';
+      ctx.lineWidth = 5 + ladder.visibleProgress * 2;
+      ctx.shadowColor = '#72e8dd';
+      ctx.shadowBlur = ladder.developed ? 3 : 8;
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let index = 1; index <= visibleSegments; index++) {
+        const previous = points[index - 1];
+        const point = points[index];
+        ctx.quadraticCurveTo(
+          lerp(previous.x, point.x, .55) + Math.sin(index * 1.8 + ladder.phase) * 5,
+          lerp(previous.y, point.y, .5),
+          point.x,
+          point.y,
+        );
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    if (ladder.progress === 0) {
+      ctx.font = '700 12px Inter,system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#f3ce68';
+      ctx.fillText(
+        'Inocule Azospirillum nesta raiz',
+        ladder.host.x + ladder.host.w / 2,
+        ladder.host.y - 30,
+      );
+    }
+    for (const step of ladder.steps) {
+      if (step.progress <= 0) continue;
+      const half = step.currentWidth / 2;
+      ctx.strokeStyle = step.mature ? '#d6b67d' : '#d8c69d';
+      ctx.lineWidth = step.currentHeight;
+      ctx.shadowColor = step.mature ? '#9bea8f' : '#72e8dd';
+      ctx.shadowBlur = step.mature ? 5 : 11;
+      ctx.beginPath();
+      ctx.moveTo(step.centerX - half, step.y + step.currentHeight / 2);
+      ctx.quadraticCurveTo(
+        step.centerX,
+        step.y - 3,
+        step.centerX + half,
+        step.y + step.currentHeight / 2,
+      );
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      const hairCount = Math.floor(step.progress * 5);
+      ctx.strokeStyle = 'rgba(238,220,185,.64)';
+      ctx.lineWidth = 1;
+      for (let hair = 0; hair < hairCount; hair++) {
+        const x = step.centerX - half + (hair + 1) / (hairCount + 1) * step.currentWidth;
+        ctx.beginPath();
+        ctx.moveTo(x, step.y + 1);
+        ctx.lineTo(x + (hair % 2 ? 4 : -4), step.y - 8 - (hair % 3));
+        ctx.stroke();
+      }
+    }
+
+    const rootHairCount = Math.floor(ladder.visibleProgress * 12);
+    ctx.strokeStyle = 'rgba(214,239,190,.6)';
+    ctx.lineWidth = 1;
+    for (let index = 0; index < rootHairCount; index++) {
+      const t = (index + 1) / (rootHairCount + 1);
+      const segment = Math.min(points.length - 2, Math.floor(t * (points.length - 1)));
+      const local = t * (points.length - 1) - segment;
+      const x = lerp(points[segment].x, points[segment + 1].x, local);
+      const y = lerp(points[segment].y, points[segment + 1].y, local);
+      const side = index % 2 === 0 ? -1 : 1;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + side * (8 + index % 4 * 2), y - 4);
+      ctx.stroke();
+    }
+
+    if (!ladder.developed && ladder.progress > 0) {
+      ctx.font = '700 10px Inter,system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#a8f0ea';
+      ctx.fillText(`Escada radicular ${Math.round(ladder.progress * 100)}%`, ladder.startX, ladder.host.y - 28);
+    }
+    ctx.restore();
+  }
+
+  function render(ctx) {
+    if (!ladders().length) return;
+    ctx.save();
+    ctx.translate(-state.cameraX, 0);
+    for (const ladder of ladders()) {
+      const minX = Math.min(ladder.startX, ladder.endX) - 100;
+      const maxX = Math.max(ladder.startX, ladder.endX) + 100;
+      if (maxX < state.cameraX || minX > state.cameraX + W) continue;
+      drawLadder(ctx, ladder);
+    }
+    ctx.restore();
+  }
+
+  return {
+    get siteCount() { return ladders().filter(ladder => ladder.colony).length; },
+    get rootCount() { return ladders().length; },
+    get matureCount() { return ladders().filter(ladder => ladder.developed).length; },
+    get growingCount() { return ladders().filter(ladder => ladder.progress > 0 && !ladder.developed).length; },
+    get pausedCount() { return ladders().filter(ladder => ladder.paused).length; },
+    get platformCount() {
+      return ladders().reduce((sum, ladder) => sum + ladder.steps.filter(step => step.collider).length, 0);
+    },
+    get ladders() { return ladders(); },
     clear,
     reset,
     update,
     render,
   };
 }
-Object.assign(__exports, { createAzospirillumRootGrowth });
+Object.assign(__exports, { AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE, generateAzospirillumRootLadders, createAzospirillumRootGrowth });
 },
 "src/procgen/azospirillum-root-safety.js": (__exports, __require) => {
+// Compatibility facade retained for the simulator API. Geometry safety is now
+// resolved deterministically when the azospirillum-root-ladder block is built.
+function createAzospirillumRootSafety({ rootGrowth }) {
+  return {
+    get platformCount() { return rootGrowth.platformCount; },
+    update() {},
+  };
+}
+Object.assign(__exports, { createAzospirillumRootSafety });
+},
+"src/procgen/azospirillum-nitrogen.js": (__exports, __require) => {
+const { AZOSPIRILLUM_NITROGEN_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-function cloudKey(cloud, index) {
-  return cloud.id ?? `${Math.round(cloud.x)}:${Math.round(cloud.y)}:${index}`;
+function currentConfig(state) {
+  const phase = state.campaign?.phase ?? state.level.campaignPhase;
+  return getPhaseManifest(phase)?.azospirillumNitrogen || AZOSPIRILLUM_NITROGEN_DEFAULTS;
 }
 
-function createAzospirillumRootSafety({ state, rootGrowth }) {
-  function availableLength(root) {
-    let limit = 330;
-    for (const platform of state.level.platforms || []) {
-      if (
-        platform === root.parent
-        || platform.mycorrhizaStructure
-        || platform.azospirillumStructure
-      ) continue;
-      const verticallyRelevant = platform.y < root.startY + 135
-        && platform.y + platform.h > root.startY - 85;
-      if (!verticallyRelevant) continue;
+function activeAzospirillum(colony) {
+  return Boolean(
+    colony?.type === 'azospirillum'
+    && colony.platform?.type === 'root'
+    && colony.growth >= .68
+    && colony.vigor > .05
+    && !colony.dormant,
+  );
+}
 
-      if (root.direction > 0 && platform.x > root.startX) {
-        limit = Math.min(limit, platform.x - root.startX - 16);
-      } else if (root.direction < 0 && platform.x + platform.w < root.startX) {
-        limit = Math.min(limit, root.startX - (platform.x + platform.w) - 16);
-      }
+function sameRootSystem(left, right) {
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const leftSystem = left.rootSystemId ?? left.rootSystem?.id ?? null;
+  const rightSystem = right.rootSystemId ?? right.rootSystem?.id ?? null;
+  return leftSystem !== null && rightSystem !== null && leftSystem === rightSystem;
+}
+
+function createAzospirillumNitrogen({ state, inoculants }) {
+  const announcedPairs = new Set();
+  let associativeNitrogenRate = 0;
+  let synergizedNoduleCount = 0;
+
+  function clearColonyState() {
+    for (const colony of inoculants.colonies || []) {
+      if (colony.type !== 'azospirillum') continue;
+      delete colony.associativeNitrogenRate;
+      delete colony.associativeNitrogenActive;
     }
-    return clamp(limit, 72, 330);
   }
 
-  function resizeBeforeMaturity(root) {
-    if (root.mature) return;
-    const safeLength = availableLength(root);
-    if (root.length <= safeLength + .5) return;
-    root.length = safeLength;
-    root.c1x = root.startX + root.direction * safeLength * .26;
-    root.c2x = root.startX + root.direction * safeLength * .72;
-    root.endX = root.startX + root.direction * safeLength;
-  }
-
-  function lockExistingClouds(root) {
-    if (!root.mature || root.safetyMaturityRegistered) return;
-    root.safetyMaturityRegistered = true;
-    const site = root.site;
-    if (!site?.usedClouds) return;
-    (state.level.exudateClouds || []).forEach((cloud, index) => {
-      const range = Math.max(170, cloud.radius * 2.25);
-      if (Math.hypot(cloud.x - root.colony.x, cloud.y - root.colony.y) < range) {
-        site.usedClouds.add(cloudKey(cloud, index));
+  function clearNoduleState() {
+    for (const site of state.level.rhizobiumNodules || []) {
+      if (site.azospirillumSynergyActive) {
+        site.fixationRate = site.baseFixationRate || site.fixationRate || 0;
       }
-    });
+      delete site.azospirillumSynergyMultiplier;
+      delete site.azospirillumSynergyActive;
+      delete site.azospirillumAppliedFixationRate;
+      delete site.baseFixationRate;
+    }
   }
 
-  function finalizeColonyLabel(root) {
-    const site = root.site;
-    if (!site || site.activeRoot || site.roots.length < 2) return;
-    site.colony.stage = 'sistema radicular ampliado';
+  function clear() {
+    clearColonyState();
+    clearNoduleState();
+    announcedPairs.clear();
+    associativeNitrogenRate = 0;
+    synergizedNoduleCount = 0;
   }
 
-  function update() {
-    for (const root of state.level.azospirillumRoots || []) {
-      resizeBeforeMaturity(root);
-      lockExistingClouds(root);
-      finalizeColonyLabel(root);
+  function reset() {
+    clear();
+  }
+
+  function update(dt) {
+    if (state.gameState !== 'play') return;
+    const config = currentConfig(state);
+    const activeColonies = (inoculants.colonies || []).filter(activeAzospirillum);
+    associativeNitrogenRate = 0;
+    synergizedNoduleCount = 0;
+
+    for (const colony of inoculants.colonies || []) {
+      colony.associativeNitrogenRate = 0;
+      colony.associativeNitrogenActive = false;
+    }
+    for (const colony of activeColonies) {
+      const activity = clamp(colony.vigor * (.72 + (colony.rechargeIntensity || 0) * .28), 0, 1);
+      const rate = config.associativeRate * activity;
+      colony.associativeNitrogenRate = rate;
+      colony.associativeNitrogenActive = rate > 0;
+      associativeNitrogenRate += rate;
+      state.player.soil += dt * rate * .22;
+      state.player.hope += dt * rate * .12;
+    }
+
+    for (const site of state.level.rhizobiumNodules || []) {
+      const currentFixationRate = site.fixationRate || 0;
+      const previousBoostStillApplied = site.azospirillumSynergyActive
+        && Math.abs(currentFixationRate - (site.azospirillumAppliedFixationRate || 0)) < 1e-9;
+      const rawFixationRate = previousBoostStillApplied
+        ? (site.baseFixationRate || 0)
+        : currentFixationRate;
+      site.fixationRate = rawFixationRate;
+      site.baseFixationRate = rawFixationRate;
+      site.azospirillumSynergyMultiplier = 1;
+      site.azospirillumSynergyActive = false;
+      delete site.azospirillumAppliedFixationRate;
+      if (!(site.mature || site.stage === 'mature-nodule') || site.baseFixationRate <= 0) continue;
+      const partner = activeColonies.find(colony => sameRootSystem(colony.platform, site.platform));
+      if (!partner) continue;
+
+      site.azospirillumSynergyMultiplier = config.rhizobiumSynergyMultiplier;
+      site.azospirillumSynergyActive = true;
+      site.fixationRate = site.baseFixationRate * config.rhizobiumSynergyMultiplier;
+      site.azospirillumAppliedFixationRate = site.fixationRate;
+      synergizedNoduleCount++;
+      const pairId = `${partner.id}:${site.id}`;
+      if (!announcedPairs.has(pairId)) {
+        announcedPairs.add(pairId);
+        state.toast = 'Co-inoculação: FBN potencializada';
+        state.toastTime = 3.6;
+      }
     }
   }
 
   return {
-    get platformCount() { return rootGrowth.platformCount; },
+    get associativeNitrogenRate() { return associativeNitrogenRate; },
+    get synergizedNoduleCount() { return synergizedNoduleCount; },
+    sameRootSystem,
+    clear,
+    reset,
     update,
   };
 }
-Object.assign(__exports, { createAzospirillumRootSafety });
+Object.assign(__exports, { sameRootSystem, createAzospirillumNitrogen });
 },
 "src/procgen/meloidogyne-lifecycle.js": (__exports, __require) => {
 const { W } = __require("src/core/constants.js");const { createRootHealthGameplay } = __require("src/procgen/root-health-gameplay.js");
@@ -9620,7 +10304,8 @@ function eligibleRoot(root) {
   return root.type === 'root'
     && !root.final
     && !root.recovery
-    && !root.mycorrhizaStructure;
+    && !root.mycorrhizaStructure
+    && !root.azospirillumStructure;
 }
 
 function createRootHealthGameplay({ state, entities }) {
@@ -11197,7 +11882,11 @@ function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     if (key === 'totalFixationRate') {
       return (state.level.rhizobiumNodules || []).reduce((sum, site) => sum + (site.fixationRate || 0), 0);
     }
-    if (key === 'visibleLateralRootCount') return (state.level.azospirillumRoots || []).filter(root => root.visible !== false).length;
+    if (key === 'visibleLateralRootCount') {
+      return (state.level.azospirillumRoots || []).filter(root => (
+        root.developed === true || (root.visibleProgress || 0) > .06
+      )).length;
+    }
     if (key === 'functionalMycorrhizaPathCount') {
       return (state.level.platforms || []).filter(platform => platform.mycorrhizaStructure && platform.mature !== false).length;
     }
@@ -11573,10 +12262,67 @@ function createFixedBlockRuntime({ state, evaluator, entities, ecology = null })
 }
 Object.assign(__exports, { applyPhaseOneVerticalSlice, createFixedBlockRuntime });
 },
+"src/procgen/phase-four-mycorrhiza-intro.js": (__exports, __require) => {
+const POSITIONED_COLLECTIONS = Object.freeze([
+  'platforms', 'exudates', 'crystals', 'enemies', 'allies', 'checkpoints',
+]);
+
+function routePlatform(level, logicIndex) {
+  return (level.platforms || []).find(platform => (
+    !platform.recovery && !platform.final && platform.logicIndex === logicIndex
+  ));
+}
+
+function shiftDownstream(level, fromX, deltaX, deltaY) {
+  for (const collectionName of POSITIONED_COLLECTIONS) {
+    for (const entity of level[collectionName] || []) {
+      if (!Number.isFinite(entity.x) || entity.x < fromX) continue;
+      entity.x += deltaX;
+      if (Number.isFinite(entity.y)) entity.y += deltaY;
+    }
+  }
+  if (Number.isFinite(level.endX)) level.endX += deltaX;
+  if (Number.isFinite(level.cameraMaxX)) level.cameraMaxX += deltaX;
+}
+
+/**
+ * Autora a primeira travessia micorrizica sem substituir o runtime procedural:
+ * a estrutura real ainda nasce do exsudato e so recebe colisao quando madura.
+ */
+function applyPhaseFourMycorrhizaIntro(level, phase, config = {}) {
+  if (phase !== 4) return null;
+  const sourceChunk = Number(config.introSourceChunk);
+  const targetChunk = Number(config.introTargetChunk);
+  const desiredGap = Number(config.introGap);
+  const verticalOffset = Number(config.introVerticalOffset);
+  if (![sourceChunk, targetChunk, desiredGap, verticalOffset].every(Number.isFinite)) return null;
+
+  const source = routePlatform(level, sourceChunk);
+  const target = routePlatform(level, targetChunk);
+  if (!source || !target || target.x <= source.x) return null;
+
+  const oldTargetX = target.x;
+  const desiredTargetX = source.x + source.w + desiredGap;
+  const desiredTargetY = source.y - verticalOffset;
+  const deltaX = desiredTargetX - target.x;
+  const deltaY = desiredTargetY - target.y;
+  shiftDownstream(level, oldTargetX, deltaX, deltaY);
+
+  source.type = 'root';
+  source.mycorrhizaIntroHost = true;
+  target.mycorrhizaIntroDestination = true;
+  return {
+    source,
+    target,
+    gap: target.x - (source.x + source.w),
+    verticalOffset: source.y - target.y,
+  };
+}
+Object.assign(__exports, { applyPhaseFourMycorrhizaIntro });
+},
 "src/procgen/phase-lab-config.js": (__exports, __require) => {
-const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, campaignManifest, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");
-const { createRandom } = __require("src/procgen/random.js");
-const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v1';
+const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, campaignManifest, getProceduralPoolAt, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
+const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v3';
 const PHASE_LAB_MAX_RESOURCES = 100;
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -11618,13 +12364,34 @@ function createDefaultPhaseLabConfig(phase = 1) {
     theme: base.theme,
     mission: base.mission,
     segments: clone(base.segments),
-    allowedOrganisms: [...ECOLOGY_ROAMING_TYPES],
+    // O ensaio nasce com o pool curricular real da fase. Outros organismos
+    // continuam disponiveis no seletor, mas nao invadem o teste por padrao.
+    allowedOrganisms: getProceduralPoolAt(base.phase, base.totalChunks - 1),
     allowedPathogens: base.pathogenDebuts.map(entry => entry.pathogen)
       .filter(type => !MVP_EXCLUDED_PATHOGENS.includes(type)),
     resources: {
       exudates: null,
       crystals: null,
       checkpoints: null,
+    },
+    nitrogenRoot: {
+      ...(base.nitrogenRoot || NITROGEN_ROOT_DEFAULTS),
+      // O laboratório abre cada fase focado em sua mecânica nova. A raiz de
+      // FBN continua disponível manualmente nas fases posteriores, mas não
+      // antecede por padrão o ensaio da escada de Azospirillum na Fase 3.
+      enabled: base.phase === 2
+        && (base.nitrogenRoot?.enabled ?? NITROGEN_ROOT_DEFAULTS.enabled),
+    },
+    azospirillumRootLadder: {
+      ...(base.azospirillumRootLadder || AZOSPIRILLUM_ROOT_LADDER_DEFAULTS),
+      enabled: Boolean(base.azospirillumRootLadder)
+        && (base.azospirillumRootLadder?.enabled ?? false),
+    },
+    azospirillumNitrogen: {
+      ...(base.azospirillumNitrogen || AZOSPIRILLUM_NITROGEN_DEFAULTS),
+    },
+    mycorrhizaBridge: {
+      ...(base.mycorrhizaBridge || MYCORRHIZA_BRIDGE_DEFAULTS),
     },
     finalGoal: base.finalTest.goal,
     finalConditions: clone(base.finalTest.requires),
@@ -11682,6 +12449,39 @@ function buildPhaseLabManifest(config) {
     .filter(type => ECOLOGY_ROAMING_TYPES.includes(type));
   const allowedPathogens = [...new Set(config.allowedPathogens || [])]
     .filter(type => PATHOGEN_SYSTEMS.includes(type) && !MVP_EXCLUDED_PATHOGENS.includes(type));
+  const nitrogenRootInput = config.nitrogenRoot || base.nitrogenRoot || NITROGEN_ROOT_DEFAULTS;
+  const nitrogenRoot = {
+    ...(base.nitrogenRoot || NITROGEN_ROOT_DEFAULTS),
+    enabled: base.phase >= 2 && Boolean(nitrogenRootInput.enabled),
+    count: clamp(Math.round(Number(nitrogenRootInput.count) || 0), 0, 8),
+    requiredFixationRate: Number(nitrogenRootInput.requiredFixationRate),
+    growthDurationSeconds: Number(nitrogenRootInput.growthDurationSeconds),
+  };
+  const ladderInput = config.azospirillumRootLadder
+    || base.azospirillumRootLadder
+    || AZOSPIRILLUM_ROOT_LADDER_DEFAULTS;
+  const azospirillumRootLadder = {
+    ...(base.azospirillumRootLadder || AZOSPIRILLUM_ROOT_LADDER_DEFAULTS),
+    enabled: base.phase >= 3 && Boolean(ladderInput.enabled),
+    count: clamp(Math.round(Number(ladderInput.count) || 0), 0, 8),
+    stepCount: clamp(Math.round(Number(ladderInput.stepCount) || 0), 2, 10),
+    verticalSpacing: clamp(Number(ladderInput.verticalSpacing), 45, 110),
+    growthDurationSeconds: Number(ladderInput.growthDurationSeconds),
+  };
+  const nitrogenInput = config.azospirillumNitrogen
+    || base.azospirillumNitrogen
+    || AZOSPIRILLUM_NITROGEN_DEFAULTS;
+  const azospirillumNitrogen = {
+    associativeRate: Number(nitrogenInput.associativeRate),
+    rhizobiumSynergyMultiplier: Number(nitrogenInput.rhizobiumSynergyMultiplier),
+  };
+  const bridgeInput = config.mycorrhizaBridge
+    || base.mycorrhizaBridge
+    || MYCORRHIZA_BRIDGE_DEFAULTS;
+  const mycorrhizaBridge = {
+    ...(base.mycorrhizaBridge || MYCORRHIZA_BRIDGE_DEFAULTS),
+    horizontalOnly: Boolean(bridgeInput.horizontalOnly),
+  };
 
   return {
     ...clone(base),
@@ -11693,6 +12493,10 @@ function buildPhaseLabManifest(config) {
     presentations,
     unlockEvents,
     pathogenDebuts,
+    nitrogenRoot,
+    azospirillumRootLadder,
+    azospirillumNitrogen,
+    mycorrhizaBridge,
     finalTest: {
       ...clone(base.finalTest),
       goal: String(config.finalGoal || base.finalTest.goal).trim(),
@@ -11789,8 +12593,7 @@ function applyPhaseLabResources(level, phaseManifest, seedValue) {
 Object.assign(__exports, { PHASE_LAB_STORAGE_KEY, PHASE_LAB_MAX_RESOURCES, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, createDefaultPhaseLabConfig, buildPhaseLabManifest, validatePhaseLabConfig, applyPhaseLabResources });
 },
 "src/procgen/phase-lab.js": (__exports, __require) => {
-const { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");
-const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
+const { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 
 function readConfig(storage) {
@@ -11811,7 +12614,7 @@ function labStyles(documentObject) {
   const style = documentObject.createElement('style');
   style.dataset.phaseLabStyles = '';
   style.textContent = `
-    .phase-lab-toggle { position:fixed; z-index:10020; right:12px; bottom:12px; border:1px solid #75ddd2; border-radius:999px; padding:9px 14px; color:#dffffb; background:#073237e8; font:700 12px system-ui; cursor:pointer; }
+    .phase-lab-toggle { position:fixed; z-index:10020; left:12px; top:118px; right:auto; bottom:auto; border:1px solid #75ddd2; border-radius:999px; padding:9px 14px; color:#dffffb; background:#073237e8; font:700 12px system-ui; cursor:pointer; }
     .phase-lab { position:fixed; z-index:10019; right:12px; top:12px; bottom:58px; width:min(390px,calc(100vw - 24px)); overflow:auto; box-sizing:border-box; border:1px solid #65cfc5; border-radius:14px; padding:14px; color:#e9fffc; background:#061c20f2; box-shadow:0 18px 50px #000a; font:13px/1.35 system-ui; }
     .phase-lab[hidden] { display:none; } .phase-lab h2 { margin:0 0 4px; font-size:19px; } .phase-lab p { margin:0 0 12px; color:#a9cfca; }
     .phase-lab label { display:grid; gap:4px; margin:9px 0; font-weight:650; } .phase-lab input,.phase-lab select,.phase-lab textarea { width:100%; box-sizing:border-box; border:1px solid #477a7c; border-radius:7px; padding:7px; color:#f5fffd; background:#09272b; font:12px/1.35 ui-monospace,monospace; }
@@ -11901,6 +12704,30 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
         <label>Cristais<input data-resource="crystals" type="number" min="0" max="100"></label>
         <label>Checkpoints<input data-resource="checkpoints" type="number" min="0" max="100"></label>
       </div></fieldset>
+      <fieldset><legend>Raiz dependente de FBN</legend>
+        <label><span><input data-nitrogen="enabled" type="checkbox" style="width:auto"> Ativada</span></label>
+        <div class="resources">
+          <label>Quantidade<input data-nitrogen="count" type="number" min="0" max="8"></label>
+          <label>FBN minima<input data-nitrogen="requiredFixationRate" type="number" min="0.001" step="0.01"></label>
+          <label>Crescimento (s)<input data-nitrogen="growthDurationSeconds" type="number" min="0.1" step="0.5"></label>
+        </div>
+      </fieldset>
+      <fieldset><legend>Escada radicular de Azospirillum</legend>
+        <label><span><input data-azo-ladder="enabled" type="checkbox" style="width:auto"> Ativada</span></label>
+        <div class="resources">
+          <label>Quantidade<input data-azo-ladder="count" type="number" min="0" max="8"></label>
+          <label>Degraus<input data-azo-ladder="stepCount" type="number" min="2" max="10"></label>
+          <label>Espaçamento vertical<input data-azo-ladder="verticalSpacing" type="number" min="45" max="110"></label>
+          <label>Crescimento (s)<input data-azo-ladder="growthDurationSeconds" type="number" min="0.1" step="0.5"></label>
+        </div>
+      </fieldset>
+      <fieldset><legend>Nitrogênio de Azospirillum</legend><div class="resources">
+        <label>Taxa associativa<input data-azo-nitrogen="associativeRate" type="number" min="0.001" max="0.049" step="0.001"></label>
+        <label>Sinergia Rhizobium<input data-azo-nitrogen="rhizobiumSynergyMultiplier" type="number" min="1" step="0.05"></label>
+      </div></fieldset>
+      <fieldset><legend>Ponte micorrízica</legend>
+        <label><span><input data-myco-bridge="horizontalOnly" type="checkbox" style="width:auto"> Somente horizontal</span></label>
+      </fieldset>
       <label>Objetivo final <input data-field="finalGoal"></label>
       <label>Condicoes finais (JSON) <textarea data-field="finalConditions"></textarea></label>
       <div class="phase-lab-status" role="status"></div>
@@ -11926,6 +12753,18 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
       for (const key of ['exudates', 'crystals', 'checkpoints']) {
         panel.querySelector(`[data-resource="${key}"]`).value = next.resources?.[key] ?? '';
       }
+      panel.querySelector('[data-nitrogen="enabled"]').checked = Boolean(next.nitrogenRoot?.enabled);
+      for (const key of ['count', 'requiredFixationRate', 'growthDurationSeconds']) {
+        panel.querySelector(`[data-nitrogen="${key}"]`).value = next.nitrogenRoot?.[key] ?? '';
+      }
+      panel.querySelector('[data-azo-ladder="enabled"]').checked = Boolean(next.azospirillumRootLadder?.enabled);
+      for (const key of ['count', 'stepCount', 'verticalSpacing', 'growthDurationSeconds']) {
+        panel.querySelector(`[data-azo-ladder="${key}"]`).value = next.azospirillumRootLadder?.[key] ?? '';
+      }
+      for (const key of ['associativeRate', 'rhizobiumSynergyMultiplier']) {
+        panel.querySelector(`[data-azo-nitrogen="${key}"]`).value = next.azospirillumNitrogen?.[key] ?? '';
+      }
+      panel.querySelector('[data-myco-bridge="horizontalOnly"]').checked = Boolean(next.mycorrhizaBridge?.horizontalOnly);
     }
     function read() {
       const value = key => panel.querySelector(`[data-field="${key}"]`).value;
@@ -11943,6 +12782,26 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
         allowedOrganisms: checked('[data-organisms]'),
         allowedPathogens: checked('[data-pathogens]'),
         resources: { exudates: resource('exudates'), crystals: resource('crystals'), checkpoints: resource('checkpoints') },
+        nitrogenRoot: {
+          enabled: panel.querySelector('[data-nitrogen="enabled"]').checked,
+          count: Number(panel.querySelector('[data-nitrogen="count"]').value),
+          requiredFixationRate: Number(panel.querySelector('[data-nitrogen="requiredFixationRate"]').value),
+          growthDurationSeconds: Number(panel.querySelector('[data-nitrogen="growthDurationSeconds"]').value),
+        },
+        azospirillumRootLadder: {
+          enabled: panel.querySelector('[data-azo-ladder="enabled"]').checked,
+          count: Number(panel.querySelector('[data-azo-ladder="count"]').value),
+          stepCount: Number(panel.querySelector('[data-azo-ladder="stepCount"]').value),
+          verticalSpacing: Number(panel.querySelector('[data-azo-ladder="verticalSpacing"]').value),
+          growthDurationSeconds: Number(panel.querySelector('[data-azo-ladder="growthDurationSeconds"]').value),
+        },
+        azospirillumNitrogen: {
+          associativeRate: Number(panel.querySelector('[data-azo-nitrogen="associativeRate"]').value),
+          rhizobiumSynergyMultiplier: Number(panel.querySelector('[data-azo-nitrogen="rhizobiumSynergyMultiplier"]').value),
+        },
+        mycorrhizaBridge: {
+          horizontalOnly: panel.querySelector('[data-myco-bridge="horizontalOnly"]').checked,
+        },
         finalGoal: value('finalGoal'),
         finalConditions: JSON.parse(value('finalConditions')),
       };
@@ -12006,7 +12865,10 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
 Object.assign(__exports, { createPhaseLabSession });
 },
 "src/render/renderer.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");
+const { H, W } = __require("src/core/constants.js");
+const { clamp } = __require("src/core/math.js");
+const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");
+const { createMicrobeRenderer } = __require("src/render/microbes.js");
 function mixHex(a, b, t) {
   const value = clamp(t, 0, 1);
   const parse = color => [
@@ -12218,6 +13080,7 @@ function createRenderer({ canvas, state, entities }) {
     }
 
     level.platforms.forEach(p => {
+      if (p.nitrogenRootCollider) return;
       const health = p.type === 'root' ? clamp(p.rootHealth ?? 1, .06, 1) : 1;
       const damage = 1 - health;
       const grad = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
@@ -12355,21 +13218,30 @@ function createRenderer({ canvas, state, entities }) {
           ctx.stroke();
         }
       } else if (a.id === 'myco') {
-        ctx.shadowBlur = 26;
-        ctx.shadowColor = '#d6afff';
-        ctx.strokeStyle = '#d6afff';
-        ctx.lineWidth = 2.4;
-        for (let k = 0; k < 7; k++) {
-          const ang = k / 7 * Math.PI * 2 + time * .06;
+        if (a.mycorrhizaArbusculeDebut) {
+          // A estreia usa a mesma morfologia arbuscular das pequenas estruturas
+          // de colonizacao, apenas ampliada para ser reconhecida pelo jogador.
+          ctx.save();
+          ctx.scale(3, 3);
+          drawArbuscule(ctx, { x: 0, y: 8, seed: i + 1, life: 1 }, time, '#d6afff');
+          ctx.restore();
+        } else {
+          ctx.shadowBlur = 26;
+          ctx.shadowColor = '#d6afff';
+          ctx.strokeStyle = '#d6afff';
+          ctx.lineWidth = 2.4;
+          for (let k = 0; k < 7; k++) {
+            const ang = k / 7 * Math.PI * 2 + time * .06;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.bezierCurveTo(Math.cos(ang) * 18, Math.sin(ang) * 12, Math.cos(ang + .4) * 30, Math.sin(ang + .4) * 24, Math.cos(ang) * 38, Math.sin(ang) * 30);
+            ctx.stroke();
+          }
+          ctx.fillStyle = '#f0dcff';
           ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.bezierCurveTo(Math.cos(ang) * 18, Math.sin(ang) * 12, Math.cos(ang + .4) * 30, Math.sin(ang + .4) * 24, Math.cos(ang) * 38, Math.sin(ang) * 30);
-          ctx.stroke();
+          ctx.arc(0, 0, 11, 0, Math.PI * 2);
+          ctx.fill();
         }
-        ctx.fillStyle = '#f0dcff';
-        ctx.beginPath();
-        ctx.arc(0, 0, 11, 0, Math.PI * 2);
-        ctx.fill();
       } else {
         ctx.shadowBlur = 24;
         ctx.shadowColor = '#8db8ff';
@@ -13129,8 +14001,12 @@ function createPlatformVisuals({ state }) {
     }
 
     if (!platform.mycorrhizaStructure) {
-      const hairCount = Math.max(0, Math.min(9, Math.floor(platform.w / 44 * health)));
-      ctx.strokeStyle = platform.healthTrend > 0 ? 'rgba(184,255,198,.78)' : `rgba(233,213,180,${.12 + health * .46})`;
+      const azospirillumHairDensity = clamp(platform.azospirillumHairDensity || 0, 0, 1);
+      const baseHairCount = Math.floor(platform.w / 44 * health);
+      const hairCount = Math.max(0, Math.min(18, baseHairCount + Math.round(azospirillumHairDensity * 10)));
+      ctx.strokeStyle = azospirillumHairDensity > .05
+        ? `rgba(190,244,211,${.34 + azospirillumHairDensity * .5})`
+        : platform.healthTrend > 0 ? 'rgba(184,255,198,.78)' : `rgba(233,213,180,${.12 + health * .46})`;
       ctx.lineWidth = 1;
       for (let i = 0; i < hairCount; i++) {
         const x = platform.x + 14 + (i + .5) / Math.max(1, hairCount) * Math.max(12, platform.w - 28);
@@ -13202,7 +14078,7 @@ function createPlatformVisuals({ state }) {
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
+      if (platform.mycorrhizaStructure || platform.azospirillumStructure || platform.nitrogenRootCollider) continue;
       if (platform.x + platform.w < state.cameraX - 80 || platform.x > state.cameraX + W + 80) continue;
       if (platform.type === 'root') drawRoot(ctx, platform);
       else drawSoil(ctx, platform);
@@ -13218,7 +14094,7 @@ function createPlatformVisuals({ state }) {
     let bestScore = 76;
 
     for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure) continue;
+      if (platform.mycorrhizaStructure || platform.nitrogenRootCollider) continue;
       const horizontal = centerX < platform.x
         ? platform.x - centerX
         : centerX > platform.x + platform.w
@@ -16284,21 +17160,21 @@ const organismTutorialCards = {
     'Azo',
     '#72e8dd',
     [
-      page('Quem é?', 'Azospirillum reúne bactérias associadas à superfície e às regiões próximas das raízes de várias plantas.'),
+      page('Quem é?', 'Azospirillum reúne bactérias de colonização associativa que vivem no rizoplano e nas regiões próximas das raízes, sem formar nódulos.'),
       page(
-        'Função biológica',
-        'Pode contribuir para o crescimento vegetal por sinalização hormonal, mudanças na arquitetura radicular e outros mecanismos dependentes da estirpe e do hospedeiro.',
+        'Fitormônios e arquitetura',
+        'A colonização associativa pode produzir sinais semelhantes a fitormônios, estimulando ramificações laterais e aumentando a quantidade de pelos radiculares.',
       ),
       page(
         'Função no jogo',
-        'Quando inoculado em uma raiz e sustentado por exsudatos, induz o desenvolvimento de raízes laterais que ampliam a área explorável.',
+        'Quando inoculado em uma raiz, Azospirillum desenvolve progressivamente uma escada de ramificações. Cada degrau só sustenta Miguelito depois de atingir 100%.',
       ),
       page(
-        'Atenção didática',
-        'Azospirillum não forma os nódulos típicos de Rhizobium. As raízes laterais representam seu efeito sobre a arquitetura da planta.',
+        'Nitrogênio e co-inoculação',
+        'Sua fixação associativa oferece uma pequena contribuição de N. Na mesma raiz de um nódulo maduro, pode potencializar a FBN de Rhizobium, mas nunca cria ou substitui o nódulo.',
       ),
     ],
-    ['Rizoplano', 'Sinalização', 'Primórdio lateral', 'Emergência', 'Alongamento', 'Raiz madura'],
+    ['Rizoplano', 'Fitormônios', 'Ramificações', 'Pelos radiculares', 'N associativo', 'Sinergia com Rhizobium'],
   ),
 
   'organism-mycorrhiza': card(
@@ -17124,7 +18000,7 @@ function createTutorialTriggers({
     }
 
     for (const ally of state.level.allies || []) {
-      if (!ally.presentationOnly) continue;
+      if (!ally.presentationOnly && !ally.fixedDebut) continue;
       const cardId = ally.cardId || discoveryCards[ally.id];
       const distance = distanceToPlayer(ally.x, ally.y);
       if (distance > TUTORIAL_PROXIMITY.organism) continue;
