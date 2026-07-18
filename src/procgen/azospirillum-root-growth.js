@@ -152,6 +152,10 @@ export function generateAzospirillumRootLadders({
   level.azospirillumRootLadders = [];
   level.azospirillumRoots = [];
   if (phase < 3 || !config?.enabled || config.count <= 0) return level.azospirillumRootLadders;
+  // Fora da fase de estreia, a escada so existe quando o manifesto declara
+  // explicitamente um trecho de recapitulacao. Isso impede o Phase Lab de
+  // inserir uma escada de Azo por padrao na introducao da micorriza.
+  if (phase > 3 && !Number.isInteger(config.recapAccessChunk)) return level.azospirillumRootLadders;
 
   const firstAzospirillum = encounters
     .filter(encounter => encounter.id === 'azospirillum' && Number.isInteger(encounter.logicIndex))

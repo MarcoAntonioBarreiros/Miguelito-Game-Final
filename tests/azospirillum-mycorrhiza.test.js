@@ -21,6 +21,7 @@ import {
 } from '../src/procgen/azospirillum-root-growth.js';
 import { createAzospirillumNitrogen } from '../src/procgen/azospirillum-nitrogen.js';
 import { createMycorrhizaStructures } from '../src/procgen/mycorrhiza-structures.js';
+import { applyPhaseFourMycorrhizaIntro } from '../src/procgen/phase-four-mycorrhiza-intro.js';
 
 const LADDER_CONFIG = {
   enabled: true,
@@ -311,15 +312,21 @@ test('geracao da escada permanece deterministica em multiplas seeds da Fase 3', 
   }
 });
 
-test('Phase Lab 4 oferece recapitulacao de Azo em raiz antes da micorriza funcional', () => {
+test('Fase 4 usa a propria estreia da micorriza para desbloquear a primeira ponte obrigatoria', () => {
   const campaign = createCampaign('phase-lab-4');
   campaign.phase = 4;
   campaign.unlocks = getPersistentUnlocksBeforePhase(4);
   const profile = prepareCampaignGeneration(campaign);
   const seedValue = campaignPhaseSeed(campaign);
-  const level = decorateCampaignLevel(generateLevel(seedValue), campaign, profile);
+  const rawLevel = generateLevel(seedValue);
+  const intro = applyPhaseFourMycorrhizaIntro(
+    rawLevel,
+    4,
+    getPhaseManifest(4).mycorrhizaBridge,
+  );
+  const level = decorateCampaignLevel(rawLevel, campaign, profile);
   const encounters = generateCampaignEncounters({ platforms: level.platforms, phase: 4, seedValue });
-  const [ladder] = generateAzospirillumRootLadders({
+  const ladders = generateAzospirillumRootLadders({
     level,
     phase: 4,
     seedValue,
@@ -327,34 +334,22 @@ test('Phase Lab 4 oferece recapitulacao de Azo em raiz antes da micorriza funcio
     config: getPhaseManifest(4).azospirillumRootLadder,
   });
 
-  assert.ok(ladder);
-  assert.equal(ladder.recapAccess, true);
-  assert.equal(ladder.hostLogicIndex, 3);
-  assert.equal(ladder.destinationLogicIndex, 4);
-  assert.equal(ladder.host.type, 'root');
-  assert.ok(ladder.sourceAzospirillumLogicIndex < ladder.sourceExudateLogicIndex);
-  assert.ok(ladder.sourceExudateLogicIndex < ladder.hostLogicIndex);
-  assert.equal(validateChunk(ladder.host, ladder.destination, NORMAL_JUMP), false);
+  assert.ok(intro);
+  assert.equal(intro.source.logicIndex, 3);
+  assert.equal(intro.target.logicIndex, 4);
+  assert.equal(intro.source.type, 'root');
+  assert.equal(intro.gap, 325);
+  assert.equal(validateChunk(intro.source, intro.target, DOUBLE_JUMP), false);
+  assert.deepEqual(ladders, [], 'a introducao da micorriza nao deve depender de Azo');
 
-  const route = [
-    ladder.host,
-    ...ladder.steps.map(step => ({
-      x: step.centerX - step.targetWidth / 2,
-      y: step.y,
-      w: step.targetWidth,
-      h: step.targetHeight,
-      type: 'root',
-      oneWay: true,
-    })),
-    ladder.destination,
-  ];
-  for (let index = 0; index < route.length - 1; index++) {
-    assert.equal(
-      validateVerticalStep(route[index], route[index + 1]),
-      true,
-      `a recapitulacao deve permitir pulo normal no trecho ${index}`,
-    );
-  }
+  const mycorrhiza = level.allies.filter(ally => ally.id === 'myco');
+  assert.equal(mycorrhiza.length, 1, 'cartao e poder devem pertencer a mesma micorriza');
+  assert.equal(mycorrhiza[0].logicIndex, 3);
+  assert.equal(mycorrhiza[0].fixedDebut, true);
+  assert.equal(mycorrhiza[0].presentationOnly, undefined);
+  assert.equal(mycorrhiza[0].cardId, 'organism-mycorrhiza');
+  assert.equal(mycorrhiza[0].unlockFeature, 'mycorrhizaStructures');
+  assert.equal(mycorrhiza[0].mycorrhizaArbusculeDebut, true);
 });
 
 test('Azo fornece N associativo pequeno, nao cria nodulo e so potencializa Rhizobium no mesmo sistema', () => {
@@ -420,8 +415,10 @@ test('seed padrao do Phase Lab 4 forma a ponte antes do Dash', () => {
   campaign.unlocks = getPersistentUnlocksBeforePhase(4);
   const profile = prepareCampaignGeneration(campaign);
   const seedValue = campaignPhaseSeed(campaign);
-  const level = decorateCampaignLevel(generateLevel(seedValue), campaign, profile);
-  const source = level.platforms.find(platform => !platform.recovery && platform.logicIndex === 8);
+  const rawLevel = generateLevel(seedValue);
+  applyPhaseFourMycorrhizaIntro(rawLevel, 4, getPhaseManifest(4).mycorrhizaBridge);
+  const level = decorateCampaignLevel(rawLevel, campaign, profile);
+  const source = level.platforms.find(platform => !platform.recovery && platform.logicIndex === 3);
   assert.ok(source, 'a seed padrao deve conter a raiz do desbloqueio micorrizico');
 
   const cloud = {
@@ -443,8 +440,8 @@ test('seed padrao do Phase Lab 4 forma a ponte antes do Dash', () => {
   structures.update(.8);
 
   assert.equal(structures.bridgeCount, 1);
-  assert.equal(structures.structures[0].source.logicIndex, 8);
-  assert.ok(structures.structures[0].target.logicIndex > 8);
+  assert.equal(structures.structures[0].source.logicIndex, 3);
+  assert.equal(structures.structures[0].target.logicIndex, 4);
   assert.ok(Math.abs(structures.structures[0].end.y - structures.structures[0].start.y) <= 68);
   assert.equal(state.player.canDash, false);
 });

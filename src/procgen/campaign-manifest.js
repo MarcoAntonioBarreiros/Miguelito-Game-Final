@@ -244,12 +244,13 @@ const phases = [
   {
     id: 'phase-4', phase: 4, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
-    azospirillumRootLadder: {
-      ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
-      recapAccessChunk: 3,
-      preserveDestinationHeight: true,
+    mycorrhizaBridge: {
+      ...MYCORRHIZA_BRIDGE_DEFAULTS,
+      introSourceChunk: 3,
+      introTargetChunk: 4,
+      introGap: 325,
+      introVerticalOffset: 54,
     },
-    mycorrhizaBridge: { ...MYCORRHIZA_BRIDGE_DEFAULTS },
     title: 'Micorriza e expansão do solo explorado', theme: 'expansão',
     mission: 'Estabeleça a micorriza, atravesse uma ponte hifal e domine o Dash.',
     newConcepts: ['micorriza→arbúsculo→absorção→ponte'], newCommand: 'dash',
@@ -257,7 +258,7 @@ const phases = [
       { id: 'presentation-mycorrhiza', cardId: 'organism-mycorrhiza',
         triggerIds: ['organism-mycorrhiza', 'structure-arbuscule', 'structure-mycorrhiza-path'],
         autoOpenTrigger: 'organism-mycorrhiza', policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        debutChunk: 4, moduleId: 'p4-myco-intro', debutZoneId: 'p4-mycorrhiza-debut',
+        debutChunk: 3, moduleId: 'p4-myco-intro', debutZoneId: 'p4-mycorrhiza-debut',
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
           { triggerId: 'organism-mycorrhiza', pages: [0] },
@@ -270,12 +271,12 @@ const phases = [
         debutChunk: 18, moduleId: 'p4-power-intro', pages: ['mecânica de gameplay', 'impulso horizontal'] },
     ],
     unlockEvents: [
-      { feature: 'mycorrhizaStructures', eventChunk: 8, afterModule: 'p4-myco-intro', practiceWindowChunks: 3, mandatory: true },
+      { feature: 'mycorrhizaStructures', eventChunk: 3, afterModule: 'p4-myco-intro', practiceWindowChunks: 3, mandatory: true },
       { feature: 'dash', eventChunk: 20, afterModule: 'p4-power-intro', practiceWindowChunks: 3, mandatory: true },
     ], pathogenDebuts: [],
     segments: [
-      { id: 'p4-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
-      { id: 'p4-myco-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided', debutPresentationIds: ['presentation-mycorrhiza'], mechanicsRequired: ['inoculation'] },
+      { id: 'p4-warmup', kind: 'procedural', from: 0, to: 2, tutorialMode: 'silent', mechanicsRequired: ['doubleJump'] },
+      { id: 'p4-myco-intro', kind: 'fixed', from: 3, to: 8, tutorialMode: 'guided', debutPresentationIds: ['presentation-mycorrhiza'], mechanicsRequired: ['inoculation'] },
       { id: 'p4-myco-practice', kind: 'procedural', from: 9, to: 17, tutorialMode: 'silent', mechanicsRequired: ['mycorrhizaStructures', 'doubleJump'] },
       { id: 'p4-power-intro', kind: 'fixed', from: 18, to: 20, tutorialMode: 'guided', debutPresentationIds: ['presentation-dash'], mechanicsRequired: ['doubleJump'] },
       { id: 'p4-challenge', kind: 'procedural', from: 21, to: 35, tutorialMode: 'silent', mechanicsRequired: ['dash', 'doubleJump', 'mycorrhizaStructures'] },
@@ -801,8 +802,23 @@ export function validateCampaignManifest({
       }
     }
 
-    if (phase.mycorrhizaBridge && typeof phase.mycorrhizaBridge.horizontalOnly !== 'boolean') {
-      errors.push(`${phase.id}: mycorrhizaBridge.horizontalOnly invalido.`);
+    if (phase.mycorrhizaBridge) {
+      const bridge = phase.mycorrhizaBridge;
+      if (typeof bridge.horizontalOnly !== 'boolean') {
+        errors.push(`${phase.id}: mycorrhizaBridge.horizontalOnly invalido.`);
+      }
+      for (const key of ['introSourceChunk', 'introTargetChunk']) {
+        if (bridge[key] !== undefined && (!Number.isInteger(bridge[key]) || bridge[key] < 0 || bridge[key] >= phase.totalChunks)) {
+          errors.push(`${phase.id}: mycorrhizaBridge.${key} invalido.`);
+        }
+      }
+      if (bridge.introGap !== undefined && (!Number.isFinite(bridge.introGap) || bridge.introGap < 58 || bridge.introGap > 340)) {
+        errors.push(`${phase.id}: mycorrhizaBridge.introGap invalido.`);
+      }
+      if (bridge.introVerticalOffset !== undefined
+        && (!Number.isFinite(bridge.introVerticalOffset) || Math.abs(bridge.introVerticalOffset) > 68)) {
+        errors.push(`${phase.id}: mycorrhizaBridge.introVerticalOffset invalido.`);
+      }
     }
 
     const coverage = new Array(phase.totalChunks).fill(0);
