@@ -4868,8 +4868,28 @@ function drawHyphalFragment(ctx, time, agent, profile) {
 // Micelio extrarradicular: a trama de hifas que explora o solo e sobre a qual
 // os esporos se formam. E o organismo estabelecido; o esporo flutuando acima e
 // so o propagulo. Deterministico pela posicao da zona, para nao tremer.
-function drawExtraradicalMycelium(ctx, time, zone) {
-  const seed = Math.abs(Math.round(zone.x) * 73856093 ^ Math.round(zone.y) * 19349663);
+function rootUnderZone(state, zone) {
+  let best = null;
+  let bestDistance = 240;
+  for (const platform of state.level.platforms || []) {
+    if (platform.type !== 'root' || platform.mycorrhizaStructure) continue;
+    if (zone.x < platform.x - 60 || zone.x > platform.x + platform.w + 60) continue;
+    const distance = Math.abs(platform.y - zone.y);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = platform;
+    }
+  }
+  return best;
+}
+
+function drawExtraradicalMycelium(ctx, time, zone, root) {
+  // O micelio nasce da superficie da raiz e se espalha pelo solo em volta. Ele
+  // nao flutua no ar junto com os esporos: e a parte fixa do organismo, e os
+  // esporos e que se formam acima dele.
+  const anchorX = clamp(zone.x, root.x + 16, root.x + root.w - 16);
+  const anchorY = root.y - 4;
+  const seed = Math.abs(Math.round(root.x) * 73856093 ^ Math.round(root.y) * 19349663);
   const random = (index) => {
     const value = Math.sin(seed * .0001 + index * 12.9898) * 43758.5453;
     return value - Math.floor(value);
@@ -4879,45 +4899,48 @@ function drawExtraradicalMycelium(ctx, time, zone) {
   ctx.globalCompositeOperation = 'lighter';
   ctx.lineCap = 'round';
 
-  const strands = 14;
+  const strands = 13;
   for (let i = 0; i < strands; i++) {
-    const angle = -Math.PI + random(i) * Math.PI * 2;
-    const length = 46 + random(i + 40) * 88;
-    const bend = (random(i + 80) - .5) * 1.5;
-    const breathe = Math.sin(time * .55 + random(i + 120) * TAU) * 4;
-    const endX = zone.x + Math.cos(angle) * length;
-    const endY = zone.y + Math.sin(angle) * length * .62 + breathe;
-    const midX = zone.x + Math.cos(angle + bend) * length * .55;
-    const midY = zone.y + Math.sin(angle + bend) * length * .38;
+    // Angulos voltados para cima e para os lados: e para o solo que a hifa
+    // cresce, nunca para dentro do bloco da raiz.
+    const spread = -Math.PI * .92 + random(i) * Math.PI * .84;
+    const length = 40 + random(i + 40) * 76;
+    const bend = (random(i + 80) - .5) * 1.1;
+    const breathe = Math.sin(time * .5 + random(i + 120) * TAU) * 2.5;
+    const originX = anchorX + (random(i + 400) - .5) * root.w * .5;
+    const endX = originX + Math.cos(spread) * length;
+    const endY = anchorY + Math.sin(spread) * length + breathe;
+    const midX = originX + Math.cos(spread + bend) * length * .52;
+    const midY = anchorY + Math.sin(spread + bend) * length * .48;
 
-    ctx.strokeStyle = `rgba(214,175,255,${.16 + random(i + 160) * .2})`;
-    ctx.lineWidth = 1.5 + random(i + 200) * 1.3;
+    ctx.strokeStyle = `rgba(214,175,255,${.14 + random(i + 160) * .18})`;
+    ctx.lineWidth = 1.3 + random(i + 200) * 1.1;
     ctx.beginPath();
-    ctx.moveTo(zone.x, zone.y);
+    ctx.moveTo(originX, anchorY);
     ctx.quadraticCurveTo(midX, midY, endX, endY);
     ctx.stroke();
 
-    // Ramificacao: hifa se divide, e e isso que forma a trama.
-    if (random(i + 240) > .42) {
-      const branchAngle = angle + (random(i + 280) - .5) * 1.25;
-      const branchLength = length * (.32 + random(i + 320) * .3);
-      ctx.lineWidth = 1;
+    // Ramificacao: a hifa se divide, e e isso que forma a trama do solo.
+    if (random(i + 240) > .44) {
+      const branchAngle = spread + (random(i + 280) - .5) * 1.1;
+      const branchLength = length * (.3 + random(i + 320) * .28);
+      ctx.lineWidth = .9;
       ctx.beginPath();
       ctx.moveTo(midX, midY);
       ctx.quadraticCurveTo(
         midX + Math.cos(branchAngle) * branchLength * .6,
-        midY + Math.sin(branchAngle) * branchLength * .4,
+        midY + Math.sin(branchAngle) * branchLength * .5,
         midX + Math.cos(branchAngle) * branchLength,
-        midY + Math.sin(branchAngle) * branchLength * .66,
+        midY + Math.sin(branchAngle) * branchLength * .8,
       );
       ctx.stroke();
     }
 
     // Vesiculas nas pontas: reserva lipidica do fungo.
-    if (random(i + 360) > .62) {
-      ctx.fillStyle = 'rgba(240,228,255,.34)';
+    if (random(i + 360) > .64) {
+      ctx.fillStyle = 'rgba(240,228,255,.3)';
       ctx.beginPath();
-      ctx.ellipse(endX, endY, 4.2, 3, angle, 0, TAU);
+      ctx.ellipse(endX, endY, 3.8, 2.7, spread, 0, TAU);
       ctx.fill();
     }
   }
@@ -5297,7 +5320,10 @@ function createMicrobeEcology({ state, entities }) {
     for (const zone of ecology.encounters) {
       if (zone.id !== 'myco') continue;
       if (zone.x < state.cameraX - 220 || zone.x > state.cameraX + W + 220) continue;
-      drawExtraradicalMycelium(ctx, state.time, zone);
+      // Sem raiz por perto nao ha micelio extrarradicular: o fungo e biotrofico
+      // obrigatorio e nao se estabelece solto no solo.
+      const root = rootUnderZone(state, zone);
+      if (root) drawExtraradicalMycelium(ctx, state.time, zone, root);
     }
 
     for (const agent of ecology.agents) {
