@@ -258,6 +258,16 @@ const phases = [
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS },
     azospirillumNitrogen: { ...AZOSPIRILLUM_NITROGEN_DEFAULTS },
+    // O procedural limita qualquer subida a 112px e o salto duplo alcanca 180px,
+    // entao a escada nunca era necessaria. 230px nao se vence pulando e se vence
+    // com a escada mais fraca (96px de alcance) somada ao salto duplo.
+    signatureChallenge: {
+      enabled: true,
+      mechanic: 'azospirillumRoots',
+      rise: 230,
+      minimumChunks: 10,
+      fromChunk: 9,
+    },
     title: 'Azospirillum e arquitetura radicular', theme: 'arquitetura',
     mission: 'Induza raízes laterais e use o salto duplo para alcançar novas rotas.',
     newConcepts: ['Azospirillum→raiz lateral'], newCommand: 'doubleJump',
