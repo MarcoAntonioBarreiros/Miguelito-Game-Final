@@ -24,9 +24,8 @@ const ROAMING_DEBUTS = [
   { phase: 1, chunk: 6, type: 'bacillus', cardId: 'organism-bacillus' },
   { phase: 2, chunk: 4, type: 'rhizobium', cardId: 'organism-rhizobium' },
   { phase: 3, chunk: 4, type: 'azospirillum', cardId: 'organism-azospirillum' },
-  { phase: 5, chunk: 4, type: 'pseudomonas', cardId: 'organism-pseudomonas' },
-  { phase: 5, chunk: 18, type: 'oportunista', cardId: 'organism-opportunistic-fungus' },
-  { phase: 5, chunk: 20, type: 'trichoderma', cardId: 'organism-trichoderma' },
+  { phase: 5, chunk: 2, type: 'oportunista', cardId: 'organism-opportunistic-fungus' },
+  { phase: 5, chunk: 8, type: 'pseudomonas', cardId: 'organism-pseudomonas' },
 ];
 
 test('campanha mantém somente os sinais cenográficos antigos, sem função didática', () => {
@@ -61,10 +60,8 @@ test('sequência global preserva a ordem pedagógica do manifesto', () => {
     'presentation-rhizobium',
     'presentation-azospirillum',
     'presentation-mycorrhiza',
-    'presentation-pseudomonas',
     'presentation-opportunistic-fungus',
-    'presentation-trichoderma',
-    'presentation-mycoparasitism',
+    'presentation-pseudomonas',
     'presentation-root-health',
     'presentation-meloidogyne-infection',
   ];
@@ -111,9 +108,8 @@ test('ordem curricular cobre todas as estreias vagantes e as mantém separadas',
 
 test('geração falha se dois organismos inéditos puderem compartilhar o raio', () => {
   const platforms = [
-    { x: 100, y: 500, w: 200, logicIndex: 4 },
-    { x: 520, y: 500, w: 200, logicIndex: 18 },
-    { x: 650, y: 500, w: 200, logicIndex: 20 },
+    { x: 100, y: 500, w: 200, logicIndex: 2 },
+    { x: 330, y: 500, w: 200, logicIndex: 8 },
   ];
   assert.throws(
     () => generateCampaignEncounters({ platforms, phase: 5, seedValue: 'overlapping-debuts' }),
@@ -138,15 +134,13 @@ test('pool por fase/chunk nunca antecipa organismo e exige cartão visto na fase
 
   assert.equal(getProceduralPoolAt(1, 8).includes('bacillus'), false);
   assert.equal(getProceduralPoolAt(1, 9).includes('bacillus'), true);
-  assert.equal(getProceduralPoolAt(5, 8).includes('pseudomonas'), false);
-  assert.equal(getProceduralPoolAt(5, 9).includes('pseudomonas'), true);
-  assert.equal(getProceduralPoolAt(5, 22).includes('oportunista'), false);
-  assert.equal(getProceduralPoolAt(5, 23).includes('oportunista'), true);
-  assert.equal(getProceduralPoolAt(5, 22).includes('trichoderma'), false);
-  assert.equal(getProceduralPoolAt(5, 23).includes('trichoderma'), true);
+  assert.equal(getProceduralPoolAt(5, 5).includes('oportunista'), false);
+  assert.equal(getProceduralPoolAt(5, 6).includes('oportunista'), true);
+  assert.equal(getProceduralPoolAt(5, 11).includes('pseudomonas'), false);
+  assert.equal(getProceduralPoolAt(5, 12).includes('pseudomonas'), true);
 });
 
-test('organismos conhecidos reaparecem e os seis vagantes integram a síntese', () => {
+test('organismos conhecidos reaparecem e os vagantes apresentados integram a síntese', () => {
   for (const seed of SEEDS) {
     const procedural = generatePhase(8, `${seed}:known-reappearance`).encounters
       .filter(encounter => encounter.source === 'procedural');

@@ -10,6 +10,7 @@ import { createTrichodermaRecruitment } from './trichoderma-recruitment.js';
 import { createTrichodermaColonies } from './trichoderma-colonies.js';
 import { createBeneficialInoculants } from './beneficial-inoculants.js';
 import { createPseudomonasSiderophores } from './pseudomonas-siderophores.js';
+import { createOpportunisticFungus } from './opportunistic-fungus.js';
 import { createBacillusBioprotection } from './bacillus-bioprotection.js';
 import { createBacillusBioprotectionSafety } from './bacillus-bioprotection-safety.js';
 import { createRhizobiumNodulation } from './rhizobium-nodulation.js';
@@ -90,6 +91,7 @@ export function createSimulator() {
       player.exudates = Math.floor((player.exudates || 0) / 2);
       player.infectionExposure = 0;
       player.infection = Math.min(.12, Math.max(0, (player.infection || 0) * .2));
+      player.fungalContamination = Math.min(.08, Math.max(0, (player.fungalContamination || 0) * .15));
       player.nematodeLoad = 0;
       player.fungalDamageCooldown = 1.8;
       player.nematodeDamageCooldown = 1.8;
@@ -134,6 +136,7 @@ export function createSimulator() {
     ecology,
     inoculants: beneficialInoculants,
   });
+  const opportunisticFungus = createOpportunisticFungus({ state, entities, ecology });
   const bacillusBioprotection = createBacillusBioprotection({
     state,
     entities,
@@ -160,6 +163,7 @@ export function createSimulator() {
   state.trichodermaColonies = trichodermaColonies;
   state.beneficialInoculants = beneficialInoculants;
   state.pseudomonasSiderophores = pseudomonasSiderophores;
+  state.opportunisticFungus = opportunisticFungus;
   state.bacillusBioprotection = bacillusBioprotection;
   state.rhizobiumNodulation = rhizobiumNodulation;
   state.nitrogenRootDevelopment = nitrogenRootDevelopment;
@@ -186,6 +190,7 @@ export function createSimulator() {
     azospirillumRootGrowth.clear();
     azospirillumNitrogen.clear();
     pseudomonasSiderophores.clear();
+    opportunisticFungus.clear();
     bacillusBioprotection.clear();
     meloidogyneLifecycle.clear();
     beneficialInoculants.clear();
@@ -217,6 +222,7 @@ export function createSimulator() {
     azospirillumNitrogen.reset();
     beneficialInoculants.reset();
     pseudomonasSiderophores.reset();
+    opportunisticFungus.reset();
     bacillusBioprotection.reset();
     rhizobiumNodulation.reset();
     nitrogenRootDevelopment.reset();
@@ -234,11 +240,13 @@ export function createSimulator() {
     beneficialInoculants.prepare(dt);
     gameplay.prepare(dt);
     pathogenSurvival.prepare(dt);
+    opportunisticFungus.prepare(dt);
     physics.update(dt);
     ecology.update(dt);
     recruitment.update(dt);
     beneficialInoculants.update(dt);
     pseudomonasSiderophores.update(dt);
+    opportunisticFungus.update(dt);
 
     const azospirillumRootsUnlocked = state.campaign
       ? Boolean(state.campaign.unlocks.azospirillumRoots)
@@ -272,7 +280,7 @@ export function createSimulator() {
   const simulator = {
     state, input, entities, ecology, mycorrhiza, mycorrhizaStructures,
     trichoderma, recruitment, trichodermaColonies, beneficialInoculants,
-    pseudomonasSiderophores, bacillusBioprotection, bacillusBioprotectionSafety,
+    pseudomonasSiderophores, opportunisticFungus, bacillusBioprotection, bacillusBioprotectionSafety,
     rhizobiumNodulation, nitrogenRootDevelopment, azospirillumRootGrowth, azospirillumRootSafety,
     azospirillumNitrogen,
     meloidogyneLifecycle, pathogenSurvival, goal, gameplay,

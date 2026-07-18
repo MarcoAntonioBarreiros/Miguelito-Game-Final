@@ -37,8 +37,10 @@ test('segmentos cobrem os chunks e expõem o modo tutorial esperado', () => {
 test('pool procedural respeita estreia e poolFromChunk', () => {
   assert.deepEqual(getProceduralPoolAt(1, 8), []);
   assert.deepEqual(getProceduralPoolAt(1, 9), ['bacillus']);
-  assert.equal(getProceduralPoolAt(5, 22).includes('trichoderma'), false);
-  assert.equal(getProceduralPoolAt(5, 23).includes('trichoderma'), true);
+  assert.equal(getProceduralPoolAt(5, 5).includes('oportunista'), false);
+  assert.equal(getProceduralPoolAt(5, 6).includes('oportunista'), true);
+  assert.equal(getProceduralPoolAt(5, 11).includes('pseudomonas'), false);
+  assert.equal(getProceduralPoolAt(5, 12).includes('pseudomonas'), true);
 });
 
 test('unlock do chunk N só fica disponível a partir do chunk N+1', () => {
@@ -82,8 +84,8 @@ test('zonas de estreia não podem compartilhar organismos novos', () => {
   const manifest = cloneManifest();
   const phase = manifest.find(entry => entry.phase === 5);
   const opportunist = phase.presentations.find(p => p.id === 'presentation-opportunistic-fungus');
-  const trichoderma = phase.presentations.find(p => p.id === 'presentation-trichoderma');
-  trichoderma.debutZoneId = opportunist.debutZoneId;
+  const pseudomonas = phase.presentations.find(p => p.id === 'presentation-pseudomonas');
+  pseudomonas.debutZoneId = opportunist.debutZoneId;
 
   assert.match(
     validateCampaignManifest({ manifest, knownCardIds: tutorialCardIds }).join('\n'),
@@ -120,12 +122,12 @@ test('cadeias agrupadas desbloqueiam páginas progressivamente', () => {
   );
 });
 
-test('Trichoderma, oportunista e micoparasitismo são apresentações separadas', () => {
-  assert.equal(getPresentationForTrigger('organism-trichoderma')?.id, 'presentation-trichoderma');
+test('fungo, Pseudomonas e competição por ferro são apresentações separadas e ordenadas', () => {
   assert.equal(getPresentationForTrigger('organism-opportunistic-fungus')?.id, 'presentation-opportunistic-fungus');
+  assert.equal(getPresentationForTrigger('organism-pseudomonas')?.id, 'presentation-pseudomonas');
   assert.deepEqual(
-    getPresentationForTrigger('process-mycoparasitism')?.prerequisitePresentationIds,
-    ['presentation-opportunistic-fungus', 'presentation-trichoderma'],
+    getPresentationForTrigger('process-iron-competition')?.prerequisitePresentationIds,
+    ['presentation-opportunistic-fungus', 'presentation-pseudomonas'],
   );
 });
 

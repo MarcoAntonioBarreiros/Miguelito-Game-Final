@@ -149,6 +149,22 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
       <fieldset><legend>Ponte micorrízica</legend>
         <label><span><input data-myco-bridge="horizontalOnly" type="checkbox" style="width:auto"> Somente horizontal</span></label>
       </fieldset>
+      <fieldset><legend>Fungo oportunista</legend><div class="resources">
+        <label>Contaminação<input data-fungus="contaminationRate" type="number" min="0" step="0.05"></label>
+        <label>Redução velocidade<input data-fungus="movementSpeedReduction" type="number" min="0" max="0.8" step="0.05"></label>
+        <label>Redução aceleração<input data-fungus="accelerationReduction" type="number" min="0" max="0.8" step="0.05"></label>
+        <label>Redução pulo<input data-fungus="jumpImpulseReduction" type="number" min="0" max="0.8" step="0.05"></label>
+        <label>Recuperação<input data-fungus="recoveryRate" type="number" min="0" step="0.01"></label>
+        <label>Crescimento hifal<input data-fungus="hyphalGrowthRate" type="number" min="0" step="0.1"></label>
+        <label>Esporulação<input data-fungus="sporulationRate" type="number" min="0" step="0.1"></label>
+      </div></fieldset>
+      <fieldset><legend>Controle de ferro por Pseudomonas</legend><div class="resources">
+        <label>Reserva mínima<input data-iron-control="minimumIronReserve" type="number" min="0" step="0.1"></label>
+        <label>Vigor máximo na prova<input data-iron-control="minimumFungalVigor" type="number" min="0" max="1" step="0.05"></label>
+        <label>Supressão crescimento<input data-iron-control="growthSuppression" type="number" min="0" max="1" step="0.05"></label>
+        <label>Supressão esporos<input data-iron-control="sporulationSuppression" type="number" min="0" max="1" step="0.05"></label>
+        <label>Supressão aderência<input data-iron-control="adhesionSuppression" type="number" min="0" max="1" step="0.05"></label>
+      </div></fieldset>
       <label>Objetivo final <input data-field="finalGoal"></label>
       <label>Condicoes finais (JSON) <textarea data-field="finalConditions"></textarea></label>
       <div class="phase-lab-status" role="status"></div>
@@ -186,6 +202,12 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
         panel.querySelector(`[data-azo-nitrogen="${key}"]`).value = next.azospirillumNitrogen?.[key] ?? '';
       }
       panel.querySelector('[data-myco-bridge="horizontalOnly"]').checked = Boolean(next.mycorrhizaBridge?.horizontalOnly);
+      for (const key of ['contaminationRate', 'movementSpeedReduction', 'accelerationReduction', 'jumpImpulseReduction', 'recoveryRate', 'hyphalGrowthRate', 'sporulationRate']) {
+        panel.querySelector(`[data-fungus="${key}"]`).value = next.opportunisticFungus?.[key] ?? '';
+      }
+      for (const key of ['minimumIronReserve', 'minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']) {
+        panel.querySelector(`[data-iron-control="${key}"]`).value = next.pseudomonasIronControl?.[key] ?? '';
+      }
     }
     function read() {
       const value = key => panel.querySelector(`[data-field="${key}"]`).value;
@@ -223,6 +245,14 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
         mycorrhizaBridge: {
           horizontalOnly: panel.querySelector('[data-myco-bridge="horizontalOnly"]').checked,
         },
+        opportunisticFungus: Object.fromEntries(
+          ['contaminationRate', 'movementSpeedReduction', 'accelerationReduction', 'jumpImpulseReduction', 'recoveryRate', 'hyphalGrowthRate', 'sporulationRate']
+            .map(key => [key, Number(panel.querySelector(`[data-fungus="${key}"]`).value)]),
+        ),
+        pseudomonasIronControl: Object.fromEntries(
+          ['minimumIronReserve', 'minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']
+            .map(key => [key, Number(panel.querySelector(`[data-iron-control="${key}"]`).value)]),
+        ),
         finalGoal: value('finalGoal'),
         finalConditions: JSON.parse(value('finalConditions')),
       };

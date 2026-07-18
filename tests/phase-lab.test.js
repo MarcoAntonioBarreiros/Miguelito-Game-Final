@@ -40,12 +40,13 @@ test('Phase Lab da Fase 3 abre focado no Azo e respeita o pool curricular', () =
 test('configuracao altera perfil, segmentos, organismos, recursos e prova final no manifesto real', () => {
   const config = createDefaultPhaseLabConfig(5);
   config.seed = 'laboratorio-curricular';
+  const previousTotal = config.totalChunks;
   config.totalChunks = 28;
-  config.segments = scalePhaseLabSegments(config.segments, 40, config.totalChunks);
+  config.segments = scalePhaseLabSegments(config.segments, previousTotal, config.totalChunks);
   config.title = 'Fase experimental';
   config.theme = 'controle experimental';
   config.mission = 'Compare duas comunidades microbianas.';
-  config.allowedOrganisms = ['pseudomonas', 'trichoderma'];
+  config.allowedOrganisms = ['oportunista', 'pseudomonas'];
   config.allowedPathogens = ['rhizoctonia'];
   config.resources = { exudates: 7, crystals: 2, checkpoints: 1 };
   config.nitrogenRoot = {
@@ -66,6 +67,8 @@ test('configuracao altera perfil, segmentos, organismos, recursos e prova final 
     rhizobiumSynergyMultiplier: 1.25,
   };
   config.mycorrhizaBridge = { horizontalOnly: true };
+  config.opportunisticFungus.contaminationRate = 1.25;
+  config.pseudomonasIronControl.minimumIronReserve = 1.2;
   config.finalGoal = 'Neutralizar um foco e alcancar a raiz.';
   config.finalConditions = [
     { type: 'worldState', key: 'neutralizedOpportunisticFungusCount', operator: '>=', value: 1 },
@@ -79,13 +82,15 @@ test('configuracao altera perfil, segmentos, organismos, recursos e prova final 
   assert.equal(active.totalChunks, 28);
   assert.equal(active.title, 'Fase experimental');
   assert.equal(active.mission, config.mission);
-  assert.deepEqual(getProceduralPoolAt(5, 0), ['pseudomonas', 'trichoderma']);
+  assert.deepEqual(getProceduralPoolAt(5, 0), ['oportunista', 'pseudomonas']);
   assert.deepEqual(getPathogensAt(5, 0), ['rhizoctonia']);
   assert.deepEqual(active.phaseLab.resources, config.resources);
   assert.deepEqual(active.nitrogenRoot, config.nitrogenRoot);
   assert.deepEqual(active.azospirillumRootLadder, config.azospirillumRootLadder);
   assert.deepEqual(active.azospirillumNitrogen, config.azospirillumNitrogen);
   assert.deepEqual(active.mycorrhizaBridge, config.mycorrhizaBridge);
+  assert.deepEqual(active.opportunisticFungus, config.opportunisticFungus);
+  assert.deepEqual(active.pseudomonasIronControl, config.pseudomonasIronControl);
   assert.equal(active.finalTest.goal, config.finalGoal);
 });
 

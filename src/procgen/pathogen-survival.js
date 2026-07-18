@@ -137,9 +137,11 @@ export function createPathogenSurvival({ state, entities, ecology }) {
     dom.hud.querySelector('.hearts').textContent = `${filled}${empty}`;
 
     const infection = clamp(player.infection || 0, 0, 1);
+    const fungalContamination = clamp(player.fungalContamination || 0, 0, 1);
     const load = player.nematodeLoad || 0;
     let condition = '';
     if (state.gameState === 'respawning') condition = 'Reorganizando no último biofilme…';
+    else if (fungalContamination >= .05) condition = `Contaminação fúngica ${Math.round(fungalContamination * 100)}%`;
     else if (infection >= .72) condition = `Colonização fúngica ${Math.round(infection * 100)}%`;
     else if (infection >= .28) condition = `Propágulos aderidos ${Math.round(infection * 100)}%`;
     else if (load) condition = `${load} J2 transportado${load > 1 ? 's' : ''}`;
@@ -338,6 +340,7 @@ export function createPathogenSurvival({ state, entities, ecology }) {
     const infection = clamp(player.infection || 0, 0, 1);
     const load = player.nematodeLoad || 0;
     player.moveMultiplier = clamp(1 - infection * .34 - load * .1, .48, 1);
+    player.accelerationMultiplier = 1;
     player.jumpMultiplier = clamp(1 - infection * .16 - load * .08, .68, 1);
     player.dashCooldownMultiplier = 1 + infection * .65 + load * .25;
     player.dashSuppressed = load >= 2 || infection >= .92;

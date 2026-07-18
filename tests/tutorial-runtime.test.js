@@ -253,32 +253,32 @@ test('cadeias liberam páginas progressivamente no mesmo cartão sem abrir deriv
   assert.deepEqual(rhizobium.pagesFor('organism-rhizobium'), [0, 1, 2, 3]);
 });
 
-test('organismos diferentes mantêm cartões separados e micoparasitismo exige ambos conhecidos', () => {
+test('fungo e Pseudomonas mantêm cartões separados e competição exige ambos conhecidos', () => {
   const flow = createTutorialFlow();
   const opportunist = flow.handle('organism-opportunistic-fungus', firstEncounter({
-    phase: 5, chunkIndex: 18, worldX: 4000,
+    phase: 5, chunkIndex: 2, worldX: 4000,
   }));
   assert.equal(opportunist.cardId, 'organism-opportunistic-fungus');
   flow.markSeen(opportunist.cardId);
 
-  const prematureProcess = flow.handle('process-mycoparasitism', guided({
-    phase: 5, chunkIndex: 22, worldX: 4200,
+  const prematureProcess = flow.handle('process-iron-competition', guided({
+    phase: 5, chunkIndex: 13, worldX: 4200,
   }));
   assert.equal(prematureProcess.handled, false);
   assert.equal(prematureProcess.reason, 'prerequisite');
 
-  const trichoderma = flow.handle('organism-trichoderma', firstEncounter({
-    phase: 5, chunkIndex: 20, worldX: 4100,
+  const pseudomonas = flow.handle('organism-pseudomonas', firstEncounter({
+    phase: 5, chunkIndex: 8, worldX: 4100,
   }));
-  assert.equal(trichoderma.cardId, 'organism-trichoderma');
-  assert.notEqual(trichoderma.cardId, opportunist.cardId);
-  flow.markSeen(trichoderma.cardId);
+  assert.equal(pseudomonas.cardId, 'organism-pseudomonas');
+  assert.notEqual(pseudomonas.cardId, opportunist.cardId);
+  flow.markSeen(pseudomonas.cardId);
 
-  const process = flow.handle('process-mycoparasitism', guided({
-    phase: 5, chunkIndex: 22, worldX: 4200,
+  const process = flow.handle('process-iron-competition', guided({
+    phase: 5, chunkIndex: 13, worldX: 4200,
   }));
   assert.equal(process.handled, true);
-  assert.equal(process.cardId, 'process-mycoparasitism');
+  assert.equal(process.cardId, 'process-iron-competition');
 });
 
 test('modo silencioso e trava espacial registram no GUIA sem pausar', () => {

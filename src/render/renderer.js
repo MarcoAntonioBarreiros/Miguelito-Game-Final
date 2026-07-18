@@ -427,7 +427,7 @@ export function createRenderer({ canvas, state, entities }) {
   }
 
   function drawFungalAttachment(player, time) {
-    const infection = clamp(player.infection || 0, 0, 1);
+    const infection = clamp(Math.max(player.infection || 0, player.fungalContamination || 0), 0, 1);
     if (infection < .06) return;
     const count = 2 + Math.floor(infection * 10);
     ctx.save();

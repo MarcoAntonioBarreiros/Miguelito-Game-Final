@@ -484,6 +484,8 @@ export function createMicrobeEcology({ state, entities }) {
       if (agent.x < state.cameraX - 120 || agent.x > state.cameraX + W + 120) continue;
       const profile = MICROBE_MOTION_PROFILES[agent.type];
       if (!profile) continue;
+      // O fungo oportunista é desenhado como rede hifal pelo sistema dedicado.
+      if (agent.type === 'oportunista') continue;
       if (profile.kind === 'spore' || profile.kind === 'conidium') drawSpore(ctx, state.time, agent, profile);
       else drawBacterium(ctx, state.time, agent, profile);
     }

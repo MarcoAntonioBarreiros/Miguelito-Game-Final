@@ -6,13 +6,15 @@ import {
   AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
   AZOSPIRILLUM_NITROGEN_DEFAULTS,
   MYCORRHIZA_BRIDGE_DEFAULTS,
+  OPPORTUNISTIC_FUNGUS_DEFAULTS,
+  PSEUDOMONAS_IRON_CONTROL_DEFAULTS,
   campaignManifest,
   getProceduralPoolAt,
   validateCampaignManifest,
 } from './campaign-manifest.js';
 import { createRandom } from './random.js';
 
-export const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v3';
+export const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v4';
 export const PHASE_LAB_MAX_RESOURCES = 100;
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -82,6 +84,12 @@ export function createDefaultPhaseLabConfig(phase = 1) {
     },
     mycorrhizaBridge: {
       ...(base.mycorrhizaBridge || MYCORRHIZA_BRIDGE_DEFAULTS),
+    },
+    opportunisticFungus: {
+      ...(base.opportunisticFungus || OPPORTUNISTIC_FUNGUS_DEFAULTS),
+    },
+    pseudomonasIronControl: {
+      ...(base.pseudomonasIronControl || PSEUDOMONAS_IRON_CONTROL_DEFAULTS),
     },
     finalGoal: base.finalTest.goal,
     finalConditions: clone(base.finalTest.requires),
@@ -172,6 +180,18 @@ export function buildPhaseLabManifest(config) {
     ...(base.mycorrhizaBridge || MYCORRHIZA_BRIDGE_DEFAULTS),
     horizontalOnly: Boolean(bridgeInput.horizontalOnly),
   };
+  const fungusInput = config.opportunisticFungus
+    || base.opportunisticFungus
+    || OPPORTUNISTIC_FUNGUS_DEFAULTS;
+  const opportunisticFungus = Object.fromEntries(
+    Object.keys(OPPORTUNISTIC_FUNGUS_DEFAULTS).map(key => [key, Number(fungusInput[key])]),
+  );
+  const ironInput = config.pseudomonasIronControl
+    || base.pseudomonasIronControl
+    || PSEUDOMONAS_IRON_CONTROL_DEFAULTS;
+  const pseudomonasIronControl = Object.fromEntries(
+    Object.keys(PSEUDOMONAS_IRON_CONTROL_DEFAULTS).map(key => [key, Number(ironInput[key])]),
+  );
 
   return {
     ...clone(base),
@@ -187,10 +207,18 @@ export function buildPhaseLabManifest(config) {
     azospirillumRootLadder,
     azospirillumNitrogen,
     mycorrhizaBridge,
+    opportunisticFungus,
+    pseudomonasIronControl,
     finalTest: {
       ...clone(base.finalTest),
       goal: String(config.finalGoal || base.finalTest.goal).trim(),
-      requires: clone(config.finalConditions || base.finalTest.requires),
+      requires: clone(config.finalConditions || base.finalTest.requires).map(condition => (
+        base.phase === 5 && condition.key === 'pseudomonasIronReserve'
+          ? { ...condition, value: pseudomonasIronControl.minimumIronReserve }
+          : base.phase === 5 && condition.key === 'opportunisticFungusVigor'
+            ? { ...condition, value: pseudomonasIronControl.minimumFungalVigor }
+            : condition
+      )),
     },
     phaseLab: {
       seed: String(config.seed || `phase-lab-${base.phase}`),

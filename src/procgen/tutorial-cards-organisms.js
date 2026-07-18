@@ -179,14 +179,14 @@ export const organismTutorialCards = {
     [
       page('Quem é?', 'O cartão representa uma categoria de fungos que aproveitam ferimentos, estresse ou desequilíbrio para colonizar tecidos.'),
       page(
-        'Função biológica',
-        'A severidade depende do fungo, da planta, do ambiente e das condições do tecido. Nem todo fungo do solo é patogênico.',
+        'Rede de hifas',
+        'As pontas crescem de forma apical e formam ramificações laterais. A rede fica mais densa perto do alvo e hifas maduras liberam esporos.',
       ),
       page(
-        'Função no jogo',
-        'O contato acumula propágulos na roupa de Miguelito, reduz movimento e pode causar perda periódica de Vitalidade.',
+        'Contaminação',
+        'Hifas e esporos aderidos às pernas e à roupa reduzem aceleração, velocidade e impulso do pulo. Contaminação alta também retira Vitalidade lentamente.',
       ),
-      page('Como controlar', 'Pulso, Bacillus e Trichoderma reduzem a contaminação. Pseudomonas pode enfraquecer fungos pela competição por ferro.'),
+      page('Recuperação', 'Ao se afastar, a contaminação diminui lentamente. Depois, Pseudomonas mostrará como a competição por ferro reduz vigor, esporulação e aderência sem eliminar o fungo.'),
     ],
     ['Propágulo', 'Contato', 'Germinação', 'Colonização', 'Produção de novos propágulos'],
   ),

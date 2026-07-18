@@ -346,6 +346,12 @@ export function createTutorialTriggers({
       agent.type === 'oportunista'
       && nearPoint(agent.x, agent.y, TUTORIAL_PROXIMITY.structure)
     ));
+    const ironCompetitionVisible = state.campaign?.phase === 5
+      && state.discoveredMicrobes.has('oportunista')
+      && state.discoveredMicrobes.has('pseudomonas')
+      && nearbyOpportunisticFungus
+      && (sim.opportunisticFungus?.maximumIronLimitation || 0) >= .18;
+    if (trigger('process-iron-competition', ironCompetitionVisible)) return;
     const mycoparasitismActive = (
       trichodermaRhizoctoniaControl.activeAttackCount > 0 && nearbyTargetedRhizoctonia
     ) || (sim.trichoderma.attackCount > 0 && nearbyOpportunisticFungus);

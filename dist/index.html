@@ -873,8 +873,8 @@ html.tutorial-open #tutorial-library-button {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");
-const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");
+const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");
+const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");
 const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
@@ -923,6 +923,7 @@ const objectiveEvaluator = createCampaignObjectiveEvaluator({
     gameplay: sim.gameplay,
     inoculants: sim.beneficialInoculants,
     pseudomonas: sim.pseudomonasSiderophores,
+    opportunisticFungus: sim.opportunisticFungus,
     trichoderma: trichodermaRhizoctoniaControl,
     meloidogyneControl: trichodermaMeloidogyneControl,
   },
@@ -943,7 +944,9 @@ sim.goal.setCompletionGuard(() => {
   const result = objectiveEvaluator.evaluate(conditions);
   return {
     passed: result.passed,
-    message: 'A raiz final aguarda a ativação do checkpoint de Bacillus na raiz marcada.',
+    message: campaign.phase === 5
+      ? 'A raiz final exige a reserva mínima de ferro e o controle funcional do vigor fúngico.'
+      : 'A raiz final aguarda a conclusão do objetivo ecológico indicado.',
   };
 });
 let profile = null;
@@ -990,6 +993,7 @@ function prepareLevel() {
     campaign.phase,
     getPhaseManifest(campaign.phase)?.mycorrhizaBridge,
   );
+  applyPhaseFiveTutorialGeometry(levelData, campaign.phase);
   levelData = decorateCampaignLevel(levelData, campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
@@ -998,6 +1002,12 @@ function prepareLevel() {
     phase: campaign.phase,
     seedValue: seed,
   }).concat(levelData.authoredEncounters || []);
+  levelData.microbeEncounters = applyPhaseFiveTutorialEncounters(
+    levelData,
+    levelData.microbeEncounters,
+    campaign.phase,
+    seed,
+  );
   generateAzospirillumRootLadders({
     level: levelData,
     phase: campaign.phase,
@@ -1187,6 +1197,7 @@ function renderWorld() {
     sim.meloidogyneLifecycle.render(ctx);
     sim.beneficialInoculants.render(ctx);
     sim.pseudomonasSiderophores.render(ctx);
+    sim.opportunisticFungus.render(ctx);
     sim.azospirillumRootGrowth.render(ctx);
     sim.rhizobiumNodulation.render(ctx);
     sim.nitrogenRootDevelopment.render(ctx);
@@ -1251,6 +1262,9 @@ function loop(now) {
       player.canPulse ? '💥 Pulso' : null,
     ].filter(Boolean).join(' | ');
     const infection = player.infection > .01 ? ` | Infecção: ${(player.infection * 100).toFixed(0)}%` : '';
+    const fungalContamination = player.fungalContamination > .01
+      ? ` | Contaminação fúngica: ${(player.fungalContamination * 100).toFixed(0)}%`
+      : '';
     const bacillusDefense = (player.bacillusResistance || 0) > .04
       ? ` | Defesa Bacillus: ${Math.round(player.bacillusResistance * 100)}%`
       : '';
@@ -1269,7 +1283,7 @@ function loop(now) {
     const trichoNematode = trichodermaMeloidogyneControl.activeAttackCount
       ? ` | Trichoderma→Meloidogyne: ${trichodermaMeloidogyneControl.activeAttackCount}`
       : '';
-    hudBar.textContent = `F${campaign.phase} · ${campaign.totalScore} pts | Solo: ${player.soil.toFixed(0)} | Esperança: ${player.hope.toFixed(0)} | Exsudatos: ${player.exudates}${infection}${bacillusDefense}${nematodePressure}${rhizoctonia}${ralstonia}${trichoRhizo}${trichoNematode}${abilities ? ' | ' + abilities : ''}`;
+    hudBar.textContent = `F${campaign.phase} · ${campaign.totalScore} pts | Solo: ${player.soil.toFixed(0)} | Esperança: ${player.hope.toFixed(0)} | Exsudatos: ${player.exudates}${infection}${fungalContamination}${bacillusDefense}${nematodePressure}${rhizoctonia}${ralstonia}${trichoRhizo}${trichoNematode}${abilities ? ' | ' + abilities : ''}`;
 
     if (showDebug) {
       const logicIndex = currentLogicIndex();
@@ -1810,6 +1824,23 @@ const AZOSPIRILLUM_NITROGEN_DEFAULTS = Object.freeze({
 const MYCORRHIZA_BRIDGE_DEFAULTS = Object.freeze({
   horizontalOnly: true,
 });
+const OPPORTUNISTIC_FUNGUS_DEFAULTS = Object.freeze({
+  contaminationRate: 1,
+  movementSpeedReduction: .25,
+  accelerationReduction: .35,
+  jumpImpulseReduction: .15,
+  recoveryRate: .12,
+  hyphalGrowthRate: 1,
+  sporulationRate: 1,
+});
+const PSEUDOMONAS_IRON_CONTROL_DEFAULTS = Object.freeze({
+  minimumIronReserve: 1,
+  // Nome preservado conforme o brief; funciona como vigor máximo na prova.
+  minimumFungalVigor: .25,
+  growthSuppression: .7,
+  sporulationSuppression: .8,
+  adhesionSuppression: .7,
+});
 
 const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
   'action-exudate': Object.freeze(['action-exudate', 'action-inoculation']),
@@ -1833,6 +1864,7 @@ const FINAL_TEST_KEYS = Object.freeze({
     'neutralizedOpportunisticFungusCount', 'recoveredRootCount', 'brokenCrystalCount',
     'neutralizedEggMassCount', 'preservedRootCount', 'ecologicalScore',
     'deployedExudateCount', 'bacillusColonyCount',
+    'opportunisticFungusVigor',
   ]),
 });
 
@@ -2053,16 +2085,24 @@ const phases = [
   },
 
   {
-    id: 'phase-5', phase: 5, totalChunks: 40,
+    id: 'phase-5', phase: 5, totalChunks: 20,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    opportunisticFungus: { ...OPPORTUNISTIC_FUNGUS_DEFAULTS },
+    pseudomonasIronControl: { ...PSEUDOMONAS_IRON_CONTROL_DEFAULTS },
     title: 'Ferro e biocontrole fúngico', theme: 'equilíbrio',
-    mission: 'Construa reserva de ferro e use Trichoderma contra fungos oportunistas.',
-    newConcepts: ['Pseudomonas→sideróforo→ferro', 'oportunista→Trichoderma→micoparasitismo'], newCommand: null,
+    mission: 'Perceba a contaminação fúngica e use Pseudomonas para limitar o vigor do fungo por competição por ferro.',
+    newConcepts: ['oportunista→contaminação', 'Pseudomonas→sideróforo→ferro→competição'], newCommand: null,
     presentations: [
+      { id: 'presentation-opportunistic-fungus', cardId: 'organism-opportunistic-fungus',
+        triggerIds: ['organism-opportunistic-fungus'], autoOpenTrigger: 'organism-opportunistic-fungus',
+        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
+        roamingType: 'oportunista', debutChunk: 2, poolFromChunk: 6,
+        moduleId: 'p5-fungus-intro', debutZoneId: 'p5-opportunistic-fungus-debut', tetherUntilSeen: true,
+        pages: ['Quem é?', 'Rede de hifas', 'Contaminação', 'Recuperação'] },
       { id: 'presentation-pseudomonas', cardId: 'organism-pseudomonas',
         triggerIds: ['organism-pseudomonas', 'process-siderophore'], autoOpenTrigger: 'organism-pseudomonas',
         policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        roamingType: 'pseudomonas', debutChunk: 4, poolFromChunk: 9,
+        roamingType: 'pseudomonas', debutChunk: 8, poolFromChunk: 12,
         moduleId: 'p5-pseudo-intro', debutZoneId: 'p5-pseudomonas-debut', tetherUntilSeen: true,
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
@@ -2070,39 +2110,28 @@ const phases = [
           { triggerId: 'process-siderophore', pages: [1, 2, 3] },
         ],
         pages: ['quem é', 'sideróforo', 'Fe³⁺', 'reserva de ferro'] },
-      { id: 'presentation-opportunistic-fungus', cardId: 'organism-opportunistic-fungus',
-        triggerIds: ['organism-opportunistic-fungus'], autoOpenTrigger: 'organism-opportunistic-fungus',
-        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
-        roamingType: 'oportunista', debutChunk: 18, poolFromChunk: 23,
-        moduleId: 'p5-biocontrol-intro', debutZoneId: 'p5-opportunistic-fungus-debut', tetherUntilSeen: true,
-        pages: ['Quem é?', 'Função biológica', 'Função no jogo', 'Como controlar'] },
-      { id: 'presentation-trichoderma', cardId: 'organism-trichoderma',
-        triggerIds: ['organism-trichoderma'], autoOpenTrigger: 'organism-trichoderma',
-        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
-        roamingType: 'trichoderma', debutChunk: 20, poolFromChunk: 23,
-        moduleId: 'p5-biocontrol-intro', debutZoneId: 'p5-trichoderma-debut', tetherUntilSeen: true,
-        pages: ['Quem é?', 'Função biológica', 'Função no jogo', 'Atenção didática'] },
-      { id: 'presentation-mycoparasitism', cardId: 'process-mycoparasitism',
-        triggerIds: ['process-mycoparasitism'], autoOpenTrigger: 'process-mycoparasitism',
+      { id: 'presentation-iron-competition', cardId: 'process-iron-competition',
+        triggerIds: ['process-iron-competition'], autoOpenTrigger: 'process-iron-competition',
         policy: 'guided-sequence', suppressIndividualCards: false,
-        prerequisitePresentationIds: ['presentation-opportunistic-fungus', 'presentation-trichoderma'],
-        debutChunk: 22, moduleId: 'p5-biocontrol-intro',
-        pages: ['O que é?', 'Mecanismos', 'Função no jogo', 'Sinergias'] },
+        prerequisitePresentationIds: ['presentation-opportunistic-fungus', 'presentation-pseudomonas'],
+        debutChunk: 13, moduleId: 'p5-interaction',
+        pages: ['Competição por ferro', 'Vigor reduzido', 'Efeito no jogo', 'Sem eliminação direta'] },
     ],
     unlockEvents: [], pathogenDebuts: [],
     segments: [
-      { id: 'p5-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'dash'] },
-      { id: 'p5-pseudo-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided', debutPresentationIds: ['presentation-pseudomonas'], mechanicsRequired: ['inoculation'] },
-      { id: 'p5-pseudo-practice', kind: 'procedural', from: 9, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
-      { id: 'p5-biocontrol-intro', kind: 'fixed', from: 18, to: 22, tutorialMode: 'guided',
-        debutPresentationIds: ['presentation-opportunistic-fungus', 'presentation-trichoderma', 'presentation-mycoparasitism'],
-        mechanicsRequired: ['inoculation'] },
-      { id: 'p5-challenge', kind: 'procedural', from: 23, to: 35, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
-      { id: 'p5-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
+      { id: 'p5-fungus-intro', kind: 'fixed', from: 0, to: 5, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-opportunistic-fungus'], mechanicsRequired: [] },
+      { id: 'p5-pseudo-intro', kind: 'fixed', from: 6, to: 11, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-pseudomonas'], mechanicsRequired: ['inoculation'] },
+      { id: 'p5-interaction', kind: 'fixed', from: 12, to: 14, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-iron-competition'], mechanicsRequired: ['inoculation'] },
+      { id: 'p5-challenge', kind: 'procedural', from: 15, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
+      { id: 'p5-final', kind: 'final', from: 18, to: 19, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
     ],
-    finalTest: { id: 'p5-test', goal: 'Atingir reserva de ferro e neutralizar um foco oportunista.', requires: [
+    finalTest: { id: 'p5-test', goal: 'Controle o vigor do fungo com a reserva de ferro e alcance a raiz final.', requires: [
       { type: 'worldState', key: 'pseudomonasIronReserve', operator: '>=', value: 1 },
-      { type: 'worldState', key: 'neutralizedOpportunisticFungusCount', operator: '>=', value: 1 },
+      { type: 'worldState', key: 'opportunisticFungusVigor', operator: '<=', value: .25 },
+      { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
     ]}, notes: [],
   },
 
@@ -2585,6 +2614,33 @@ function validateCampaignManifest({
       }
     }
 
+    if (phase.opportunisticFungus) {
+      for (const key of ['contaminationRate', 'recoveryRate', 'hyphalGrowthRate', 'sporulationRate']) {
+        if (!Number.isFinite(phase.opportunisticFungus[key]) || phase.opportunisticFungus[key] < 0) {
+          errors.push(`${phase.id}: opportunisticFungus.${key} inválido.`);
+        }
+      }
+      for (const key of ['movementSpeedReduction', 'accelerationReduction', 'jumpImpulseReduction']) {
+        const value = phase.opportunisticFungus[key];
+        if (!Number.isFinite(value) || value < 0 || value >= 1) {
+          errors.push(`${phase.id}: opportunisticFungus.${key} deve estar entre 0 e 1.`);
+        }
+      }
+    }
+
+    if (phase.pseudomonasIronControl) {
+      const control = phase.pseudomonasIronControl;
+      if (!Number.isFinite(control.minimumIronReserve) || control.minimumIronReserve < 0) {
+        errors.push(`${phase.id}: pseudomonasIronControl.minimumIronReserve inválido.`);
+      }
+      for (const key of ['minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']) {
+        const value = control[key];
+        if (!Number.isFinite(value) || value < 0 || value > 1) {
+          errors.push(`${phase.id}: pseudomonasIronControl.${key} deve estar entre 0 e 1.`);
+        }
+      }
+    }
+
     const coverage = new Array(phase.totalChunks).fill(0);
     const segmentIds = new Set();
     const segmentById = new Map();
@@ -2723,7 +2779,7 @@ function validateCampaignManifest({
 
   return errors;
 }
-Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getActiveCampaignManifest, setPhaseManifestOverride, clearPhaseManifestOverride, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
+Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getActiveCampaignManifest, setPhaseManifestOverride, clearPhaseManifestOverride, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
 },
 "src/procgen/primitives.js": (__exports, __require) => {
 const { createSimulator } = __require("src/procgen/simulator.js");
@@ -2881,7 +2937,9 @@ function generatePrimitives() {
 Object.assign(__exports, { generatePrimitives });
 },
 "src/procgen/simulator.js": (__exports, __require) => {
-const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
+const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");
+const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");
+const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
 function createEmptyLevel() {
   return {
     platforms: [], hazards: [], crystals: [], enemies: [], exudates: [],
@@ -2950,6 +3008,7 @@ function createSimulator() {
       player.exudates = Math.floor((player.exudates || 0) / 2);
       player.infectionExposure = 0;
       player.infection = Math.min(.12, Math.max(0, (player.infection || 0) * .2));
+      player.fungalContamination = Math.min(.08, Math.max(0, (player.fungalContamination || 0) * .15));
       player.nematodeLoad = 0;
       player.fungalDamageCooldown = 1.8;
       player.nematodeDamageCooldown = 1.8;
@@ -2994,6 +3053,7 @@ function createSimulator() {
     ecology,
     inoculants: beneficialInoculants,
   });
+  const opportunisticFungus = createOpportunisticFungus({ state, entities, ecology });
   const bacillusBioprotection = createBacillusBioprotection({
     state,
     entities,
@@ -3020,6 +3080,7 @@ function createSimulator() {
   state.trichodermaColonies = trichodermaColonies;
   state.beneficialInoculants = beneficialInoculants;
   state.pseudomonasSiderophores = pseudomonasSiderophores;
+  state.opportunisticFungus = opportunisticFungus;
   state.bacillusBioprotection = bacillusBioprotection;
   state.rhizobiumNodulation = rhizobiumNodulation;
   state.nitrogenRootDevelopment = nitrogenRootDevelopment;
@@ -3046,6 +3107,7 @@ function createSimulator() {
     azospirillumRootGrowth.clear();
     azospirillumNitrogen.clear();
     pseudomonasSiderophores.clear();
+    opportunisticFungus.clear();
     bacillusBioprotection.clear();
     meloidogyneLifecycle.clear();
     beneficialInoculants.clear();
@@ -3077,6 +3139,7 @@ function createSimulator() {
     azospirillumNitrogen.reset();
     beneficialInoculants.reset();
     pseudomonasSiderophores.reset();
+    opportunisticFungus.reset();
     bacillusBioprotection.reset();
     rhizobiumNodulation.reset();
     nitrogenRootDevelopment.reset();
@@ -3094,11 +3157,13 @@ function createSimulator() {
     beneficialInoculants.prepare(dt);
     gameplay.prepare(dt);
     pathogenSurvival.prepare(dt);
+    opportunisticFungus.prepare(dt);
     physics.update(dt);
     ecology.update(dt);
     recruitment.update(dt);
     beneficialInoculants.update(dt);
     pseudomonasSiderophores.update(dt);
+    opportunisticFungus.update(dt);
 
     const azospirillumRootsUnlocked = state.campaign
       ? Boolean(state.campaign.unlocks.azospirillumRoots)
@@ -3132,7 +3197,7 @@ function createSimulator() {
   const simulator = {
     state, input, entities, ecology, mycorrhiza, mycorrhizaStructures,
     trichoderma, recruitment, trichodermaColonies, beneficialInoculants,
-    pseudomonasSiderophores, bacillusBioprotection, bacillusBioprotectionSafety,
+    pseudomonasSiderophores, opportunisticFungus, bacillusBioprotection, bacillusBioprotectionSafety,
     rhizobiumNodulation, nitrogenRootDevelopment, azospirillumRootGrowth, azospirillumRootSafety,
     azospirillumNitrogen,
     meloidogyneLifecycle, pathogenSurvival, goal, gameplay,
@@ -3334,6 +3399,7 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
     const level = state.level;
     const keys = input.keys;
     const moveMultiplier = clamp(player.moveMultiplier ?? 1, .48, 1);
+    const accelerationMultiplier = clamp(player.accelerationMultiplier ?? 1, .42, 1);
     const jumpMultiplier = clamp(player.jumpMultiplier ?? 1, .68, 1);
 
     player.invuln = Math.max(0, player.invuln - dt);
@@ -3359,7 +3425,11 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
     } else {
       const target = (right ? 1 : 0) - (left ? 1 : 0);
       if (target) player.facing = target;
-      player.vx = lerp(player.vx, target * 245 * moveMultiplier, 1 - Math.pow(.0008, dt));
+      player.vx = lerp(
+        player.vx,
+        target * 245 * moveMultiplier,
+        1 - Math.pow(.0008, dt * accelerationMultiplier),
+      );
       if (!target) player.vx *= Math.pow(.00002, dt);
       player.vy += 1180 * dt;
       player.vy = Math.min(player.vy, 720);
@@ -3980,11 +4050,13 @@ const initialPlayer = {
   vitality: 5,
   infection: 0,
   infectionExposure: 0,
+  fungalContamination: 0,
   fungalDamageCooldown: 0,
   nematodeDamageCooldown: 0,
   healCooldown: 0,
   nematodeLoad: 0,
   moveMultiplier: 1,
+  accelerationMultiplier: 1,
   jumpMultiplier: 1,
   dashCooldownMultiplier: 1,
   dashSuppressed: false,
@@ -4966,6 +5038,8 @@ function createMicrobeEcology({ state, entities }) {
       if (agent.x < state.cameraX - 120 || agent.x > state.cameraX + W + 120) continue;
       const profile = MICROBE_MOTION_PROFILES[agent.type];
       if (!profile) continue;
+      // O fungo oportunista é desenhado como rede hifal pelo sistema dedicado.
+      if (agent.type === 'oportunista') continue;
       if (profile.kind === 'spore' || profile.kind === 'conidium') drawSpore(ctx, state.time, agent, profile);
       else drawBacterium(ctx, state.time, agent, profile);
     }
@@ -7071,21 +7145,10 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
   }
 
   function updatePseudomonas(colony, dt) {
-    colony.stage = colony.growth < .65 ? 'ocupando o nicho' : 'zona supressiva';
+    colony.stage = colony.growth < .65 ? 'ocupando o nicho' : 'liberando sideróforos';
     if (colony.growth < .65) return;
-    const radius = colony.radius * (1.1 + colony.vigor * .7);
-    for (const agent of ecology.agents) {
-      if (agent.type !== 'oportunista') continue;
-      const dx = agent.x - colony.x;
-      const dy = agent.y - colony.y;
-      const distance = Math.max(1, Math.hypot(dx, dy));
-      if (distance >= radius) continue;
-      const pressure = clamp(1 - distance / radius, 0, 1) * colony.vigor;
-      agent.vx += dx / distance * 82 * pressure * dt;
-      agent.vy += dy / distance * 58 * pressure * dt;
-      agent.vx *= Math.pow(.38, dt * pressure);
-      agent.vy *= Math.pow(.38, dt * pressure);
-    }
+    // A supressão depende da reserva real de Fe do sistema de sideróforos.
+    // Um halo visual sem ferro capturado não controla o fungo.
   }
 
   function updateColony(colony, dt) {
@@ -7247,6 +7310,7 @@ Object.assign(__exports, { createBeneficialInoculants });
 },
 "src/procgen/pseudomonas-siderophores.js": (__exports, __require) => {
 const { W } = __require("src/core/constants.js");
+const { createRandom } = __require("src/procgen/random.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -7273,6 +7337,11 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
   let totalIronRecovered = 0;
   let fungiLimitedCount = 0;
   let lastToastAt = -Infinity;
+  let random = createRandom(`${state.campaign?.seed || 'pseudomonas'}:siderophores`);
+
+  function resetRandom() {
+    random = createRandom(`${state.campaign?.seed || 'pseudomonas'}:siderophores`);
+  }
 
   function deposits() {
     return state.level.ironDeposits || (state.level.ironDeposits = []);
@@ -7341,7 +7410,7 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
     const entry = {
       colony,
       ironReserve: 0,
-      launchCooldown: .5 + Math.random() * .8,
+      launchCooldown: .5 + random() * .8,
       recovered: 0,
       delivered: 0,
       noIronToast: false,
@@ -7383,17 +7452,19 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
     totalIronRecovered = 0;
     fungiLimitedCount = 0;
     lastToastAt = -Infinity;
+    resetRandom();
   }
 
   function reset() {
     siderophores.length = 0;
     colonyStates.clear();
-    state.level.ironDeposits = [];
+    state.level.ironDeposits = (state.level.ironDeposits || []).filter(deposit => deposit.authored);
     state.level.siderophores = siderophores;
     nextSiderophoreId = 1;
     totalIronRecovered = 0;
     fungiLimitedCount = 0;
     lastToastAt = -Infinity;
+    resetRandom();
     ensureDeposits();
   }
 
@@ -7421,7 +7492,7 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
   function launch(entry) {
     const colony = entry.colony;
     const target = nearbyAvailableDeposit(colony);
-    const angle = Math.random() * TAU;
+    const angle = random() * TAU;
     const particle = {
       id: `sid-${nextSiderophoreId++}`,
       colonyId: colony.id,
@@ -7435,10 +7506,10 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
       age: 0,
       life: 10.5,
       boundIron: 0,
-      phase: Math.random() * TAU,
+      phase: random() * TAU,
     };
     siderophores.push(particle);
-    entry.launchCooldown = .75 + Math.random() * .75;
+    entry.launchCooldown = .75 + random() * .75;
     colony.vigor = clamp(colony.vigor - .0045, 0, 1);
     entities.burst(particle.x, particle.y, '#d5ff6d', 5, 42);
 
@@ -7463,7 +7534,7 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
   }
 
   function bindIron(particle, deposit) {
-    const amount = Math.min(deposit.stock, .34 + Math.random() * .18);
+    const amount = Math.min(deposit.stock, .34 + random() * .18);
     if (amount <= .02) {
       particle.target = null;
       return;
@@ -7530,7 +7601,9 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
       const dy = agent.y - colony.y;
       const distance = Math.max(1, Math.hypot(dx, dy));
       if (distance >= radius) continue;
-      const pressure = clamp(1 - distance / radius, 0, 1) * clamp(entry.ironReserve * 1.35, 0, 1);
+      const spatialPressure = clamp(1 - distance / radius, 0, 1);
+      const reservePressure = clamp(entry.ironReserve, 0, 1);
+      const pressure = clamp(spatialPressure * .72 + reservePressure * .68, 0, 1);
       if (pressure <= .03) continue;
       agent.ironLimitation = Math.max(agent.ironLimitation || 0, pressure);
       agent.vx *= Math.pow(.32, dt * pressure);
@@ -7751,6 +7824,9 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
     get freeCount() { return siderophores.filter(item => item.state === 'free').length; },
     get loadedCount() { return siderophores.filter(item => item.state === 'loaded').length; },
     get ironRecovered() { return totalIronRecovered; },
+    get ironReserve() {
+      return [...colonyStates.values()].reduce((sum, entry) => sum + entry.ironReserve, 0);
+    },
     get fungiLimitedCount() { return fungiLimitedCount; },
     get activeColonyCount() { return [...colonyStates.values()].filter(entry => entry.ironReserve > .03).length; },
     get colonyStates() { return colonyStates; },
@@ -7762,6 +7838,376 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
   };
 }
 Object.assign(__exports, { createPseudomonasSiderophores });
+},
+"src/procgen/opportunistic-fungus.js": (__exports, __require) => {
+const { H, W } = __require("src/core/constants.js");
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const TAU = Math.PI * 2;
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function hashSeed(text) {
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index++) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function seededRandom(seed) {
+  let value = seed >>> 0;
+  return () => {
+    value += 0x6D2B79F5;
+    let result = value;
+    result = Math.imul(result ^ (result >>> 15), result | 1);
+    result ^= result + Math.imul(result ^ (result >>> 7), result | 61);
+    return ((result ^ (result >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const OPPORTUNISTIC_FUNGUS_DEFAULTS = Object.freeze({
+  contaminationRate: 1,
+  movementSpeedReduction: .25,
+  accelerationReduction: .35,
+  jumpImpulseReduction: .15,
+  recoveryRate: .12,
+  hyphalGrowthRate: 1,
+  sporulationRate: 1,
+});
+
+const PSEUDOMONAS_IRON_CONTROL_DEFAULTS = Object.freeze({
+  minimumIronReserve: 1,
+  minimumFungalVigor: .25,
+  growthSuppression: .7,
+  sporulationSuppression: .8,
+  adhesionSuppression: .7,
+});
+
+function fungalResponse(limitation, fungusConfig, ironConfig) {
+  const pressure = clamp(limitation || 0, 0, 1);
+  return {
+    vigor: clamp(
+      1 - pressure * (1 - ironConfig.minimumFungalVigor),
+      ironConfig.minimumFungalVigor,
+      1,
+    ),
+    growth: clamp(1 - pressure * ironConfig.growthSuppression, .08, 1) * fungusConfig.hyphalGrowthRate,
+    branching: clamp(1 - pressure * ironConfig.growthSuppression * .9, .08, 1),
+    sporulation: clamp(1 - pressure * ironConfig.sporulationSuppression, .04, 1) * fungusConfig.sporulationRate,
+    adhesion: clamp(1 - pressure * ironConfig.adhesionSuppression, .04, 1),
+  };
+}
+
+function playerCenter(player) {
+  return { x: player.x + player.w / 2, y: player.y + player.h / 2 };
+}
+
+function pointSegmentDistance(point, start, end) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const denominator = dx * dx + dy * dy || 1;
+  const t = clamp(((point.x - start.x) * dx + (point.y - start.y) * dy) / denominator, 0, 1);
+  return Math.hypot(point.x - (start.x + dx * t), point.y - (start.y + dy * t));
+}
+
+function createOpportunisticFungus({ state, entities, ecology }) {
+  const networks = new Map();
+  let contactIntensity = 0;
+  let maximumIronLimitation = 0;
+  let damageCooldown = 0;
+  let contactAnnounced = false;
+
+  function config() {
+    const manifest = getPhaseManifest(state.campaign?.phase);
+    return {
+      fungus: { ...OPPORTUNISTIC_FUNGUS_DEFAULTS, ...(manifest?.opportunisticFungus || {}) },
+      iron: { ...PSEUDOMONAS_IRON_CONTROL_DEFAULTS, ...(manifest?.pseudomonasIronControl || {}) },
+    };
+  }
+
+  function opportunists() {
+    return (ecology.agents || []).filter(agent => agent.type === 'oportunista');
+  }
+
+  function createNetwork(agent) {
+    const seedText = `${state.campaign?.seed || 'fungus'}:${agent.id}:${Math.round(agent.homeX || agent.x)}`;
+    const random = seededRandom(hashSeed(seedText));
+    const network = {
+      agent,
+      random,
+      segments: [],
+      tips: [],
+      spores: [],
+      growthAccumulator: 0,
+      sporeAccumulator: 0,
+      response: null,
+      attached: 0,
+    };
+    const count = 2 + Math.floor(random() * 2);
+    for (let index = 0; index < count; index++) {
+      network.tips.push({
+        x: agent.x + (random() - .5) * 22,
+        y: agent.y + (random() - .5) * 18,
+        angle: random() * TAU,
+        depth: 0,
+        age: random(),
+        phase: random() * TAU,
+      });
+    }
+    networks.set(agent.id, network);
+    return network;
+  }
+
+  function syncNetworks() {
+    const agents = opportunists();
+    const ids = new Set(agents.map(agent => agent.id));
+    for (const agent of agents) {
+      const network = networks.get(agent.id) || createNetwork(agent);
+      network.agent = agent;
+    }
+    for (const id of networks.keys()) if (!ids.has(id)) networks.delete(id);
+  }
+
+  function growTip(network, tip, step, target, response) {
+    const direct = Math.atan2(target.y - tip.y, target.x - tip.x);
+    const turn = Math.atan2(Math.sin(direct - tip.angle), Math.cos(direct - tip.angle));
+    const distance = Math.hypot(target.x - tip.x, target.y - tip.y);
+    const attraction = clamp(1 - distance / 760, .08, 1) * response.adhesion;
+    tip.angle += turn * (.055 + attraction * .13);
+    tip.angle += Math.sin(state.time * 2.1 + tip.phase + tip.age * .7) * .055;
+    const start = { x: tip.x, y: tip.y };
+    tip.x += Math.cos(tip.angle) * step;
+    tip.y += Math.sin(tip.angle) * step;
+    tip.y = clamp(tip.y, 55, H - 55);
+    tip.age += step * .025;
+    network.segments.push({ start, end: { x: tip.x, y: tip.y }, depth: tip.depth, phase: tip.phase });
+    if (network.segments.length > 170) network.segments.splice(0, network.segments.length - 170);
+
+    const denseNearTarget = distance < 175 ? 2.5 : distance < 330 ? 1.35 : .45;
+    const branchChance = .035 * denseNearTarget * response.branching;
+    if (tip.depth < 4 && network.tips.length < 15 && network.random() < branchChance) {
+      const side = network.random() < .5 ? -1 : 1;
+      network.tips.push({
+        x: tip.x,
+        y: tip.y,
+        angle: tip.angle + side * (.45 + network.random() * .55),
+        depth: tip.depth + 1,
+        age: 0,
+        phase: network.random() * TAU,
+      });
+    }
+  }
+
+  function updateSpores(network, dt, response, target) {
+    network.sporeAccumulator += dt * response.sporulation * (.35 + network.segments.length / 120);
+    if (network.segments.length > 24 && network.sporeAccumulator >= 1 && network.spores.length < 28) {
+      network.sporeAccumulator -= 1;
+      const segment = network.segments[Math.floor(network.random() * network.segments.length)];
+      network.spores.push({
+        x: segment.end.x,
+        y: segment.end.y,
+        vx: (network.random() - .5) * 14,
+        vy: -5 - network.random() * 9,
+        phase: network.random() * TAU,
+        life: 5 + network.random() * 4,
+      });
+    }
+    for (const spore of network.spores) {
+      spore.x += spore.vx * dt * response.vigor;
+      spore.y += (spore.vy + Math.sin(state.time * 1.7 + spore.phase) * 6) * dt * response.vigor;
+      spore.life -= dt;
+      if (Math.hypot(spore.x - target.x, spore.y - target.y) < 27) {
+        contactIntensity += .22 * response.adhesion;
+        spore.life = Math.min(spore.life, .35);
+      }
+    }
+    network.spores = network.spores.filter(spore => spore.life > 0);
+  }
+
+  function updateNetwork(network, dt, target, settings) {
+    const limitation = clamp(network.agent.ironLimitation || 0, 0, 1);
+    const response = fungalResponse(limitation, settings.fungus, settings.iron);
+    network.response = response;
+    network.agent.fungalVigor = response.vigor;
+    maximumIronLimitation = Math.max(maximumIronLimitation, limitation);
+
+    network.growthAccumulator += dt * 22 * response.growth;
+    while (network.growthAccumulator >= 1) {
+      network.growthAccumulator -= 1;
+      const tips = [...network.tips];
+      for (const tip of tips) growTip(network, tip, 3.4, target, response);
+    }
+    updateSpores(network, dt, response, target);
+
+    let touching = 0;
+    for (let index = Math.max(0, network.segments.length - 90); index < network.segments.length; index++) {
+      const segment = network.segments[index];
+      if (pointSegmentDistance(target, segment.start, segment.end) < 24) touching++;
+    }
+    if (touching) {
+      const pressure = clamp(touching / 7, .12, 1) * response.adhesion;
+      contactIntensity += pressure;
+      network.attached = clamp(network.attached + dt * pressure * 1.2, 0, 1);
+    } else {
+      network.attached = Math.max(0, network.attached - dt * (.12 + limitation * 1.1));
+    }
+  }
+
+  function prepare() {
+    const settings = config().fungus;
+    const contamination = clamp(state.player.fungalContamination || 0, 0, 1);
+    state.player.moveMultiplier = clamp(
+      (state.player.moveMultiplier ?? 1) * (1 - contamination * settings.movementSpeedReduction),
+      .42,
+      1,
+    );
+    state.player.accelerationMultiplier = clamp(1 - contamination * settings.accelerationReduction, .42, 1);
+    state.player.jumpMultiplier = clamp(
+      (state.player.jumpMultiplier ?? 1) * (1 - contamination * settings.jumpImpulseReduction),
+      .62,
+      1,
+    );
+  }
+
+  function update(dt) {
+    if (state.gameState !== 'play') return;
+    syncNetworks();
+    const settings = config();
+    const target = playerCenter(state.player);
+    contactIntensity = 0;
+    maximumIronLimitation = 0;
+    for (const network of networks.values()) updateNetwork(network, dt, target, settings);
+
+    const player = state.player;
+    if (contactIntensity > .02) {
+      const gain = .24 * settings.fungus.contaminationRate * clamp(contactIntensity, .2, 1.5);
+      const ironDetachment = maximumIronLimitation * settings.fungus.recoveryRate * 2.6;
+      player.fungalContamination = clamp(
+        (player.fungalContamination || 0) + dt * (gain - ironDetachment),
+        0,
+        1,
+      );
+      if (!contactAnnounced && player.fungalContamination > .12) {
+        contactAnnounced = true;
+        state.toast = 'Contaminação fúngica: hifas aderidas reduzem aceleração, velocidade e impulso do pulo.';
+        state.toastTime = 5.2;
+      }
+    } else {
+      const acceleratedDetachment = 1 + maximumIronLimitation * 2.2;
+      player.fungalContamination = Math.max(
+        0,
+        (player.fungalContamination || 0) - dt * settings.fungus.recoveryRate * acceleratedDetachment,
+      );
+      if (player.fungalContamination <= .02) contactAnnounced = false;
+    }
+
+    damageCooldown = Math.max(0, damageCooldown - dt);
+    if (player.fungalContamination >= .62 && damageCooldown <= 0) {
+      entities.damagePlayer?.(1, 'contaminação pelo fungo oportunista', {
+        invuln: .7,
+        knockbackX: 0,
+        knockbackY: -65,
+      });
+      damageCooldown = 6.2;
+    }
+  }
+
+  function drawNetwork(ctx, network) {
+    const response = network.response || { vigor: 1 };
+    const vigor = response.vigor;
+    const pink = Math.round(92 + vigor * 130);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = `rgba(255,${pink},155,${.22 + vigor * .45})`;
+    ctx.shadowBlur = 5 + vigor * 9;
+    for (const segment of network.segments) {
+      const width = Math.max(.45, (2.15 - segment.depth * .27) * (.42 + vigor * .58));
+      ctx.strokeStyle = `rgba(255,${pink},155,${.24 + vigor * .58})`;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(segment.start.x, segment.start.y);
+      ctx.lineTo(segment.end.x, segment.end.y);
+      ctx.stroke();
+    }
+    for (const tip of network.tips) {
+      const radius = 1.4 + vigor * 2 + Math.sin(state.time * 5 + tip.phase) * .45;
+      ctx.fillStyle = `rgba(255,235,240,${.35 + vigor * .6})`;
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, radius, 0, TAU);
+      ctx.fill();
+    }
+    for (const spore of network.spores) {
+      const alpha = clamp(spore.life / 4, .12, .48) * (.35 + vigor * .65);
+      ctx.fillStyle = `rgba(213,175,255,${alpha})`;
+      ctx.strokeStyle = `rgba(255,231,255,${alpha * .7})`;
+      ctx.lineWidth = .7;
+      ctx.beginPath();
+      ctx.arc(spore.x, spore.y, 2.2 + Math.sin(state.time * 2 + spore.phase) * .45, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawVigorIndicator(ctx, network) {
+    const limitation = clamp(network.agent.ironLimitation || 0, 0, 1);
+    if (limitation < .08) return;
+    const vigor = network.response?.vigor ?? 1;
+    const x = network.agent.x;
+    const y = network.agent.y - 38;
+    ctx.save();
+    ctx.font = '700 9px Inter,system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,231,237,.9)';
+    ctx.fillText(`Vigor fúngico ${Math.round(vigor * 100)}%`, x, y);
+    ctx.fillStyle = 'rgba(5,18,24,.8)';
+    ctx.fillRect(x - 27, y + 5, 54, 5);
+    ctx.fillStyle = vigor <= .45 ? '#b9f36f' : '#ff8297';
+    ctx.fillRect(x - 26, y + 6, 52 * vigor, 3);
+    ctx.restore();
+  }
+
+  function render(ctx) {
+    ctx.save();
+    ctx.translate(-state.cameraX, 0);
+    for (const network of networks.values()) {
+      if (network.agent.x < state.cameraX - W || network.agent.x > state.cameraX + W * 2) continue;
+      drawNetwork(ctx, network);
+      drawVigorIndicator(ctx, network);
+    }
+    ctx.restore();
+  }
+
+  function clear() {
+    networks.clear();
+    contactIntensity = 0;
+    maximumIronLimitation = 0;
+    damageCooldown = 0;
+    contactAnnounced = false;
+  }
+
+  function reset() {
+    clear();
+    state.player.fungalContamination = 0;
+  }
+
+  return {
+    prepare,
+    update,
+    render,
+    clear,
+    reset,
+    get networks() { return networks; },
+    get contactIntensity() { return contactIntensity; },
+    get maximumIronLimitation() { return maximumIronLimitation; },
+    get controlledFungalVigor() {
+      const values = [...networks.values()].map(network => network.response?.vigor ?? 1);
+      return values.length ? Math.min(...values) : 1;
+    },
+  };
+}
+Object.assign(__exports, { OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, fungalResponse, createOpportunisticFungus });
 },
 "src/procgen/bacillus-bioprotection.js": (__exports, __require) => {
 const { W } = __require("src/core/constants.js");
@@ -10869,18 +11315,9 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
   function updateInfection(dt) {
     const player = state.player;
     const center = { x: player.x + player.w / 2, y: player.y + player.h / 2 };
-    let contacts = 0;
-    for (const agent of ecology.agents) {
-      if (agent.type === 'oportunista' && Math.hypot(agent.x - center.x, agent.y - center.y) < 38) contacts++;
-    }
-    if (contacts > 0) {
-      player.infectionExposure = clamp((player.infectionExposure || 0) + dt * (1.15 + contacts * .35), 0, 1.4);
-    } else {
-      player.infectionExposure = Math.max(0, (player.infectionExposure || 0) - dt * .72);
-    }
-    if (player.infectionExposure > .48) {
-      player.infection = clamp((player.infection || 0) + dt * (.12 + contacts * .055), 0, 1);
-    }
+    // O contato com o oportunista é calculado pela geometria real das hifas e
+    // dos esporos. A proximidade do antigo ícone não cria mais infecção.
+    player.infectionExposure = Math.max(0, (player.infectionExposure || 0) - dt * .72);
     if (player.infection > .06) {
       player.hope = Math.max(0, player.hope - dt * (.18 + player.infection * .58));
       if (!infectionAnnounced) {
@@ -10897,6 +11334,9 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
         player.infection = Math.max(0, player.infection - .38);
         player.infectionExposure = 0;
         entities.burst(center.x, center.y, '#ffcf8a', 18, 155);
+      }
+      if (player.fungalContamination > 0) {
+        player.fungalContamination = Math.max(0, player.fungalContamination - .22);
       }
     }
   }
@@ -11264,9 +11704,11 @@ function createPathogenSurvival({ state, entities, ecology }) {
     dom.hud.querySelector('.hearts').textContent = `${filled}${empty}`;
 
     const infection = clamp(player.infection || 0, 0, 1);
+    const fungalContamination = clamp(player.fungalContamination || 0, 0, 1);
     const load = player.nematodeLoad || 0;
     let condition = '';
     if (state.gameState === 'respawning') condition = 'Reorganizando no último biofilme…';
+    else if (fungalContamination >= .05) condition = `Contaminação fúngica ${Math.round(fungalContamination * 100)}%`;
     else if (infection >= .72) condition = `Colonização fúngica ${Math.round(infection * 100)}%`;
     else if (infection >= .28) condition = `Propágulos aderidos ${Math.round(infection * 100)}%`;
     else if (load) condition = `${load} J2 transportado${load > 1 ? 's' : ''}`;
@@ -11465,6 +11907,7 @@ function createPathogenSurvival({ state, entities, ecology }) {
     const infection = clamp(player.infection || 0, 0, 1);
     const load = player.nematodeLoad || 0;
     player.moveMultiplier = clamp(1 - infection * .34 - load * .1, .48, 1);
+    player.accelerationMultiplier = 1;
     player.jumpMultiplier = clamp(1 - infection * .16 - load * .08, .68, 1);
     player.dashCooldownMultiplier = 1 + infection * .65 + load * .25;
     player.dashSuppressed = load >= 2 || infection >= .92;
@@ -11890,7 +12333,8 @@ function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     if (key === 'functionalMycorrhizaPathCount') {
       return (state.level.platforms || []).filter(platform => platform.mycorrhizaStructure && platform.mature !== false).length;
     }
-    if (key === 'pseudomonasIronReserve') return systems.pseudomonas?.ironRecovered || 0;
+    if (key === 'pseudomonasIronReserve') return systems.pseudomonas?.ironReserve || 0;
+    if (key === 'opportunisticFungusVigor') return systems.opportunisticFungus?.controlledFungalVigor ?? 1;
     if (key === 'neutralizedOpportunisticFungusCount') return systems.trichoderma?.eliminatedCount || 0;
     if (key === 'recoveredRootCount') {
       return (state.level.platforms || []).filter(root => root.type === 'root' && root.healthTrend > 0 && (root.rootHealth || 0) >= .75).length;
@@ -12320,9 +12764,132 @@ function applyPhaseFourMycorrhizaIntro(level, phase, config = {}) {
 }
 Object.assign(__exports, { applyPhaseFourMycorrhizaIntro });
 },
+"src/procgen/phase-five-tutorial.js": (__exports, __require) => {
+const { createRandom } = __require("src/procgen/random.js");
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function platformAt(level, chunk) {
+  return (level.platforms || []).find(platform => (
+    !platform.recovery && !platform.final && platform.logicIndex === chunk
+  ));
+}
+
+function addExudate(level, chunk, lateral = .5) {
+  const platform = platformAt(level, chunk);
+  if (!platform) return;
+  const duplicate = (level.exudates || []).some(item => item.logicIndex === chunk);
+  if (duplicate) return;
+  level.exudates.push({
+    logicIndex: chunk,
+    x: platform.x + platform.w * lateral,
+    y: platform.y - 34,
+    taken: false,
+    authored: true,
+  });
+}
+
+function applyPhaseFiveTutorialGeometry(level, phase = level.campaignPhase) {
+  if (phase !== 5) return level;
+  const route = (level.platforms || [])
+    .filter(platform => !platform.recovery && !platform.final && platform.logicIndex >= 0)
+    .sort((a, b) => a.logicIndex - b.logicIndex || a.x - b.x);
+
+  for (const platform of route) {
+    platform.type = 'root';
+    platform.authoredPhaseFive = true;
+    platform.h = Math.max(64, platform.h || 0);
+    if (platform.logicIndex <= 14) {
+      platform.y = clamp(455 + Math.sin(platform.logicIndex * .72) * 34, 405, 515);
+      platform.w = Math.max(platform.w, 190);
+    }
+  }
+
+  // Corredor final curto: sem a limitação por ferro, a rede hifal alcança
+  // Miguelito durante a travessia; com Pseudomonas, o mesmo percurso é controlável.
+  const corridor = [15, 16, 17, 18, 19].map(chunk => platformAt(level, chunk)).filter(Boolean);
+  corridor.forEach((platform, index) => {
+    platform.y = index < 3 ? 470 - index * 18 : 442 + (index - 3) * 12;
+    platform.w = index === 1 ? 210 : index < 3 ? 185 : 220;
+    platform.fungalChallenge = index < 3;
+    if (index > 0) {
+      const previous = corridor[index - 1];
+      platform.x = previous.x + previous.w + (index < 3 ? 148 : 92);
+    }
+  });
+
+  level.exudates = (level.exudates || []).filter(item => item.logicIndex < 18);
+  addExudate(level, 7, .55);
+  addExudate(level, 9, .42);
+  addExudate(level, 12, .5);
+  addExudate(level, 15, .38);
+
+  const ironHost = platformAt(level, 10) || platformAt(level, 9);
+  const challengeHost = platformAt(level, 15);
+  level.ironDeposits = [];
+  for (const [index, platform] of [ironHost, challengeHost].filter(Boolean).entries()) {
+    level.ironDeposits.push({
+      id: `p5-authored-iron-${index}`,
+      platform,
+      x: platform.x + platform.w * .68,
+      y: platform.y + 28,
+      stock: 7,
+      maxStock: 7,
+      radius: 13,
+      phase: index * 1.7,
+      exposed: true,
+      authored: true,
+    });
+  }
+  return level;
+}
+
+function encounterAt(level, chunk, id, source, seedValue, options = {}) {
+  const platform = platformAt(level, chunk);
+  if (!platform) return null;
+  const random = createRandom(`${seedValue}:phase-five:${chunk}:${id}:${source}`);
+  return {
+    id,
+    x: platform.x + platform.w * (.46 + (random() - .5) * .08),
+    y: platform.y - 94 - random() * 16,
+    r: options.r || 150,
+    territory: options.territory || 360,
+    collect: false,
+    logicIndex: chunk,
+    source,
+    requiresSeenCardId: options.requiresSeenCardId || null,
+    tetherUntilSeen: false,
+    authoredPhaseFive: true,
+  };
+}
+
+function applyPhaseFiveTutorialEncounters(level, encounters, phase, seedValue) {
+  if (phase !== 5) return encounters;
+  // Mantém apenas as duas estreias curriculares; repetições autorais abaixo
+  // demonstram a interação sem ruído de comunidades procedurais extras.
+  const result = encounters.filter(encounter => (
+    encounter.source === 'debut'
+    || !['oportunista', 'pseudomonas', 'trichoderma'].includes(encounter.id)
+  ));
+  const interaction = encounterAt(level, 13, 'oportunista', 'interaction', seedValue, {
+    r: 125,
+    territory: 250,
+    requiresSeenCardId: 'organism-opportunistic-fungus',
+  });
+  const challenge = encounterAt(level, 16, 'oportunista', 'challenge', seedValue, {
+    r: 170,
+    territory: 310,
+    requiresSeenCardId: 'organism-opportunistic-fungus',
+  });
+  if (interaction) result.push(interaction);
+  if (challenge) result.push(challenge);
+  level.authoredEncounters = [interaction, challenge].filter(Boolean);
+  return result;
+}
+Object.assign(__exports, { applyPhaseFiveTutorialGeometry, applyPhaseFiveTutorialEncounters });
+},
 "src/procgen/phase-lab-config.js": (__exports, __require) => {
-const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, campaignManifest, getProceduralPoolAt, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
-const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v3';
+const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, campaignManifest, getProceduralPoolAt, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
+const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v4';
 const PHASE_LAB_MAX_RESOURCES = 100;
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -12392,6 +12959,12 @@ function createDefaultPhaseLabConfig(phase = 1) {
     },
     mycorrhizaBridge: {
       ...(base.mycorrhizaBridge || MYCORRHIZA_BRIDGE_DEFAULTS),
+    },
+    opportunisticFungus: {
+      ...(base.opportunisticFungus || OPPORTUNISTIC_FUNGUS_DEFAULTS),
+    },
+    pseudomonasIronControl: {
+      ...(base.pseudomonasIronControl || PSEUDOMONAS_IRON_CONTROL_DEFAULTS),
     },
     finalGoal: base.finalTest.goal,
     finalConditions: clone(base.finalTest.requires),
@@ -12482,6 +13055,18 @@ function buildPhaseLabManifest(config) {
     ...(base.mycorrhizaBridge || MYCORRHIZA_BRIDGE_DEFAULTS),
     horizontalOnly: Boolean(bridgeInput.horizontalOnly),
   };
+  const fungusInput = config.opportunisticFungus
+    || base.opportunisticFungus
+    || OPPORTUNISTIC_FUNGUS_DEFAULTS;
+  const opportunisticFungus = Object.fromEntries(
+    Object.keys(OPPORTUNISTIC_FUNGUS_DEFAULTS).map(key => [key, Number(fungusInput[key])]),
+  );
+  const ironInput = config.pseudomonasIronControl
+    || base.pseudomonasIronControl
+    || PSEUDOMONAS_IRON_CONTROL_DEFAULTS;
+  const pseudomonasIronControl = Object.fromEntries(
+    Object.keys(PSEUDOMONAS_IRON_CONTROL_DEFAULTS).map(key => [key, Number(ironInput[key])]),
+  );
 
   return {
     ...clone(base),
@@ -12497,10 +13082,18 @@ function buildPhaseLabManifest(config) {
     azospirillumRootLadder,
     azospirillumNitrogen,
     mycorrhizaBridge,
+    opportunisticFungus,
+    pseudomonasIronControl,
     finalTest: {
       ...clone(base.finalTest),
       goal: String(config.finalGoal || base.finalTest.goal).trim(),
-      requires: clone(config.finalConditions || base.finalTest.requires),
+      requires: clone(config.finalConditions || base.finalTest.requires).map(condition => (
+        base.phase === 5 && condition.key === 'pseudomonasIronReserve'
+          ? { ...condition, value: pseudomonasIronControl.minimumIronReserve }
+          : base.phase === 5 && condition.key === 'opportunisticFungusVigor'
+            ? { ...condition, value: pseudomonasIronControl.minimumFungalVigor }
+            : condition
+      )),
     },
     phaseLab: {
       seed: String(config.seed || `phase-lab-${base.phase}`),
@@ -12728,6 +13321,22 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
       <fieldset><legend>Ponte micorrízica</legend>
         <label><span><input data-myco-bridge="horizontalOnly" type="checkbox" style="width:auto"> Somente horizontal</span></label>
       </fieldset>
+      <fieldset><legend>Fungo oportunista</legend><div class="resources">
+        <label>Contaminação<input data-fungus="contaminationRate" type="number" min="0" step="0.05"></label>
+        <label>Redução velocidade<input data-fungus="movementSpeedReduction" type="number" min="0" max="0.8" step="0.05"></label>
+        <label>Redução aceleração<input data-fungus="accelerationReduction" type="number" min="0" max="0.8" step="0.05"></label>
+        <label>Redução pulo<input data-fungus="jumpImpulseReduction" type="number" min="0" max="0.8" step="0.05"></label>
+        <label>Recuperação<input data-fungus="recoveryRate" type="number" min="0" step="0.01"></label>
+        <label>Crescimento hifal<input data-fungus="hyphalGrowthRate" type="number" min="0" step="0.1"></label>
+        <label>Esporulação<input data-fungus="sporulationRate" type="number" min="0" step="0.1"></label>
+      </div></fieldset>
+      <fieldset><legend>Controle de ferro por Pseudomonas</legend><div class="resources">
+        <label>Reserva mínima<input data-iron-control="minimumIronReserve" type="number" min="0" step="0.1"></label>
+        <label>Vigor máximo na prova<input data-iron-control="minimumFungalVigor" type="number" min="0" max="1" step="0.05"></label>
+        <label>Supressão crescimento<input data-iron-control="growthSuppression" type="number" min="0" max="1" step="0.05"></label>
+        <label>Supressão esporos<input data-iron-control="sporulationSuppression" type="number" min="0" max="1" step="0.05"></label>
+        <label>Supressão aderência<input data-iron-control="adhesionSuppression" type="number" min="0" max="1" step="0.05"></label>
+      </div></fieldset>
       <label>Objetivo final <input data-field="finalGoal"></label>
       <label>Condicoes finais (JSON) <textarea data-field="finalConditions"></textarea></label>
       <div class="phase-lab-status" role="status"></div>
@@ -12765,6 +13374,12 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
         panel.querySelector(`[data-azo-nitrogen="${key}"]`).value = next.azospirillumNitrogen?.[key] ?? '';
       }
       panel.querySelector('[data-myco-bridge="horizontalOnly"]').checked = Boolean(next.mycorrhizaBridge?.horizontalOnly);
+      for (const key of ['contaminationRate', 'movementSpeedReduction', 'accelerationReduction', 'jumpImpulseReduction', 'recoveryRate', 'hyphalGrowthRate', 'sporulationRate']) {
+        panel.querySelector(`[data-fungus="${key}"]`).value = next.opportunisticFungus?.[key] ?? '';
+      }
+      for (const key of ['minimumIronReserve', 'minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']) {
+        panel.querySelector(`[data-iron-control="${key}"]`).value = next.pseudomonasIronControl?.[key] ?? '';
+      }
     }
     function read() {
       const value = key => panel.querySelector(`[data-field="${key}"]`).value;
@@ -12802,6 +13417,14 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
         mycorrhizaBridge: {
           horizontalOnly: panel.querySelector('[data-myco-bridge="horizontalOnly"]').checked,
         },
+        opportunisticFungus: Object.fromEntries(
+          ['contaminationRate', 'movementSpeedReduction', 'accelerationReduction', 'jumpImpulseReduction', 'recoveryRate', 'hyphalGrowthRate', 'sporulationRate']
+            .map(key => [key, Number(panel.querySelector(`[data-fungus="${key}"]`).value)]),
+        ),
+        pseudomonasIronControl: Object.fromEntries(
+          ['minimumIronReserve', 'minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']
+            .map(key => [key, Number(panel.querySelector(`[data-iron-control="${key}"]`).value)]),
+        ),
         finalGoal: value('finalGoal'),
         finalConditions: JSON.parse(value('finalConditions')),
       };
@@ -12865,10 +13488,7 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
 Object.assign(__exports, { createPhaseLabSession });
 },
 "src/render/renderer.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");
-const { clamp } = __require("src/core/math.js");
-const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");
-const { createMicrobeRenderer } = __require("src/render/microbes.js");
+const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");
 function mixHex(a, b, t) {
   const value = clamp(t, 0, 1);
   const parse = color => [
@@ -13293,7 +13913,7 @@ function createRenderer({ canvas, state, entities }) {
   }
 
   function drawFungalAttachment(player, time) {
-    const infection = clamp(player.infection || 0, 0, 1);
+    const infection = clamp(Math.max(player.infection || 0, player.fungalContamination || 0), 0, 1);
     if (infection < .06) return;
     const count = 2 + Math.floor(infection * 10);
     ctx.save();
@@ -17302,14 +17922,14 @@ const organismTutorialCards = {
     [
       page('Quem é?', 'O cartão representa uma categoria de fungos que aproveitam ferimentos, estresse ou desequilíbrio para colonizar tecidos.'),
       page(
-        'Função biológica',
-        'A severidade depende do fungo, da planta, do ambiente e das condições do tecido. Nem todo fungo do solo é patogênico.',
+        'Rede de hifas',
+        'As pontas crescem de forma apical e formam ramificações laterais. A rede fica mais densa perto do alvo e hifas maduras liberam esporos.',
       ),
       page(
-        'Função no jogo',
-        'O contato acumula propágulos na roupa de Miguelito, reduz movimento e pode causar perda periódica de Vitalidade.',
+        'Contaminação',
+        'Hifas e esporos aderidos às pernas e à roupa reduzem aceleração, velocidade e impulso do pulo. Contaminação alta também retira Vitalidade lentamente.',
       ),
-      page('Como controlar', 'Pulso, Bacillus e Trichoderma reduzem a contaminação. Pseudomonas pode enfraquecer fungos pela competição por ferro.'),
+      page('Recuperação', 'Ao se afastar, a contaminação diminui lentamente. Depois, Pseudomonas mostrará como a competição por ferro reduz vigor, esporulação e aderência sem eliminar o fungo.'),
     ],
     ['Propágulo', 'Contato', 'Germinação', 'Colonização', 'Produção de novos propágulos'],
   ),
@@ -17496,6 +18116,22 @@ const structureTutorialCards = {
       ),
     ],
     ['Secreção', 'Busca', 'Quelagem de Fe³⁺', 'Retorno', 'Utilização'],
+  ),
+
+  'process-iron-competition': card(
+    'process-iron-competition',
+    'Interação ecológica',
+    'Pseudomonas × fungo oportunista',
+    'Competição pela disponibilidade de ferro',
+    'Fe',
+    '#b9f36f',
+    [
+      page('Competição por ferro', 'Depois que os sideróforos capturam Fe³⁺ e retornam à Pseudomonas, sobra menos ferro acessível ao fungo dentro do campo.'),
+      page('Vigor reduzido', 'Com limitação de ferro, as hifas ficam mais finas e lentas, ramificam menos e liberam menos esporos.'),
+      page('Efeito no jogo', 'A aproximação e a aderência diminuem, a contaminação cresce mais devagar e hifas já aderidas se soltam mais rapidamente.'),
+      page('Sem eliminação direta', 'Pseudomonas não destrói o fungo. Ela o torna menos vigoroso e menos agressivo por competição ecológica.'),
+    ],
+    ['Captura de Fe³⁺', 'Reserva de ferro', 'Limitação fúngica', 'Travessia controlada'],
   ),
 
   'structure-arbuscule': card(
@@ -17843,8 +18479,7 @@ function createTutorialFlow({ seen = [], unlocked = [], pages = {} } = {}) {
 Object.assign(__exports, { createTutorialFlow });
 },
 "src/procgen/tutorial-triggers.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");
-const { getTutorialModeAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
+const { W } = __require("src/core/constants.js");const { getTutorialModeAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const TUTORIAL_RUNTIME_VERSION = '2026.07.17.3';
@@ -18190,6 +18825,12 @@ function createTutorialTriggers({
       agent.type === 'oportunista'
       && nearPoint(agent.x, agent.y, TUTORIAL_PROXIMITY.structure)
     ));
+    const ironCompetitionVisible = state.campaign?.phase === 5
+      && state.discoveredMicrobes.has('oportunista')
+      && state.discoveredMicrobes.has('pseudomonas')
+      && nearbyOpportunisticFungus
+      && (sim.opportunisticFungus?.maximumIronLimitation || 0) >= .18;
+    if (trigger('process-iron-competition', ironCompetitionVisible)) return;
     const mycoparasitismActive = (
       trichodermaRhizoctoniaControl.activeAttackCount > 0 && nearbyTargetedRhizoctonia
     ) || (sim.trichoderma.attackCount > 0 && nearbyOpportunisticFungus);

@@ -41,7 +41,8 @@ export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     if (key === 'functionalMycorrhizaPathCount') {
       return (state.level.platforms || []).filter(platform => platform.mycorrhizaStructure && platform.mature !== false).length;
     }
-    if (key === 'pseudomonasIronReserve') return systems.pseudomonas?.ironRecovered || 0;
+    if (key === 'pseudomonasIronReserve') return systems.pseudomonas?.ironReserve || 0;
+    if (key === 'opportunisticFungusVigor') return systems.opportunisticFungus?.controlledFungalVigor ?? 1;
     if (key === 'neutralizedOpportunisticFungusCount') return systems.trichoderma?.eliminatedCount || 0;
     if (key === 'recoveredRootCount') {
       return (state.level.platforms || []).filter(root => root.type === 'root' && root.healthTrend > 0 && (root.rootHealth || 0) >= .75).length;

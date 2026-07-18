@@ -5,6 +5,7 @@ import { generateAzospirillumRootLadders } from './azospirillum-root-growth.js';
 import { createCampaignObjectiveEvaluator } from './campaign-objectives.js';
 import { applyPhaseOneVerticalSlice, createFixedBlockRuntime } from './phase-one-vertical-slice.js';
 import { applyPhaseFourMycorrhizaIntro } from './phase-four-mycorrhiza-intro.js';
+import { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } from './phase-five-tutorial.js';
 import { getPhaseManifest } from './campaign-manifest.js';
 import { applyPhaseLabResources } from './phase-lab-config.js';
 import { createPhaseLabSession } from './phase-lab.js';
@@ -73,6 +74,7 @@ const objectiveEvaluator = createCampaignObjectiveEvaluator({
     gameplay: sim.gameplay,
     inoculants: sim.beneficialInoculants,
     pseudomonas: sim.pseudomonasSiderophores,
+    opportunisticFungus: sim.opportunisticFungus,
     trichoderma: trichodermaRhizoctoniaControl,
     meloidogyneControl: trichodermaMeloidogyneControl,
   },
@@ -93,7 +95,9 @@ sim.goal.setCompletionGuard(() => {
   const result = objectiveEvaluator.evaluate(conditions);
   return {
     passed: result.passed,
-    message: 'A raiz final aguarda a ativação do checkpoint de Bacillus na raiz marcada.',
+    message: campaign.phase === 5
+      ? 'A raiz final exige a reserva mínima de ferro e o controle funcional do vigor fúngico.'
+      : 'A raiz final aguarda a conclusão do objetivo ecológico indicado.',
   };
 });
 let profile = null;
@@ -140,6 +144,7 @@ function prepareLevel() {
     campaign.phase,
     getPhaseManifest(campaign.phase)?.mycorrhizaBridge,
   );
+  applyPhaseFiveTutorialGeometry(levelData, campaign.phase);
   levelData = decorateCampaignLevel(levelData, campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
@@ -148,6 +153,12 @@ function prepareLevel() {
     phase: campaign.phase,
     seedValue: seed,
   }).concat(levelData.authoredEncounters || []);
+  levelData.microbeEncounters = applyPhaseFiveTutorialEncounters(
+    levelData,
+    levelData.microbeEncounters,
+    campaign.phase,
+    seed,
+  );
   generateAzospirillumRootLadders({
     level: levelData,
     phase: campaign.phase,
@@ -337,6 +348,7 @@ function renderWorld() {
     sim.meloidogyneLifecycle.render(ctx);
     sim.beneficialInoculants.render(ctx);
     sim.pseudomonasSiderophores.render(ctx);
+    sim.opportunisticFungus.render(ctx);
     sim.azospirillumRootGrowth.render(ctx);
     sim.rhizobiumNodulation.render(ctx);
     sim.nitrogenRootDevelopment.render(ctx);
@@ -401,6 +413,9 @@ function loop(now) {
       player.canPulse ? '💥 Pulso' : null,
     ].filter(Boolean).join(' | ');
     const infection = player.infection > .01 ? ` | Infecção: ${(player.infection * 100).toFixed(0)}%` : '';
+    const fungalContamination = player.fungalContamination > .01
+      ? ` | Contaminação fúngica: ${(player.fungalContamination * 100).toFixed(0)}%`
+      : '';
     const bacillusDefense = (player.bacillusResistance || 0) > .04
       ? ` | Defesa Bacillus: ${Math.round(player.bacillusResistance * 100)}%`
       : '';
@@ -419,7 +434,7 @@ function loop(now) {
     const trichoNematode = trichodermaMeloidogyneControl.activeAttackCount
       ? ` | Trichoderma→Meloidogyne: ${trichodermaMeloidogyneControl.activeAttackCount}`
       : '';
-    hudBar.textContent = `F${campaign.phase} · ${campaign.totalScore} pts | Solo: ${player.soil.toFixed(0)} | Esperança: ${player.hope.toFixed(0)} | Exsudatos: ${player.exudates}${infection}${bacillusDefense}${nematodePressure}${rhizoctonia}${ralstonia}${trichoRhizo}${trichoNematode}${abilities ? ' | ' + abilities : ''}`;
+    hudBar.textContent = `F${campaign.phase} · ${campaign.totalScore} pts | Solo: ${player.soil.toFixed(0)} | Esperança: ${player.hope.toFixed(0)} | Exsudatos: ${player.exudates}${infection}${fungalContamination}${bacillusDefense}${nematodePressure}${rhizoctonia}${ralstonia}${trichoRhizo}${trichoNematode}${abilities ? ' | ' + abilities : ''}`;
 
     if (showDebug) {
       const logicIndex = currentLogicIndex();

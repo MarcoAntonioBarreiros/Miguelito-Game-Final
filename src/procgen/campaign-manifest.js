@@ -46,6 +46,23 @@ export const AZOSPIRILLUM_NITROGEN_DEFAULTS = Object.freeze({
 export const MYCORRHIZA_BRIDGE_DEFAULTS = Object.freeze({
   horizontalOnly: true,
 });
+export const OPPORTUNISTIC_FUNGUS_DEFAULTS = Object.freeze({
+  contaminationRate: 1,
+  movementSpeedReduction: .25,
+  accelerationReduction: .35,
+  jumpImpulseReduction: .15,
+  recoveryRate: .12,
+  hyphalGrowthRate: 1,
+  sporulationRate: 1,
+});
+export const PSEUDOMONAS_IRON_CONTROL_DEFAULTS = Object.freeze({
+  minimumIronReserve: 1,
+  // Nome preservado conforme o brief; funciona como vigor máximo na prova.
+  minimumFungalVigor: .25,
+  growthSuppression: .7,
+  sporulationSuppression: .8,
+  adhesionSuppression: .7,
+});
 
 export const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
   'action-exudate': Object.freeze(['action-exudate', 'action-inoculation']),
@@ -69,6 +86,7 @@ export const FINAL_TEST_KEYS = Object.freeze({
     'neutralizedOpportunisticFungusCount', 'recoveredRootCount', 'brokenCrystalCount',
     'neutralizedEggMassCount', 'preservedRootCount', 'ecologicalScore',
     'deployedExudateCount', 'bacillusColonyCount',
+    'opportunisticFungusVigor',
   ]),
 });
 
@@ -289,16 +307,24 @@ const phases = [
   },
 
   {
-    id: 'phase-5', phase: 5, totalChunks: 40,
+    id: 'phase-5', phase: 5, totalChunks: 20,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    opportunisticFungus: { ...OPPORTUNISTIC_FUNGUS_DEFAULTS },
+    pseudomonasIronControl: { ...PSEUDOMONAS_IRON_CONTROL_DEFAULTS },
     title: 'Ferro e biocontrole fúngico', theme: 'equilíbrio',
-    mission: 'Construa reserva de ferro e use Trichoderma contra fungos oportunistas.',
-    newConcepts: ['Pseudomonas→sideróforo→ferro', 'oportunista→Trichoderma→micoparasitismo'], newCommand: null,
+    mission: 'Perceba a contaminação fúngica e use Pseudomonas para limitar o vigor do fungo por competição por ferro.',
+    newConcepts: ['oportunista→contaminação', 'Pseudomonas→sideróforo→ferro→competição'], newCommand: null,
     presentations: [
+      { id: 'presentation-opportunistic-fungus', cardId: 'organism-opportunistic-fungus',
+        triggerIds: ['organism-opportunistic-fungus'], autoOpenTrigger: 'organism-opportunistic-fungus',
+        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
+        roamingType: 'oportunista', debutChunk: 2, poolFromChunk: 6,
+        moduleId: 'p5-fungus-intro', debutZoneId: 'p5-opportunistic-fungus-debut', tetherUntilSeen: true,
+        pages: ['Quem é?', 'Rede de hifas', 'Contaminação', 'Recuperação'] },
       { id: 'presentation-pseudomonas', cardId: 'organism-pseudomonas',
         triggerIds: ['organism-pseudomonas', 'process-siderophore'], autoOpenTrigger: 'organism-pseudomonas',
         policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        roamingType: 'pseudomonas', debutChunk: 4, poolFromChunk: 9,
+        roamingType: 'pseudomonas', debutChunk: 8, poolFromChunk: 12,
         moduleId: 'p5-pseudo-intro', debutZoneId: 'p5-pseudomonas-debut', tetherUntilSeen: true,
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
@@ -306,39 +332,28 @@ const phases = [
           { triggerId: 'process-siderophore', pages: [1, 2, 3] },
         ],
         pages: ['quem é', 'sideróforo', 'Fe³⁺', 'reserva de ferro'] },
-      { id: 'presentation-opportunistic-fungus', cardId: 'organism-opportunistic-fungus',
-        triggerIds: ['organism-opportunistic-fungus'], autoOpenTrigger: 'organism-opportunistic-fungus',
-        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
-        roamingType: 'oportunista', debutChunk: 18, poolFromChunk: 23,
-        moduleId: 'p5-biocontrol-intro', debutZoneId: 'p5-opportunistic-fungus-debut', tetherUntilSeen: true,
-        pages: ['Quem é?', 'Função biológica', 'Função no jogo', 'Como controlar'] },
-      { id: 'presentation-trichoderma', cardId: 'organism-trichoderma',
-        triggerIds: ['organism-trichoderma'], autoOpenTrigger: 'organism-trichoderma',
-        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
-        roamingType: 'trichoderma', debutChunk: 20, poolFromChunk: 23,
-        moduleId: 'p5-biocontrol-intro', debutZoneId: 'p5-trichoderma-debut', tetherUntilSeen: true,
-        pages: ['Quem é?', 'Função biológica', 'Função no jogo', 'Atenção didática'] },
-      { id: 'presentation-mycoparasitism', cardId: 'process-mycoparasitism',
-        triggerIds: ['process-mycoparasitism'], autoOpenTrigger: 'process-mycoparasitism',
+      { id: 'presentation-iron-competition', cardId: 'process-iron-competition',
+        triggerIds: ['process-iron-competition'], autoOpenTrigger: 'process-iron-competition',
         policy: 'guided-sequence', suppressIndividualCards: false,
-        prerequisitePresentationIds: ['presentation-opportunistic-fungus', 'presentation-trichoderma'],
-        debutChunk: 22, moduleId: 'p5-biocontrol-intro',
-        pages: ['O que é?', 'Mecanismos', 'Função no jogo', 'Sinergias'] },
+        prerequisitePresentationIds: ['presentation-opportunistic-fungus', 'presentation-pseudomonas'],
+        debutChunk: 13, moduleId: 'p5-interaction',
+        pages: ['Competição por ferro', 'Vigor reduzido', 'Efeito no jogo', 'Sem eliminação direta'] },
     ],
     unlockEvents: [], pathogenDebuts: [],
     segments: [
-      { id: 'p5-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'dash'] },
-      { id: 'p5-pseudo-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided', debutPresentationIds: ['presentation-pseudomonas'], mechanicsRequired: ['inoculation'] },
-      { id: 'p5-pseudo-practice', kind: 'procedural', from: 9, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
-      { id: 'p5-biocontrol-intro', kind: 'fixed', from: 18, to: 22, tutorialMode: 'guided',
-        debutPresentationIds: ['presentation-opportunistic-fungus', 'presentation-trichoderma', 'presentation-mycoparasitism'],
-        mechanicsRequired: ['inoculation'] },
-      { id: 'p5-challenge', kind: 'procedural', from: 23, to: 35, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
-      { id: 'p5-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
+      { id: 'p5-fungus-intro', kind: 'fixed', from: 0, to: 5, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-opportunistic-fungus'], mechanicsRequired: [] },
+      { id: 'p5-pseudo-intro', kind: 'fixed', from: 6, to: 11, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-pseudomonas'], mechanicsRequired: ['inoculation'] },
+      { id: 'p5-interaction', kind: 'fixed', from: 12, to: 14, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-iron-competition'], mechanicsRequired: ['inoculation'] },
+      { id: 'p5-challenge', kind: 'procedural', from: 15, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
+      { id: 'p5-final', kind: 'final', from: 18, to: 19, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
     ],
-    finalTest: { id: 'p5-test', goal: 'Atingir reserva de ferro e neutralizar um foco oportunista.', requires: [
+    finalTest: { id: 'p5-test', goal: 'Controle o vigor do fungo com a reserva de ferro e alcance a raiz final.', requires: [
       { type: 'worldState', key: 'pseudomonasIronReserve', operator: '>=', value: 1 },
-      { type: 'worldState', key: 'neutralizedOpportunisticFungusCount', operator: '>=', value: 1 },
+      { type: 'worldState', key: 'opportunisticFungusVigor', operator: '<=', value: .25 },
+      { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
     ]}, notes: [],
   },
 
@@ -818,6 +833,33 @@ export function validateCampaignManifest({
       if (bridge.introVerticalOffset !== undefined
         && (!Number.isFinite(bridge.introVerticalOffset) || Math.abs(bridge.introVerticalOffset) > 68)) {
         errors.push(`${phase.id}: mycorrhizaBridge.introVerticalOffset invalido.`);
+      }
+    }
+
+    if (phase.opportunisticFungus) {
+      for (const key of ['contaminationRate', 'recoveryRate', 'hyphalGrowthRate', 'sporulationRate']) {
+        if (!Number.isFinite(phase.opportunisticFungus[key]) || phase.opportunisticFungus[key] < 0) {
+          errors.push(`${phase.id}: opportunisticFungus.${key} inválido.`);
+        }
+      }
+      for (const key of ['movementSpeedReduction', 'accelerationReduction', 'jumpImpulseReduction']) {
+        const value = phase.opportunisticFungus[key];
+        if (!Number.isFinite(value) || value < 0 || value >= 1) {
+          errors.push(`${phase.id}: opportunisticFungus.${key} deve estar entre 0 e 1.`);
+        }
+      }
+    }
+
+    if (phase.pseudomonasIronControl) {
+      const control = phase.pseudomonasIronControl;
+      if (!Number.isFinite(control.minimumIronReserve) || control.minimumIronReserve < 0) {
+        errors.push(`${phase.id}: pseudomonasIronControl.minimumIronReserve inválido.`);
+      }
+      for (const key of ['minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']) {
+        const value = control[key];
+        if (!Number.isFinite(value) || value < 0 || value > 1) {
+          errors.push(`${phase.id}: pseudomonasIronControl.${key} deve estar entre 0 e 1.`);
+        }
       }
     }
 
