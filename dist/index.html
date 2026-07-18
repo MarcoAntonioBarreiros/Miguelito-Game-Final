@@ -873,16 +873,7 @@ html.tutorial-open #tutorial-library-button {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel } = __require("src/procgen/generator.js");
-const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");
-const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");
-const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");
-const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");
-const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");
-const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
-const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");
-const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");
-const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
+const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
@@ -2852,14 +2843,7 @@ function generatePrimitives() {
 Object.assign(__exports, { generatePrimitives });
 },
 "src/procgen/simulator.js": (__exports, __require) => {
-const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");
-const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");
-const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");
-const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");
-const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");
-const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");
-const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");
-const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
+const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
 function createEmptyLevel() {
   return {
     platforms: [], hazards: [], crystals: [], enemies: [], exudates: [],
@@ -3632,8 +3616,7 @@ function createMicrobeArt() {
 Object.assign(__exports, { microbeCatalog, microbeEncounters, createMicrobeArt });
 },
 "src/procgen/campaign-progression.js": (__exports, __require) => {
-const { CAMPAIGN_UNLOCKS, campaignManifest, getPathogenStartChunk, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
-const { setLogicCampaignProfile } = __require("src/procgen/logic.js");
+const { CAMPAIGN_UNLOCKS, campaignManifest, getPathogenStartChunk, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { setLogicCampaignProfile } = __require("src/procgen/logic.js");
 const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash', 'pulse']);
 const DEFAULT_START_PHASE = 1;
 const campaignStorage = new WeakMap();
@@ -5533,8 +5516,7 @@ function colorWithAlpha(color, alpha) {
 Object.assign(__exports, { TAU, clamp, angleDelta, smoothHyphalNoise, HYPHAL_PROFILES, createHyphalTip, createHyphalNetwork, updateHyphalNetwork, renderHyphalNetwork, drawArbuscule });
 },
 "src/procgen/mycorrhiza-structures.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");
-const { getPhaseManifest, MYCORRHIZA_BRIDGE_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
+const { W } = __require("src/core/constants.js");const { getPhaseManifest, MYCORRHIZA_BRIDGE_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -5696,7 +5678,10 @@ function createMycorrhizaStructures({ state, entities }) {
   }
 
   function tryCreateFromCloud(cloud) {
-    if (!state.player.canDash || cloud.mycorrhizaStructureHandled) return;
+    // O runtime desta estrutura ja e chamado somente depois do desbloqueio de
+    // mycorrhizaStructures. O Dash pertence a um evento posterior da Fase 4 e
+    // nao pode impedir a demonstracao nem a pratica da ponte micorrizica.
+    if (cloud.mycorrhizaStructureHandled) return;
     const age = (cloud.maxLife || 10) - cloud.life;
     if (age < .55 || cloud.radius < 72) return;
     const sourceInfo = nearestSourcePlatform(state, cloud);
@@ -8702,8 +8687,7 @@ function createRhizobiumNodulation({ state, entities, inoculants }) {
 Object.assign(__exports, { createRhizobiumNodulation });
 },
 "src/procgen/nitrogen-root.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");
-const { createRandom } = __require("src/procgen/random.js");
+const { W } = __require("src/core/constants.js");const { createRandom } = __require("src/procgen/random.js");
 const NITROGEN_ROOT_BLOCK_TYPE = 'underdeveloped-nitrogen-root';
 
 const TAU = Math.PI * 2;
@@ -9128,9 +9112,7 @@ function createNitrogenRootDevelopment({ state, entities = null } = {}) {
 Object.assign(__exports, { NITROGEN_ROOT_BLOCK_TYPE, generateUnderdevelopedNitrogenRoots, createNitrogenRootDevelopment });
 },
 "src/procgen/azospirillum-root-growth.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");
-const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
-const { createRandom } = __require("src/procgen/random.js");
+const { W } = __require("src/core/constants.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
 const AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE = 'azospirillum-root-ladder';
 
 const TAU = Math.PI * 2;
@@ -12212,8 +12194,7 @@ function createFixedBlockRuntime({ state, evaluator, entities, ecology = null })
 Object.assign(__exports, { applyPhaseOneVerticalSlice, createFixedBlockRuntime });
 },
 "src/procgen/phase-lab-config.js": (__exports, __require) => {
-const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, campaignManifest, getProceduralPoolAt, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");
-const { createRandom } = __require("src/procgen/random.js");
+const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, campaignManifest, getProceduralPoolAt, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
 const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v2';
 const PHASE_LAB_MAX_RESOURCES = 100;
 
@@ -12484,8 +12465,7 @@ function applyPhaseLabResources(level, phaseManifest, seedValue) {
 Object.assign(__exports, { PHASE_LAB_STORAGE_KEY, PHASE_LAB_MAX_RESOURCES, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, createDefaultPhaseLabConfig, buildPhaseLabManifest, validatePhaseLabConfig, applyPhaseLabResources });
 },
 "src/procgen/phase-lab.js": (__exports, __require) => {
-const { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");
-const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
+const { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 
 function readConfig(storage) {

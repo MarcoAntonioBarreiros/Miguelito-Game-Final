@@ -162,7 +162,10 @@ export function createMycorrhizaStructures({ state, entities }) {
   }
 
   function tryCreateFromCloud(cloud) {
-    if (!state.player.canDash || cloud.mycorrhizaStructureHandled) return;
+    // O runtime desta estrutura ja e chamado somente depois do desbloqueio de
+    // mycorrhizaStructures. O Dash pertence a um evento posterior da Fase 4 e
+    // nao pode impedir a demonstracao nem a pratica da ponte micorrizica.
+    if (cloud.mycorrhizaStructureHandled) return;
     const age = (cloud.maxLife || 10) - cloud.life;
     if (age < .55 || cloud.radius < 72) return;
     const sourceInfo = nearestSourcePlatform(state, cloud);

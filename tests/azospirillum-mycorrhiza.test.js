@@ -355,7 +355,7 @@ test('micorriza gera somente pontes predominantemente horizontais', () => {
   const cloud = { id: 'myco-cloud', x: 282, y: 475, radius: 95, maxLife: 10, life: 9 };
   const state = {
     gameState: 'play', time: 0, cameraX: 0,
-    campaign: { phase: 4 }, player: { soil: 0, hope: 0, canDash: true },
+    campaign: { phase: 4 }, player: { soil: 0, hope: 0, canDash: false },
     level: { campaignPhase: 4, platforms: [source, target, upper], exudateClouds: [cloud] },
   };
   const structures = createMycorrhizaStructures({ state, entities: { burst() {} } });
@@ -365,4 +365,40 @@ test('micorriza gera somente pontes predominantemente horizontais', () => {
   assert.equal(structures.bridgeCount, 1);
   assert.equal(structures.structures.every(structure => structure.type === 'bridge'), true);
   assert.equal(structures.structures.every(structure => Math.abs(structure.end.y - structure.start.y) <= 68), true);
+  assert.equal(state.player.canDash, false, 'a ponte deve funcionar antes do desbloqueio do Dash');
+});
+
+test('seed padrao do Phase Lab 4 forma a ponte antes do Dash', () => {
+  const campaign = createCampaign('phase-lab-4');
+  campaign.phase = 4;
+  campaign.unlocks = getPersistentUnlocksBeforePhase(4);
+  const profile = prepareCampaignGeneration(campaign);
+  const seedValue = campaignPhaseSeed(campaign);
+  const level = decorateCampaignLevel(generateLevel(seedValue), campaign, profile);
+  const source = level.platforms.find(platform => !platform.recovery && platform.logicIndex === 8);
+  assert.ok(source, 'a seed padrao deve conter a raiz do desbloqueio micorrizico');
+
+  const cloud = {
+    id: 'phase-lab-4-cloud',
+    x: source.x + source.w - 20,
+    y: source.y - 20,
+    radius: 95,
+    maxLife: 10,
+    life: 9,
+  };
+  level.exudateClouds = [cloud];
+  const state = {
+    gameState: 'play', time: 0, cameraX: 0,
+    campaign: { phase: 4 },
+    player: { soil: 0, hope: 0, canDash: false },
+    level,
+  };
+  const structures = createMycorrhizaStructures({ state, entities: { burst() {} } });
+  structures.update(.8);
+
+  assert.equal(structures.bridgeCount, 1);
+  assert.equal(structures.structures[0].source.logicIndex, 8);
+  assert.ok(structures.structures[0].target.logicIndex > 8);
+  assert.ok(Math.abs(structures.structures[0].end.y - structures.structures[0].start.y) <= 68);
+  assert.equal(state.player.canDash, false);
 });
