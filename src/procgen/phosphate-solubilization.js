@@ -84,6 +84,7 @@ function pointOnRoute(points, progress) {
 
 export function createPhosphateSolubilization({ state, input, entities, selection, bacillus }) {
   let charge = 0;
+  let chargeParticleCooldown = 0;
   let eHeldLast = false;
   let shots = [];
   let chargeParticles = [];
@@ -139,13 +140,20 @@ export function createPhosphateSolubilization({ state, input, entities, selectio
         const consumed = Math.min(gain, entry.phosphateMetaboliteReserve, config.maximumCharge - charge);
         charge = clamp(charge + consumed, 0, config.maximumCharge);
         entry.phosphateMetaboliteReserve -= consumed;
-        if (consumed > 0 && chargeParticles.length < 22) {
+        // Uma particula por quadro empilhava tudo na mesma reta, com fase quase
+        // identica: virava um tracejado rigido. Agora saem espacadas no tempo,
+        // de pontos diferentes da colonia e com fase propria.
+        chargeParticleCooldown -= dt;
+        if (consumed > 0 && chargeParticleCooldown <= 0 && chargeParticles.length < 10) {
+          chargeParticleCooldown = .16;
+          const spread = (Math.random() - .5) * 26;
           chargeParticles.push({
-            fromX: entry.colony.x,
-            fromY: entry.colony.y,
+            fromX: entry.colony.x + spread,
+            fromY: entry.colony.y + (Math.random() - .5) * 14,
             progress: 0,
-            speed: 1.5 + charge * 1.2,
-            phase: state.time * 5,
+            speed: .9 + Math.random() * .5,
+            phase: Math.random() * TAU,
+            swing: 7 + Math.random() * 9,
           });
         }
       }
@@ -286,24 +294,43 @@ export function createPhosphateSolubilization({ state, input, entities, selectio
         ctx.beginPath(); ctx.arc(point.x, point.y, 3.2, 0, TAU); ctx.fill();
       }
     }
+    // O disparo era um triangulo chapado do jogador ate a frente da onda. Agora
+    // e uma frente de acidos organicos: nucleo estreito que desvanece atras e
+    // gotas soltas na borda, sem aresta reta.
     for (const shot of shots) {
-      const width = 10 + shot.distance * (.12 + shot.charge * .13);
-      ctx.fillStyle = 'rgba(223,145,255,.20)';
+      const width = 8 + shot.distance * (.05 + shot.charge * .05);
+      const tail = Math.max(shot.originX * shot.direction, (shot.x - shot.direction * 130) * shot.direction) * shot.direction;
+      const gradient = ctx.createLinearGradient(tail, shot.y, shot.x, shot.y);
+      gradient.addColorStop(0, 'rgba(223,145,255,0)');
+      gradient.addColorStop(1, 'rgba(240,190,255,.5)');
+      ctx.fillStyle = gradient;
       ctx.beginPath();
-      ctx.moveTo(shot.originX, shot.originY);
-      ctx.lineTo(shot.x, shot.y - width);
-      ctx.lineTo(shot.x, shot.y + width);
-      ctx.closePath(); ctx.fill();
+      ctx.moveTo(tail, shot.y);
+      ctx.quadraticCurveTo((tail + shot.x) / 2, shot.y - width, shot.x, shot.y);
+      ctx.quadraticCurveTo((tail + shot.x) / 2, shot.y + width, tail, shot.y);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,214,255,.7)';
+      for (let i = 0; i < 4; i++) {
+        const along = (i + 1) / 5;
+        const dx = tail + (shot.x - tail) * along;
+        const dy = shot.y + Math.sin(shot.distance * .05 + i * 1.9) * width * .7;
+        ctx.beginPath();
+        ctx.arc(dx, dy, 1.6 + (1 - along) * 1.4, 0, TAU);
+        ctx.fill();
+      }
     }
     for (const particle of chargeParticles) {
       const px = state.player.x + state.player.w / 2;
       const py = state.player.y + state.player.h * .45;
       const t = clamp(particle.progress, 0, 1);
       const x = particle.fromX + (px - particle.fromX) * t;
-      const y = particle.fromY + (py - particle.fromY) * t + Math.sin(t * TAU + particle.phase) * 9;
+      const y = particle.fromY + (py - particle.fromY) * t
+        + Math.sin(t * Math.PI) * particle.swing * Math.sin(particle.phase);
       ctx.fillStyle = '#e8a4ff';
-      ctx.globalAlpha = .35 + t * .65;
-      ctx.beginPath(); ctx.arc(x, y, 2.2 + t, 0, TAU); ctx.fill();
+      ctx.globalAlpha = Math.sin(t * Math.PI) * .85;
+      ctx.beginPath(); ctx.arc(x, y, 1.8 + t * 1.6, 0, TAU); ctx.fill();
     }
     if (charge > 0) {
       const px = state.player.x + state.player.w / 2;
