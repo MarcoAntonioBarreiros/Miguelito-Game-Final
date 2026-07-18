@@ -873,9 +873,7 @@ html.tutorial-open #tutorial-library-button {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");
-const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
-const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
+const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
@@ -4612,6 +4610,15 @@ const MICROBE_MOTION_PROFILES = {
     homePull: .30, playerPull: .11, wander: .82,
     kind: 'conidium', flagella: null, scale: .84, trail: false,
   },
+  // Fungo, nao bacteria: o micelio nao nada nem segue Miguelito. Fica ancorado
+  // onde estreia — homePull alto, velocidade e vagancia baixas — mas o inoculo
+  // pode ser capturado ali e carregado como o das bacterias.
+  myco: {
+    color: '#d6afff', count: 6, speed: 16, radius: 94,
+    cohesion: .17, alignment: .04, separation: 1.44,
+    homePull: .94, playerPull: .03, wander: .16,
+    kind: 'spore', flagella: null, scale: .86, trail: false,
+  },
 };
 
 function hashSeed(text) {
@@ -4736,15 +4743,37 @@ function drawSpore(ctx, time, agent, profile) {
   ctx.strokeStyle = 'rgba(255,255,255,.35)';
   ctx.lineWidth = 1;
   if (profile.kind === 'conidium') {
+    // Conidio e unicelular e nao nada: nao tem flagelo. O que existe na base e
+    // a cicatriz de desprendimento do conidioforo (hilo). A leitura interna vem
+    // da parede espessa e das guticulas lipidicas, nao de um apendice.
     ctx.beginPath();
     ctx.ellipse(0, 0, r * 1.18, r * .86, 0, 0, TAU);
     ctx.fill();
     ctx.stroke();
-    ctx.strokeStyle = `${profile.color}aa`;
+
+    ctx.save();
+    ctx.clip();
+    ctx.strokeStyle = `${profile.pale || 'rgba(255,255,255,.5)'}`;
+    ctx.globalAlpha = .5;
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.moveTo(-r * 1.1, 0);
-    ctx.quadraticCurveTo(-r * 2.4, r * .8, -r * 3.1, r * .15);
+    ctx.ellipse(0, 0, r * 1.02, r * .7, 0, 0, TAU);
     ctx.stroke();
+    ctx.globalAlpha = .38;
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.beginPath();
+    ctx.arc(r * .34, r * .16, Math.max(.9, r * .2), 0, TAU);
+    ctx.arc(-r * .38, r * .26, Math.max(.7, r * .15), 0, TAU);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.strokeStyle = `${profile.color}cc`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.12, -r * .2);
+    ctx.lineTo(-r * 1.12, r * .2);
+    ctx.stroke();
+    ctx.lineWidth = 1;
   } else {
     ctx.beginPath();
     for (let i = 0; i < 12; i++) {
@@ -6864,6 +6893,17 @@ const PROFILES = {
     role: 'zona supressiva',
     drain: .002,
   },
+  // A micorriza e fungo e nao vagueia, mas o inoculo se captura e se carrega
+  // como o das bacterias. Entrar aqui basta para valer todo o pipeline de
+  // captura, transporte e inoculacao, que e generico sobre PROFILES.
+  myco: {
+    label: 'Micorriza',
+    short: 'Micorriza',
+    color: '#d6afff',
+    pale: '#f0e4ff',
+    role: 'rede hifal',
+    drain: .0016,
+  },
 };
 
 const BENEFICIAL_TYPES = Object.keys(PROFILES);
@@ -7181,6 +7221,16 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
     // Um halo visual sem ferro capturado não controla o fungo.
   }
 
+  // A colonia micorrizica precisa colonizar a raiz antes de emitir hifa. O
+  // limiar espelha o do Azospirillum: so depois dele a estrutura pode nascer.
+  function updateMycorrhiza(colony, dt) {
+    colony.stage = colony.growth < .68 ? 'colonizando o cortex' : 'micélio ativo';
+    if (colony.growth < .68) return;
+    const factor = colony.sourceCount * colony.vigor;
+    state.player.soil += dt * .008 * factor;
+    state.player.hope += dt * .012 * factor;
+  }
+
   function updateColony(colony, dt) {
     colony.age += dt;
     colony.growth = clamp(colony.growth + dt * .3, 0, 1);
@@ -7205,6 +7255,7 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
     else if (colony.type === 'azospirillum') updateAzospirillum(colony, dt);
     else if (colony.type === 'pseudomonas') updatePseudomonas(colony, dt);
     else if (colony.type === 'bacillus') colony.stage = 'biofilme';
+    else if (colony.type === 'myco') updateMycorrhiza(colony, dt);
   }
 
   function update(dt) {
@@ -9956,6 +10007,17 @@ const MAX_VERTICAL_RISE = 300;
 const FIRST_DEMONSTRATION_VERTICAL_SPACING = 58;
 const BRANCH_WIDTH = 90;
 const ROOT_SWAY_MAX = 74;
+// A raiz lateral sobe, mas pode inclinar ate aqui para encontrar um bloco.
+// Passando disso o destino e ignorado e ela sobe reta.
+const MAX_LATERAL_REACH = 360;
+// Nitrogenio necessario para a escada atingir o alcance maximo.
+const STOCK_FOR_FULL_REACH = 8;
+const RUNTIME_STEP_COUNT = 4;
+const RUNTIME_GROWTH_SECONDS = 3;
+// Sem nitrogenio a raiz lateral mal supera um salto simples; com estoque cheio
+// ela alcanca alem do salto duplo. E o estoque que decide, nao a distancia.
+const RUNTIME_MIN_REACH = 96;
+const RUNTIME_MAX_REACH = 340;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -10382,8 +10444,12 @@ function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     ladder.paused = false;
     if (ladder.developed && !ladder.announced) {
       ladder.announced = true;
-      ladder.destination.rootSystemId = ladder.host.rootSystemId || `root-system-${ladder.hostLogicIndex}`;
-      ladder.host.rootSystemId = ladder.destination.rootSystemId;
+      // Uma escada sem bloco alvo sobe reta: ganha altura, mas nao ha destino
+      // com quem compartilhar o sistema radicular.
+      if (ladder.destination) {
+        ladder.destination.rootSystemId = ladder.host.rootSystemId || `root-system-${ladder.hostLogicIndex}`;
+        ladder.host.rootSystemId = ladder.destination.rootSystemId;
+      }
       state.player.soil += 4.5;
       state.player.hope += 3.2;
       entities?.burst?.(ladder.endX, ladder.endY, '#d7ba7d', 34, 140);
@@ -10391,8 +10457,115 @@ function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     }
   }
 
+  let runtimeLadderId = 0;
+
+  // A escada e efeito da inoculacao, nao recurso do nivel: onde a colonia de
+  // Azospirillum amadurece sobre uma raiz, a raiz lateral sai dali.
+  function createRuntimeLadder(host, destination, reach) {
+    const start = topPoint(host, host.x + host.w / 2);
+    const end = destination
+      ? topPoint(destination, start.x)
+      : { x: start.x, y: Math.max(70, host.y - reach) };
+    if (end.y >= start.y - 40) return null;
+
+    const id = `azo-ladder-runtime-${++runtimeLadderId}`;
+    const swayDirection = Math.sign(end.x - start.x || 1);
+    const sway = swayDirection * Math.min(ROOT_SWAY_MAX, 18 + Math.abs(end.x - start.x) * .2);
+    const steps = Array.from({ length: RUNTIME_STEP_COUNT }, (_, index) => {
+      const t = (index + 1) / (RUNTIME_STEP_COUNT + 1);
+      return {
+        id: `${id}-step-${index + 1}`,
+        index,
+        centerX: lerp(start.x, end.x, t) + Math.sin(t * Math.PI) * sway,
+        y: lerp(start.y, end.y, t),
+        startWidth: 14,
+        startHeight: 4,
+        targetWidth: BRANCH_WIDTH,
+        targetHeight: 12,
+        currentWidth: 14,
+        currentHeight: 4,
+        progress: 0,
+        mature: false,
+        collider: null,
+      };
+    });
+
+    return {
+      id,
+      host,
+      hostLogicIndex: host.logicIndex ?? -1,
+      destination,
+      startX: start.x,
+      startY: start.y,
+      endX: end.x,
+      endY: end.y,
+      reach,
+      steps,
+      growthDurationSeconds: RUNTIME_GROWTH_SECONDS,
+      phase: (host.x % 97) / 97 * TAU,
+      progress: 0,
+      visibleProgress: 0,
+      mature: false,
+      developed: false,
+      paused: false,
+      announced: false,
+      colony: null,
+    };
+  }
+
+  // O nitrogenio disponivel governa quanto a raiz lateral cresce: fixacao
+  // associativa do proprio Azospirillum mais a simbiotica dos nodulos. Trocar a
+  // fonte aqui e suficiente para trocar a regra de alcance.
+  function nitrogenStock() {
+    const associative = state.azospirillumNitrogen?.associativeNitrogenRate || 0;
+    const symbiotic = (state.level.rhizobiumNodules || [])
+      .reduce((sum, site) => sum + (site.fixationRate || 0), 0);
+    return associative + symbiotic;
+  }
+
+  function reachFromStock() {
+    const supply = clamp(nitrogenStock() / STOCK_FOR_FULL_REACH, 0, 1);
+    return RUNTIME_MIN_REACH + supply * (RUNTIME_MAX_REACH - RUNTIME_MIN_REACH);
+  }
+
+  // A plataforma e a parede da raiz: a raiz lateral sai dela para cima. Havendo
+  // bloco alcancavel, a escada inclina em direcao a ele; senao sobe reta.
+  function destinationFor(host, reach) {
+    const hostCenter = host.x + host.w / 2;
+    let best = null;
+    for (const candidate of state.level.platforms || []) {
+      if (candidate === host || candidate.azospirillumStructure || candidate.mycorrhizaStructure) continue;
+      if (candidate.mycorrhizaIntroDestination) continue;
+      const rise = host.y - candidate.y;
+      if (rise < 60 || rise > reach) continue;
+      const point = topPoint(candidate, hostCenter);
+      const dx = Math.abs(point.x - hostCenter);
+      if (dx > MAX_LATERAL_REACH) continue;
+      const score = dx + rise * .4;
+      if (!best || score < best.score) best = { platform: candidate, score };
+    }
+    return best?.platform || null;
+  }
+
+  function spawnLaddersFromColonies() {
+    for (const colony of inoculants.colonies || []) {
+      if (colony.type !== 'azospirillum' || colony.dormant) continue;
+      if (colony.growth < .68 || colony.vigor <= .05) continue;
+      const host = colony.platform;
+      if (!host || host.type !== 'root' || host.final) continue;
+      if (host.azospirillumStructure || host.mycorrhizaStructure) continue;
+      if (ladders().some(ladder => ladder.host === host)) continue;
+
+      const reach = reachFromStock();
+      const ladder = createRuntimeLadder(host, destinationFor(host, reach), reach);
+      if (ladder) state.level.azospirillumRootLadders.push(ladder);
+    }
+  }
+
   function update(dt) {
     if (state.gameState !== 'play') return;
+    if (!state.level.azospirillumRootLadders) state.level.azospirillumRootLadders = [];
+    spawnLaddersFromColonies();
     for (const ladder of ladders()) updateLadder(ladder, dt);
     state.level.azospirillumRoots = ladders();
   }
@@ -16646,8 +16819,7 @@ function createTrichodermaRhizoctoniaControl({ state, entities, colonies }) {
 Object.assign(__exports, { createTrichodermaRhizoctoniaControl });
 },
 "src/procgen/ralstonia-vascular-wilt.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");
-const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { W } = __require("src/core/constants.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -17365,7 +17537,7 @@ function ensureTutorialInterface() {
 Object.assign(__exports, { ensureTutorialInterface });
 },
 "src/procgen/tutorial-manager.js": (__exports, __require) => {
-const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");
+const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");const { getCardsTaughtBeforePhase } = __require("src/procgen/tutorial-prior-knowledge.js");
 const TUTORIAL_STORAGE_KEYS = Object.freeze({
   seen: 'miguelito:tutorial:seen:v3',
   unlocked: 'miguelito:tutorial:unlocked:v3',
@@ -17816,6 +17988,20 @@ function createTutorialManager({ state }) {
     return true;
   }
 
+  // Ao entrar numa fase, tudo que fases anteriores ensinaram passa a valer como
+  // já visto: o cartão continua disponível no GUIA, mas não volta a interromper
+  // a partida. É o equivalente didático dos poderes persistentes da campanha.
+  // Organismos que estreiam nesta fase não são tocados aqui.
+  function syncPriorKnowledge(phase) {
+    const recorded = [];
+    for (const cardId of getCardsTaughtBeforePhase(phase)) {
+      if (flow.hasSeen(cardId)) continue;
+      if (flow.markSeen(cardId)) recorded.push(cardId);
+    }
+    if (recorded.length) persist();
+    return recorded;
+  }
+
   function clearStoredTutorialProgress() {
     flow.clear();
     pendingMandatory = null;
@@ -17882,6 +18068,7 @@ function createTutorialManager({ state }) {
     isUnlocked: id => flow.isUnlocked(id),
     getUnlockedPages: id => flow.pagesFor(id),
     trigger,
+    syncPriorKnowledge,
     openCard: id => openCard(id, { fromLibrary: false, firstSeen: !flow.hasSeen(id) }),
     openLibrary,
     resetTutorialProgress,
@@ -18892,6 +19079,32 @@ function createTutorialFlow({ seen = [], unlocked = [], pages = {} } = {}) {
 }
 Object.assign(__exports, { createTutorialFlow });
 },
+"src/procgen/tutorial-prior-knowledge.js": (__exports, __require) => {
+const { getActiveCampaignManifest } = __require("src/procgen/campaign-manifest.js");
+// Um cartão apresentado numa fase anterior já foi ensinado. Quando a campanha
+// começa direto numa fase adiantada — pelo Phase Lab ou por uma retomada — esse
+// conhecimento precisa nascer registrado, do mesmo modo que
+// getPersistentUnlocksBeforePhase devolve os poderes já conquistados. Sem isso o
+// pool procedural da fase reapresenta Bacillus e Rhizobium como se fossem
+// inéditos, e quanto mais curta a fase mais os cartões antigos dominam a cena.
+//
+// Isto não alcança os organismos que estreiam na fase atual: uma estreia
+// continua sendo apresentada na primeira aparição, sem espera.
+function getCardsTaughtBeforePhase(phase) {
+  const limit = Number(phase);
+  if (!Number.isInteger(limit)) return [];
+
+  const cards = new Set();
+  for (const entry of getActiveCampaignManifest()) {
+    if (!Number.isInteger(entry.phase) || entry.phase >= limit) continue;
+    for (const presentation of entry.presentations || []) {
+      if (presentation.cardId) cards.add(presentation.cardId);
+    }
+  }
+  return [...cards];
+}
+Object.assign(__exports, { getCardsTaughtBeforePhase });
+},
 "src/procgen/tutorial-triggers.js": (__exports, __require) => {
 const { W } = __require("src/core/constants.js");const { getTutorialModeAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -18930,6 +19143,7 @@ function createTutorialTriggers({
   let resumeDelayUntil = 0;
   let lastUnexpectedFirstAppearance = null;
   let lastSimultaneousFirstEncounters = null;
+  let knownPhase = null;
 
   function conditionSnapshot() {
     return {
@@ -19012,6 +19226,17 @@ function createTutorialTriggers({
   function trigger(id, condition, extra = {}) {
     return Boolean(condition && manager.trigger(id, tutorialContext(extra)));
   }
+
+  // Cada fase entra assumindo o que as anteriores já ensinaram. Roda na criação
+  // e a cada troca de fase, sem depender do primeiro quadro do loop.
+  function syncPhaseKnowledge() {
+    const phase = state.campaign?.phase;
+    if (!Number.isInteger(phase) || phase === knownPhase) return;
+    knownPhase = phase;
+    manager.syncPriorKnowledge?.(phase);
+  }
+
+  syncPhaseKnowledge();
 
   function organismCandidates() {
     const candidatesByCard = new Map();
@@ -19146,6 +19371,8 @@ function createTutorialTriggers({
 
   function update() {
     if (manager.isOpen || state.gameState !== 'play' || state.campaign?.transitionRequested) return;
+
+    syncPhaseKnowledge();
 
     const now = performance.now();
     if (now < resumeDelayUntil || now - lastCheckAt < 140) return;

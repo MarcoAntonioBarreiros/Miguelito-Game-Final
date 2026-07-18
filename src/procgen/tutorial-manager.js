@@ -1,6 +1,7 @@
 import { getTutorialCard, tutorialCardIds, tutorialCards } from './tutorial-registry.js';
 import { tutorialPacing } from './campaign-manifest.js';
 import { createTutorialFlow } from './tutorial-flow.js';
+import { getCardsTaughtBeforePhase } from './tutorial-prior-knowledge.js';
 
 export const TUTORIAL_STORAGE_KEYS = Object.freeze({
   seen: 'miguelito:tutorial:seen:v3',
@@ -452,6 +453,20 @@ export function createTutorialManager({ state }) {
     return true;
   }
 
+  // Ao entrar numa fase, tudo que fases anteriores ensinaram passa a valer como
+  // já visto: o cartão continua disponível no GUIA, mas não volta a interromper
+  // a partida. É o equivalente didático dos poderes persistentes da campanha.
+  // Organismos que estreiam nesta fase não são tocados aqui.
+  function syncPriorKnowledge(phase) {
+    const recorded = [];
+    for (const cardId of getCardsTaughtBeforePhase(phase)) {
+      if (flow.hasSeen(cardId)) continue;
+      if (flow.markSeen(cardId)) recorded.push(cardId);
+    }
+    if (recorded.length) persist();
+    return recorded;
+  }
+
   function clearStoredTutorialProgress() {
     flow.clear();
     pendingMandatory = null;
@@ -518,6 +533,7 @@ export function createTutorialManager({ state }) {
     isUnlocked: id => flow.isUnlocked(id),
     getUnlockedPages: id => flow.pagesFor(id),
     trigger,
+    syncPriorKnowledge,
     openCard: id => openCard(id, { fromLibrary: false, firstSeen: !flow.hasSeen(id) }),
     openLibrary,
     resetTutorialProgress,

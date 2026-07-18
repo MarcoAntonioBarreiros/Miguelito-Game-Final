@@ -36,6 +36,17 @@ const PROFILES = {
     role: 'zona supressiva',
     drain: .002,
   },
+  // A micorriza e fungo e nao vagueia, mas o inoculo se captura e se carrega
+  // como o das bacterias. Entrar aqui basta para valer todo o pipeline de
+  // captura, transporte e inoculacao, que e generico sobre PROFILES.
+  myco: {
+    label: 'Micorriza',
+    short: 'Micorriza',
+    color: '#d6afff',
+    pale: '#f0e4ff',
+    role: 'rede hifal',
+    drain: .0016,
+  },
 };
 
 const BENEFICIAL_TYPES = Object.keys(PROFILES);
@@ -353,6 +364,16 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     // Um halo visual sem ferro capturado não controla o fungo.
   }
 
+  // A colonia micorrizica precisa colonizar a raiz antes de emitir hifa. O
+  // limiar espelha o do Azospirillum: so depois dele a estrutura pode nascer.
+  function updateMycorrhiza(colony, dt) {
+    colony.stage = colony.growth < .68 ? 'colonizando o cortex' : 'micélio ativo';
+    if (colony.growth < .68) return;
+    const factor = colony.sourceCount * colony.vigor;
+    state.player.soil += dt * .008 * factor;
+    state.player.hope += dt * .012 * factor;
+  }
+
   function updateColony(colony, dt) {
     colony.age += dt;
     colony.growth = clamp(colony.growth + dt * .3, 0, 1);
@@ -377,6 +398,7 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     else if (colony.type === 'azospirillum') updateAzospirillum(colony, dt);
     else if (colony.type === 'pseudomonas') updatePseudomonas(colony, dt);
     else if (colony.type === 'bacillus') colony.stage = 'biofilme';
+    else if (colony.type === 'myco') updateMycorrhiza(colony, dt);
   }
 
   function update(dt) {

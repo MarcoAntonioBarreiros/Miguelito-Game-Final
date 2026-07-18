@@ -37,6 +37,7 @@ export function createTutorialTriggers({
   let resumeDelayUntil = 0;
   let lastUnexpectedFirstAppearance = null;
   let lastSimultaneousFirstEncounters = null;
+  let knownPhase = null;
 
   function conditionSnapshot() {
     return {
@@ -119,6 +120,17 @@ export function createTutorialTriggers({
   function trigger(id, condition, extra = {}) {
     return Boolean(condition && manager.trigger(id, tutorialContext(extra)));
   }
+
+  // Cada fase entra assumindo o que as anteriores já ensinaram. Roda na criação
+  // e a cada troca de fase, sem depender do primeiro quadro do loop.
+  function syncPhaseKnowledge() {
+    const phase = state.campaign?.phase;
+    if (!Number.isInteger(phase) || phase === knownPhase) return;
+    knownPhase = phase;
+    manager.syncPriorKnowledge?.(phase);
+  }
+
+  syncPhaseKnowledge();
 
   function organismCandidates() {
     const candidatesByCard = new Map();
@@ -253,6 +265,8 @@ export function createTutorialTriggers({
 
   function update() {
     if (manager.isOpen || state.gameState !== 'play' || state.campaign?.transitionRequested) return;
+
+    syncPhaseKnowledge();
 
     const now = performance.now();
     if (now < resumeDelayUntil || now - lastCheckAt < 140) return;

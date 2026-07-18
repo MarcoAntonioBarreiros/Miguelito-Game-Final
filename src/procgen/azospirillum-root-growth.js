@@ -11,6 +11,17 @@ const MAX_VERTICAL_RISE = 300;
 const FIRST_DEMONSTRATION_VERTICAL_SPACING = 58;
 const BRANCH_WIDTH = 90;
 const ROOT_SWAY_MAX = 74;
+// A raiz lateral sobe, mas pode inclinar ate aqui para encontrar um bloco.
+// Passando disso o destino e ignorado e ela sobe reta.
+const MAX_LATERAL_REACH = 360;
+// Nitrogenio necessario para a escada atingir o alcance maximo.
+const STOCK_FOR_FULL_REACH = 8;
+const RUNTIME_STEP_COUNT = 4;
+const RUNTIME_GROWTH_SECONDS = 3;
+// Sem nitrogenio a raiz lateral mal supera um salto simples; com estoque cheio
+// ela alcanca alem do salto duplo. E o estoque que decide, nao a distancia.
+const RUNTIME_MIN_REACH = 96;
+const RUNTIME_MAX_REACH = 340;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -437,8 +448,12 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     ladder.paused = false;
     if (ladder.developed && !ladder.announced) {
       ladder.announced = true;
-      ladder.destination.rootSystemId = ladder.host.rootSystemId || `root-system-${ladder.hostLogicIndex}`;
-      ladder.host.rootSystemId = ladder.destination.rootSystemId;
+      // Uma escada sem bloco alvo sobe reta: ganha altura, mas nao ha destino
+      // com quem compartilhar o sistema radicular.
+      if (ladder.destination) {
+        ladder.destination.rootSystemId = ladder.host.rootSystemId || `root-system-${ladder.hostLogicIndex}`;
+        ladder.host.rootSystemId = ladder.destination.rootSystemId;
+      }
       state.player.soil += 4.5;
       state.player.hope += 3.2;
       entities?.burst?.(ladder.endX, ladder.endY, '#d7ba7d', 34, 140);
@@ -446,8 +461,115 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     }
   }
 
+  let runtimeLadderId = 0;
+
+  // A escada e efeito da inoculacao, nao recurso do nivel: onde a colonia de
+  // Azospirillum amadurece sobre uma raiz, a raiz lateral sai dali.
+  function createRuntimeLadder(host, destination, reach) {
+    const start = topPoint(host, host.x + host.w / 2);
+    const end = destination
+      ? topPoint(destination, start.x)
+      : { x: start.x, y: Math.max(70, host.y - reach) };
+    if (end.y >= start.y - 40) return null;
+
+    const id = `azo-ladder-runtime-${++runtimeLadderId}`;
+    const swayDirection = Math.sign(end.x - start.x || 1);
+    const sway = swayDirection * Math.min(ROOT_SWAY_MAX, 18 + Math.abs(end.x - start.x) * .2);
+    const steps = Array.from({ length: RUNTIME_STEP_COUNT }, (_, index) => {
+      const t = (index + 1) / (RUNTIME_STEP_COUNT + 1);
+      return {
+        id: `${id}-step-${index + 1}`,
+        index,
+        centerX: lerp(start.x, end.x, t) + Math.sin(t * Math.PI) * sway,
+        y: lerp(start.y, end.y, t),
+        startWidth: 14,
+        startHeight: 4,
+        targetWidth: BRANCH_WIDTH,
+        targetHeight: 12,
+        currentWidth: 14,
+        currentHeight: 4,
+        progress: 0,
+        mature: false,
+        collider: null,
+      };
+    });
+
+    return {
+      id,
+      host,
+      hostLogicIndex: host.logicIndex ?? -1,
+      destination,
+      startX: start.x,
+      startY: start.y,
+      endX: end.x,
+      endY: end.y,
+      reach,
+      steps,
+      growthDurationSeconds: RUNTIME_GROWTH_SECONDS,
+      phase: (host.x % 97) / 97 * TAU,
+      progress: 0,
+      visibleProgress: 0,
+      mature: false,
+      developed: false,
+      paused: false,
+      announced: false,
+      colony: null,
+    };
+  }
+
+  // O nitrogenio disponivel governa quanto a raiz lateral cresce: fixacao
+  // associativa do proprio Azospirillum mais a simbiotica dos nodulos. Trocar a
+  // fonte aqui e suficiente para trocar a regra de alcance.
+  function nitrogenStock() {
+    const associative = state.azospirillumNitrogen?.associativeNitrogenRate || 0;
+    const symbiotic = (state.level.rhizobiumNodules || [])
+      .reduce((sum, site) => sum + (site.fixationRate || 0), 0);
+    return associative + symbiotic;
+  }
+
+  function reachFromStock() {
+    const supply = clamp(nitrogenStock() / STOCK_FOR_FULL_REACH, 0, 1);
+    return RUNTIME_MIN_REACH + supply * (RUNTIME_MAX_REACH - RUNTIME_MIN_REACH);
+  }
+
+  // A plataforma e a parede da raiz: a raiz lateral sai dela para cima. Havendo
+  // bloco alcancavel, a escada inclina em direcao a ele; senao sobe reta.
+  function destinationFor(host, reach) {
+    const hostCenter = host.x + host.w / 2;
+    let best = null;
+    for (const candidate of state.level.platforms || []) {
+      if (candidate === host || candidate.azospirillumStructure || candidate.mycorrhizaStructure) continue;
+      if (candidate.mycorrhizaIntroDestination) continue;
+      const rise = host.y - candidate.y;
+      if (rise < 60 || rise > reach) continue;
+      const point = topPoint(candidate, hostCenter);
+      const dx = Math.abs(point.x - hostCenter);
+      if (dx > MAX_LATERAL_REACH) continue;
+      const score = dx + rise * .4;
+      if (!best || score < best.score) best = { platform: candidate, score };
+    }
+    return best?.platform || null;
+  }
+
+  function spawnLaddersFromColonies() {
+    for (const colony of inoculants.colonies || []) {
+      if (colony.type !== 'azospirillum' || colony.dormant) continue;
+      if (colony.growth < .68 || colony.vigor <= .05) continue;
+      const host = colony.platform;
+      if (!host || host.type !== 'root' || host.final) continue;
+      if (host.azospirillumStructure || host.mycorrhizaStructure) continue;
+      if (ladders().some(ladder => ladder.host === host)) continue;
+
+      const reach = reachFromStock();
+      const ladder = createRuntimeLadder(host, destinationFor(host, reach), reach);
+      if (ladder) state.level.azospirillumRootLadders.push(ladder);
+    }
+  }
+
   function update(dt) {
     if (state.gameState !== 'play') return;
+    if (!state.level.azospirillumRootLadders) state.level.azospirillumRootLadders = [];
+    spawnLaddersFromColonies();
     for (const ladder of ladders()) updateLadder(ladder, dt);
     state.level.azospirillumRoots = ladders();
   }
