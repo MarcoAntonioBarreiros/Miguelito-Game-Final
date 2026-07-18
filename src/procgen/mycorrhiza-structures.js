@@ -116,6 +116,7 @@ export function createMycorrhizaStructures({ state, entities, inoculants = null 
   // os testes de geometria exercitam isoladamente.
   function maturedMycorrhizaOn(platform) {
     if (!activeInoculants) return true;
+    const colonies = activeInoculants.colonies || [];
     return colonies.some(colony => (
       colony.type === 'myco'
       && colony.platform === platform

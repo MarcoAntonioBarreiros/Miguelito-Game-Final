@@ -513,6 +513,61 @@ test('Azo fornece N associativo pequeno, nao cria nodulo e so potencializa Rhizo
   assert.equal(site.azospirillumSynergyActive, false);
 });
 
+// Este caminho — com sistema de inoculantes ligado — nao era exercitado por
+// nenhum teste, e por isso um ReferenceError nele passou direto e so aparecia
+// como congelamento em jogo, engolido pelo catch do loop principal.
+function cenaPonte({ colonies = [] } = {}) {
+  const origem = { x: 200, y: 400, w: 200, h: 60, type: 'root', logicIndex: 3 };
+  const destino = { x: 520, y: 400, w: 200, h: 60, type: 'root', logicIndex: 4 };
+  const state = {
+    gameState: 'play',
+    time: 0,
+    cameraX: 0,
+    campaign: { phase: 4 },
+    player: { soil: 0, hope: 0 },
+    level: {
+      platforms: [origem, destino],
+      exudateClouds: [{
+        id: 'nuvem', x: origem.x + origem.w - 16, y: origem.y - 18,
+        radius: 95, maxLife: 10, life: 9,
+      }],
+      particles: [],
+    },
+  };
+  const structures = createMycorrhizaStructures({
+    state, entities: { burst() {} },
+  });
+  return { state, structures, origem, destino };
+}
+
+test('a ponte exige colonia de micorriza inoculada e nao quebra o loop sem ela', () => {
+  const semColonia = cenaPonte();
+  semColonia.structures.setInoculants({ colonies: [] });
+  // O que importa aqui e nao lancar: um erro neste ponto congela o jogo inteiro.
+  assert.doesNotThrow(() => semColonia.structures.update(.8));
+  assert.equal(semColonia.structures.bridgeCount, 0, 'exsudato solto nao cria ponte');
+
+  const comColonia = cenaPonte();
+  comColonia.structures.setInoculants({
+    colonies: [{
+      type: 'myco', platform: comColonia.origem,
+      growth: 1, vigor: 1, dormant: false,
+    }],
+  });
+  assert.doesNotThrow(() => comColonia.structures.update(.8));
+  assert.equal(comColonia.structures.bridgeCount, 1, 'com micorriza madura na origem, a ponte nasce');
+
+  const imatura = cenaPonte();
+  imatura.structures.setInoculants({
+    colonies: [{
+      type: 'myco', platform: imatura.origem,
+      growth: .2, vigor: 1, dormant: false,
+    }],
+  });
+  imatura.structures.update(.8);
+  assert.equal(imatura.structures.bridgeCount, 0, 'colonia ainda imatura nao sustenta ponte');
+});
+
 test('micorriza gera somente pontes predominantemente horizontais', () => {
   const source = { x: 100, y: 500, w: 200, h: 60, type: 'root', logicIndex: 4 };
   const target = { x: 430, y: 520, w: 210, h: 60, type: 'root', logicIndex: 5 };
