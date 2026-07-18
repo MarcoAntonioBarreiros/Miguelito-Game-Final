@@ -241,6 +241,9 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
       sporeAccumulator: 0,
       response: null,
       attached: 0,
+      attachmentGrace: 0,
+      activated: false,
+      activatedAt: null,
       reachedLesions: 1,
     };
     const availableTargets = Math.max(1, network.lesions.length - 1);
@@ -391,8 +394,22 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     for (const agent of network.agents) agent.fungalVigor = response.vigor;
     maximumIronLimitation = Math.max(maximumIronLimitation, limitation);
 
+    const distanceToPlayer = Math.hypot(
+      network.anchor.x - target.x,
+      network.anchor.y - target.y,
+    );
+    const insideActiveView = network.anchor.x >= state.cameraX - 90
+      && network.anchor.x <= state.cameraX + W + 140;
+    if (!network.activated && insideActiveView && distanceToPlayer <= 560) {
+      network.activated = true;
+      network.activatedAt = state.time;
+    }
+    if (!network.activated) return;
+
     if (network.segments.length < MAX_HYPHAL_SEGMENTS_PER_FOCUS) {
-      network.growthAccumulator += dt * 10 * response.growth;
+      // Crescimento suficientemente lento para que as pontas apicais sejam
+      // observadas quando o jogador encontra o foco, sem elevar o orçamento.
+      network.growthAccumulator += dt * 4.6 * response.growth;
       while (network.growthAccumulator >= 1 && network.segments.length < MAX_HYPHAL_SEGMENTS_PER_FOCUS) {
         network.growthAccumulator -= 1;
         const tips = [...network.tips];
@@ -410,8 +427,17 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
       const pressure = clamp(touching / 5, .16, 1) * response.adhesion;
       contactIntensity += pressure;
       network.attached = clamp(network.attached + dt * pressure * 1.4, 0, 1);
+      network.attachmentGrace = 3.2;
     } else {
-      network.attached = Math.max(0, network.attached - dt * (.18 + limitation * 1.15));
+      network.attachmentGrace = Math.max(
+        0,
+        network.attachmentGrace - dt * (1 + limitation * 3.5),
+      );
+      const graceDecay = network.attachmentGrace > 0 ? .018 : .075;
+      network.attached = Math.max(
+        0,
+        network.attached - dt * (graceDecay + limitation * .62),
+      );
     }
   }
 
@@ -457,16 +483,23 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
         0,
         1,
       );
+      player.fungalContactGrace = 3.2;
       if (!contactAnnounced && player.fungalContamination > .12) {
         contactAnnounced = true;
         state.toast = 'Contaminação fúngica: fragmentos de hifa aderidos reduzem aceleração, velocidade e impulso do pulo.';
         state.toastTime = 5.2;
       }
     } else {
-      const acceleratedDetachment = 1 + maximumIronLimitation * 2.2;
+      player.fungalContactGrace = Math.max(
+        0,
+        (player.fungalContactGrace || 0) - dt * (1 + maximumIronLimitation * 3.5),
+      );
+      const graceFactor = player.fungalContactGrace > 0 ? .08 : 1;
+      const acceleratedDetachment = 1 + maximumIronLimitation * 2.8;
       player.fungalContamination = Math.max(
         0,
-        (player.fungalContamination || 0) - dt * settings.fungus.recoveryRate * acceleratedDetachment,
+        (player.fungalContamination || 0)
+          - dt * settings.fungus.recoveryRate * acceleratedDetachment * graceFactor,
       );
       if (player.fungalContamination <= .02) contactAnnounced = false;
     }
@@ -632,6 +665,7 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     clear();
     state.player.fungalContamination = 0;
     state.player.fungalAttachmentLevel = 0;
+    state.player.fungalContactGrace = 0;
   }
 
   return {

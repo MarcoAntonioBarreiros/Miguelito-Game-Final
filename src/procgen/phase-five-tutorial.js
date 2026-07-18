@@ -8,6 +8,28 @@ function platformAt(level, chunk) {
   ));
 }
 
+function movePlatform(level, platform, { x = platform.x, y = platform.y, w = platform.w } = {}) {
+  if (!platform) return;
+  const dx = x - platform.x;
+  const dy = y - platform.y;
+  platform.x = x;
+  platform.y = y;
+  platform.w = w;
+  for (const collection of [
+    level.exudates,
+    level.crystals,
+    level.enemies,
+    level.allies,
+    level.checkpoints,
+  ]) {
+    for (const entity of collection || []) {
+      if (entity.logicIndex !== platform.logicIndex) continue;
+      if (Number.isFinite(entity.x)) entity.x += dx;
+      if (Number.isFinite(entity.y)) entity.y += dy;
+    }
+  }
+}
+
 function addExudate(level, chunk, lateral = .5) {
   const platform = platformAt(level, chunk);
   if (!platform) return;
@@ -38,6 +60,43 @@ export function applyPhaseFiveTutorialGeometry(level, phase = level.campaignPhas
     }
   }
 
+  // Recapitulação com duas soluções reais. A raiz 4 fica no mesmo nível da
+  // raiz 6 e pode originar uma ponte micorrízica horizontal. A raiz 5 fica
+  // abaixo e é o hospedeiro da escada vertical de Azospirillum.
+  const recapEntry = platformAt(level, 3);
+  const mycorrhizaHost = platformAt(level, 4);
+  const azospirillumHost = platformAt(level, 5);
+  const recapDestination = platformAt(level, 6);
+  if (recapEntry && mycorrhizaHost && azospirillumHost && recapDestination) {
+    movePlatform(level, mycorrhizaHost, {
+      x: recapEntry.x + recapEntry.w + 92,
+      y: 315,
+      w: Math.max(210, mycorrhizaHost.w),
+    });
+    movePlatform(level, azospirillumHost, {
+      x: mycorrhizaHost.x + mycorrhizaHost.w + 80,
+      y: 525,
+      w: 170,
+    });
+    movePlatform(level, recapDestination, {
+      x: azospirillumHost.x + azospirillumHost.w + 80,
+      y: 315,
+      w: Math.max(220, recapDestination.w),
+    });
+
+    let previous = recapDestination;
+    for (let chunk = 7; chunk <= 14; chunk++) {
+      const platform = platformAt(level, chunk);
+      if (!platform) continue;
+      movePlatform(level, platform, {
+        x: previous.x + previous.w + 92,
+        y: clamp(455 + Math.sin(chunk * .72) * 34, 405, 515),
+        w: Math.max(platform.w, 200),
+      });
+      previous = platform;
+    }
+  }
+
   // Corredor final curto: sem a limitação por ferro, a rede hifal alcança
   // Miguelito durante a travessia; com Pseudomonas, o mesmo percurso é controlável.
   const corridor = [15, 16, 17, 18, 19].map(chunk => platformAt(level, chunk)).filter(Boolean);
@@ -45,22 +104,29 @@ export function applyPhaseFiveTutorialGeometry(level, phase = level.campaignPhas
     platform.y = index < 3 ? 470 - index * 18 : 442 + (index - 3) * 12;
     platform.w = index === 1 ? 210 : index < 3 ? 185 : 220;
     platform.fungalChallenge = index < 3;
-    if (index > 0) {
+    if (index === 0) {
+      const previous = platformAt(level, 14);
+      if (previous) platform.x = previous.x + previous.w + 110;
+    } else {
       const previous = corridor[index - 1];
       platform.x = previous.x + previous.w + (index < 3 ? 148 : 92);
     }
   });
 
   level.exudates = (level.exudates || []).filter(item => item.logicIndex < 18);
+  addExudate(level, 4, .86);
+  addExudate(level, 5, .56);
   addExudate(level, 7, .55);
   addExudate(level, 9, .42);
   addExudate(level, 12, .5);
+  addExudate(level, 13, .48);
   addExudate(level, 15, .38);
 
-  const ironHost = platformAt(level, 10) || platformAt(level, 9);
+  const ironHost = platformAt(level, 8) || platformAt(level, 9);
+  const interactionHost = platformAt(level, 13);
   const challengeHost = platformAt(level, 15);
   level.ironDeposits = [];
-  for (const [index, platform] of [ironHost, challengeHost].filter(Boolean).entries()) {
+  for (const [index, platform] of [ironHost, interactionHost, challengeHost].filter(Boolean).entries()) {
     level.ironDeposits.push({
       id: `p5-authored-iron-${index}`,
       platform,
@@ -104,6 +170,15 @@ export function applyPhaseFiveTutorialEncounters(level, encounters, phase, seedV
     encounter.source === 'debut'
     || !['oportunista', 'pseudomonas', 'trichoderma'].includes(encounter.id)
   ));
+  const azospirillumRecap = encounterAt(level, 3, 'azospirillum', 'recap-access', seedValue, {
+    r: 120,
+    territory: 230,
+  });
+  const interactionSupport = encounterAt(level, 13, 'pseudomonas', 'interaction-support', seedValue, {
+    r: 118,
+    territory: 210,
+    requiresSeenCardId: 'organism-pseudomonas',
+  });
   const interaction = encounterAt(level, 13, 'oportunista', 'interaction', seedValue, {
     r: 125,
     territory: 250,
@@ -114,8 +189,15 @@ export function applyPhaseFiveTutorialEncounters(level, encounters, phase, seedV
     territory: 310,
     requiresSeenCardId: 'organism-opportunistic-fungus',
   });
+  if (azospirillumRecap) result.push(azospirillumRecap);
+  if (interactionSupport) result.push(interactionSupport);
   if (interaction) result.push(interaction);
   if (challenge) result.push(challenge);
-  level.authoredEncounters = [interaction, challenge].filter(Boolean);
+  level.authoredEncounters = [
+    azospirillumRecap,
+    interactionSupport,
+    interaction,
+    challenge,
+  ].filter(Boolean);
   return result;
 }
