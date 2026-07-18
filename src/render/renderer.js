@@ -431,7 +431,7 @@ export function createRenderer({ canvas, state, entities }) {
     if (infection < .06) return;
     const opportunisticContact = clamp(Math.max(
       player.fungalAttachmentLevel || 0,
-      (player.fungalContamination || 0) * .38,
+      (player.fungalContamination || 0) * .82,
     ), 0, 1);
     const count = 2 + Math.floor((opportunisticContact || infection) * 7);
     ctx.save();

@@ -309,16 +309,6 @@ const phases = [
   {
     id: 'phase-5', phase: 5, totalChunks: 20,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
-    // Recapitulação funcional: a mesma elevação pode ser vencida pela escada
-    // vertical de Azo (a partir da raiz inferior) ou pela ponte micorrízica
-    // horizontal (a partir da raiz superior anterior).
-    azospirillumRootLadder: {
-      ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
-      count: 1,
-      recapAccessChunk: 5,
-      preserveDestinationHeight: true,
-    },
-    mycorrhizaBridge: { ...MYCORRHIZA_BRIDGE_DEFAULTS },
     opportunisticFungus: { ...OPPORTUNISTIC_FUNGUS_DEFAULTS },
     pseudomonasIronControl: { ...PSEUDOMONAS_IRON_CONTROL_DEFAULTS },
     title: 'Ferro e biocontrole fúngico', theme: 'equilíbrio',

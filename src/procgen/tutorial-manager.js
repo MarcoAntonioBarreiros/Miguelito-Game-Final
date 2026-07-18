@@ -180,8 +180,14 @@ export function createTutorialManager({ state }) {
   const mobileLibraryButton = document.querySelector('[data-mobile-action="tutorial"]');
 
   removeLegacyLocalProgress();
+  const bootstrapSeen = Array.isArray(state.campaign?.tutorialBootstrapSeen)
+    ? state.campaign.tutorialBootstrapSeen
+    : [];
   const flow = createTutorialFlow({
-    seen: [...readStoredSet(TUTORIAL_STORAGE_KEYS.seen)],
+    seen: [...new Set([
+      ...readStoredSet(TUTORIAL_STORAGE_KEYS.seen),
+      ...bootstrapSeen,
+    ])],
     unlocked: [...readStoredSet(TUTORIAL_STORAGE_KEYS.unlocked)],
     pages: readStoredPages(TUTORIAL_STORAGE_KEYS.pages),
   });
@@ -516,5 +522,10 @@ export function createTutorialManager({ state }) {
     openLibrary,
     resetTutorialProgress,
     resetAutomaticTutorials: resetTutorialProgress,
+    markSeen(id) {
+      const changed = flow.markSeen(id);
+      if (changed) persist();
+      return changed;
+    },
   };
 }

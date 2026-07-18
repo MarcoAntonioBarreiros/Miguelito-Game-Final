@@ -1,4 +1,5 @@
 import { W } from '../core/constants.js';
+import { getPhaseManifest } from './campaign-manifest.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -52,7 +53,12 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
 
   function desiredFocusCount() {
     const phase = state.campaign?.phase || 1;
-    if (phase < 4) return 0;
+    const manifest = getPhaseManifest(phase);
+    const allowedInLab = manifest?.phaseLab?.allowedPathogens;
+    const scheduled = Array.isArray(allowedInLab)
+      ? allowedInLab.includes('ralstonia')
+      : manifest?.pathogenDebuts?.some(entry => entry.pathogen === 'ralstonia');
+    if (!scheduled) return 0;
     const themeBoost = state.level.phaseTheme === 'infestação' ? 1 : 0;
     return clamp(1 + Math.floor((phase - 4) / 2) + themeBoost, 1, 3);
   }

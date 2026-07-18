@@ -22,7 +22,6 @@ import {
 } from '../src/procgen/opportunistic-fungus.js';
 import { createPseudomonasSiderophores } from '../src/procgen/pseudomonas-siderophores.js';
 import { generateAzospirillumRootLadders } from '../src/procgen/azospirillum-root-growth.js';
-import { createMycorrhizaStructures } from '../src/procgen/mycorrhiza-structures.js';
 import {
   applyPhaseFiveTutorialEncounters,
   applyPhaseFiveTutorialGeometry,
@@ -286,28 +285,19 @@ test('tutorial curto cria encontro, controle e corredor final determinísticos',
   assert.deepEqual(first.encounters.map(item => [item.source, item.logicIndex]), [
     ['debut', 2],
     ['debut', 8],
-    ['recap-access', 3],
     ['interaction-support', 13],
     ['interaction', 13],
     ['challenge', 16],
   ]);
   assert.equal(first.level.ironDeposits.length, 3);
   assert.deepEqual(first.level.ironDeposits.map(item => item.platform.logicIndex), [8, 13, 15]);
-  assert.equal(first.ladders.length, 1);
-  assert.equal(first.ladders[0].hostLogicIndex, 5);
-  assert.equal(first.ladders[0].destinationLogicIndex, 6);
-
-  const mycorrhizaHost = first.level.platforms.find(platform => platform.logicIndex === 4);
-  const recapDestination = first.level.platforms.find(platform => platform.logicIndex === 6);
-  const horizontalGap = recapDestination.x - (mycorrhizaHost.x + mycorrhizaHost.w);
-  assert.ok(horizontalGap >= 58 && horizontalGap <= 340);
-  assert.ok(Math.abs(recapDestination.y - mycorrhizaHost.y) <= 68);
+  assert.deepEqual(first.ladders, [], 'a Fase 5 nao cria uma escada de Azo artificial');
   assert.ok(first.level.platforms.filter(platform => platform.fungalChallenge).length === 3);
   const route = first.level.platforms.slice(15, 20);
   assert.ok(route.every((platform, index) => index === 0 || platform.x > route[index - 1].x + route[index - 1].w));
 });
 
-test('pipeline real do Phase Lab 5 oferece acesso por Azo ou micorriza e ferro no foco controlado', () => {
+test('pipeline real do Phase Lab 5 mantém a rota natural e reúne ferro, Pseudomonas e fungo', () => {
   const campaign = createCampaign('phase-lab-5');
   campaign.phase = 5;
   campaign.unlocks = getPersistentUnlocksBeforePhase(5);
@@ -330,34 +320,7 @@ test('pipeline real do Phase Lab 5 oferece acesso por Azo ou micorriza e ferro n
     config: getPhaseManifest(5).azospirillumRootLadder,
   });
 
-  assert.equal(ladders.length, 1);
-  assert.deepEqual(
-    [ladders[0].hostLogicIndex, ladders[0].destinationLogicIndex],
-    [5, 6],
-  );
-
-  const mycorrhizaHost = level.platforms.find(platform => platform.logicIndex === 4);
-  level.exudateClouds = [{
-    id: 'phase-lab-5-myco-route',
-    x: mycorrhizaHost.x + mycorrhizaHost.w - 18,
-    y: mycorrhizaHost.y - 20,
-    radius: 95,
-    maxLife: 10,
-    life: 9,
-  }];
-  const state = {
-    gameState: 'play',
-    time: 0,
-    cameraX: 0,
-    campaign: { phase: 5 },
-    player: { soil: 0, hope: 0 },
-    level,
-  };
-  const structures = createMycorrhizaStructures({ state, entities: { burst() {} } });
-  structures.update(.8);
-  assert.equal(structures.bridgeCount, 1);
-  assert.equal(structures.structures[0].source.logicIndex, 4);
-  assert.equal(structures.structures[0].target.logicIndex, 6);
+  assert.deepEqual(ladders, []);
 
   const interactionFungus = encounters.find(item => item.source === 'interaction');
   const interactionPseudomonas = encounters.find(item => item.source === 'interaction-support');
@@ -368,4 +331,6 @@ test('pipeline real do Phase Lab 5 oferece acesso por Azo ou micorriza e ferro n
     interactionFungus.y - interactionPseudomonas.y,
   ) < 60);
   assert.equal(interactionIron.platform.logicIndex, interactionFungus.logicIndex);
+  assert.ok(Math.abs(interactionIron.x - interactionFungus.x) < 8);
+  assert.ok(Math.abs(interactionIron.x - interactionPseudomonas.x) < 8);
 });

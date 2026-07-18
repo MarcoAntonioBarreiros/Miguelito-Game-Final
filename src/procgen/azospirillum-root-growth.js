@@ -57,12 +57,17 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
   const mainRoute = routePlatforms(level);
 
   for (const host of platforms) {
+    const knownSkill = Boolean(config.knownSkill);
     const recapAccess = Number.isInteger(config.recapAccessChunk)
       && host.logicIndex === config.recapAccessChunk
       && !host.recovery;
+    const eligibleHost = recapAccess
+      ? !host.recovery
+      : knownSkill
+        ? host.type === 'root' && !host.recovery
+        : host.type === 'root' && Boolean(host.recovery);
     if (
-      (!recapAccess && host.type !== 'root')
-      || (!recapAccess && !host.recovery)
+      !eligibleHost
       || host.logicIndex <= firstExudate
       || host.logicIndex < minimumHostChunk
       || host.logicIndex > maximumHostChunk
@@ -81,6 +86,9 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
       const destinationPoint = topPoint(destination, hostCenter);
       const dx = Math.abs(destinationPoint.x - hostCenter);
       if (naturalRise > 360 || dx > 390) continue;
+      // Uma habilidade persistente só responde a um desnível que já existe.
+      // Ela nunca eleva a plataforma seguinte nem cria um obstáculo artificial.
+      if (knownSkill && naturalRise < MIN_VERTICAL_RISE) continue;
 
       const verticalSpacing = Math.min(
         Number(config.verticalSpacing) || FIRST_DEMONSTRATION_VERTICAL_SPACING,
@@ -91,7 +99,7 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
         MIN_VERTICAL_RISE,
         MAX_VERTICAL_RISE,
       );
-      const destinationY = recapAccess && config.preserveDestinationHeight
+      const destinationY = (recapAccess || knownSkill) && config.preserveDestinationHeight
         ? destination.y
         : Math.min(destination.y, host.y - desiredRise);
       const following = mainRoute.find(platform => platform.logicIndex > destination.logicIndex) || null;
@@ -152,10 +160,10 @@ export function generateAzospirillumRootLadders({
   level.azospirillumRootLadders = [];
   level.azospirillumRoots = [];
   if (phase < 3 || !config?.enabled || config.count <= 0) return level.azospirillumRootLadders;
-  // Fora da fase de estreia, a escada so existe quando o manifesto declara
-  // explicitamente um trecho de recapitulacao. Isso impede o Phase Lab de
-  // inserir uma escada de Azo por padrao na introducao da micorriza.
-  if (phase > 3 && !Number.isInteger(config.recapAccessChunk)) return level.azospirillumRootLadders;
+  const knownSkill = phase > 3 && Boolean(config.knownSkill);
+  if (phase > 3 && !knownSkill && !Number.isInteger(config.recapAccessChunk)) {
+    return level.azospirillumRootLadders;
+  }
 
   const firstAzospirillum = encounters
     .filter(encounter => encounter.id === 'azospirillum' && Number.isInteger(encounter.logicIndex))
@@ -179,6 +187,7 @@ export function generateAzospirillumRootLadders({
     .map(exudate => exudate.logicIndex)
     .sort((left, right) => left - right)[0];
   if (!Number.isInteger(firstExudate)) {
+    if (knownSkill) return level.azospirillumRootLadders;
     const prerequisitePlatform = route.find(platform => (
       platform.logicIndex > firstAzospirillum
       && platform.logicIndex <= prerequisiteDeadline
@@ -197,9 +206,9 @@ export function generateAzospirillumRootLadders({
   }
 
   const minimumHostChunk = recapAccessChunk
-    ?? Math.max(firstExudate + 1, unlockChunk + 1);
+    ?? (knownSkill ? firstExudate + 1 : Math.max(firstExudate + 1, unlockChunk + 1));
   const maximumHostChunk = recapAccessChunk
-    ?? unlockChunk + PRACTICE_WINDOW_CHUNKS;
+    ?? (knownSkill ? route.at(-1)?.logicIndex ?? firstExudate : unlockChunk + PRACTICE_WINDOW_CHUNKS);
   const candidates = ladderCandidates(
     level,
     firstExudate,
@@ -260,6 +269,7 @@ export function generateAzospirillumRootLadders({
         sourceAzospirillumLogicIndex: firstAzospirillum,
         sourceExudateLogicIndex: firstExudate,
         recapAccess: slot.recapAccess,
+        knownSkill,
         growthDurationSeconds: config.growthDurationSeconds,
         progress: 0,
         visibleProgress: 0,
@@ -405,7 +415,7 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     ladder.paused = ladder.progress > 0 && !colony;
     if (!colony) return;
 
-    if (ladder.progress === 0) {
+    if (ladder.progress === 0 && !ladder.knownSkill) {
       announce('Azospirillum inoculado: fitormônios iniciaram a escada de ramificações radiculares.');
       entities?.burst?.(colony.x, ladder.host.y, '#72e8dd', 22, 90);
     }
