@@ -6,6 +6,7 @@ import { createCampaignObjectiveEvaluator } from './campaign-objectives.js';
 import { applyPhaseOneVerticalSlice, createFixedBlockRuntime } from './phase-one-vertical-slice.js';
 import { applyPhaseFourMycorrhizaIntro } from './phase-four-mycorrhiza-intro.js';
 import { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } from './phase-five-tutorial.js';
+import { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } from './phase-six-tutorial.js';
 import {
   AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
   getPhaseManifest,
@@ -148,6 +149,7 @@ function prepareLevel() {
     getPhaseManifest(campaign.phase)?.mycorrhizaBridge,
   );
   applyPhaseFiveTutorialGeometry(levelData, campaign.phase);
+  applyPhaseSixTutorialGeometry(levelData, campaign.phase);
   levelData = decorateCampaignLevel(levelData, campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
@@ -161,6 +163,11 @@ function prepareLevel() {
     levelData.microbeEncounters,
     campaign.phase,
     seed,
+  );
+  levelData.microbeEncounters = applyPhaseSixTutorialEncounters(
+    levelData,
+    levelData.microbeEncounters,
+    campaign.phase,
   );
   const declaredAzospirillumLadder = getPhaseManifest(campaign.phase)?.azospirillumRootLadder;
   const contextualAzospirillumLadder = campaign.phase >= 5

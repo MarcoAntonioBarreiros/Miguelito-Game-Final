@@ -873,7 +873,10 @@ html.tutorial-open #tutorial-library-button {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
+const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");
+const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");
+const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");
+const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
@@ -992,6 +995,7 @@ function prepareLevel() {
     getPhaseManifest(campaign.phase)?.mycorrhizaBridge,
   );
   applyPhaseFiveTutorialGeometry(levelData, campaign.phase);
+  applyPhaseSixTutorialGeometry(levelData, campaign.phase);
   levelData = decorateCampaignLevel(levelData, campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
@@ -1005,6 +1009,11 @@ function prepareLevel() {
     levelData.microbeEncounters,
     campaign.phase,
     seed,
+  );
+  levelData.microbeEncounters = applyPhaseSixTutorialEncounters(
+    levelData,
+    levelData.microbeEncounters,
+    campaign.phase,
   );
   const declaredAzospirillumLadder = getPhaseManifest(campaign.phase)?.azospirillumRootLadder;
   const contextualAzospirillumLadder = campaign.phase >= 5
@@ -2153,14 +2162,14 @@ const phases = [
   {
     id: 'phase-6', phase: 6, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
-    title: 'Rhizoctonia, saúde da raiz e Pulso', theme: 'patologia',
-    mission: 'Controle Rhizoctonia, recupere a sustentação da raiz e libere o Pulso.',
-    newConcepts: ['Rhizoctonia→lesão→saúde/recuperação'], newCommand: 'pulse',
+    title: 'Trichoderma contra Rhizoctonia', theme: 'patologia',
+    mission: 'Observe a lesão de Rhizoctonia, recrute Trichoderma e inocule-o próximo ao foco para recuperar a raiz.',
+    newConcepts: ['Rhizoctonia→lesão', 'Trichoderma→micoparasitismo→recuperação'], newCommand: 'pulse',
     presentations: [
       { id: 'presentation-root-health', cardId: 'organism-rhizoctonia',
         triggerIds: ['organism-rhizoctonia', 'process-root-health', 'process-root-recovery', 'process-root-collapse'],
         autoOpenTrigger: 'organism-rhizoctonia', policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        debutChunk: 4, moduleId: 'p6-rhizo-intro', debutZoneId: 'p6-rhizoctonia-debut',
+        debutChunk: 1, moduleId: 'p6-rhizo-intro', debutZoneId: 'p6-rhizoctonia-debut',
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
           { triggerId: 'organism-rhizoctonia', pages: [0] },
@@ -2169,6 +2178,18 @@ const phases = [
           { triggerId: 'process-root-recovery', pages: [3] },
         ],
         pages: ['Rhizoctonia', 'lesão progressiva', 'estados de saúde', 'recuperação/sustentação'] },
+      { id: 'presentation-trichoderma', cardId: 'organism-trichoderma',
+        triggerIds: ['organism-trichoderma'], autoOpenTrigger: 'organism-trichoderma',
+        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
+        roamingType: 'trichoderma', debutChunk: 3, poolFromChunk: 11,
+        moduleId: 'p6-tricho-intro', debutZoneId: 'p6-trichoderma-debut', tetherUntilSeen: true,
+        pages: ['Quem é?', 'Crescimento hifal', 'Alvos', 'Vigor da colônia'] },
+      { id: 'presentation-mycoparasitism', cardId: 'process-mycoparasitism',
+        triggerIds: ['process-mycoparasitism'], autoOpenTrigger: 'process-mycoparasitism',
+        policy: 'event-immediate', suppressIndividualCards: false,
+        prerequisitePresentationIds: ['presentation-root-health', 'presentation-trichoderma'],
+        debutChunk: 4, moduleId: 'p6-tricho-intro',
+        pages: ['Micoparasitismo', 'Reconhecimento', 'Enovelamento e lise', 'Recuperação da raiz'] },
       { id: 'presentation-phosphate-solubilizer', cardId: 'organism-phosphate-solubilizer',
         triggerIds: ['organism-phosphate-solubilizer'], autoOpenTrigger: 'organism-phosphate-solubilizer',
         policy: 'mandatory-first-appearance', suppressIndividualCards: false,
@@ -2183,10 +2204,12 @@ const phases = [
     unlockEvents: [
       { feature: 'pulse', eventChunk: 20, afterModule: 'p6-pulse-intro', practiceWindowChunks: 3, mandatory: true },
     ],
-    pathogenDebuts: [{ pathogen: 'rhizoctonia', fromChunk: 4, presentationId: 'presentation-root-health' }],
+    pathogenDebuts: [{ pathogen: 'rhizoctonia', fromChunk: 1, presentationId: 'presentation-root-health' }],
     segments: [
-      { id: 'p6-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'dash', 'inoculation'] },
-      { id: 'p6-rhizo-intro', kind: 'fixed', from: 4, to: 10, tutorialMode: 'guided', debutPresentationIds: ['presentation-root-health'], mechanicsRequired: ['inoculation'] },
+      { id: 'p6-rhizo-intro', kind: 'fixed', from: 0, to: 1, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-root-health'], mechanicsRequired: [] },
+      { id: 'p6-tricho-intro', kind: 'fixed', from: 2, to: 10, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-trichoderma', 'presentation-mycoparasitism'], mechanicsRequired: ['exudate', 'inoculation'] },
       { id: 'p6-rhizo-practice', kind: 'procedural', from: 11, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
       { id: 'p6-pulse-intro', kind: 'fixed', from: 18, to: 20, tutorialMode: 'guided',
         debutPresentationIds: ['presentation-phosphate-solubilizer', 'presentation-pulse'], mechanicsRequired: [] },
@@ -13589,6 +13612,94 @@ function applyPhaseFiveTutorialEncounters(level, encounters, phase, seedValue) {
   return result;
 }
 Object.assign(__exports, { applyPhaseFiveTutorialGeometry, applyPhaseFiveTutorialEncounters });
+},
+"src/procgen/phase-six-tutorial.js": (__exports, __require) => {
+function platformAt(level, chunk) {
+  return (level.platforms || []).find(platform => (
+    !platform.recovery && !platform.final && platform.logicIndex === chunk
+  ));
+}
+
+function configureIntroRoute(level) {
+  const route = [0, 1, 2, 3].map(chunk => platformAt(level, chunk));
+  if (route.some(platform => !platform)) return;
+
+  const widths = [220, 240, 180, 220];
+  const heights = [470, 458, 446, 454];
+  route.forEach((platform, index) => {
+    platform.type = 'root';
+    platform.w = Math.max(platform.w, widths[index]);
+    platform.h = Math.max(platform.h || 0, 68);
+    platform.y = heights[index];
+    platform.authoredPhaseSixIntro = true;
+    if (index > 0) {
+      const previous = route[index - 1];
+      platform.x = previous.x + previous.w + 72;
+    }
+  });
+}
+
+function installRecruitmentExudate(level) {
+  const host = platformAt(level, 2);
+  if (!host) return;
+  level.exudates = (level.exudates || []).filter(exudate => (
+    !Number.isInteger(exudate.logicIndex) || exudate.logicIndex > 3
+  ));
+  level.exudates.push({
+    id: 'p6-trichoderma-recruitment-exudate',
+    logicIndex: 2,
+    x: host.x + host.w * .52,
+    y: host.y - 34,
+    taken: false,
+    authored: true,
+    authoredPhaseSixIntro: true,
+  });
+}
+
+function applyPhaseSixTutorialGeometry(level, phase = level.campaignPhase) {
+  if (phase !== 6) return level;
+  configureIntroRoute(level);
+  installRecruitmentExudate(level);
+
+  // A abertura usa um único foco, o de estreia. Focos procedurais voltam a
+  // aparecer normalmente no trecho de prática a partir do chunk 11.
+  level.enemies = (level.enemies || []).filter(enemy => (
+    enemy.logicIndex >= 11
+    || (enemy.type === 'rhizoctonia' && enemy.logicIndex === 1 && enemy.debut)
+  ));
+  level.phaseSixTutorial = {
+    rhizoctoniaChunk: 1,
+    exudateChunk: 2,
+    trichodermaChunk: 3,
+    proceduralResumeChunk: 11,
+  };
+  return level;
+}
+
+function applyPhaseSixTutorialEncounters(level, encounters, phase = level.campaignPhase) {
+  if (phase !== 6) return encounters;
+  const result = (encounters || []).filter(encounter => (
+    encounter.logicIndex >= 11
+    || (
+      encounter.source === 'debut'
+      && encounter.id === 'trichoderma'
+      && encounter.logicIndex === 3
+    )
+  ));
+  const debut = result.find(encounter => (
+    encounter.source === 'debut' && encounter.id === 'trichoderma'
+  ));
+  const host = platformAt(level, 3);
+  if (debut && host) {
+    debut.x = host.x + host.w / 2;
+    debut.y = host.y - 104;
+    debut.r = 145;
+    debut.territory = 320;
+    debut.authoredPhaseSixIntro = true;
+  }
+  return result;
+}
+Object.assign(__exports, { applyPhaseSixTutorialGeometry, applyPhaseSixTutorialEncounters });
 },
 "src/procgen/phase-lab-config.js": (__exports, __require) => {
 const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, campaignManifest, getProceduralPoolAt, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
