@@ -311,6 +311,52 @@ test('geracao da escada permanece deterministica em multiplas seeds da Fase 3', 
   }
 });
 
+test('Phase Lab 4 oferece recapitulacao de Azo em raiz antes da micorriza funcional', () => {
+  const campaign = createCampaign('phase-lab-4');
+  campaign.phase = 4;
+  campaign.unlocks = getPersistentUnlocksBeforePhase(4);
+  const profile = prepareCampaignGeneration(campaign);
+  const seedValue = campaignPhaseSeed(campaign);
+  const level = decorateCampaignLevel(generateLevel(seedValue), campaign, profile);
+  const encounters = generateCampaignEncounters({ platforms: level.platforms, phase: 4, seedValue });
+  const [ladder] = generateAzospirillumRootLadders({
+    level,
+    phase: 4,
+    seedValue,
+    encounters,
+    config: getPhaseManifest(4).azospirillumRootLadder,
+  });
+
+  assert.ok(ladder);
+  assert.equal(ladder.recapAccess, true);
+  assert.equal(ladder.hostLogicIndex, 4);
+  assert.equal(ladder.destinationLogicIndex, 5);
+  assert.equal(ladder.host.type, 'root');
+  assert.ok(ladder.sourceAzospirillumLogicIndex < ladder.sourceExudateLogicIndex);
+  assert.ok(ladder.sourceExudateLogicIndex < ladder.hostLogicIndex);
+  assert.equal(validateChunk(ladder.host, ladder.destination, NORMAL_JUMP), false);
+
+  const route = [
+    ladder.host,
+    ...ladder.steps.map(step => ({
+      x: step.centerX - step.targetWidth / 2,
+      y: step.y,
+      w: step.targetWidth,
+      h: step.targetHeight,
+      type: 'root',
+      oneWay: true,
+    })),
+    ladder.destination,
+  ];
+  for (let index = 0; index < route.length - 1; index++) {
+    assert.equal(
+      validateVerticalStep(route[index], route[index + 1]),
+      true,
+      `a recapitulacao deve permitir pulo normal no trecho ${index}`,
+    );
+  }
+});
+
 test('Azo fornece N associativo pequeno, nao cria nodulo e so potencializa Rhizobium no mesmo sistema', () => {
   const rootA = { type: 'root', rootSystemId: 'system-a' };
   const rootB = { type: 'root', rootSystemId: 'system-b' };
