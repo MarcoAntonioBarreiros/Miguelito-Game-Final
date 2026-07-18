@@ -1263,11 +1263,13 @@ function loop(now) {
     }
 
     const player = sim.state.player;
-    const inoculationAction = sim.trichodermaColonies.followerCount > 0
-      ? `🧫 E Inocular Trichoderma (${sim.trichodermaColonies.followerCount})`
-      : sim.beneficialInoculants.followerCount > 0
-        ? `🧪 E Inocular benéficas (${sim.beneficialInoculants.followerCount})`
-        : player.exudates > 0 ? '🟢 E Exsudato' : null;
+    // O seletor manda: o HUD mostra o item escolhido, nao uma ordem de prioridade.
+    const selected = sim.inoculumSelection.current;
+    const totalCarregado = sim.inoculumSelection.options().length;
+    const inoculationAction = selected
+      ? `${selected.kind === 'exudate' ? '🟢' : '🧪'} E ${selected.label} (${selected.count})`
+        + (totalCarregado > 1 ? ` ↓ trocar (${totalCarregado})` : '')
+      : null;
     const abilities = [
       inoculationAction,
       player.canDoubleJump ? '⬆⬆ Salto' : null,
@@ -2950,7 +2952,7 @@ function generatePrimitives() {
 Object.assign(__exports, { generatePrimitives });
 },
 "src/procgen/simulator.js": (__exports, __require) => {
-const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
+const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");const { createInoculumSelection } = __require("src/procgen/inoculum-selection.js");
 function createEmptyLevel() {
   return {
     platforms: [], hazards: [], crystals: [], enemies: [], exudates: [],
@@ -2985,6 +2987,8 @@ function createSimulator() {
       Space: false, KeyW: false, ArrowUp: false,
       ShiftLeft: false, ShiftRight: false, KeyJ: false,
       KeyK: false, KeyE: false,
+      // Seta para baixo cicla o inoculo carregado. A de cima nao serve: e pulo.
+      ArrowDown: false,
     },
   };
 
@@ -3084,6 +3088,19 @@ function createSimulator() {
   const meloidogyneLifecycle = createMeloidogyneLifecycle({ state, entities });
   const pathogenSurvival = createPathogenSurvival({ state, entities, ecology });
 
+  // Um unico item selecionado por vez decide quem responde ao E: cada sistema
+  // consulta a selecao antes de agir, em vez de disputar a tecla por ordem.
+  const inoculumSelection = createInoculumSelection({
+    state,
+    input,
+    inoculants: beneficialInoculants,
+    trichodermaColonies,
+  });
+  beneficialInoculants.setSelection(inoculumSelection);
+  trichodermaColonies.setSelection(inoculumSelection);
+  gameplay.setSelection(inoculumSelection);
+  state.inoculumSelection = inoculumSelection;
+
   state.microbeEcology = ecology;
   state.mycorrhizaGrowth = mycorrhiza;
   state.mycorrhizaStructures = mycorrhizaStructures;
@@ -3165,6 +3182,7 @@ function createSimulator() {
   }
 
   function step(dt) {
+    inoculumSelection.prepare(dt);
     trichodermaColonies.prepare(dt);
     beneficialInoculants.prepare(dt);
     gameplay.prepare(dt);
@@ -3213,6 +3231,7 @@ function createSimulator() {
     rhizobiumNodulation, nitrogenRootDevelopment, azospirillumRootGrowth, azospirillumRootSafety,
     azospirillumNitrogen,
     meloidogyneLifecycle, pathogenSurvival, goal, gameplay,
+    inoculumSelection,
     reset, resetEcology, resetBiology, setInputs, step,
   };
 
@@ -6657,6 +6676,7 @@ function createTrichodermaColonies({ state, input, ecology, entities }) {
   let nextColonyId = 1;
   let eHeldLast = false;
   let suppressEUntilRelease = false;
+  let activeSelection = null;
 
   function recruitedFollowers() {
     return ecology.agents.filter(agent => (
@@ -6720,6 +6740,11 @@ function createTrichodermaColonies({ state, input, ecology, entities }) {
 
   function prepare() {
     const pressed = Boolean(input.keys.KeyE);
+    // Com seletor ativo, o Trichoderma so responde ao E quando ele e o escolhido.
+    if (activeSelection && !activeSelection.isSelected('trichoderma')) {
+      eHeldLast = pressed;
+      return;
+    }
     if (pressed && !eHeldLast && state.gameState === 'play' && depositFollowers()) {
       suppressEUntilRelease = true;
     }
@@ -6837,6 +6862,7 @@ function createTrichodermaColonies({ state, input, ecology, entities }) {
   }
 
   return {
+    setSelection(selection) { activeSelection = selection; },
     get colonies() { return colonies; },
     get followerCount() { return recruitedFollowers().length; },
     get colonyCount() { return colonies.length; },
@@ -6933,6 +6959,9 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
   let eHeldLast = false;
   let suppressEUntilRelease = false;
   let lastRecruitToastAt = -Infinity;
+  // Quando existe seletor, so o organismo escolhido responde ao E. Sem seletor
+  // o comportamento antigo continua valendo, para os testes existentes.
+  let activeSelection = null;
 
   function isBeneficial(agent) {
     return Boolean(agent && PROFILES[agent.type]);
@@ -7150,8 +7179,18 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
   }
 
   function depositFollowers() {
-    const groups = followerGroups();
+    let groups = followerGroups();
     if (!groups.size) return false;
+
+    // Com seletor ativo, deposita somente o organismo escolhido — e nao responde
+    // ao E quando o escolhido pertence a outro sistema (exsudato, Trichoderma).
+    if (activeSelection) {
+      const chosen = activeSelection.current;
+      if (!chosen || chosen.kind !== 'organism') return false;
+      const agents = groups.get(chosen.type);
+      if (!agents) return false;
+      groups = new Map([[chosen.type, agents]]);
+    }
     const player = state.player;
     const support = nearestSupport(
       state,
@@ -7370,6 +7409,8 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
   }
 
   return {
+    followerGroups,
+    setSelection(selection) { activeSelection = selection; },
     get followerCount() { return followers().length; },
     get followerSummary() { return summaryFromCounts(followers()); },
     get colonyCount() { return colonies.length; },
@@ -11728,6 +11769,7 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
   let deployedCloudCount = 0;
   let eHeldLast = false;
   let infectionAnnounced = false;
+  let activeSelection = null;
 
   function toast(title, message, seconds = 4.7) {
     state.toast = `${title}: ${message}`;
@@ -11791,7 +11833,10 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
 
   function prepare() {
     const pressed = Boolean(input.keys.KeyE);
-    if (pressed && !eHeldLast && state.gameState === 'play') deployCloud();
+    // Com seletor ativo, o exsudato so sai quando ele e o item escolhido; senao
+    // o E pertence ao organismo selecionado.
+    const exudateSelected = !activeSelection || activeSelection.isSelected('exudate');
+    if (pressed && !eHeldLast && state.gameState === 'play' && exudateSelected) deployCloud();
     eHeldLast = pressed;
     state.player.moveMultiplier = 1 - clamp(state.player.infection || 0, 0, 1) * .32;
   }
@@ -12083,6 +12128,7 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
   }
 
   return {
+    setSelection(selection) { activeSelection = selection; },
     get cloudCount() { return clouds.length; },
     get deployedCloudCount() { return deployedCloudCount; },
     get biofilmCount() { return biofilms.length; },
@@ -12529,6 +12575,103 @@ function createPathogenSurvival({ state, entities, ecology }) {
   };
 }
 Object.assign(__exports, { createPathogenSurvival });
+},
+"src/procgen/inoculum-selection.js": (__exports, __require) => {
+const LABELS = Object.freeze({
+  rhizobium: 'Rhizobium',
+  azospirillum: 'Azospirillum',
+  bacillus: 'Bacillus',
+  pseudomonas: 'Pseudomonas',
+  myco: 'Micorriza',
+  trichoderma: 'Trichoderma',
+});
+
+// Carregando mais de um organismo, o E soltava todos de uma vez ou obedecia a
+// uma ordem fixa de prioridade — nao havia como escolher. Aqui existe uma
+// selecao unica: cada sistema so responde ao E quando e ele o selecionado, e o
+// exsudato disputa a mesma vaga, para decidir entre inocular e capturar.
+function createInoculumSelection({ state, input, inoculants, trichodermaColonies }) {
+  let index = 0;
+  let cycleHeldLast = false;
+  let lastToastAt = -Infinity;
+
+  function options() {
+    const list = [];
+    for (const [type, agents] of inoculants.followerGroups()) {
+      list.push({ kind: 'organism', type, count: agents.length, label: LABELS[type] || type });
+    }
+    const trichoderma = trichodermaColonies?.followerCount || 0;
+    if (trichoderma > 0) {
+      list.push({ kind: 'trichoderma', type: 'trichoderma', count: trichoderma, label: LABELS.trichoderma });
+    }
+    const exudates = state.player.exudates || 0;
+    if (exudates > 0) {
+      list.push({ kind: 'exudate', type: 'exudate', count: exudates, label: 'Exsudato' });
+    }
+    return list;
+  }
+
+  function current() {
+    const list = options();
+    if (!list.length) return null;
+    if (index >= list.length) index = 0;
+    return list[index];
+  }
+
+  function isSelected(kind, type) {
+    const selected = current();
+    if (!selected) return false;
+    if (kind === 'organism') return selected.kind === 'organism' && selected.type === type;
+    return selected.kind === kind;
+  }
+
+  function announce(selected) {
+    if (state.time - lastToastAt < .5) return;
+    state.toast = selected.kind === 'exudate'
+      ? `Selecionado: exsudato (${selected.count}) — E lança para capturar ou reforçar colônia.`
+      : `Selecionado: ${selected.label} (${selected.count}) — E inocula na raiz.`;
+    state.toastTime = 2.4;
+    lastToastAt = state.time;
+  }
+
+  function cycle() {
+    const list = options();
+    if (list.length < 2) return false;
+    index = (index + 1) % list.length;
+    announce(list[index]);
+    return true;
+  }
+
+  function prepare() {
+    if (state.gameState !== 'play') return;
+    const pressed = Boolean(input.keys.ArrowDown);
+    if (pressed && !cycleHeldLast) cycle();
+    cycleHeldLast = pressed;
+  }
+
+  function reset() {
+    index = 0;
+    cycleHeldLast = false;
+    lastToastAt = -Infinity;
+  }
+
+  return {
+    prepare,
+    reset,
+    cycle,
+    options,
+    isSelected,
+    get current() { return current(); },
+    get summary() {
+      const selected = current();
+      if (!selected) return '';
+      const total = options().length;
+      const posicao = total > 1 ? ` ${index + 1}/${total}` : '';
+      return `${selected.label} (${selected.count})${posicao}`;
+    },
+  };
+}
+Object.assign(__exports, { createInoculumSelection });
 },
 "src/procgen/geometry.js": (__exports, __require) => {
 function generateGeometry(logicChunk, prevPlatform, primitive, rnd) {
