@@ -192,7 +192,16 @@ export function generateLevel(seedString) {
         name = 'Sol, a Solubilizadora';
         desc = 'A comunidade concentra secreções junto ao mineral e libera parte do fósforo antes inacessível. Pressione K para o Pulso Mineral.';
       }
-      allies.push({ id: chunk.allyId, x: nextPlatform.x + nextPlatform.w / 2, y: nextPlatform.y - 40, r: 28, taken: false, name, desc });
+      allies.push({
+        id: chunk.allyId,
+        x: nextPlatform.x + nextPlatform.w / 2,
+        y: nextPlatform.y - 40,
+        r: 28,
+        taken: false,
+        name,
+        desc,
+        logicIndex: i,
+      });
     }
 
     if (chunk.isPathogenDebut && chunk.pathogenType === 'rhizoctonia') {

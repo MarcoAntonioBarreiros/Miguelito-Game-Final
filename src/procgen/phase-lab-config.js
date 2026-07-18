@@ -12,7 +12,7 @@ import {
 } from './campaign-manifest.js';
 import { createRandom } from './random.js';
 
-export const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v2';
+export const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v3';
 export const PHASE_LAB_MAX_RESOURCES = 100;
 
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -74,8 +74,8 @@ export function createDefaultPhaseLabConfig(phase = 1) {
     },
     azospirillumRootLadder: {
       ...(base.azospirillumRootLadder || AZOSPIRILLUM_ROOT_LADDER_DEFAULTS),
-      enabled: base.phase >= 3
-        && (base.azospirillumRootLadder?.enabled ?? AZOSPIRILLUM_ROOT_LADDER_DEFAULTS.enabled),
+      enabled: Boolean(base.azospirillumRootLadder)
+        && (base.azospirillumRootLadder?.enabled ?? false),
     },
     azospirillumNitrogen: {
       ...(base.azospirillumNitrogen || AZOSPIRILLUM_NITROGEN_DEFAULTS),
@@ -169,6 +169,7 @@ export function buildPhaseLabManifest(config) {
     || base.mycorrhizaBridge
     || MYCORRHIZA_BRIDGE_DEFAULTS;
   const mycorrhizaBridge = {
+    ...(base.mycorrhizaBridge || MYCORRHIZA_BRIDGE_DEFAULTS),
     horizontalOnly: Boolean(bridgeInput.horizontalOnly),
   };
 

@@ -4,6 +4,7 @@ import { generateUnderdevelopedNitrogenRoots } from './nitrogen-root.js';
 import { generateAzospirillumRootLadders } from './azospirillum-root-growth.js';
 import { createCampaignObjectiveEvaluator } from './campaign-objectives.js';
 import { applyPhaseOneVerticalSlice, createFixedBlockRuntime } from './phase-one-vertical-slice.js';
+import { applyPhaseFourMycorrhizaIntro } from './phase-four-mycorrhiza-intro.js';
 import { getPhaseManifest } from './campaign-manifest.js';
 import { applyPhaseLabResources } from './phase-lab-config.js';
 import { createPhaseLabSession } from './phase-lab.js';
@@ -133,7 +134,13 @@ function installFinalGoal(level) {
 function prepareLevel() {
   profile = prepareCampaignGeneration(campaign);
   seed = campaignPhaseSeed(campaign);
-  levelData = decorateCampaignLevel(generateLevel(seed), campaign, profile);
+  levelData = generateLevel(seed);
+  applyPhaseFourMycorrhizaIntro(
+    levelData,
+    campaign.phase,
+    getPhaseManifest(campaign.phase)?.mycorrhizaBridge,
+  );
+  levelData = decorateCampaignLevel(levelData, campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
   levelData.microbeEncounters = generateCampaignEncounters({

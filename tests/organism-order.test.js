@@ -160,9 +160,11 @@ test('organismos conhecidos reaparecem e os seis vagantes integram a síntese', 
 test('micorriza e solubilizador têm estreias fixas, sem entrar no pool vagante', () => {
   for (const seed of SEEDS) {
     const mycorrhiza = generatePhase(4, `${seed}:myco`);
-    const mycoDebut = mycorrhiza.level.allies.find(ally => ally.presentationOnly && ally.id === 'myco');
-    assert.equal(mycoDebut?.logicIndex, 4);
+    const mycoDebut = mycorrhiza.level.allies.find(ally => ally.fixedDebut && ally.id === 'myco');
+    assert.equal(mycoDebut?.logicIndex, 3);
     assert.equal(mycoDebut?.cardId, 'organism-mycorrhiza');
+    assert.equal(mycoDebut?.unlockFeature, 'mycorrhizaStructures');
+    assert.equal(mycorrhiza.level.allies.filter(ally => ally.id === 'myco').length, 1);
 
     const phosphate = generatePhase(6, `${seed}:phos`);
     const phosDebut = phosphate.level.allies.find(ally => ally.presentationOnly && ally.id === 'phos');
