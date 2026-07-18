@@ -16,7 +16,9 @@ function deposit(id, x = 180, amount = 1) {
   };
 }
 
-function harness({ deposits = [deposit('p1')], route = null, reserve = 1, solubilizer = true } = {}) {
+function harness({
+  deposits = [deposit('p1')], reserve = 1, solubilizer = true, mycorrhiza = null,
+} = {}) {
   const player = {
     x: 80, y: 70, w: 32, h: 48, facing: 1,
     canPhosphateSolubilization: true, phosphateCharge: 0, soil: 0, hope: 0,
@@ -28,7 +30,7 @@ function harness({ deposits = [deposit('p1')], route = null, reserve = 1, solubi
       phosphateDeposits: deposits,
       availablePhosphatePools: [],
       phosphateTransportParticles: [],
-      authoredPhosphateRoute: route,
+      platforms: [],
     },
   };
   const input = { keys: { KeyE: false } };
@@ -41,6 +43,7 @@ function harness({ deposits = [deposit('p1')], route = null, reserve = 1, solubi
   const system = createPhosphateSolubilization({
     state, input, selection, bacillus,
     entities: { burst() {} },
+    inoculants: { colonies: mycorrhiza ? [mycorrhiza] : [] },
   });
   const charge = amount => {
     input.keys.KeyE = true;
@@ -212,21 +215,53 @@ test('17-18. P permanece local sem micorriza e fosfato insoluvel nao e absorvido
   assert.equal(untouched.system.transportedPhosphate, 0);
 });
 
-test('19-22. micorriza capta P disponivel pela rota hifal, passa pelo arbusculo e aumenta estoque da raiz', () => {
-  const root = { rootHealth: .5, maxRootHealth: .7, phosphateStock: 0 };
-  const route = {
-    functional: true, depositId: 'p1', rootPlatform: root,
-    arbuscule: { maturity: 1 }, points: [{ x: 180, y: 90 }, { x: 260, y: 40 }, { x: 340, y: 90 }],
+// Quem transporta o fosfato e uma micorriza inoculada de verdade. Antes havia
+// uma rota autoral de cinco pontos marcada como functional: true, sem organismo
+// nenhum por tras — o transporte acontecia por decreto.
+function mycorrhizaColony({ x = 200, y = 90, growth = 1, root = null } = {}) {
+  return {
+    type: 'myco', x, y, growth, vigor: 1, dormant: false,
+    platform: root || { type: 'root', rootHealth: .5, maxRootHealth: .7, phosphateStock: 0 },
   };
-  const h = harness({ route });
+}
+
+test('19-22. sem micorriza inoculada nao ha transporte, por mais P disponivel que exista', () => {
+  const h = harness();
   h.charge(.5); h.advance(1);
-  const poolBefore = h.state.level.availablePhosphatePools[0].amount;
+  const disponivel = h.state.level.availablePhosphatePools[0].amount;
+  assert.ok(disponivel > 0, 'o disparo liberou fosfato');
+
+  h.system.update(2);
+  assert.equal(h.state.level.availablePhosphatePools[0].amount, disponivel, 'a poca permanece intacta');
+  assert.equal(h.system.transportedPhosphate, 0);
+  assert.equal(h.state.level.availablePhosphatePools[0].absorptionState, 'waiting-mycorrhiza');
+});
+
+test('19-22. com micorriza madura ao alcance, o P vai para a raiz dela', () => {
+  const colony = mycorrhizaColony();
+  const root = colony.platform;
+  const h = harness({ mycorrhiza: colony });
+  h.charge(.5); h.advance(1);
+  const antes = h.state.level.availablePhosphatePools[0].amount;
+
   h.system.update(1);
-  assert.ok(h.state.level.availablePhosphatePools[0].amount < poolBefore);
+  assert.ok(h.state.level.availablePhosphatePools[0].amount < antes, 'a poca e consumida');
   assert.ok(h.system.transportedPhosphate > 0);
   assert.ok(h.state.level.phosphateTransportParticles.length > 0);
-  assert.ok(root.phosphateStock > 0);
-  assert.ok(root.rootHealth > .5 && root.rootHealth <= .7);
+  assert.ok(root.phosphateStock > 0, 'a reserva entra na raiz colonizada');
+  assert.ok(root.rootHealth > .5 && root.rootHealth <= .7, 'e respeita o teto de saude da raiz');
+});
+
+test('19-22. colonia imatura ou fora de alcance nao transporta', () => {
+  const imatura = harness({ mycorrhiza: mycorrhizaColony({ growth: .2 }) });
+  imatura.charge(.5); imatura.advance(1);
+  imatura.system.update(2);
+  assert.equal(imatura.system.transportedPhosphate, 0, 'a colonia precisa amadurecer');
+
+  const distante = harness({ mycorrhiza: mycorrhizaColony({ x: 4000, y: 4000 }) });
+  distante.charge(.5); distante.advance(1);
+  distante.system.update(2);
+  assert.equal(distante.system.transportedPhosphate, 0, 'e precisa estar ao alcance da poca');
 });
 
 test('23. objetivo final da Fase 7 exige solubilizacao, transporte, estoque e saida', () => {

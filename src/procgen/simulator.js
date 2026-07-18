@@ -182,6 +182,9 @@ export function createSimulator() {
     entities,
     selection: inoculumSelection,
     bacillus: bacillusBioprotection,
+    // Quem carrega o fosfato ate a raiz e a micorriza inoculada, nao uma rota
+    // desenhada: o transporte precisa enxergar as colonias reais.
+    inoculants: beneficialInoculants,
   });
 
   state.microbeEcology = ecology;

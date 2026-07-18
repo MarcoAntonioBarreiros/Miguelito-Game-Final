@@ -53,20 +53,9 @@ export function applyPhaseSevenPhosphateGeometry(level, phase) {
   level.phosphateDeposits = [deposit];
   level.availablePhosphatePools = [];
   level.phosphateTransportParticles = [];
-  level.authoredPhosphateRoute = {
-    id: 'phase-7-mycorrhizal-route',
-    functional: true,
-    depositId: deposit.id,
-    rootPlatform,
-    arbuscule: { x: rootPlatform.x + rootPlatform.w * .45, y: rootPlatform.y - 7, maturity: 1 },
-    points: [
-      { x: deposit.x + deposit.w / 2, y: deposit.y + deposit.h * .55 },
-      { x: deposit.x + 100, y: deposit.y + 18 },
-      { x: (deposit.x + rootPlatform.x) / 2, y: Math.min(deposit.y, rootPlatform.y) - 54 },
-      { x: rootPlatform.x - 42, y: rootPlatform.y - 34 },
-      { x: rootPlatform.x + rootPlatform.w * .45, y: rootPlatform.y - 7 },
-    ],
-  };
+  // Nao existe rota autoral: o transporte so acontece se o jogador inocular uma
+  // micorriza numa raiz ao alcance da poca. A raiz-alvo fica marcada como
+  // destino esperado, mas nada nela e funcional por decreto.
   return level;
 }
 
@@ -81,7 +70,9 @@ function pointOnRoute(points, progress) {
   return { x: a.x + (b.x - a.x) * local, y: a.y + (b.y - a.y) * local };
 }
 
-export function createPhosphateSolubilization({ state, input, entities, selection, bacillus }) {
+export function createPhosphateSolubilization({
+  state, input, entities, selection, bacillus, inoculants = null,
+}) {
   let charge = 0;
   let chargeParticleCooldown = 0;
   let eHeldLast = false;
@@ -202,30 +193,58 @@ export function createPhosphateSolubilization({ state, input, entities, selectio
     }
   }
 
+  // Quem transporta o fosfato solubilizado e uma colonia de micorriza inoculada
+  // numa raiz, dentro do alcance da poca. Nao ha rota desenhada: os dois pontos
+  // sao objetos reais e o vinculo so existe quando o organismo esta la.
+  function transportingColony(pool) {
+    const colonies = inoculants?.colonies || [];
+    const reach = settings().mycorrhizalReach || 320;
+    let best = null;
+    for (const colony of colonies) {
+      if (colony.type !== 'myco' || colony.dormant) continue;
+      if (colony.growth < .68 || colony.vigor <= .05) continue;
+      if (!colony.platform || colony.platform.type !== 'root') continue;
+      const distance = Math.hypot(colony.x - pool.x, colony.y - pool.y);
+      if (distance > reach) continue;
+      if (!best || distance < best.distance) best = { colony, distance };
+    }
+    return best?.colony || null;
+  }
+
   function updateTransport(dt) {
-    const route = state.level.authoredPhosphateRoute;
-    if (!route?.functional || route.arbuscule?.maturity < 1) return;
     const config = settings();
-    const pool = (state.level.availablePhosphatePools || []).find(candidate => candidate.depositId === route.depositId);
-    if (!pool || pool.amount <= 0) return;
-    const amount = Math.min(pool.amount, dt * config.mycorrhizalTransportRate);
-    pool.amount -= amount;
-    pool.absorptionState = pool.amount > .001 ? 'absorbing' : 'depleted';
-    const sourceDeposit = (state.level.phosphateDeposits || []).find(deposit => deposit.id === pool.depositId);
-    if (sourceDeposit) sourceDeposit.localAvailablePhosphate = Math.max(0, pool.amount);
-    transported += amount;
-    route.rootPlatform.phosphateStock = (route.rootPlatform.phosphateStock || 0) + amount;
-    route.rootPlatform.nutritionalEfficiency = clamp((route.rootPlatform.nutritionalEfficiency || 0) + amount * .08, 0, 1);
-    route.rootPlatform.metabolicMaintenance = clamp((route.rootPlatform.metabolicMaintenance || 0) + amount * .06, 0, 1);
-    const maximumHealth = clamp(route.rootPlatform.maxRootHealth ?? 1, 0, 1);
-    route.rootPlatform.rootHealth = Math.min(
-      maximumHealth,
-      (route.rootPlatform.rootHealth ?? maximumHealth) + amount * .025,
-    );
-    state.player.soil += amount * .35;
-    state.player.hope += amount * .22;
-    const particles = state.level.phosphateTransportParticles || (state.level.phosphateTransportParticles = []);
-    if (particles.length < 18) particles.push({ progress: 0, speed: .28 + amount * 2, life: 1 });
+    for (const pool of state.level.availablePhosphatePools || []) {
+      if (pool.amount <= 0) continue;
+      const colony = transportingColony(pool);
+      pool.transportingColony = colony;
+      if (!colony) {
+        pool.absorptionState = 'waiting-mycorrhiza';
+        continue;
+      }
+      const root = colony.platform;
+      const amount = Math.min(pool.amount, dt * config.mycorrhizalTransportRate);
+      pool.amount -= amount;
+      pool.absorptionState = pool.amount > .001 ? 'absorbing' : 'depleted';
+      const sourceDeposit = (state.level.phosphateDeposits || []).find(deposit => deposit.id === pool.depositId);
+      if (sourceDeposit) sourceDeposit.localAvailablePhosphate = Math.max(0, pool.amount);
+      transported += amount;
+      root.phosphateStock = (root.phosphateStock || 0) + amount;
+      root.nutritionalEfficiency = clamp((root.nutritionalEfficiency || 0) + amount * .08, 0, 1);
+      root.metabolicMaintenance = clamp((root.metabolicMaintenance || 0) + amount * .06, 0, 1);
+      const maximumHealth = clamp(root.maxRootHealth ?? 1, 0, 1);
+      root.rootHealth = Math.min(maximumHealth, (root.rootHealth ?? maximumHealth) + amount * .025);
+      state.player.soil += amount * .35;
+      state.player.hope += amount * .22;
+      const particles = state.level.phosphateTransportParticles || (state.level.phosphateTransportParticles = []);
+      if (particles.length < 14) {
+        particles.push({
+          poolId: pool.depositId,
+          progress: 0,
+          speed: .3 + amount * 2,
+          wobble: (Math.random() - .5) * 26,
+        });
+      }
+    }
   }
 
   function update(dt) {
@@ -244,7 +263,6 @@ export function createPhosphateSolubilization({ state, input, entities, selectio
   }
 
   function render(ctx) {
-    const route = state.level.authoredPhosphateRoute;
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     for (const deposit of state.level.phosphateDeposits || []) {
@@ -279,19 +297,25 @@ export function createPhosphateSolubilization({ state, input, entities, selectio
         ctx.fill();
       }
     }
-    if (route?.functional) {
-      ctx.strokeStyle = 'rgba(209,159,255,.72)';
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      route.points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
-      ctx.stroke();
+    // O fosfato viaja entre dois pontos reais: a poca solubilizada e a colonia
+    // de micorriza que a esta absorvendo. Sem colonia, nada e desenhado — antes
+    // havia uma polilinha fixa que se declarava hifa funcional.
+    for (const pool of state.level.availablePhosphatePools || []) {
+      const colony = pool.transportingColony;
+      if (!colony) continue;
       for (const particle of state.level.phosphateTransportParticles || []) {
-        const point = pointOnRoute(route.points, particle.progress);
+        if (particle.poolId !== pool.depositId) continue;
+        const t = clamp(particle.progress, 0, 1);
+        const x = pool.x + (colony.x - pool.x) * t;
+        const y = pool.y + (colony.y - pool.y) * t + Math.sin(t * Math.PI) * particle.wobble;
         ctx.fillStyle = '#ffd56f';
         ctx.shadowBlur = 10;
         ctx.shadowColor = '#e4a2ff';
-        ctx.beginPath(); ctx.arc(point.x, point.y, 3.2, 0, TAU); ctx.fill();
+        ctx.globalAlpha = Math.sin(t * Math.PI) * .9 + .1;
+        ctx.beginPath(); ctx.arc(x, y, 2.6, 0, TAU); ctx.fill();
       }
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
     }
     // O disparo era um triangulo chapado do jogador ate a frente da onda. Agora
     // e uma frente de acidos organicos: nucleo estreito que desvanece atras e
@@ -357,6 +381,10 @@ export function createPhosphateSolubilization({ state, input, entities, selectio
     get shotCount() { return shots.length; },
     get solubilizedDepositCount() { return solubilizedCount; },
     get transportedPhosphate() { return transported; },
-    get rootPhosphateStock() { return state.level.authoredPhosphateRoute?.rootPlatform?.phosphateStock || 0; },
+    // A reserva vive na raiz que recebeu o transporte, seja ela qual for.
+    get rootPhosphateStock() {
+      return (state.level.platforms || [])
+        .reduce((sum, platform) => sum + (platform.phosphateStock || 0), 0);
+    },
   };
 }

@@ -114,6 +114,9 @@ let platformVisuals = null;
 let showDebug = true;
 let lastTime = performance.now();
 let lastToast = '';
+let loopErrorCount = 0;
+// Depois disso a falha e claramente permanente e insistir so gasta quadro.
+const LOOP_ERROR_LIMIT = 240;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -512,7 +515,24 @@ function loop(now) {
 
     requestAnimationFrame(loop);
   } catch (error) {
-    debugDiv.textContent = 'ERRO: ' + error.message + '\n' + error.stack;
+    // Sem repedir o quadro aqui, qualquer excecao pontual congelava o jogo para
+    // sempre: o erro era escrito no painel e o loop simplesmente parava. Agora a
+    // partida continua e o erro fica registrado, visivel com Tab.
+    loopErrorCount++;
+    debugDiv.textContent = `ERRO (${loopErrorCount}): ${error.message}\n${error.stack}`;
+    if (loopErrorCount === 1) {
+      console.error('Erro no loop principal:', error);
+      sim.state.toast = 'Um sistema falhou neste quadro. A partida continua; Tab mostra o erro.';
+      sim.state.toastTime = 5;
+    }
+    // Uma falha que se repete a cada quadro nao deve inundar o console nem
+    // impedir de jogar, mas tambem nao pode ser escondida.
+    if (loopErrorCount < LOOP_ERROR_LIMIT) {
+      requestAnimationFrame(loop);
+    } else if (loopErrorCount === LOOP_ERROR_LIMIT) {
+      debugDiv.classList.remove('hidden');
+      debugDiv.textContent = `ERRO PERSISTENTE apos ${LOOP_ERROR_LIMIT} quadros:\n${error.message}\n${error.stack}`;
+    }
   }
 }
 

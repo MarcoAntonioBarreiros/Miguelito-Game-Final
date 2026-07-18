@@ -13,6 +13,11 @@
 
 export const ECOLOGY_ROAMING_TYPES = Object.freeze([
   'rhizobium', 'bacillus', 'azospirillum', 'pseudomonas', 'oportunista', 'trichoderma',
+  // A micorriza entra na lista para poder ser colocada e selecionada como os
+  // outros organismos. Isso nao a faz vaguear: o perfil de movimento dela e de
+  // micelio ancorado (homePull alto, velocidade baixa). Ela fica onde estreia,
+  // e o que se carrega dali e o inoculo.
+  'myco',
 ]);
 
 export const PATHOGEN_SYSTEMS = Object.freeze(['rhizoctonia', 'meloidogyne', 'ralstonia']);
@@ -75,6 +80,8 @@ export const PHOSPHATE_SOLUBILIZATION_DEFAULTS = Object.freeze({
   exudateProductionMultiplier: 2.4,
   localPoolCaptureRadius: 92,
   mycorrhizalTransportRate: .16,
+  // Alcance da colonia de micorriza inoculada ate a poca de fosfato disponivel.
+  mycorrhizalReach: 320,
   minimumTransportedPhosphate: .65,
 });
 
