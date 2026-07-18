@@ -419,11 +419,13 @@ function loop(now) {
     }
 
     const player = sim.state.player;
-    const inoculationAction = sim.trichodermaColonies.followerCount > 0
-      ? `🧫 E Inocular Trichoderma (${sim.trichodermaColonies.followerCount})`
-      : sim.beneficialInoculants.followerCount > 0
-        ? `🧪 E Inocular benéficas (${sim.beneficialInoculants.followerCount})`
-        : player.exudates > 0 ? '🟢 E Exsudato' : null;
+    // O seletor manda: o HUD mostra o item escolhido, nao uma ordem de prioridade.
+    const selected = sim.inoculumSelection.current;
+    const totalCarregado = sim.inoculumSelection.options().length;
+    const inoculationAction = selected
+      ? `${selected.kind === 'exudate' ? '🟢' : '🧪'} E ${selected.label} (${selected.count})`
+        + (totalCarregado > 1 ? ` ↓ trocar (${totalCarregado})` : '')
+      : null;
     const abilities = [
       inoculationAction,
       player.canDoubleJump ? '⬆⬆ Salto' : null,

@@ -18,6 +18,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
   let deployedCloudCount = 0;
   let eHeldLast = false;
   let infectionAnnounced = false;
+  let activeSelection = null;
 
   function toast(title, message, seconds = 4.7) {
     state.toast = `${title}: ${message}`;
@@ -81,7 +82,10 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
 
   function prepare() {
     const pressed = Boolean(input.keys.KeyE);
-    if (pressed && !eHeldLast && state.gameState === 'play') deployCloud();
+    // Com seletor ativo, o exsudato so sai quando ele e o item escolhido; senao
+    // o E pertence ao organismo selecionado.
+    const exudateSelected = !activeSelection || activeSelection.isSelected('exudate');
+    if (pressed && !eHeldLast && state.gameState === 'play' && exudateSelected) deployCloud();
     eHeldLast = pressed;
     state.player.moveMultiplier = 1 - clamp(state.player.infection || 0, 0, 1) * .32;
   }
@@ -373,6 +377,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
   }
 
   return {
+    setSelection(selection) { activeSelection = selection; },
     get cloudCount() { return clouds.length; },
     get deployedCloudCount() { return deployedCloudCount; },
     get biofilmCount() { return biofilms.length; },

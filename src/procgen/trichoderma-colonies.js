@@ -24,6 +24,7 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
   let nextColonyId = 1;
   let eHeldLast = false;
   let suppressEUntilRelease = false;
+  let activeSelection = null;
 
   function recruitedFollowers() {
     return ecology.agents.filter(agent => (
@@ -87,6 +88,11 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
 
   function prepare() {
     const pressed = Boolean(input.keys.KeyE);
+    // Com seletor ativo, o Trichoderma so responde ao E quando ele e o escolhido.
+    if (activeSelection && !activeSelection.isSelected('trichoderma')) {
+      eHeldLast = pressed;
+      return;
+    }
     if (pressed && !eHeldLast && state.gameState === 'play' && depositFollowers()) {
       suppressEUntilRelease = true;
     }
@@ -204,6 +210,7 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
   }
 
   return {
+    setSelection(selection) { activeSelection = selection; },
     get colonies() { return colonies; },
     get followerCount() { return recruitedFollowers().length; },
     get colonyCount() { return colonies.length; },

@@ -76,6 +76,9 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
   let eHeldLast = false;
   let suppressEUntilRelease = false;
   let lastRecruitToastAt = -Infinity;
+  // Quando existe seletor, so o organismo escolhido responde ao E. Sem seletor
+  // o comportamento antigo continua valendo, para os testes existentes.
+  let activeSelection = null;
 
   function isBeneficial(agent) {
     return Boolean(agent && PROFILES[agent.type]);
@@ -293,8 +296,18 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
   }
 
   function depositFollowers() {
-    const groups = followerGroups();
+    let groups = followerGroups();
     if (!groups.size) return false;
+
+    // Com seletor ativo, deposita somente o organismo escolhido — e nao responde
+    // ao E quando o escolhido pertence a outro sistema (exsudato, Trichoderma).
+    if (activeSelection) {
+      const chosen = activeSelection.current;
+      if (!chosen || chosen.kind !== 'organism') return false;
+      const agents = groups.get(chosen.type);
+      if (!agents) return false;
+      groups = new Map([[chosen.type, agents]]);
+    }
     const player = state.player;
     const support = nearestSupport(
       state,
@@ -513,6 +526,8 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
   }
 
   return {
+    followerGroups,
+    setSelection(selection) { activeSelection = selection; },
     get followerCount() { return followers().length; },
     get followerSummary() { return summaryFromCounts(followers()); },
     get colonyCount() { return colonies.length; },

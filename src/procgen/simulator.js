@@ -22,6 +22,7 @@ import { createMeloidogyneLifecycle } from './meloidogyne-lifecycle.js';
 import { createGoalSystem } from './goal-system.js';
 import { createEcologicalGameplay } from './ecological-gameplay.js';
 import { createPathogenSurvival } from './pathogen-survival.js';
+import { createInoculumSelection } from './inoculum-selection.js';
 
 function createEmptyLevel() {
   return {
@@ -57,6 +58,8 @@ export function createSimulator() {
       Space: false, KeyW: false, ArrowUp: false,
       ShiftLeft: false, ShiftRight: false, KeyJ: false,
       KeyK: false, KeyE: false,
+      // Seta para baixo cicla o inoculo carregado. A de cima nao serve: e pulo.
+      ArrowDown: false,
     },
   };
 
@@ -156,6 +159,19 @@ export function createSimulator() {
   const meloidogyneLifecycle = createMeloidogyneLifecycle({ state, entities });
   const pathogenSurvival = createPathogenSurvival({ state, entities, ecology });
 
+  // Um unico item selecionado por vez decide quem responde ao E: cada sistema
+  // consulta a selecao antes de agir, em vez de disputar a tecla por ordem.
+  const inoculumSelection = createInoculumSelection({
+    state,
+    input,
+    inoculants: beneficialInoculants,
+    trichodermaColonies,
+  });
+  beneficialInoculants.setSelection(inoculumSelection);
+  trichodermaColonies.setSelection(inoculumSelection);
+  gameplay.setSelection(inoculumSelection);
+  state.inoculumSelection = inoculumSelection;
+
   state.microbeEcology = ecology;
   state.mycorrhizaGrowth = mycorrhiza;
   state.mycorrhizaStructures = mycorrhizaStructures;
@@ -237,6 +253,7 @@ export function createSimulator() {
   }
 
   function step(dt) {
+    inoculumSelection.prepare(dt);
     trichodermaColonies.prepare(dt);
     beneficialInoculants.prepare(dt);
     gameplay.prepare(dt);
@@ -285,6 +302,7 @@ export function createSimulator() {
     rhizobiumNodulation, nitrogenRootDevelopment, azospirillumRootGrowth, azospirillumRootSafety,
     azospirillumNitrogen,
     meloidogyneLifecycle, pathogenSurvival, goal, gameplay,
+    inoculumSelection,
     reset, resetEcology, resetBiology, setInputs, step,
   };
 

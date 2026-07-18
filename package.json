@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.cjs",
-    "test": "npm run test:manifest && npm run build && npm run test:procgen && npm run test:progression && npm run test:tutorial && npm run test:organisms && npm run test:phase-one && npm run test:phase-lab && npm run test:nitrogen-root && npm run test:azospirillum && npm run test:phase-five && npm run test:browser",
+    "test": "npm run test:manifest && npm run test:selection && npm run build && npm run test:procgen && npm run test:progression && npm run test:tutorial && npm run test:organisms && npm run test:phase-one && npm run test:phase-lab && npm run test:nitrogen-root && npm run test:azospirillum && npm run test:phase-five && npm run test:browser",
     "test:manifest": "node --test tests/campaign-manifest.test.js",
+    "test:selection": "node --test tests/inoculum-selection.test.js",
     "test:browser": "node tests/browser-smoke.cjs",
     "test:procgen": "node --test tests/procgen.test.js",
     "test:progression": "node --test tests/progression-gating.test.js",
