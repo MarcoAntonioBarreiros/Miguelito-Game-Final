@@ -42,6 +42,15 @@ export const MICROBE_MOTION_PROFILES = {
     homePull: .30, playerPull: .11, wander: .82,
     kind: 'conidium', flagella: null, scale: .84, trail: false,
   },
+  // Fungo, nao bacteria: o micelio nao nada nem segue Miguelito. Fica ancorado
+  // onde estreia — homePull alto, velocidade e vagancia baixas — mas o inoculo
+  // pode ser capturado ali e carregado como o das bacterias.
+  myco: {
+    color: '#d6afff', count: 6, speed: 16, radius: 94,
+    cohesion: .17, alignment: .04, separation: 1.44,
+    homePull: .94, playerPull: .03, wander: .16,
+    kind: 'spore', flagella: null, scale: .86, trail: false,
+  },
 };
 
 function hashSeed(text) {
@@ -166,15 +175,37 @@ function drawSpore(ctx, time, agent, profile) {
   ctx.strokeStyle = 'rgba(255,255,255,.35)';
   ctx.lineWidth = 1;
   if (profile.kind === 'conidium') {
+    // Conidio e unicelular e nao nada: nao tem flagelo. O que existe na base e
+    // a cicatriz de desprendimento do conidioforo (hilo). A leitura interna vem
+    // da parede espessa e das guticulas lipidicas, nao de um apendice.
     ctx.beginPath();
     ctx.ellipse(0, 0, r * 1.18, r * .86, 0, 0, TAU);
     ctx.fill();
     ctx.stroke();
-    ctx.strokeStyle = `${profile.color}aa`;
+
+    ctx.save();
+    ctx.clip();
+    ctx.strokeStyle = `${profile.pale || 'rgba(255,255,255,.5)'}`;
+    ctx.globalAlpha = .5;
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
-    ctx.moveTo(-r * 1.1, 0);
-    ctx.quadraticCurveTo(-r * 2.4, r * .8, -r * 3.1, r * .15);
+    ctx.ellipse(0, 0, r * 1.02, r * .7, 0, 0, TAU);
     ctx.stroke();
+    ctx.globalAlpha = .38;
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.beginPath();
+    ctx.arc(r * .34, r * .16, Math.max(.9, r * .2), 0, TAU);
+    ctx.arc(-r * .38, r * .26, Math.max(.7, r * .15), 0, TAU);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.strokeStyle = `${profile.color}cc`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.12, -r * .2);
+    ctx.lineTo(-r * 1.12, r * .2);
+    ctx.stroke();
+    ctx.lineWidth = 1;
   } else {
     ctx.beginPath();
     for (let i = 0; i < 12; i++) {

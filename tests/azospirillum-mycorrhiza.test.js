@@ -133,6 +133,90 @@ test('desafio de Azo so e reservado depois de Azo, exsudato e raiz colonizavel',
   assert.equal(level.platforms.some(platform => platform.azospirillumRootWall), false);
 });
 
+// A escada deixou de ser recurso do nivel e virou efeito da inoculacao: nasce
+// em qualquer raiz onde a colonia de Azo amadurece, sem hospedeiro pre-marcado.
+function runtimeLadderScene({ nitrogen = 0, platforms = [] } = {}) {
+  const host = { x: 400, y: 500, w: 220, h: 60, type: 'root', logicIndex: 4 };
+  const level = {
+    platforms: [host, ...platforms],
+    azospirillumRootLadders: [],
+    azospirillumRoots: [],
+    rhizobiumNodules: nitrogen ? [{ fixationRate: nitrogen }] : [],
+    particles: [],
+  };
+  const inoculants = { colonies: [] };
+  const state = {
+    gameState: 'play', time: 0, level, cameraX: 0,
+    player: { soil: 0, hope: 0 },
+  };
+  const runtime = createAzospirillumRootGrowth({
+    state, inoculants, entities: { burst() {} },
+  });
+  runtime.reset();
+  return { state, level, host, inoculants, runtime };
+}
+
+test('inocular Azo em qualquer raiz faz nascer a escada, sem hospedeiro marcado', () => {
+  const scene = runtimeLadderScene();
+  scene.runtime.update(1);
+  assert.equal(scene.level.azospirillumRootLadders.length, 0, 'sem colonia nao nasce nada');
+
+  scene.inoculants.colonies.push({
+    id: 'azo-livre', type: 'azospirillum', platform: scene.host,
+    growth: 1, vigor: 1, dormant: false, x: scene.host.x + 60,
+  });
+  scene.runtime.update(.1);
+
+  const [ladder] = scene.level.azospirillumRootLadders;
+  assert.ok(ladder, 'a colonia madura cria a escada na propria raiz inoculada');
+  assert.equal(ladder.host, scene.host);
+  assert.equal(scene.host.azospirillumLadderHost, undefined, 'nenhuma marcacao previa');
+  assert.ok(ladder.endY < ladder.startY, 'a raiz lateral sobe, nunca desce');
+  assert.equal(ladder.destination, null, 'sem bloco alcancavel ela sobe reta');
+  assert.equal(Math.round(ladder.endX), Math.round(ladder.startX), 'subida reta e vertical');
+
+  // Uma segunda passada nao duplica a escada da mesma raiz.
+  scene.runtime.update(.1);
+  assert.equal(scene.level.azospirillumRootLadders.length, 1);
+});
+
+test('o estoque de nitrogenio decide a altura, e um bloco proximo decide a inclinacao', () => {
+  const pobre = runtimeLadderScene({ nitrogen: 0 });
+  pobre.inoculants.colonies.push({
+    id: 'azo-pobre', type: 'azospirillum', platform: pobre.host,
+    growth: 1, vigor: 1, dormant: false, x: pobre.host.x,
+  });
+  pobre.runtime.update(.1);
+  const alturaPobre = pobre.level.azospirillumRootLadders[0].startY
+    - pobre.level.azospirillumRootLadders[0].endY;
+
+  const rico = runtimeLadderScene({ nitrogen: 40 });
+  rico.inoculants.colonies.push({
+    id: 'azo-rico', type: 'azospirillum', platform: rico.host,
+    growth: 1, vigor: 1, dormant: false, x: rico.host.x,
+  });
+  rico.runtime.update(.1);
+  const alturaRica = rico.level.azospirillumRootLadders[0].startY
+    - rico.level.azospirillumRootLadders[0].endY;
+
+  assert.ok(alturaRica > alturaPobre + 100, `estoque cheio (${alturaRica}px) deve superar o vazio (${alturaPobre}px)`);
+
+  // Com um bloco alcancavel acima e ao lado, a escada inclina em direcao a ele.
+  const comAlvo = runtimeLadderScene({
+    nitrogen: 40,
+    platforms: [{ x: 700, y: 300, w: 200, h: 50, type: 'root', logicIndex: 5 }],
+  });
+  comAlvo.inoculants.colonies.push({
+    id: 'azo-alvo', type: 'azospirillum', platform: comAlvo.host,
+    growth: 1, vigor: 1, dormant: false, x: comAlvo.host.x,
+  });
+  comAlvo.runtime.update(.1);
+  const dirigida = comAlvo.level.azospirillumRootLadders[0];
+  assert.ok(dirigida.destination, 'existindo bloco no alcance, ele vira destino');
+  assert.ok(dirigida.endX > dirigida.startX, 'a escada inclina para o bloco');
+  assert.ok(dirigida.endY < dirigida.startY, 'mas continua subindo');
+});
+
 test('escada cresce apenas com colonia de Azo na raiz e cada degrau so colide em 100%', () => {
   const { level, ladder } = createFixtureLadder();
   const inoculants = { colonies: [] };
