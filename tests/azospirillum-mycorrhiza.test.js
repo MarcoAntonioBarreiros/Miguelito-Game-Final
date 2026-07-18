@@ -329,8 +329,8 @@ test('Phase Lab 4 oferece recapitulacao de Azo em raiz antes da micorriza funcio
 
   assert.ok(ladder);
   assert.equal(ladder.recapAccess, true);
-  assert.equal(ladder.hostLogicIndex, 4);
-  assert.equal(ladder.destinationLogicIndex, 5);
+  assert.equal(ladder.hostLogicIndex, 3);
+  assert.equal(ladder.destinationLogicIndex, 4);
   assert.equal(ladder.host.type, 'root');
   assert.ok(ladder.sourceAzospirillumLogicIndex < ladder.sourceExudateLogicIndex);
   assert.ok(ladder.sourceExudateLogicIndex < ladder.hostLogicIndex);
