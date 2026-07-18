@@ -211,6 +211,65 @@ function drawHyphalFragment(ctx, time, agent, profile) {
   ctx.restore();
 }
 
+// Micelio extrarradicular: a trama de hifas que explora o solo e sobre a qual
+// os esporos se formam. E o organismo estabelecido; o esporo flutuando acima e
+// so o propagulo. Deterministico pela posicao da zona, para nao tremer.
+function drawExtraradicalMycelium(ctx, time, zone) {
+  const seed = Math.abs(Math.round(zone.x) * 73856093 ^ Math.round(zone.y) * 19349663);
+  const random = (index) => {
+    const value = Math.sin(seed * .0001 + index * 12.9898) * 43758.5453;
+    return value - Math.floor(value);
+  };
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineCap = 'round';
+
+  const strands = 14;
+  for (let i = 0; i < strands; i++) {
+    const angle = -Math.PI + random(i) * Math.PI * 2;
+    const length = 46 + random(i + 40) * 88;
+    const bend = (random(i + 80) - .5) * 1.5;
+    const breathe = Math.sin(time * .55 + random(i + 120) * TAU) * 4;
+    const endX = zone.x + Math.cos(angle) * length;
+    const endY = zone.y + Math.sin(angle) * length * .62 + breathe;
+    const midX = zone.x + Math.cos(angle + bend) * length * .55;
+    const midY = zone.y + Math.sin(angle + bend) * length * .38;
+
+    ctx.strokeStyle = `rgba(214,175,255,${.16 + random(i + 160) * .2})`;
+    ctx.lineWidth = 1.5 + random(i + 200) * 1.3;
+    ctx.beginPath();
+    ctx.moveTo(zone.x, zone.y);
+    ctx.quadraticCurveTo(midX, midY, endX, endY);
+    ctx.stroke();
+
+    // Ramificacao: hifa se divide, e e isso que forma a trama.
+    if (random(i + 240) > .42) {
+      const branchAngle = angle + (random(i + 280) - .5) * 1.25;
+      const branchLength = length * (.32 + random(i + 320) * .3);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(midX, midY);
+      ctx.quadraticCurveTo(
+        midX + Math.cos(branchAngle) * branchLength * .6,
+        midY + Math.sin(branchAngle) * branchLength * .4,
+        midX + Math.cos(branchAngle) * branchLength,
+        midY + Math.sin(branchAngle) * branchLength * .66,
+      );
+      ctx.stroke();
+    }
+
+    // Vesiculas nas pontas: reserva lipidica do fungo.
+    if (random(i + 360) > .62) {
+      ctx.fillStyle = 'rgba(240,228,255,.34)';
+      ctx.beginPath();
+      ctx.ellipse(endX, endY, 4.2, 3, angle, 0, TAU);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 function drawSpore(ctx, time, agent, profile) {
   const pulse = 1 + Math.sin(time * 2.4 + agent.phase) * .08;
   const r = (profile.kind === 'conidium' ? 6.5 : 5.5) * agent.size * pulse;
@@ -576,6 +635,15 @@ export function createMicrobeEcology({ state, entities }) {
         ctx.stroke();
         ctx.restore();
       }
+    }
+
+    // O micelio extrarradicular vem antes dos agentes: o esporo se forma sobre
+    // ele e precisa aparecer por baixo. A arte de cena da campanha e uma lista
+    // decorativa fixa e nunca cai onde a zona real de micorriza esta.
+    for (const zone of ecology.encounters) {
+      if (zone.id !== 'myco') continue;
+      if (zone.x < state.cameraX - 220 || zone.x > state.cameraX + W + 220) continue;
+      drawExtraradicalMycelium(ctx, state.time, zone);
     }
 
     for (const agent of ecology.agents) {
