@@ -316,7 +316,6 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
       phase: Number.isFinite(spec.phase) ? spec.phase : 0,
       linkedBiofilm: null,
       authored: true,
-      solubilizerStrain: Boolean(spec.solubilizerStrain),
     };
     colonies.push(colony);
     if (colony.type === 'bacillus') colony.linkedBiofilm = createBacillusBiofilm(colony);

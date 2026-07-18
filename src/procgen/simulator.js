@@ -169,6 +169,9 @@ export function createSimulator() {
     inoculants: beneficialInoculants,
     trichodermaColonies,
   });
+  // A ponte micorrizica passa a exigir colonia inoculada na raiz de origem, em
+  // vez de nascer de qualquer exsudato solto perto de uma borda.
+  mycorrhizaStructures.setInoculants(beneficialInoculants);
   beneficialInoculants.setSelection(inoculumSelection);
   trichodermaColonies.setSelection(inoculumSelection);
   gameplay.setSelection(inoculumSelection);

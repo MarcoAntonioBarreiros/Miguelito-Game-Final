@@ -3162,6 +3162,9 @@ function createSimulator() {
     inoculants: beneficialInoculants,
     trichodermaColonies,
   });
+  // A ponte micorrizica passa a exigir colonia inoculada na raiz de origem, em
+  // vez de nascer de qualquer exsudato solto perto de uma borda.
+  mycorrhizaStructures.setInoculants(beneficialInoculants);
   beneficialInoculants.setSelection(inoculumSelection);
   trichodermaColonies.setSelection(inoculumSelection);
   gameplay.setSelection(inoculumSelection);
@@ -5860,7 +5863,22 @@ function sameConnection(structure, source, target) {
   );
 }
 
-function createMycorrhizaStructures({ state, entities }) {
+function createMycorrhizaStructures({ state, entities, inoculants = null }) {
+  let activeInoculants = inoculants;
+
+  // Sem sistema de inoculantes ligado, o comportamento antigo permanece: e o que
+  // os testes de geometria exercitam isoladamente.
+  function maturedMycorrhizaOn(platform) {
+    if (!activeInoculants) return true;
+    return colonies.some(colony => (
+      colony.type === 'myco'
+      && colony.platform === platform
+      && colony.growth >= .68
+      && colony.vigor > .05
+      && !colony.dormant
+    ));
+  }
+
   const structures = [];
   let nextId = 1;
   let lastToastAt = -Infinity;
@@ -5921,6 +5939,14 @@ function createMycorrhizaStructures({ state, entities }) {
     if (age < .55 || cloud.radius < 72) return;
     const sourceInfo = nearestSourcePlatform(state, cloud);
     if (!sourceInfo) {
+      if (age > 2.2) cloud.mycorrhizaStructureHandled = true;
+      return;
+    }
+
+    // A ponte e efeito da micorriza inoculada, nao do exsudato solto. Sem uma
+    // colonia madura na raiz de origem, o exsudato apenas atrai e alimenta —
+    // era isso que fazia pontes nascerem em qualquer lugar.
+    if (!maturedMycorrhizaOn(sourceInfo.platform)) {
       if (age > 2.2) cloud.mycorrhizaStructureHandled = true;
       return;
     }
@@ -6056,6 +6082,7 @@ function createMycorrhizaStructures({ state, entities }) {
   }
 
   return {
+    setInoculants(next) { activeInoculants = next; },
     get structureCount() { return structures.length; },
     get matureCount() { return structures.filter(structure => structure.mature).length; },
     get growingCount() { return structures.filter(structure => !structure.mature).length; },
@@ -7231,7 +7258,6 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
       phase: Number.isFinite(spec.phase) ? spec.phase : 0,
       linkedBiofilm: null,
       authored: true,
-      solubilizerStrain: Boolean(spec.solubilizerStrain),
     };
     colonies.push(colony);
     if (colony.type === 'bacillus') colony.linkedBiofilm = createBacillusBiofilm(colony);
@@ -8774,7 +8800,10 @@ function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
       mode: authoredMature ? 'mature' : 'adhesion',
       maturity: authoredMature ? 1 : .08,
       antibioticReserve: 0,
-      phosphateMetaboliteReserve: colony.solubilizerStrain && authoredMature ? .7 : 0,
+      // Nao existe "cepa solubilizadora" separada: e o mesmo Bacillus do
+      // checkpoint. Solubilizar fosfato e mais uma funcao dele quando maduro,
+      // como a antibiose. Uma colonia autoral ja madura comeca com reserva.
+      phosphateMetaboliteReserve: authoredMature ? .7 : 0,
       sporulation: 0,
       germination: 0,
       activePressure: 0,
@@ -8930,8 +8959,9 @@ function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
     }
 
 
-    if (entry.colony.solubilizerStrain
-      && entry.maturity >= .72
+    // Todo Bacillus maduro e metabolicamente ativo produz os acidos organicos
+    // que solubilizam o fosfato mineral. Nao ha cepa especial.
+    if (entry.maturity >= .72
       && isMetabolicallyActive(entry)
       && entry.mode !== 'sporulating') {
       const config = state.level.phaseProfile?.phosphateSolubilization || {};
@@ -9177,7 +9207,9 @@ function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
     ctx.fillText('antibiose', 0, 41);
     ctx.restore();
 
-    if (entry.colony.solubilizerStrain && entry.mode !== 'spores') {
+    // A barra de fosfato so aparece quando ha reserva: qualquer Bacillus pode
+    // te-la, mas ela nao polui a tela das colonias que ainda nao produziram.
+    if (entry.mode !== 'spores' && (entry.phosphateMetaboliteReserve || 0) > .01) {
       const phosphate = clamp(entry.phosphateMetaboliteReserve || 0, 0, 1);
       ctx.save();
       ctx.translate(colony.x, colony.y);
@@ -9227,7 +9259,9 @@ function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
     get fungiUnderAntibiosis() { return fungiUnderAntibiosis; },
     get entries() { return [...colonyStates.values()]; },
     get solubilizerEntries() {
-      return [...colonyStates.values()].filter(entry => entry.colony.solubilizerStrain);
+      // Qualquer colonia de Bacillus e candidata: quem decide e a maturidade e
+      // a reserva, verificadas por quem consome esta lista.
+      return [...colonyStates.values()].filter(entry => entry.colony.type === 'bacillus');
     },
     get protectedRootCount() {
       const platforms = new Set();
@@ -12799,7 +12833,6 @@ function applyPhaseSevenPhosphateGeometry(level, phase) {
     vigor: 1,
     growth: 1,
     rechargeIntensity: .35,
-    solubilizerStrain: true,
   }];
 
   const deposit = {

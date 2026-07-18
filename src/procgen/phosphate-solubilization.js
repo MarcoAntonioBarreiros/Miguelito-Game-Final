@@ -31,7 +31,6 @@ export function applyPhaseSevenPhosphateGeometry(level, phase) {
     vigor: 1,
     growth: 1,
     rechargeIntensity: .35,
-    solubilizerStrain: true,
   }];
 
   const deposit = {

@@ -115,18 +115,42 @@ function bacillusHarness(colony) {
   return { state, system, entry: system.entries[0] };
 }
 
-test('8-10. Bacillus comum nao carrega; cepa ativa carrega; endosporo interrompe producao', () => {
+// Nao existe cepa solubilizadora separada: e o mesmo Bacillus do checkpoint.
+// Quem decide se ele solubiliza e a maturidade, nao um tipo a parte.
+test('8-10. o mesmo Bacillus solubiliza: maduro produz, imaturo nao, endosporo interrompe', () => {
   const platform = { x: 0, y: 300, w: 180, h: 60 };
-  const common = bacillusHarness({ id: 'common', type: 'bacillus', x: 80, y: 290, platform, sourceCount: 4, vigor: 1, growth: 1, authored: true, rechargeIntensity: .5 });
-  assert.equal(common.entry.phosphateMetaboliteReserve, 0);
-  const strain = bacillusHarness({ id: 'strain', type: 'bacillus', x: 80, y: 290, platform, sourceCount: 4, vigor: 1, growth: 1, authored: true, rechargeIntensity: .5, solubilizerStrain: true });
-  assert.ok(strain.entry.phosphateMetaboliteReserve > .7);
-  strain.entry.mode = 'spores';
-  strain.entry.colony.dormant = true;
-  strain.entry.colony.rechargeIntensity = 0;
-  const before = strain.entry.phosphateMetaboliteReserve;
-  strain.system.update(1);
-  assert.ok(strain.entry.phosphateMetaboliteReserve <= before);
+
+  const maduro = bacillusHarness({
+    id: 'maduro', type: 'bacillus', x: 80, y: 290, platform,
+    sourceCount: 4, vigor: 1, growth: 1, authored: true, rechargeIntensity: .5,
+  });
+  assert.ok(
+    maduro.entry.phosphateMetaboliteReserve > .7,
+    'um Bacillus maduro produz o metabolito, sem precisar ser de outro tipo',
+  );
+
+  const imaturo = bacillusHarness({
+    id: 'imaturo', type: 'bacillus', x: 80, y: 290, platform,
+    sourceCount: 4, vigor: 1, growth: .3, rechargeIntensity: .5,
+  });
+  assert.ok(
+    imaturo.entry.maturity < .72,
+    'colonia recem-inoculada ainda nao esta madura',
+  );
+  assert.equal(
+    imaturo.entry.phosphateMetaboliteReserve, 0,
+    'antes de amadurecer nao ha reserva para absorver',
+  );
+
+  maduro.entry.mode = 'spores';
+  maduro.entry.colony.dormant = true;
+  maduro.entry.colony.rechargeIntensity = 0;
+  const antes = maduro.entry.phosphateMetaboliteReserve;
+  maduro.system.update(1);
+  assert.ok(
+    maduro.entry.phosphateMetaboliteReserve <= antes,
+    'esporulado, o Bacillus para de produzir',
+  );
 });
 
 test('11. reserva da colonia diminui durante a absorcao', () => {

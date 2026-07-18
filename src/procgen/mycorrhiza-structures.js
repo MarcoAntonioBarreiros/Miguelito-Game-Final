@@ -109,7 +109,22 @@ function sameConnection(structure, source, target) {
   );
 }
 
-export function createMycorrhizaStructures({ state, entities }) {
+export function createMycorrhizaStructures({ state, entities, inoculants = null }) {
+  let activeInoculants = inoculants;
+
+  // Sem sistema de inoculantes ligado, o comportamento antigo permanece: e o que
+  // os testes de geometria exercitam isoladamente.
+  function maturedMycorrhizaOn(platform) {
+    if (!activeInoculants) return true;
+    return colonies.some(colony => (
+      colony.type === 'myco'
+      && colony.platform === platform
+      && colony.growth >= .68
+      && colony.vigor > .05
+      && !colony.dormant
+    ));
+  }
+
   const structures = [];
   let nextId = 1;
   let lastToastAt = -Infinity;
@@ -170,6 +185,14 @@ export function createMycorrhizaStructures({ state, entities }) {
     if (age < .55 || cloud.radius < 72) return;
     const sourceInfo = nearestSourcePlatform(state, cloud);
     if (!sourceInfo) {
+      if (age > 2.2) cloud.mycorrhizaStructureHandled = true;
+      return;
+    }
+
+    // A ponte e efeito da micorriza inoculada, nao do exsudato solto. Sem uma
+    // colonia madura na raiz de origem, o exsudato apenas atrai e alimenta —
+    // era isso que fazia pontes nascerem em qualquer lugar.
+    if (!maturedMycorrhizaOn(sourceInfo.platform)) {
       if (age > 2.2) cloud.mycorrhizaStructureHandled = true;
       return;
     }
@@ -305,6 +328,7 @@ export function createMycorrhizaStructures({ state, entities }) {
   }
 
   return {
+    setInoculants(next) { activeInoculants = next; },
     get structureCount() { return structures.length; },
     get matureCount() { return structures.filter(structure => structure.mature).length; },
     get growingCount() { return structures.filter(structure => !structure.mature).length; },
