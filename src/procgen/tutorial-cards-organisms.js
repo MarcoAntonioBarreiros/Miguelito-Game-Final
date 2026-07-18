@@ -37,21 +37,21 @@ export const organismTutorialCards = {
     'Azo',
     '#72e8dd',
     [
-      page('Quem é?', 'Azospirillum reúne bactérias associadas à superfície e às regiões próximas das raízes de várias plantas.'),
+      page('Quem é?', 'Azospirillum reúne bactérias de colonização associativa que vivem no rizoplano e nas regiões próximas das raízes, sem formar nódulos.'),
       page(
-        'Função biológica',
-        'Pode contribuir para o crescimento vegetal por sinalização hormonal, mudanças na arquitetura radicular e outros mecanismos dependentes da estirpe e do hospedeiro.',
+        'Fitormônios e arquitetura',
+        'A colonização associativa pode produzir sinais semelhantes a fitormônios, estimulando ramificações laterais e aumentando a quantidade de pelos radiculares.',
       ),
       page(
         'Função no jogo',
-        'Quando inoculado em uma raiz e sustentado por exsudatos, induz o desenvolvimento de raízes laterais que ampliam a área explorável.',
+        'Quando inoculado em uma raiz, Azospirillum desenvolve progressivamente uma escada de ramificações. Cada degrau só sustenta Miguelito depois de atingir 100%.',
       ),
       page(
-        'Atenção didática',
-        'Azospirillum não forma os nódulos típicos de Rhizobium. As raízes laterais representam seu efeito sobre a arquitetura da planta.',
+        'Nitrogênio e co-inoculação',
+        'Sua fixação associativa oferece uma pequena contribuição de N. Na mesma raiz de um nódulo maduro, pode potencializar a FBN de Rhizobium, mas nunca cria ou substitui o nódulo.',
       ),
     ],
-    ['Rizoplano', 'Sinalização', 'Primórdio lateral', 'Emergência', 'Alongamento', 'Raiz madura'],
+    ['Rizoplano', 'Fitormônios', 'Ramificações', 'Pelos radiculares', 'N associativo', 'Sinergia com Rhizobium'],
   ),
 
   'organism-mycorrhiza': card(
@@ -179,14 +179,14 @@ export const organismTutorialCards = {
     [
       page('Quem é?', 'O cartão representa uma categoria de fungos que aproveitam ferimentos, estresse ou desequilíbrio para colonizar tecidos.'),
       page(
-        'Função biológica',
-        'A severidade depende do fungo, da planta, do ambiente e das condições do tecido. Nem todo fungo do solo é patogênico.',
+        'Rede de hifas',
+        'As pontas crescem de forma apical e formam ramificações laterais. A rede fica mais densa perto do alvo e hifas maduras liberam esporos.',
       ),
       page(
-        'Função no jogo',
-        'O contato acumula propágulos na roupa de Miguelito, reduz movimento e pode causar perda periódica de Vitalidade.',
+        'Contaminação',
+        'Hifas e esporos aderidos às pernas e à roupa reduzem aceleração, velocidade e impulso do pulo. Contaminação alta também retira Vitalidade lentamente.',
       ),
-      page('Como controlar', 'Pulso, Bacillus e Trichoderma reduzem a contaminação. Pseudomonas pode enfraquecer fungos pela competição por ferro.'),
+      page('Recuperação', 'Ao se afastar, a contaminação diminui lentamente. Depois, Pseudomonas mostrará como a competição por ferro reduz vigor, esporulação e aderência sem eliminar o fungo.'),
     ],
     ['Propágulo', 'Contato', 'Germinação', 'Colonização', 'Produção de novos propágulos'],
   ),

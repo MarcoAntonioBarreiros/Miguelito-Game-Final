@@ -1,4 +1,5 @@
 import { W } from '../core/constants.js';
+import { createRandom } from './random.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -26,6 +27,11 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
   let totalIronRecovered = 0;
   let fungiLimitedCount = 0;
   let lastToastAt = -Infinity;
+  let random = createRandom(`${state.campaign?.seed || 'pseudomonas'}:siderophores`);
+
+  function resetRandom() {
+    random = createRandom(`${state.campaign?.seed || 'pseudomonas'}:siderophores`);
+  }
 
   function deposits() {
     return state.level.ironDeposits || (state.level.ironDeposits = []);
@@ -94,7 +100,7 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     const entry = {
       colony,
       ironReserve: 0,
-      launchCooldown: .5 + Math.random() * .8,
+      launchCooldown: .5 + random() * .8,
       recovered: 0,
       delivered: 0,
       noIronToast: false,
@@ -136,17 +142,19 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     totalIronRecovered = 0;
     fungiLimitedCount = 0;
     lastToastAt = -Infinity;
+    resetRandom();
   }
 
   function reset() {
     siderophores.length = 0;
     colonyStates.clear();
-    state.level.ironDeposits = [];
+    state.level.ironDeposits = (state.level.ironDeposits || []).filter(deposit => deposit.authored);
     state.level.siderophores = siderophores;
     nextSiderophoreId = 1;
     totalIronRecovered = 0;
     fungiLimitedCount = 0;
     lastToastAt = -Infinity;
+    resetRandom();
     ensureDeposits();
   }
 
@@ -174,7 +182,7 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
   function launch(entry) {
     const colony = entry.colony;
     const target = nearbyAvailableDeposit(colony);
-    const angle = Math.random() * TAU;
+    const angle = random() * TAU;
     const particle = {
       id: `sid-${nextSiderophoreId++}`,
       colonyId: colony.id,
@@ -188,10 +196,10 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
       age: 0,
       life: 10.5,
       boundIron: 0,
-      phase: Math.random() * TAU,
+      phase: random() * TAU,
     };
     siderophores.push(particle);
-    entry.launchCooldown = .75 + Math.random() * .75;
+    entry.launchCooldown = .75 + random() * .75;
     colony.vigor = clamp(colony.vigor - .0045, 0, 1);
     entities.burst(particle.x, particle.y, '#d5ff6d', 5, 42);
 
@@ -216,7 +224,7 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
   }
 
   function bindIron(particle, deposit) {
-    const amount = Math.min(deposit.stock, .34 + Math.random() * .18);
+    const amount = Math.min(deposit.stock, .34 + random() * .18);
     if (amount <= .02) {
       particle.target = null;
       return;
@@ -283,7 +291,9 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
       const dy = agent.y - colony.y;
       const distance = Math.max(1, Math.hypot(dx, dy));
       if (distance >= radius) continue;
-      const pressure = clamp(1 - distance / radius, 0, 1) * clamp(entry.ironReserve * 1.35, 0, 1);
+      const spatialPressure = clamp(1 - distance / radius, 0, 1);
+      const reservePressure = clamp(entry.ironReserve, 0, 1);
+      const pressure = clamp(spatialPressure * .72 + reservePressure * .68, 0, 1);
       if (pressure <= .03) continue;
       agent.ironLimitation = Math.max(agent.ironLimitation || 0, pressure);
       agent.vx *= Math.pow(.32, dt * pressure);
@@ -504,6 +514,9 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     get freeCount() { return siderophores.filter(item => item.state === 'free').length; },
     get loadedCount() { return siderophores.filter(item => item.state === 'loaded').length; },
     get ironRecovered() { return totalIronRecovered; },
+    get ironReserve() {
+      return [...colonyStates.values()].reduce((sum, entry) => sum + entry.ironReserve, 0);
+    },
     get fungiLimitedCount() { return fungiLimitedCount; },
     get activeColonyCount() { return [...colonyStates.values()].filter(entry => entry.ironReserve > .03).length; },
     get colonyStates() { return colonyStates; },

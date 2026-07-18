@@ -1,14 +1,15 @@
-import { ensureTutorialInterface } from './tutorial-bootstrap.js?v=20260716-7';
-import { createTutorialManager } from './tutorial-manager.js?v=20260716-7';
+import { ensureTutorialInterface } from './tutorial-bootstrap.js?v=20260717-2';
+import { createTutorialManager } from './tutorial-manager.js?v=20260717-2';
 import {
   createTutorialTriggers,
   TUTORIAL_RUNTIME_VERSION,
-} from './tutorial-triggers.js?v=20260716-7';
+} from './tutorial-triggers.js?v=20260717-2';
 
 ensureTutorialInterface();
 
-const coarsePointer = window.matchMedia('(pointer: coarse)').matches
-  || navigator.maxTouchPoints > 0;
+const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
+const compactTouchViewport = window.matchMedia('(max-width: 900px)').matches;
+const touchDevice = coarsePointer || (navigator.maxTouchPoints > 0 && compactTouchViewport);
 
 const root = document.documentElement;
 const controls = document.getElementById('touch-controls');
@@ -17,7 +18,7 @@ const debugButton = document.querySelector('[data-mobile-action="debug"]');
 const resetButton = document.querySelector('[data-mobile-action="reset"]');
 const fullscreenButton = document.querySelector('[data-mobile-action="fullscreen"]');
 
-if (coarsePointer) root.classList.add('touch-device');
+if (touchDevice) root.classList.add('touch-device');
 
 const pressed = new Map();
 
@@ -106,7 +107,7 @@ document.addEventListener('fullscreenchange', () => {
   fullscreenButton?.classList.toggle('active', Boolean(document.fullscreenElement));
 });
 
-if (controls && coarsePointer) {
+if (controls && touchDevice) {
   controls.hidden = false;
   document.body.classList.add('touch-ready');
 }
@@ -125,6 +126,7 @@ function initializeTutorialSystem() {
   };
 
   const manager = createTutorialManager({ state: sim.state });
+  sim.ecology.setTutorialCardSeenResolver?.(cardId => manager.hasSeen(cardId));
   const ralstoniaAdapter = {
     get foci() { return sim.state.level.ralstoniaFoci || []; },
   };

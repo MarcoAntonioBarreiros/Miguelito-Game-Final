@@ -70,6 +70,24 @@ Cada organismo obrigatório declara um `debutZoneId`. Uma zona pode introduzir s
 
 O manifesto, seus helpers e o validador são adicionados sem importação pelo runtime. Este PR formaliza os contratos e falha cedo para referências, intervalos ou cadeias inválidas, mas não altera progressão, geração ou tutorial existentes.
 
+## Integração de progressão e gating
+
+O runtime passa a ler do manifesto somente o perfil das fases, títulos, missões, eventos de desbloqueio e disponibilidade de habilidades por chunk. A geometria consulta essa disponibilidade antes de selecionar requisitos de salto duplo, Dash ou Pulso; cristais registram o chunk e o poder exigido. Pontes micorrízicas e raízes laterais continuam sistemas de runtime, mas não são atualizadas antes de seus respectivos desbloqueios reais.
+
+Os poderes persistem em `sessionStorage` apenas quando foram efetivamente obtidos. Morte, checkpoint, reinicialização da fase e recarga da página reidratam essas flags sem conceder automaticamente poderes esperados para a fase.
+
+O prólogo permanece definido como fase 0 no manifesto, porém a campanha jogável continua iniciando na fase 1. Ativá-lo exige um PR próprio para mudar a fase inicial e implementar seus blocos fixos de introdução, prova final e transição; antecipar somente a mudança do número inicial produziria uma fase procedural sem a sequência autoral especificada.
+
+## Integração do fluxo dos cartões
+
+O runtime resolve cada gatilho pela apresentação correspondente no manifesto. A entrada real no raio de proximidade de um organismo ainda não explicado abre seu cartão obrigatório mesmo em trecho `silent` e mesmo quando a trava espacial está ativa. Geração distante, organismos já conhecidos, estruturas e processos derivados não recebem esse bypass.
+
+Cadeias do mesmo organismo atualizam progressivamente uma única entrada do GUIA. O primeiro encontro libera apenas as páginas declaradas para o organismo; estruturas e processos posteriores liberam as demais páginas sem abrir um novo painel fora dos módulos guiados. Organismos diferentes mantêm cartões separados e apresentações com pré-requisitos, como micoparasitismo, só são registradas depois das apresentações exigidas.
+
+A fila automática geral foi removida. Se um encontro obrigatório ocorrer enquanto outro painel estiver aberto, o gerenciador conserva no máximo um cartão obrigatório pendente de segurança. Um segundo organismo inédito simultâneo emite `miguelito:tutorial-simultaneous-first-encounters`; estreias fora da fase ou módulo esperado emitem o diagnóstico definido por `tutorialPacing.diagnosticEventName`.
+
+Apresentações secundárias respeitam `guided`, `silent` e `disabled`, além do intervalo de aproximadamente 90% da largura visível ou 60 segundos. O modo silencioso registra a descoberta e suas páginas no GUIA sem pausar o jogo. Desbloqueios de poder ignoram somente a trava espacial, não o modo silencioso.
+
 ## Poderes e geometria
 
 Poder planejado para a fase não equivale a poder disponível no início. O gerador consulta `getAvailableUnlocksAt(phase, chunkIndex)`. O unlock do chunk N só pode ser exigido a partir de N+1.
@@ -97,6 +115,16 @@ Garantias:
 
 Ralstonia fica para expansão pós-piloto.
 
+## Integração da ordem curricular
+
+As comunidades vagantes são geradas por `generateCampaignEncounters` a partir do manifesto. Bacillus, Rhizobium, Azospirillum, Pseudomonas, fungo oportunista e Trichoderma recebem uma única zona de estreia no `debutChunk` declarado. Essa comunidade permanece tethered à zona enquanto o respectivo cartão ainda não foi visto.
+
+`poolFromChunk` é apenas o limite espacial mínimo da recorrência. As zonas procedurais do organismo estreante permanecem dormentes até o primeiro encontro por proximidade concluir a apresentação; portanto, alcançar ou recarregar um trecho posterior não antecipa curricularmente o organismo. Organismos de fases anteriores continuam recorrendo normalmente.
+
+Micorriza e microrganismo solubilizador de fosfato são estreias fixas, associadas às plataformas dos chunks 4 e 18 de suas fases. Eles não entram no pool das comunidades vagantes. Rhizoctonia e Meloidogyne são controlados por agendas próprias: o inimigo de Rhizoctonia começa na fase 6/chunk 4 e a infestação de Meloidogyne na fase 7/chunk 4; fases posteriores preservam somente os patógenos já introduzidos pelo manifesto.
+
+Os testes multi-seed verificam a sequência Bacillus → Rhizobium → Azospirillum → micorriza → Pseudomonas → oportunista → Trichoderma → micoparasitismo → Rhizoctonia → Meloidogyne, a separação física das estreias, a ativação pós-cartão e a posição inicial dos dois subsistemas patogênicos.
+
 ## Ordem de Meloidogyne
 
 ```text
@@ -115,3 +143,11 @@ As provas verificam estado real, não apenas cartão visto. Criar avaliador cent
 4. Pool por chunk e tethering.
 5. Fase 1 como corte vertical.
 6. Uma fase por PR após playtest.
+
+## Corte vertical da Fase 1
+
+A Fase 1 implementa o ciclo completo `introdução fixa → encontro por proximidade → ação guiada → desafio procedural → prova final → raiz de conclusão`.
+
+Os blocos `p1-intro` e `p1-final` declaram template, objetivo, condições de conclusão e portão de saída no manifesto. A geometria autoral preserva conexões atravessáveis com os trechos procedurais. A introdução só libera a saída depois de um exsudato real e de um biofilme funcional na raiz de treinamento. A prova final usa o avaliador central e aceita somente um biofilme funcional associado à raiz marcada como `p1-exit-root`; cartão visto ou biofilme em outra raiz não conclui a fase.
+
+O workflow de Pages executa o build e publica o HTML standalone validado, reduzindo divergências de cache entre os módulos-fonte e o jogo implantado.

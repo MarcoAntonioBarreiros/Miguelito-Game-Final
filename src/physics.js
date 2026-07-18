@@ -25,7 +25,7 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
       color = '#d6afff';
       player.soil += 8;
       player.hope += 5;
-      hud.setMission('Libere exsudatos nas bordas para formar pontes e escadas micorrízicas');
+      hud.setMission('Libere exsudatos nas bordas para formar pontes micorrízicas horizontais');
       entities.discoverMicrobe('myco', false);
     } else if (feature === 'pulse') {
       color = '#8db8ff';
@@ -192,6 +192,7 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
     const level = state.level;
     const keys = input.keys;
     const moveMultiplier = clamp(player.moveMultiplier ?? 1, .48, 1);
+    const accelerationMultiplier = clamp(player.accelerationMultiplier ?? 1, .42, 1);
     const jumpMultiplier = clamp(player.jumpMultiplier ?? 1, .68, 1);
 
     player.invuln = Math.max(0, player.invuln - dt);
@@ -217,7 +218,11 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
     } else {
       const target = (right ? 1 : 0) - (left ? 1 : 0);
       if (target) player.facing = target;
-      player.vx = lerp(player.vx, target * 245 * moveMultiplier, 1 - Math.pow(.0008, dt));
+      player.vx = lerp(
+        player.vx,
+        target * 245 * moveMultiplier,
+        1 - Math.pow(.0008, dt * accelerationMultiplier),
+      );
       if (!target) player.vx *= Math.pow(.00002, dt);
       player.vy += 1180 * dt;
       player.vy = Math.min(player.vy, 720);
@@ -334,6 +339,7 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
       }
     });
     level.allies.forEach(a => {
+      if (a.presentationOnly) return;
       if (!a.taken && Math.hypot(a.x - (player.x + 16), a.y - (player.y + 24)) < 54) {
         a.taken = true;
         const color = collectCampaignUnlock(a, player);

@@ -347,21 +347,10 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
   }
 
   function updatePseudomonas(colony, dt) {
-    colony.stage = colony.growth < .65 ? 'ocupando o nicho' : 'zona supressiva';
+    colony.stage = colony.growth < .65 ? 'ocupando o nicho' : 'liberando sideróforos';
     if (colony.growth < .65) return;
-    const radius = colony.radius * (1.1 + colony.vigor * .7);
-    for (const agent of ecology.agents) {
-      if (agent.type !== 'oportunista') continue;
-      const dx = agent.x - colony.x;
-      const dy = agent.y - colony.y;
-      const distance = Math.max(1, Math.hypot(dx, dy));
-      if (distance >= radius) continue;
-      const pressure = clamp(1 - distance / radius, 0, 1) * colony.vigor;
-      agent.vx += dx / distance * 82 * pressure * dt;
-      agent.vy += dy / distance * 58 * pressure * dt;
-      agent.vx *= Math.pow(.38, dt * pressure);
-      agent.vy *= Math.pow(.38, dt * pressure);
-    }
+    // A supressão depende da reserva real de Fe do sistema de sideróforos.
+    // Um halo visual sem ferro capturado não controla o fungo.
   }
 
   function updateColony(colony, dt) {
@@ -472,6 +461,11 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#effff5';
     ctx.fillText(`${profile.short} — ${colony.stage}`, 0, barY - 5);
+    if (colony.type === 'azospirillum' && colony.associativeNitrogenActive) {
+      ctx.font = '650 8px Inter,system-ui';
+      ctx.fillStyle = 'rgba(255,215,131,.9)';
+      ctx.fillText('Fixação associativa de N', 0, barY - 16);
+    }
     ctx.restore();
   }
 
@@ -500,6 +494,7 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     get followerCount() { return followers().length; },
     get followerSummary() { return summaryFromCounts(followers()); },
     get colonyCount() { return colonies.length; },
+    get bacillusColonyCount() { return colonies.filter(colony => colony.type === 'bacillus').length; },
     get colonySummary() { return summaryFromCounts(colonies); },
     get vigorAverage() {
       if (!colonies.length) return 0;

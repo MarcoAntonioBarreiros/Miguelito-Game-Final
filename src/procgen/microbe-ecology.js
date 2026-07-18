@@ -209,43 +209,51 @@ export function createMicrobeEcology({ state, entities }) {
     ecology.encounters.length = 0;
   }
 
+  function spawnZone(zone) {
+    const maxAgents = 156;
+    const profile = MICROBE_MOTION_PROFILES[zone.id];
+    if (!profile || ecology.agents.length >= maxAgents) return;
+    const count = Math.min(profile.count, maxAgents - ecology.agents.length);
+    const rnd = seededRandom(hashSeed(`${zone.id}:${Math.round(zone.x)}:${Math.round(zone.y)}:${zone.index}`));
+    const homeY = clamp(zone.y - 32, 95, H - 100);
+
+    for (let i = 0; i < count; i++) {
+      const angle = rnd() * TAU;
+      const radius = profile.radius * (.18 + rnd() * .62);
+      const direction = rnd() * TAU;
+      ecology.agents.push({
+        id: `${zone.index}:${i}`,
+        type: zone.id,
+        zoneIndex: zone.index,
+        homeX: zone.x,
+        homeY,
+        radius: zone.r || profile.radius,
+        x: zone.x + Math.cos(angle) * radius,
+        y: clamp(homeY + Math.sin(angle) * radius * .62, 70, H - 70),
+        vx: Math.cos(direction) * profile.speed * (.45 + rnd() * .35),
+        vy: Math.sin(direction) * profile.speed * (.35 + rnd() * .25),
+        targetVX: 0,
+        targetVY: 0,
+        angle: direction,
+        phase: rnd() * TAU,
+        size: .78 + rnd() * .48,
+        tumble: .3 + rnd() * 1.2,
+        trail: [],
+      });
+    }
+    ecology.active = ecology.agents.length > 0;
+  }
+
+  function addEncounter(encounter) {
+    const zone = { ...encounter, index: ecology.encounters.length };
+    ecology.encounters.push(zone);
+    spawnZone(zone);
+    return zone;
+  }
+
   function reset(encounters) {
     clear();
-    ecology.encounters = encounters.map((z, index) => ({ ...z, index }));
-    const maxAgents = 156;
-
-    for (const zone of ecology.encounters) {
-      const profile = MICROBE_MOTION_PROFILES[zone.id];
-      if (!profile || ecology.agents.length >= maxAgents) continue;
-      const count = Math.min(profile.count, maxAgents - ecology.agents.length);
-      const rnd = seededRandom(hashSeed(`${zone.id}:${Math.round(zone.x)}:${Math.round(zone.y)}:${zone.index}`));
-      const homeY = clamp(zone.y - 32, 95, H - 100);
-
-      for (let i = 0; i < count; i++) {
-        const angle = rnd() * TAU;
-        const radius = profile.radius * (.18 + rnd() * .62);
-        const direction = rnd() * TAU;
-        ecology.agents.push({
-          id: `${zone.index}:${i}`,
-          type: zone.id,
-          zoneIndex: zone.index,
-          homeX: zone.x,
-          homeY,
-          radius: zone.r || profile.radius,
-          x: zone.x + Math.cos(angle) * radius,
-          y: clamp(homeY + Math.sin(angle) * radius * .62, 70, H - 70),
-          vx: Math.cos(direction) * profile.speed * (.45 + rnd() * .35),
-          vy: Math.sin(direction) * profile.speed * (.35 + rnd() * .25),
-          targetVX: 0,
-          targetVY: 0,
-          angle: direction,
-          phase: rnd() * TAU,
-          size: .78 + rnd() * .48,
-          tumble: .3 + rnd() * 1.2,
-          trail: [],
-        });
-      }
-    }
+    for (const encounter of encounters) addEncounter(encounter);
     ecology.active = ecology.agents.length > 0;
   }
 
@@ -476,6 +484,8 @@ export function createMicrobeEcology({ state, entities }) {
       if (agent.x < state.cameraX - 120 || agent.x > state.cameraX + W + 120) continue;
       const profile = MICROBE_MOTION_PROFILES[agent.type];
       if (!profile) continue;
+      // O fungo oportunista é desenhado como rede hifal pelo sistema dedicado.
+      if (agent.type === 'oportunista') continue;
       if (profile.kind === 'spore' || profile.kind === 'conidium') drawSpore(ctx, state.time, agent, profile);
       else drawBacterium(ctx, state.time, agent, profile);
     }
@@ -491,6 +501,7 @@ export function createMicrobeEcology({ state, entities }) {
     get agents() { return ecology.agents; },
     get encounters() { return ecology.encounters; },
     clear,
+    addEncounter,
     reset,
     update,
     render,

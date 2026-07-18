@@ -192,7 +192,20 @@ export function generateLevel(seedString) {
         name = 'Sol, a Solubilizadora';
         desc = 'A comunidade concentra secreções junto ao mineral e libera parte do fósforo antes inacessível. Pressione K para o Pulso Mineral.';
       }
-      allies.push({ id: chunk.allyId, x: nextPlatform.x + nextPlatform.w / 2, y: nextPlatform.y - 40, r: 28, taken: false, name, desc });
+      allies.push({
+        id: chunk.allyId,
+        x: nextPlatform.x + nextPlatform.w / 2,
+        y: nextPlatform.y - 40,
+        r: 28,
+        taken: false,
+        name,
+        desc,
+        logicIndex: i,
+      });
+    }
+
+    if (chunk.isPathogenDebut && chunk.pathogenType === 'rhizoctonia') {
+      nextPlatform.w = Math.max(nextPlatform.w, 150);
     }
 
     if (chunk.hasEnemy && !chunk.requires.includes('pulse') && nextPlatform.w > 130) {
@@ -207,6 +220,9 @@ export function generateLevel(seedString) {
         left: nextPlatform.x + 20,
         right: nextPlatform.x + nextPlatform.w - ew - 20,
         alive: true,
+        type: chunk.pathogenType,
+        logicIndex: i,
+        debut: chunk.isPathogenDebut,
       });
     }
 
@@ -214,6 +230,8 @@ export function generateLevel(seedString) {
       const cw = 56;
       const ch = 110;
       crystals.push({
+        logicIndex: i,
+        requiredFeature: 'pulse',
         x: nextPlatform.x + nextPlatform.w - cw - 5,
         y: nextPlatform.y - ch,
         w: cw,
@@ -271,6 +289,7 @@ export function generateLevel(seedString) {
     const plat = platforms[i];
     if (plat.recovery || plat.w < 75 || rnd() >= .35) continue;
     exudates.push({
+      logicIndex: plat.logicIndex,
       x: plat.x + 30 + rnd() * Math.max(1, plat.w - 60),
       y: plat.y - 25 - rnd() * 15,
       taken: false,

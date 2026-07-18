@@ -82,6 +82,22 @@ export const structureTutorialCards = {
     ['Secreção', 'Busca', 'Quelagem de Fe³⁺', 'Retorno', 'Utilização'],
   ),
 
+  'process-iron-competition': card(
+    'process-iron-competition',
+    'Interação ecológica',
+    'Pseudomonas × fungo oportunista',
+    'Competição pela disponibilidade de ferro',
+    'Fe',
+    '#b9f36f',
+    [
+      page('Competição por ferro', 'Depois que os sideróforos capturam Fe³⁺ e retornam à Pseudomonas, sobra menos ferro acessível ao fungo dentro do campo.'),
+      page('Vigor reduzido', 'Com limitação de ferro, as hifas ficam mais finas e lentas, ramificam menos e liberam menos esporos.'),
+      page('Efeito no jogo', 'A aproximação e a aderência diminuem, a contaminação cresce mais devagar e hifas já aderidas se soltam mais rapidamente.'),
+      page('Sem eliminação direta', 'Pseudomonas não destrói o fungo. Ela o torna menos vigoroso e menos agressivo por competição ecológica.'),
+    ],
+    ['Captura de Fe³⁺', 'Reserva de ferro', 'Limitação fúngica', 'Travessia controlada'],
+  ),
+
   'structure-arbuscule': card(
     'structure-arbuscule',
     'Estrutura biológica',

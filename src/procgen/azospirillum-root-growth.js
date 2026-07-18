@@ -1,443 +1,574 @@
 import { W } from '../core/constants.js';
+import { getPhaseManifest } from './campaign-manifest.js';
+import { createRandom } from './random.js';
+
+export const AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE = 'azospirillum-root-ladder';
 
 const TAU = Math.PI * 2;
+const PRACTICE_WINDOW_CHUNKS = 4;
+const MIN_VERTICAL_RISE = 210;
+const MAX_VERTICAL_RISE = 300;
+const FIRST_DEMONSTRATION_VERTICAL_SPACING = 58;
+const BRANCH_WIDTH = 90;
+const ROOT_SWAY_MAX = 74;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
-const STAGES = ['rhizoplane', 'auxin-signal', 'primordium', 'emergence', 'elongation', 'mature'];
-const STAGE_DURATION = {
-  rhizoplane: 1.8,
-  'auxin-signal': 2.5,
-  primordium: 3.2,
-  emergence: 2.2,
-  elongation: 5.6,
-};
-
-function compatibleHost(colony) {
-  return Boolean(
-    colony?.platform
-    && colony.platform.type === 'root'
-    && !colony.platform.mycorrhizaStructure,
-  );
+function routePlatforms(level) {
+  return (level.platforms || [])
+    .filter(platform => !platform.recovery && !platform.final && Number.isInteger(platform.logicIndex))
+    .sort((left, right) => left.logicIndex - right.logicIndex || left.x - right.x);
 }
 
-function bezierPoint(root, t) {
-  const u = 1 - t;
+function topPoint(platform, x) {
   return {
-    x: u * u * u * root.startX
-      + 3 * u * u * t * root.c1x
-      + 3 * u * t * t * root.c2x
-      + t * t * t * root.endX,
-    y: u * u * u * root.startY
-      + 3 * u * u * t * root.c1y
-      + 3 * u * t * t * root.c2y
-      + t * t * t * root.endY,
+    x: clamp(x, platform.x + 18, platform.x + platform.w - 18),
+    y: platform.y - 6,
   };
 }
 
-function stageLabel(root, site) {
-  if (!site.compatible) return 'sem raiz hospedeira';
-  if (root?.paused) return 'desenvolvimento pausado — pouco carbono';
-  if (!root) return site.roots.length ? 'aguardando novo exsudato' : 'rizoplano ativo';
-  if (root.stage === 'rhizoplane') return 'aderência ao rizoplano';
-  if (root.stage === 'auxin-signal') return 'sinalização hormonal';
-  if (root.stage === 'primordium') return 'primórdio de raiz lateral';
-  if (root.stage === 'emergence') return 'emergência da raiz lateral';
-  if (root.stage === 'elongation') return 'alongamento da raiz lateral';
-  return 'raiz lateral madura';
+function occupiesPlatform(entity, platform) {
+  if (Number.isFinite(entity?.x)) {
+    return entity.x >= platform.x && entity.x <= platform.x + platform.w;
+  }
+  return Number.isInteger(entity?.logicIndex) && entity.logicIndex === platform.logicIndex;
+}
+
+function shiftContentsWithPlatform(level, encounters, platform, deltaY) {
+  if (!deltaY) return;
+  for (const collection of [
+    level.exudates,
+    level.crystals,
+    level.enemies,
+    level.allies,
+    level.checkpoints,
+    encounters,
+  ]) {
+    for (const entity of collection || []) {
+      if (occupiesPlatform(entity, platform) && Number.isFinite(entity.y)) entity.y += deltaY;
+    }
+  }
+}
+
+function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChunk, config) {
+  const candidates = [];
+  const platforms = (level.platforms || [])
+    .filter(platform => !platform.final && Number.isInteger(platform.logicIndex));
+  const mainRoute = routePlatforms(level);
+
+  for (const host of platforms) {
+    const recapAccess = Number.isInteger(config.recapAccessChunk)
+      && host.logicIndex === config.recapAccessChunk
+      && !host.recovery;
+    if (
+      (!recapAccess && host.type !== 'root')
+      || (!recapAccess && !host.recovery)
+      || host.logicIndex <= firstExudate
+      || host.logicIndex < minimumHostChunk
+      || host.logicIndex > maximumHostChunk
+    ) continue;
+
+    const hostCenter = host.x + host.w / 2;
+    const targets = mainRoute.filter(target => (
+      target.logicIndex >= host.logicIndex
+      && target.logicIndex <= host.logicIndex + 1
+      && target !== host
+      && target.y < host.y - 60
+    ));
+    let bestForHost = null;
+    for (const destination of targets) {
+      const naturalRise = host.y - destination.y;
+      const destinationPoint = topPoint(destination, hostCenter);
+      const dx = Math.abs(destinationPoint.x - hostCenter);
+      if (naturalRise > 360 || dx > 390) continue;
+
+      const verticalSpacing = Math.min(
+        Number(config.verticalSpacing) || FIRST_DEMONSTRATION_VERTICAL_SPACING,
+        FIRST_DEMONSTRATION_VERTICAL_SPACING,
+      );
+      const desiredRise = clamp(
+        verticalSpacing * (config.stepCount + 1),
+        MIN_VERTICAL_RISE,
+        MAX_VERTICAL_RISE,
+      );
+      const destinationY = recapAccess && config.preserveDestinationHeight
+        ? destination.y
+        : Math.min(destination.y, host.y - desiredRise);
+      const following = mainRoute.find(platform => platform.logicIndex > destination.logicIndex) || null;
+      const score = (host.logicIndex - minimumHostChunk) * 1000
+        + Math.abs(desiredRise - naturalRise)
+        + dx * .35;
+      const candidate = {
+        host,
+        destination,
+        following,
+        destinationY,
+        desiredRise,
+        dx,
+        recapAccess,
+        score,
+      };
+      if (!bestForHost || candidate.score < bestForHost.score) bestForHost = candidate;
+    }
+    if (bestForHost) candidates.push(bestForHost);
+  }
+  return candidates;
+}
+
+function buildSteps(slot, config, ladderId) {
+  const start = topPoint(slot.host, slot.host.x + slot.host.w / 2);
+  const end = topPoint(slot.destination, start.x);
+  const swayDirection = Math.sign(end.x - start.x || 1);
+  const sway = swayDirection * Math.min(ROOT_SWAY_MAX, 24 + slot.dx * .22);
+  return Array.from({ length: config.stepCount }, (_, index) => {
+    const t = (index + 1) / (config.stepCount + 1);
+    const centerX = lerp(start.x, end.x, t) + Math.sin(t * Math.PI) * sway;
+    const y = lerp(start.y, end.y, t);
+    return {
+      id: `${ladderId}-step-${index + 1}`,
+      index,
+      centerX,
+      y,
+      startWidth: 14,
+      startHeight: 4,
+      targetWidth: BRANCH_WIDTH,
+      targetHeight: 12,
+      currentWidth: 14,
+      currentHeight: 4,
+      progress: 0,
+      mature: false,
+      collider: null,
+    };
+  });
+}
+
+export function generateAzospirillumRootLadders({
+  level,
+  phase,
+  seedValue,
+  encounters = [],
+  config,
+} = {}) {
+  level.azospirillumRootLadders = [];
+  level.azospirillumRoots = [];
+  if (phase < 3 || !config?.enabled || config.count <= 0) return level.azospirillumRootLadders;
+  // Fora da fase de estreia, a escada so existe quando o manifesto declara
+  // explicitamente um trecho de recapitulacao. Isso impede o Phase Lab de
+  // inserir uma escada de Azo por padrao na introducao da micorriza.
+  if (phase > 3 && !Number.isInteger(config.recapAccessChunk)) return level.azospirillumRootLadders;
+
+  const firstAzospirillum = encounters
+    .filter(encounter => encounter.id === 'azospirillum' && Number.isInteger(encounter.logicIndex))
+    .map(encounter => encounter.logicIndex)
+    .sort((left, right) => left - right)[0];
+  if (!Number.isInteger(firstAzospirillum)) return level.azospirillumRootLadders;
+
+  const unlockChunk = getPhaseManifest(phase)?.unlockEvents
+    .find(event => event.feature === 'azospirillumRoots')?.eventChunk ?? firstAzospirillum + 4;
+  const recapAccessChunk = Number.isInteger(config.recapAccessChunk)
+    ? config.recapAccessChunk
+    : null;
+  const prerequisiteDeadline = recapAccessChunk ?? unlockChunk;
+  const route = routePlatforms(level);
+  let firstExudate = (level.exudates || [])
+    .filter(exudate => (
+      Number.isInteger(exudate.logicIndex)
+      && exudate.logicIndex > firstAzospirillum
+      && exudate.logicIndex <= prerequisiteDeadline
+    ))
+    .map(exudate => exudate.logicIndex)
+    .sort((left, right) => left - right)[0];
+  if (!Number.isInteger(firstExudate)) {
+    const prerequisitePlatform = route.find(platform => (
+      platform.logicIndex > firstAzospirillum
+      && platform.logicIndex <= prerequisiteDeadline
+      && platform.w >= 100
+    ));
+    if (!prerequisitePlatform) return level.azospirillumRootLadders;
+    const prerequisiteExudate = {
+      logicIndex: prerequisitePlatform.logicIndex,
+      x: prerequisitePlatform.x + prerequisitePlatform.w * .62,
+      y: prerequisitePlatform.y - 32,
+      taken: false,
+      azospirillumLadderPrerequisite: true,
+    };
+    level.exudates = [...(level.exudates || []), prerequisiteExudate];
+    firstExudate = prerequisiteExudate.logicIndex;
+  }
+
+  const minimumHostChunk = recapAccessChunk
+    ?? Math.max(firstExudate + 1, unlockChunk + 1);
+  const maximumHostChunk = recapAccessChunk
+    ?? unlockChunk + PRACTICE_WINDOW_CHUNKS;
+  const candidates = ladderCandidates(
+    level,
+    firstExudate,
+    minimumHostChunk,
+    maximumHostChunk,
+    config,
+  );
+  if (!candidates.length) return level.azospirillumRootLadders;
+
+  const ordered = [...candidates].sort((left, right) => (
+    left.host.logicIndex - right.host.logicIndex
+    || left.score - right.score
+    || left.host.x - right.host.x
+  ));
+  const random = createRandom(`${seedValue}:azospirillum-root-ladder:p${phase}`);
+  const selected = [];
+  for (const candidate of ordered) {
+    if (selected.some(item => Math.abs(item.host.logicIndex - candidate.host.logicIndex) < 4)) continue;
+    selected.push(candidate);
+    if (selected.length >= Math.min(config.count, ordered.length)) break;
+  }
+
+  level.azospirillumRootLadders = selected
+    .sort((left, right) => left.host.x - right.host.x)
+    .map((slot, index) => {
+      const id = `azo-ladder-${slot.host.logicIndex}-${index}`;
+      const originalDestinationY = slot.destination.y;
+      const originalDestinationX = slot.destination.x;
+      shiftContentsWithPlatform(level, encounters, slot.destination, slot.destinationY - originalDestinationY);
+      slot.destination.y = slot.destinationY;
+      if (Number.isFinite(slot.destination.rootBaseY)) {
+        slot.destination.rootBaseY = slot.destinationY;
+      }
+      slot.host.wasRecoveryRoot = Boolean(slot.host.recovery);
+      slot.host.recovery = false;
+      if (slot.recapAccess) slot.host.type = 'root';
+      slot.host.azospirillumLadderHost = true;
+      slot.host.rootHealth = Number.isFinite(slot.host.rootHealth) ? slot.host.rootHealth : 1;
+      slot.host.rootMaxHealth = Number.isFinite(slot.host.rootMaxHealth) ? slot.host.rootMaxHealth : 1;
+      slot.destination.azospirillumLadderDestination = true;
+      const start = topPoint(slot.host, slot.host.x + slot.host.w / 2);
+      const end = topPoint(slot.destination, start.x);
+      const ladder = {
+        id,
+        blockType: AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE,
+        host: slot.host,
+        parent: slot.host,
+        destination: slot.destination,
+        following: slot.following,
+        hostLogicIndex: slot.host.logicIndex,
+        destinationLogicIndex: slot.destination.logicIndex,
+        originalDestinationY,
+        originalDestinationX,
+        blockedRise: slot.host.y - slot.destination.y,
+        blockedGap: Math.abs(end.x - start.x),
+        actualVerticalSpacing: (slot.host.y - slot.destination.y) / (config.stepCount + 1),
+        horizontalSpacing: slot.dx,
+        sourceAzospirillumLogicIndex: firstAzospirillum,
+        sourceExudateLogicIndex: firstExudate,
+        recapAccess: slot.recapAccess,
+        growthDurationSeconds: config.growthDurationSeconds,
+        progress: 0,
+        visibleProgress: 0,
+        mature: false,
+        developed: false,
+        paused: false,
+        colony: null,
+        announced: false,
+        phase: random() * TAU,
+        startX: start.x,
+        startY: start.y,
+        endX: end.x,
+        endY: end.y,
+        steps: [],
+      };
+      ladder.steps = buildSteps(slot, config, id);
+      return ladder;
+    });
+  level.azospirillumRoots = level.azospirillumRootLadders;
+  return level.azospirillumRootLadders;
+}
+
+function activeAzospirillumColony(inoculants, ladder) {
+  return (inoculants.colonies || []).find(colony => (
+    colony.type === 'azospirillum'
+    && colony.platform === ladder.host
+    && colony.growth >= .68
+    && colony.vigor > .05
+    && !colony.dormant
+  )) || null;
 }
 
 export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
-  const sites = new Map();
-  const roots = [];
-  let nextRootId = 1;
   let lastToastAt = -Infinity;
 
-  function generatedPlatforms() {
-    return (state.level.platforms || []).filter(platform => platform.azospirillumStructure);
+  function ladders() {
+    return state.level.azospirillumRootLadders || [];
   }
 
-  function removeGeneratedPlatforms() {
-    const platforms = state.level.platforms || [];
-    for (let i = platforms.length - 1; i >= 0; i--) {
-      if (platforms[i].azospirillumStructure) platforms.splice(i, 1);
+  function removeStepCollider(step) {
+    if (!step.collider) return;
+    const position = (state.level.platforms || []).indexOf(step.collider);
+    if (position >= 0) state.level.platforms.splice(position, 1);
+    step.collider = null;
+  }
+
+  function removeStepPlatforms() {
+    state.level.platforms = (state.level.platforms || [])
+      .filter(platform => !platform.azospirillumLadderStep);
+    for (const ladder of ladders()) {
+      for (const step of ladder.steps || []) step.collider = null;
     }
   }
 
   function clear() {
-    removeGeneratedPlatforms();
-    sites.clear();
-    roots.length = 0;
-    nextRootId = 1;
+    state.level.platforms = (state.level.platforms || [])
+      .filter(platform => !platform.azospirillumStructure);
+    state.level.azospirillumRootLadders = [];
+    state.level.azospirillumRoots = [];
     lastToastAt = -Infinity;
-    state.level.azospirillumRoots = roots;
   }
 
   function reset() {
-    clear();
-  }
-
-  function cloudKey(cloud, index) {
-    return cloud.id ?? `${Math.round(cloud.x)}:${Math.round(cloud.y)}:${index}`;
-  }
-
-  function nearbyClouds(colony) {
-    return (state.level.exudateClouds || [])
-      .map((cloud, index) => ({ cloud, key: cloudKey(cloud, index) }))
-      .filter(({ cloud }) => Math.hypot(cloud.x - colony.x, cloud.y - colony.y) < Math.max(170, cloud.radius * 2.25));
-  }
-
-  function createSite(colony) {
-    const site = {
-      colony,
-      compatible: compatibleHost(colony),
-      roots: [],
-      activeRoot: null,
-      cooldown: 0,
-      usedClouds: new Set(nearbyClouds(colony).map(item => item.key)),
-      announcedIncompatible: false,
-    };
-    sites.set(colony.id, site);
-    return site;
-  }
-
-  function syncSites() {
-    const colonies = (inoculants.colonies || []).filter(colony => colony.type === 'azospirillum');
-    const activeIds = new Set(colonies.map(colony => colony.id));
-    for (const colony of colonies) {
-      let site = sites.get(colony.id);
-      if (!site) site = createSite(colony);
-      site.colony = colony;
-      site.compatible = compatibleHost(colony);
+    removeStepPlatforms();
+    for (const ladder of ladders()) {
+      ladder.progress = 0;
+      ladder.visibleProgress = 0;
+      ladder.mature = false;
+      ladder.developed = false;
+      ladder.paused = false;
+      ladder.colony = null;
+      ladder.announced = false;
+      ladder.host.azospirillumHairDensity = 0;
+      for (const step of ladder.steps || []) {
+        step.progress = 0;
+        step.currentWidth = step.startWidth;
+        step.currentHeight = step.startHeight;
+        step.mature = false;
+        step.collider = null;
+      }
     }
-    for (const [id, site] of sites) {
-      if (activeIds.has(id)) continue;
-      for (const root of site.roots) removeRootPlatforms(root);
-      sites.delete(id);
-    }
-    state.level.azospirillumRoots = roots;
+    state.level.azospirillumRoots = ladders();
+    lastToastAt = -Infinity;
   }
 
-  function announce(text, seconds = 4.8) {
-    if (state.time - lastToastAt < 1.7) return;
+  function announce(text, seconds = 4.6) {
+    if (state.time - lastToastAt < 1.6) return;
     state.toast = text;
     state.toastTime = seconds;
     lastToastAt = state.time;
   }
 
-  function sideClearance(parent, direction) {
-    const edge = direction > 0 ? parent.x + parent.w : parent.x;
-    let clearance = 270;
-    for (const platform of state.level.platforms || []) {
-      if (platform === parent || platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
-      const verticalNear = platform.y < parent.y + 125 && platform.y + platform.h > parent.y - 75;
-      if (!verticalNear) continue;
-      if (direction > 0 && platform.x >= edge) clearance = Math.min(clearance, platform.x - edge - 16);
-      if (direction < 0 && platform.x + platform.w <= edge) clearance = Math.min(clearance, edge - (platform.x + platform.w) - 16);
-    }
-    return clamp(clearance, 115, 270);
-  }
-
-  function chooseDirection(site, cueCloud = null) {
-    const colony = site.colony;
-    const parent = colony.platform;
-    if (cueCloud && Math.abs(cueCloud.x - colony.x) > 28) return Math.sign(cueCloud.x - colony.x);
-    const left = sideClearance(parent, -1);
-    const right = sideClearance(parent, 1);
-    if (Math.abs(left - right) > 28) return right > left ? 1 : -1;
-    return colony.x >= parent.x + parent.w / 2 ? 1 : -1;
-  }
-
-  function createRoot(site, cueCloud = null) {
-    const colony = site.colony;
-    const parent = colony.platform;
-    const direction = chooseDirection(site, cueCloud);
-    const clearance = sideClearance(parent, direction);
-    const sourceBoost = Math.max(0, (colony.sourceCount || 1) - 1) * 18;
-    const length = clamp(145 + sourceBoost + colony.vigor * 58, 145, clearance);
-    const startX = clamp(colony.x, parent.x + 18, parent.x + parent.w - 18);
-    const startY = parent.y + clamp(parent.h * .2, 8, 18);
-    const cloudDrop = cueCloud ? clamp(cueCloud.y - startY, 18, 88) : 44;
-    const drop = clamp(34 + cloudDrop * .35 + site.roots.length * 13, 38, 86);
-    const root = {
-      id: `azo-root-${nextRootId++}`,
-      site,
-      colony,
-      parent,
-      direction,
-      startX,
-      startY,
-      c1x: startX + direction * length * .26,
-      c1y: startY + 5,
-      c2x: startX + direction * length * .72,
-      c2y: startY + drop * .58,
-      endX: startX + direction * length,
-      endY: startY + drop,
-      length,
-      stage: 'rhizoplane',
-      progress: 0,
-      visibleProgress: 0,
-      paused: false,
-      mature: false,
-      colliders: [],
-      phase: Math.random() * TAU,
-      age: 0,
+  function activateStepCollider(ladder, step) {
+    if (step.collider || !step.mature) return;
+    step.collider = {
+      x: step.centerX - step.targetWidth / 2,
+      y: step.y,
+      w: step.targetWidth,
+      h: step.targetHeight,
+      type: 'root',
+      oneWay: true,
+      azospirillumStructure: true,
+      azospirillumLadderStep: true,
+      azospirillumRootLadder: true,
+      ladderId: ladder.id,
+      stepId: step.id,
+      logicIndex: ladder.hostLogicIndex,
+      mature: true,
+      rootHealth: 1,
+      rootMaxHealth: 1,
     };
-    site.activeRoot = root;
-    site.roots.push(root);
-    roots.push(root);
-    colony.vigor = clamp(colony.vigor - .045, 0, 1);
-    announce('Azospirillum aderido: a sinalização hormonal começou a reorganizar a arquitetura da raiz.');
-    return root;
+    state.level.platforms.push(step.collider);
   }
 
-  function removeRootPlatforms(root) {
-    const platforms = state.level.platforms || [];
-    const id = root.id;
-    for (let i = platforms.length - 1; i >= 0; i--) {
-      if (platforms[i].rootStructureId === id) platforms.splice(i, 1);
-    }
-    root.colliders.length = 0;
+  function updateStep(ladder, step) {
+    const localProgress = clamp(ladder.progress * ladder.steps.length - step.index, 0, 1);
+    step.progress = Math.max(step.progress, localProgress);
+    step.currentWidth = lerp(step.startWidth, step.targetWidth, step.progress);
+    step.currentHeight = lerp(step.startHeight, step.targetHeight, step.progress);
+    step.mature = step.progress >= 1;
+    if (step.mature) activateStepCollider(ladder, step);
+    else removeStepCollider(step);
   }
 
-  function buildColliders(root) {
-    if (root.colliders.length) return;
-    const count = clamp(Math.round(root.length / 44), 4, 7);
-    for (let i = 0; i < count; i++) {
-      const t = .26 + (i / Math.max(1, count - 1)) * .72;
-      const point = bezierPoint(root, t);
-      const next = bezierPoint(root, Math.min(1, t + .025));
-      const slope = Math.abs(next.x - point.x) < 1 ? 0 : (next.y - point.y) / (next.x - point.x);
-      const width = clamp(root.length / count * 1.12, 38, 58);
-      const platform = {
-        x: point.x - width / 2,
-        y: point.y - 5 + Math.min(4, Math.abs(slope) * 5),
-        w: width,
-        h: 11,
-        type: 'root',
-        oneWay: true,
-        azospirillumStructure: true,
-        rootStructureId: root.id,
-        logicIndex: root.parent.logicIndex ?? -1,
-      };
-      root.colliders.push(platform);
-      state.level.platforms.push(platform);
-    }
-  }
-
-  function advanceStage(root) {
-    const index = STAGES.indexOf(root.stage);
-    const next = STAGES[Math.min(STAGES.length - 1, index + 1)];
-    root.stage = next;
-    root.progress = 0;
-    if (next === 'auxin-signal') {
-      announce('Sinalização hormonal: o Azospirillum estimula um novo ponto de ramificação na raiz.');
-    } else if (next === 'primordium') {
-      announce('Primórdio lateral: células internas da raiz iniciaram a formação de um novo meristema.');
-    } else if (next === 'emergence') {
-      announce('Emergência: a nova raiz lateral rompeu os tecidos externos e começou a explorar o solo.');
-    } else if (next === 'elongation') {
-      entities.burst(root.startX, root.startY, '#72e8dd', 24, 105);
-    } else if (next === 'mature') {
-      root.mature = true;
-      root.visibleProgress = 1;
-      buildColliders(root);
-      root.site.activeRoot = null;
-      root.site.cooldown = 9.5;
-      root.colony.vigor = clamp(root.colony.vigor - .12, 0, 1);
-      state.player.soil += 4.5;
-      state.player.hope += 3.2;
-      entities.burst(root.endX, root.endY, '#d7ba7d', 34, 145);
-      announce('Raiz lateral madura: uma nova superfície radicular agora pode sustentar Miguelito e receber outros simbiontes.', 5.6);
-    }
-  }
-
-  function updateRoot(root, dt) {
-    root.age += dt;
-    const colony = root.colony;
-    const carbon = clamp(colony.vigor * .82 + (colony.rechargeIntensity || 0) * .42, 0, 1.18);
-    root.paused = colony.dormant || colony.vigor < .07;
-    colony.stage = stageLabel(root, root.site);
-    if (root.mature || root.paused) return;
-
-    const duration = STAGE_DURATION[root.stage] || 1;
-    const sourceBoost = 1 + Math.max(0, (colony.sourceCount || 1) - 1) * .11;
-    root.progress = clamp(root.progress + dt * Math.max(.12, carbon) * sourceBoost / duration, 0, 1);
-    if (root.stage === 'elongation') root.visibleProgress = root.progress;
-    else if (STAGES.indexOf(root.stage) >= STAGES.indexOf('emergence')) root.visibleProgress = Math.max(root.visibleProgress, .08 + root.progress * .12);
-
-    const stageCost = root.stage === 'elongation' ? .0105 : .0065;
-    colony.vigor = clamp(colony.vigor - dt * stageCost * (1 + root.length / 260), 0, 1);
-    if (root.progress >= 1) advanceStage(root);
-  }
-
-  function newCueCloud(site) {
-    const candidates = nearbyClouds(site.colony)
-      .filter(item => !site.usedClouds.has(item.key))
-      .sort((a, b) => b.cloud.life - a.cloud.life);
-    if (!candidates.length) return null;
-    const chosen = candidates[0];
-    site.usedClouds.add(chosen.key);
-    return chosen.cloud;
-  }
-
-  function updateSite(site, dt) {
-    const colony = site.colony;
-    site.cooldown = Math.max(0, site.cooldown - dt);
-
-    if (!site.compatible) {
-      colony.stage = 'rizosfera sem raiz hospedeira';
-      if (!site.announcedIncompatible) {
-        site.announcedIncompatible = true;
-        announce('Azospirillum sem hospedeiro: a comunidade permanece no solo, mas não induz raízes laterais fora de uma raiz viva.');
+  function updateLadder(ladder, dt) {
+    if (ladder.developed) {
+      ladder.progress = 1;
+      ladder.visibleProgress = 1;
+      ladder.mature = true;
+      ladder.host.azospirillumHairDensity = 1;
+      for (const step of ladder.steps) {
+        step.progress = 1;
+        step.currentWidth = step.targetWidth;
+        step.currentHeight = step.targetHeight;
+        step.mature = true;
+        activateStepCollider(ladder, step);
       }
       return;
     }
 
-    if (site.activeRoot) {
-      updateRoot(site.activeRoot, dt);
-      return;
-    }
+    const colony = activeAzospirillumColony(inoculants, ladder);
+    ladder.colony = colony;
+    ladder.paused = ladder.progress > 0 && !colony;
+    if (!colony) return;
 
-    colony.stage = stageLabel(null, site);
-    if (site.roots.length === 0) {
-      if (colony.growth >= .68 && colony.vigor > .24 && !colony.dormant) createRoot(site);
-      return;
+    if (ladder.progress === 0) {
+      announce('Azospirillum inoculado: fitormônios iniciaram a escada de ramificações radiculares.');
+      entities?.burst?.(colony.x, ladder.host.y, '#72e8dd', 22, 90);
     }
+    ladder.progress = clamp(
+      ladder.progress + dt / Math.max(.1, ladder.growthDurationSeconds),
+      0,
+      1,
+    );
+    ladder.visibleProgress = ladder.progress;
+    ladder.host.azospirillumHairDensity = Math.max(
+      ladder.host.azospirillumHairDensity || 0,
+      ladder.progress,
+    );
+    colony.stage = ladder.progress < 1 ? 'formando escada radicular' : 'escada radicular madura';
+    for (const step of ladder.steps) updateStep(ladder, step);
 
-    if (site.roots.length >= 2 || site.cooldown > 0 || colony.vigor < .34 || colony.dormant) return;
-    const cue = newCueCloud(site);
-    if (cue) createRoot(site, cue);
+    ladder.developed = ladder.progress >= 1 && ladder.steps.every(step => step.mature);
+    ladder.mature = ladder.developed;
+    ladder.paused = false;
+    if (ladder.developed && !ladder.announced) {
+      ladder.announced = true;
+      ladder.destination.rootSystemId = ladder.host.rootSystemId || `root-system-${ladder.hostLogicIndex}`;
+      ladder.host.rootSystemId = ladder.destination.rootSystemId;
+      state.player.soil += 4.5;
+      state.player.hope += 3.2;
+      entities?.burst?.(ladder.endX, ladder.endY, '#d7ba7d', 34, 140);
+      announce('Escada radicular madura: todos os degraus agora sustentam Miguelito.', 5.2);
+    }
   }
 
   function update(dt) {
     if (state.gameState !== 'play') return;
-    syncSites();
-    for (const site of sites.values()) updateSite(site, dt);
+    for (const ladder of ladders()) updateLadder(ladder, dt);
+    state.level.azospirillumRoots = ladders();
   }
 
-  function drawSignal(ctx, root) {
-    const stageIndex = STAGES.indexOf(root.stage);
-    if (stageIndex < 1 || stageIndex > 2) return;
-    const intensity = root.stage === 'auxin-signal' ? root.progress : 1 - root.progress * .45;
-    for (let i = 0; i < 4; i++) {
-      const angle = state.time * .75 + root.phase + i * TAU / 4;
-      const radius = 12 + i * 5 + Math.sin(state.time * 2 + i) * 2;
-      ctx.globalAlpha = .18 + intensity * .28;
-      ctx.fillStyle = i % 2 ? '#ffd783' : '#72e8dd';
-      ctx.beginPath();
-      ctx.arc(root.startX + Math.cos(angle) * radius, root.startY + Math.sin(angle) * radius * .45, 2.2, 0, TAU);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  function drawPrimordium(ctx, root) {
-    const stageIndex = STAGES.indexOf(root.stage);
-    if (stageIndex < 2) return;
-    const development = root.stage === 'primordium' ? root.progress : 1;
-    const radius = 3 + development * 8;
-    ctx.save();
-    ctx.translate(root.startX, root.startY + 4);
-    ctx.scale(1, .7);
-    const gradient = ctx.createRadialGradient(-2, -2, 1, 0, 0, radius * 1.2);
-    gradient.addColorStop(0, '#ffe6b0');
-    gradient.addColorStop(.62, '#c78f5d');
-    gradient.addColorStop(1, 'rgba(76,43,42,.9)');
-    ctx.fillStyle = gradient;
-    ctx.strokeStyle = '#f2c98e';
-    ctx.lineWidth = 1.3;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, radius, radius * .8, 0, 0, TAU);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawRootPath(ctx, root) {
-    const stageIndex = STAGES.indexOf(root.stage);
-    if (stageIndex < 3) return;
-    const visible = root.mature ? 1 : clamp(root.visibleProgress, 0, 1);
-    if (visible <= 0) return;
-    const samples = Math.max(4, Math.ceil(visible * 28));
+  function drawLadder(ctx, ladder) {
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = root.mature ? '#b98b58' : '#caa36e';
-    ctx.lineWidth = root.mature ? 11 : 5 + visible * 5;
-    ctx.shadowBlur = root.mature ? 5 : 12;
-    ctx.shadowColor = root.paused ? '#8a6470' : '#72e8dd';
-    ctx.beginPath();
-    for (let i = 0; i <= samples; i++) {
-      const t = visible * i / samples;
-      const point = bezierPoint(root, t);
-      if (i === 0) ctx.moveTo(point.x, point.y);
-      else ctx.lineTo(point.x, point.y);
-    }
-    ctx.stroke();
-    ctx.shadowBlur = 0;
+    const points = [
+      { x: ladder.startX, y: ladder.startY },
+      ...ladder.steps.map(step => ({ x: step.centerX, y: step.y + step.currentHeight / 2 })),
+      { x: ladder.endX, y: ladder.endY },
+    ];
+    const visibleSegments = clamp(
+      Math.ceil(ladder.visibleProgress * (points.length - 1)),
+      0,
+      points.length - 1,
+    );
 
-    ctx.strokeStyle = 'rgba(255,226,170,.65)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let i = 0; i <= samples; i++) {
-      const t = visible * i / samples;
-      const point = bezierPoint(root, t);
-      if (i === 0) ctx.moveTo(point.x, point.y - 1);
-      else ctx.lineTo(point.x, point.y - 1);
-    }
-    ctx.stroke();
-
-    const hairLimit = root.mature ? 1 : visible;
-    ctx.strokeStyle = 'rgba(235,217,184,.55)';
-    ctx.lineWidth = 1;
-    for (let t = .34; t < hairLimit; t += .095) {
-      const point = bezierPoint(root, t);
-      const next = bezierPoint(root, Math.min(1, t + .02));
-      const angle = Math.atan2(next.y - point.y, next.x - point.x);
-      const side = Math.floor(t * 100) % 2 ? 1 : -1;
-      const normal = angle + side * Math.PI / 2;
-      const length = 8 + Math.sin(t * 49 + root.phase) * 2;
+    // Mesma topologia da antiga ponte vertical da micorriza: a estrutura
+    // detecta a raiz superior e cresce do bloco inferior até ela. Aqui o
+    // traço é radicular, não hifal.
+    if (visibleSegments > 0) {
+      ctx.strokeStyle = ladder.developed ? '#a7784f' : '#c3a172';
+      ctx.lineWidth = 5 + ladder.visibleProgress * 2;
+      ctx.shadowColor = '#72e8dd';
+      ctx.shadowBlur = ladder.developed ? 3 : 8;
       ctx.beginPath();
-      ctx.moveTo(point.x, point.y);
-      ctx.lineTo(point.x + Math.cos(normal) * length, point.y + Math.sin(normal) * length);
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let index = 1; index <= visibleSegments; index++) {
+        const previous = points[index - 1];
+        const point = points[index];
+        ctx.quadraticCurveTo(
+          lerp(previous.x, point.x, .55) + Math.sin(index * 1.8 + ladder.phase) * 5,
+          lerp(previous.y, point.y, .5),
+          point.x,
+          point.y,
+        );
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    if (ladder.progress === 0) {
+      ctx.font = '700 12px Inter,system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#f3ce68';
+      ctx.fillText(
+        'Inocule Azospirillum nesta raiz',
+        ladder.host.x + ladder.host.w / 2,
+        ladder.host.y - 30,
+      );
+    }
+    for (const step of ladder.steps) {
+      if (step.progress <= 0) continue;
+      const half = step.currentWidth / 2;
+      ctx.strokeStyle = step.mature ? '#d6b67d' : '#d8c69d';
+      ctx.lineWidth = step.currentHeight;
+      ctx.shadowColor = step.mature ? '#9bea8f' : '#72e8dd';
+      ctx.shadowBlur = step.mature ? 5 : 11;
+      ctx.beginPath();
+      ctx.moveTo(step.centerX - half, step.y + step.currentHeight / 2);
+      ctx.quadraticCurveTo(
+        step.centerX,
+        step.y - 3,
+        step.centerX + half,
+        step.y + step.currentHeight / 2,
+      );
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      const hairCount = Math.floor(step.progress * 5);
+      ctx.strokeStyle = 'rgba(238,220,185,.64)';
+      ctx.lineWidth = 1;
+      for (let hair = 0; hair < hairCount; hair++) {
+        const x = step.centerX - half + (hair + 1) / (hairCount + 1) * step.currentWidth;
+        ctx.beginPath();
+        ctx.moveTo(x, step.y + 1);
+        ctx.lineTo(x + (hair % 2 ? 4 : -4), step.y - 8 - (hair % 3));
+        ctx.stroke();
+      }
+    }
+
+    const rootHairCount = Math.floor(ladder.visibleProgress * 12);
+    ctx.strokeStyle = 'rgba(214,239,190,.6)';
+    ctx.lineWidth = 1;
+    for (let index = 0; index < rootHairCount; index++) {
+      const t = (index + 1) / (rootHairCount + 1);
+      const segment = Math.min(points.length - 2, Math.floor(t * (points.length - 1)));
+      const local = t * (points.length - 1) - segment;
+      const x = lerp(points[segment].x, points[segment + 1].x, local);
+      const y = lerp(points[segment].y, points[segment + 1].y, local);
+      const side = index % 2 === 0 ? -1 : 1;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + side * (8 + index % 4 * 2), y - 4);
       ctx.stroke();
     }
 
-    if (!root.mature) {
-      const tip = bezierPoint(root, visible);
-      ctx.fillStyle = root.paused ? '#b98592' : '#8ff4e8';
-      ctx.shadowBlur = 14;
-      ctx.shadowColor = ctx.fillStyle;
-      ctx.beginPath();
-      ctx.arc(tip.x, tip.y, 5.5, 0, TAU);
-      ctx.fill();
+    if (!ladder.developed && ladder.progress > 0) {
+      ctx.font = '700 10px Inter,system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#a8f0ea';
+      ctx.fillText(`Escada radicular ${Math.round(ladder.progress * 100)}%`, ladder.startX, ladder.host.y - 28);
     }
     ctx.restore();
   }
 
   function render(ctx) {
-    if (!roots.length) return;
+    if (!ladders().length) return;
     ctx.save();
     ctx.translate(-state.cameraX, 0);
-    for (const root of roots) {
-      const minX = Math.min(root.startX, root.endX) - 80;
-      const maxX = Math.max(root.startX, root.endX) + 80;
+    for (const ladder of ladders()) {
+      const minX = Math.min(ladder.startX, ladder.endX) - 100;
+      const maxX = Math.max(ladder.startX, ladder.endX) + 100;
       if (maxX < state.cameraX || minX > state.cameraX + W) continue;
-      drawSignal(ctx, root);
-      drawPrimordium(ctx, root);
-      drawRootPath(ctx, root);
+      drawLadder(ctx, ladder);
     }
     ctx.restore();
   }
 
   return {
-    get siteCount() { return sites.size; },
-    get rootCount() { return roots.length; },
-    get matureCount() { return roots.filter(root => root.mature).length; },
-    get growingCount() { return roots.filter(root => !root.mature).length; },
-    get pausedCount() { return roots.filter(root => !root.mature && root.paused).length; },
-    get platformCount() { return generatedPlatforms().length; },
+    get siteCount() { return ladders().filter(ladder => ladder.colony).length; },
+    get rootCount() { return ladders().length; },
+    get matureCount() { return ladders().filter(ladder => ladder.developed).length; },
+    get growingCount() { return ladders().filter(ladder => ladder.progress > 0 && !ladder.developed).length; },
+    get pausedCount() { return ladders().filter(ladder => ladder.paused).length; },
+    get platformCount() {
+      return ladders().reduce((sum, ladder) => sum + ladder.steps.filter(step => step.collider).length, 0);
+    },
+    get ladders() { return ladders(); },
     clear,
     reset,
     update,

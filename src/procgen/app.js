@@ -1,5 +1,14 @@
 import { generateLevel } from './generator.js';
-import { createRandom } from './random.js';
+import { generateCampaignEncounters } from './campaign-encounters.js';
+import { generateUnderdevelopedNitrogenRoots } from './nitrogen-root.js';
+import { generateAzospirillumRootLadders } from './azospirillum-root-growth.js';
+import { createCampaignObjectiveEvaluator } from './campaign-objectives.js';
+import { applyPhaseOneVerticalSlice, createFixedBlockRuntime } from './phase-one-vertical-slice.js';
+import { applyPhaseFourMycorrhizaIntro } from './phase-four-mycorrhiza-intro.js';
+import { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } from './phase-five-tutorial.js';
+import { getPhaseManifest } from './campaign-manifest.js';
+import { applyPhaseLabResources } from './phase-lab-config.js';
+import { createPhaseLabSession } from './phase-lab.js';
 import { createSimulator } from './simulator.js';
 import { createRenderer } from '../render/renderer.js';
 import { createPlatformVisuals } from './platform-visuals.js';
@@ -10,7 +19,6 @@ import { createTrichodermaRhizoctoniaControl } from './trichoderma-rhizoctonia-c
 import { createRalstoniaVascularWilt } from './ralstonia-vascular-wilt.js';
 import {
   advanceCampaignPhase,
-  campaignEncounterTypes,
   campaignPhaseSeed,
   createCampaign,
   decorateCampaignLevel,
@@ -18,7 +26,6 @@ import {
   recordPhaseResult,
   resetCampaign,
 } from './campaign-progression.js';
-import { microbeEncounters } from '../data/microbes.js';
 
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
@@ -29,8 +36,14 @@ const toastDiv = document.getElementById('toast');
 const dashTouchButton = document.querySelector('[data-key="ShiftLeft"]');
 const pulseTouchButton = document.querySelector('[data-key="KeyK"]');
 
+let campaignStorage = null;
+try { campaignStorage = window.sessionStorage; } catch (_) {}
+const phaseLab = createPhaseLabSession({ windowObject: window });
+if (phaseLab.enabled) campaignStorage = null;
+
 let sim = createSimulator();
-const campaign = createCampaign();
+const campaign = createCampaign(phaseLab.enabled ? phaseLab.config.seed : undefined, { storage: campaignStorage });
+if (phaseLab.enabled) phaseLab.configureCampaign(campaign);
 sim.state.campaign = campaign;
 const cameraView = createCameraView({ canvas, state: sim.state });
 const rhizoctoniaControl = createRhizoctoniaControl({
@@ -54,6 +67,38 @@ const ralstoniaControl = createRalstoniaVascularWilt({
   entities: sim.entities,
   inoculants: sim.beneficialInoculants,
   pseudomonas: sim.pseudomonasSiderophores,
+});
+const objectiveEvaluator = createCampaignObjectiveEvaluator({
+  state: sim.state,
+  systems: {
+    gameplay: sim.gameplay,
+    inoculants: sim.beneficialInoculants,
+    pseudomonas: sim.pseudomonasSiderophores,
+    opportunisticFungus: sim.opportunisticFungus,
+    trichoderma: trichodermaRhizoctoniaControl,
+    meloidogyneControl: trichodermaMeloidogyneControl,
+  },
+});
+const fixedBlockRuntime = createFixedBlockRuntime({
+  state: sim.state,
+  evaluator: objectiveEvaluator,
+  entities: sim.entities,
+  ecology: sim.ecology,
+});
+sim.goal.setCompletionGuard(() => {
+  const finalTest = getPhaseManifest(campaign.phase)?.finalTest;
+  if (!finalTest) return { passed: true };
+  const conditions = (finalTest.requires || []).filter(condition => !(
+    condition.type === 'worldState' && condition.key === 'reachedFinalRoot'
+  ));
+  if (!conditions.length) return { passed: true };
+  const result = objectiveEvaluator.evaluate(conditions);
+  return {
+    passed: result.passed,
+    message: campaign.phase === 5
+      ? 'A raiz final exige a reserva mínima de ferro e o controle funcional do vigor fúngico.'
+      : 'A raiz final aguarda a conclusão do objetivo ecológico indicado.',
+  };
 });
 let profile = null;
 let seed = '';
@@ -90,60 +135,59 @@ function installFinalGoal(level) {
   level.cameraMaxX = Math.max(0, level.endX - 1000);
 }
 
-function shuffledBag(types, random) {
-  const bag = [...types];
-  for (let i = bag.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [bag[i], bag[j]] = [bag[j], bag[i]];
-  }
-  return bag;
-}
-
-function populateMicrobeEncounters(platforms, seedValue) {
-  microbeEncounters.length = 0;
-  const random = createRandom(`${seedValue}:microbe-communities`);
-  const types = campaignEncounterTypes(campaign);
-  const candidates = platforms.filter(platform => !platform.recovery && !platform.final && platform.logicIndex >= 1 && platform.w >= 100);
-  let bag = shuffledBag(types, random);
-  let previousType = null;
-  let nextSpawnX = 430 + random() * 240;
-
-  for (const platform of candidates) {
-    if (platform.x < nextSpawnX) continue;
-    if (bag.length === 0) bag = shuffledBag(types, random);
-    let type = bag.pop();
-    if (type === previousType && bag.length) {
-      bag.unshift(type);
-      type = bag.pop();
-    }
-    previousType = type;
-
-    const lateral = (random() - .5) * Math.min(platform.w * .35, 70);
-    microbeEncounters.push({
-      id: type,
-      x: platform.x + platform.w / 2 + lateral,
-      y: Math.max(95, platform.y - 72 - random() * 76),
-      r: 145 + random() * 75,
-      territory: 520 + random() * 720,
-      collect: false,
-    });
-    nextSpawnX = platform.x + 470 + random() * 430;
-  }
-}
-
 function prepareLevel() {
   profile = prepareCampaignGeneration(campaign);
   seed = campaignPhaseSeed(campaign);
-  levelData = decorateCampaignLevel(generateLevel(seed), campaign, profile);
+  levelData = generateLevel(seed);
+  applyPhaseFourMycorrhizaIntro(
+    levelData,
+    campaign.phase,
+    getPhaseManifest(campaign.phase)?.mycorrhizaBridge,
+  );
+  applyPhaseFiveTutorialGeometry(levelData, campaign.phase);
+  levelData = decorateCampaignLevel(levelData, campaign, profile);
+  applyPhaseOneVerticalSlice(levelData, campaign.phase);
+  if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
+  levelData.microbeEncounters = generateCampaignEncounters({
+    platforms: levelData.platforms,
+    phase: campaign.phase,
+    seedValue: seed,
+  }).concat(levelData.authoredEncounters || []);
+  levelData.microbeEncounters = applyPhaseFiveTutorialEncounters(
+    levelData,
+    levelData.microbeEncounters,
+    campaign.phase,
+    seed,
+  );
+  generateAzospirillumRootLadders({
+    level: levelData,
+    phase: campaign.phase,
+    seedValue: seed,
+    encounters: levelData.microbeEncounters,
+    config: getPhaseManifest(campaign.phase)?.azospirillumRootLadder,
+  });
+  generateUnderdevelopedNitrogenRoots({
+    level: levelData,
+    phase: campaign.phase,
+    seedValue: seed,
+    encounters: levelData.microbeEncounters,
+    config: getPhaseManifest(campaign.phase)?.nitrogenRoot,
+  });
   installFinalGoal(levelData);
 }
 
+const FEATURE_LABELS = {
+  doubleJump: 'salto duplo',
+  dash: 'Dash',
+  pulse: 'Pulso',
+  mycorrhizaStructures: 'pontes micorrízicas horizontais',
+  azospirillumRoots: 'escadas radiculares de Azospirillum',
+};
+
 function phaseIntroText() {
-  if (campaign.phase === 1) return 'Salto duplo e dash serão liberados ao longo desta fase.';
-  if (campaign.phase === 2) return 'Pontes micorrízicas e pulso mineral serão liberados nesta fase.';
-  if (campaign.phase === 3) return 'A indução de raízes laterais por Azospirillum será liberada nesta fase.';
-  if (campaign.phase === 4) return 'Ralstonia surge como ameaça vascular: previna a entrada com Bacillus e Pseudomonas antes da murcha.';
-  return `Todos os mecanismos estão ativos. Tema procedural: ${profile.theme}.`;
+  if (!profile.unlockEvents.length) return profile.mission;
+  const names = profile.unlockEvents.map(event => FEATURE_LABELS[event.feature] || event.feature).join(' e ');
+  return `Desbloqueios desta fase: ${names}. Cada poder só será exigido depois do chunk de aquisição.`;
 }
 
 function updateTouchAbilityVisibility() {
@@ -170,11 +214,9 @@ function initGame({ announce = false } = {}) {
   sim.state.gameState = 'play';
   sim.state.mission = profile.mission;
   cameraView.resetTracking();
-  populateMicrobeEncounters(levelData.platforms, seed);
-  sim.resetEcology(microbeEncounters);
+  sim.resetEcology(levelData.microbeEncounters);
   sim.resetBiology();
   ralstoniaControl.initialize();
-  microbeEncounters.length = 0;
   renderer = createRenderer({ canvas, state: sim.state, entities: sim.entities });
   platformVisuals = createPlatformVisuals({ state: sim.state });
   toastDiv.className = '';
@@ -193,6 +235,13 @@ function initGame({ announce = false } = {}) {
 }
 
 function startNewCampaign() {
+  if (phaseLab.enabled) {
+    phaseLab.configureCampaign(campaign);
+    sim.state.discoveredMicrobes.clear();
+    prepareLevel();
+    initGame({ announce: true });
+    return;
+  }
   resetCampaign(campaign);
   sim.state.discoveredMicrobes.clear();
   prepareLevel();
@@ -241,7 +290,19 @@ function maybeAdvanceCampaign() {
 
   if (sim.state.time < campaign.transitionAt) return false;
 
-  advanceCampaignPhase(campaign);
+  if (phaseLab.enabled) {
+    campaign.transitionRequested = false;
+    sim.state.gameState = 'end';
+    sim.state.mission = `Phase Lab concluido: ${getPhaseManifest(campaign.phase)?.finalTest?.goal || profile.mission}`;
+    return true;
+  }
+
+  if (!advanceCampaignPhase(campaign)) {
+    campaign.transitionRequested = false;
+    sim.state.gameState = 'end';
+    sim.state.mission = 'Campanha concluída';
+    return true;
+  }
   prepareLevel();
   initGame({ announce: true });
   return true;
@@ -249,9 +310,11 @@ function maybeAdvanceCampaign() {
 
 prepareLevel();
 initGame({ announce: true });
+if (phaseLab.enabled) phaseLab.mount({ onRestart: startNewCampaign });
 
 const keys = {};
 window.addEventListener('keydown', event => {
+  if (phaseLab.enabled && event.target instanceof Element && event.target.closest('.phase-lab')) return;
   keys[event.code] = true;
   if (event.code === 'KeyR' && !event.repeat) startNewCampaign();
   if (event.code === 'Tab') {
@@ -285,8 +348,10 @@ function renderWorld() {
     sim.meloidogyneLifecycle.render(ctx);
     sim.beneficialInoculants.render(ctx);
     sim.pseudomonasSiderophores.render(ctx);
+    sim.opportunisticFungus.render(ctx);
     sim.azospirillumRootGrowth.render(ctx);
     sim.rhizobiumNodulation.render(ctx);
+    sim.nitrogenRootDevelopment.render(ctx);
     sim.trichodermaColonies.render(ctx);
     sim.trichoderma.render(ctx);
     trichodermaRhizoctoniaControl.render(ctx);
@@ -296,6 +361,7 @@ function renderWorld() {
     sim.goal.render(ctx);
     sim.gameplay.render(ctx);
     sim.bacillusBioprotection.render(ctx);
+    fixedBlockRuntime.render(ctx);
     platformVisuals.renderLabel(ctx);
   } finally {
     ctx.restore();
@@ -312,6 +378,7 @@ function loop(now) {
     trichodermaMeloidogyneControl.update(0);
     sim.setInputs(keys);
     sim.step(dt);
+    fixedBlockRuntime.update(dt);
     rhizoctoniaControl.update(dt);
     trichodermaRhizoctoniaControl.update(dt);
     trichodermaMeloidogyneControl.update(dt);
@@ -346,6 +413,9 @@ function loop(now) {
       player.canPulse ? '💥 Pulso' : null,
     ].filter(Boolean).join(' | ');
     const infection = player.infection > .01 ? ` | Infecção: ${(player.infection * 100).toFixed(0)}%` : '';
+    const fungalContamination = player.fungalContamination > .01
+      ? ` | Contaminação fúngica: ${(player.fungalContamination * 100).toFixed(0)}%`
+      : '';
     const bacillusDefense = (player.bacillusResistance || 0) > .04
       ? ` | Defesa Bacillus: ${Math.round(player.bacillusResistance * 100)}%`
       : '';
@@ -364,7 +434,7 @@ function loop(now) {
     const trichoNematode = trichodermaMeloidogyneControl.activeAttackCount
       ? ` | Trichoderma→Meloidogyne: ${trichodermaMeloidogyneControl.activeAttackCount}`
       : '';
-    hudBar.textContent = `F${campaign.phase} · ${campaign.totalScore} pts | Solo: ${player.soil.toFixed(0)} | Esperança: ${player.hope.toFixed(0)} | Exsudatos: ${player.exudates}${infection}${bacillusDefense}${nematodePressure}${rhizoctonia}${ralstonia}${trichoRhizo}${trichoNematode}${abilities ? ' | ' + abilities : ''}`;
+    hudBar.textContent = `F${campaign.phase} · ${campaign.totalScore} pts | Solo: ${player.soil.toFixed(0)} | Esperança: ${player.hope.toFixed(0)} | Exsudatos: ${player.exudates}${infection}${fungalContamination}${bacillusDefense}${nematodePressure}${rhizoctonia}${ralstonia}${trichoRhizo}${trichoNematode}${abilities ? ' | ' + abilities : ''}`;
 
     if (showDebug) {
       const logicIndex = currentLogicIndex();
@@ -372,6 +442,7 @@ function loop(now) {
       const vigor = Math.round(sim.trichodermaColonies.vigorAverage * 100);
       const beneficialVigor = Math.round(sim.beneficialInoculants.vigorAverage * 100);
       const fixation = (sim.state.level.rhizobiumNodules || []).reduce((sum, site) => sum + (site.fixationRate || 0), 0).toFixed(1);
+      const associativeNitrogen = sim.azospirillumNitrogen.associativeNitrogenRate.toFixed(3);
       const ironRecovered = sim.pseudomonasSiderophores.ironRecovered.toFixed(1);
       const liveRoots = (sim.state.level.platforms || []).filter(root => root.type === 'root' && !root.final && !root.recovery && !root.mycorrhizaStructure);
       const rootHealth = liveRoots.length
@@ -389,14 +460,14 @@ function loop(now) {
         + `\nTrichoderma anti-Meloidogyne: ${trichodermaMeloidogyneControl.activeAttackCount} ataques (${trichodermaMeloidogyneControl.eggAttackCount} ovos / ${trichodermaMeloidogyneControl.juvenileAttackCount} J2) · ${trichodermaMeloidogyneControl.eggsDestroyed} ovos inviabilizados · ${trichodermaMeloidogyneControl.eggMassesNeutralized} massas neutralizadas · ${trichodermaMeloidogyneControl.juvenilesDestroyed} J2 lisados`
         + `\nGalhas: ${sim.meloidogyneLifecycle.gallCount} totais / ${sim.meloidogyneLifecycle.matureGallCount} maduras / ${sim.meloidogyneLifecycle.femaleCount} fêmeas / saúde radicular média ${rootHealth}%`
         + `\nMicorriza AM: ${sim.mycorrhiza.tipCount} pontas / ${sim.mycorrhiza.branchCount} ramos / ${sim.mycorrhiza.arbusculeCount} arbúsculos`
-        + `\nEstruturas AM: ${sim.mycorrhizaStructures.growingCount} crescendo / ${sim.mycorrhizaStructures.matureCount} maduras (${sim.mycorrhizaStructures.ladderCount} escadas, ${sim.mycorrhizaStructures.bridgeCount} pontes)`
+        + `\nEstruturas AM: ${sim.mycorrhizaStructures.growingCount} crescendo / ${sim.mycorrhizaStructures.matureCount} maduras (${sim.mycorrhizaStructures.bridgeCount} pontes horizontais)`
         + `\nInoculantes: ${sim.beneficialInoculants.followerCount} seguindo / ${sim.beneficialInoculants.colonyCount} colônias / vigor médio ${beneficialVigor}%`
         + (sim.beneficialInoculants.colonySummary ? ` [${sim.beneficialInoculants.colonySummary}]` : '')
         + `\nBacillus: ${sim.bacillusBioprotection.matureBiofilmCount} biofilmes maduros / ${sim.bacillusBioprotection.sporulatedCount} esporulados / ${sim.bacillusBioprotection.germinatingCount} reativando`
         + `\nBioproteção: ${sim.bacillusBioprotection.fungiUnderAntibiosis} fungos sob antibiose / ${sim.bacillusBioprotection.protectedRootCount} raízes protegidas`
         + `\nSideróforos: ${sim.pseudomonasSiderophores.freeCount} livres / ${sim.pseudomonasSiderophores.loadedCount} com Fe³⁺ / Fe recuperado ${ironRecovered} / ${sim.pseudomonasSiderophores.fungiLimitedCount} fungos limitados`
         + `\nDepósitos Fe³⁺: ${sim.pseudomonasSiderophores.activeDepositCount}/${sim.pseudomonasSiderophores.depositCount} ativos / ${sim.pseudomonasSiderophores.activeColonyCount} colônias com reserva`
-        + `\nRaízes laterais: ${sim.azospirillumRootGrowth.rootCount} totais / ${sim.azospirillumRootGrowth.growingCount} crescendo / ${sim.azospirillumRootGrowth.matureCount} maduras / ${sim.azospirillumRootGrowth.pausedCount} pausadas`
+        + `\nEscadas Azo: ${sim.azospirillumRootGrowth.rootCount} totais / ${sim.azospirillumRootGrowth.growingCount} crescendo / ${sim.azospirillumRootGrowth.matureCount} maduras / ${sim.azospirillumRootGrowth.pausedCount} pausadas · N associativo ${associativeNitrogen} · sinergias ${sim.azospirillumNitrogen.synergizedNoduleCount}`
         + `\nNodulação: ${sim.rhizobiumNodulation.siteCount} sítios / ${sim.rhizobiumNodulation.matureCount} maduros / ${sim.rhizobiumNodulation.activeCount} ativos / FBN ${fixation}`
         + (sim.rhizobiumNodulation.incompatibleCount ? ` / ${sim.rhizobiumNodulation.incompatibleCount} sem hospedeiro` : '')
         + `\nTrichoderma: ${sim.trichodermaColonies.followerCount} seguindo / ${sim.trichodermaColonies.colonyCount} colônias / vigor médio ${vigor}%`

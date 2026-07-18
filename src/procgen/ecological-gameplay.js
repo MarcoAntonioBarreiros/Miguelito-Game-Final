@@ -15,6 +15,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
   const biofilms = [];
   const formingBiofilms = new Map();
   let nextCloudId = 1;
+  let deployedCloudCount = 0;
   let eHeldLast = false;
   let infectionAnnounced = false;
 
@@ -29,6 +30,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
     formingBiofilms.clear();
     eHeldLast = false;
     infectionAnnounced = false;
+    deployedCloudCount = 0;
   }
 
   function reset() {
@@ -72,6 +74,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
       phase: Math.random() * TAU,
     };
     clouds.push(cloud);
+    deployedCloudCount++;
     entities.burst(cloud.x, cloud.y, '#b7f36b', 22, 135);
     toast('Gradiente de exsudatos', 'A nuvem atrai comunidades móveis e orienta interações ecológicas.', 3.5);
   }
@@ -133,18 +136,9 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
   function updateInfection(dt) {
     const player = state.player;
     const center = { x: player.x + player.w / 2, y: player.y + player.h / 2 };
-    let contacts = 0;
-    for (const agent of ecology.agents) {
-      if (agent.type === 'oportunista' && Math.hypot(agent.x - center.x, agent.y - center.y) < 38) contacts++;
-    }
-    if (contacts > 0) {
-      player.infectionExposure = clamp((player.infectionExposure || 0) + dt * (1.15 + contacts * .35), 0, 1.4);
-    } else {
-      player.infectionExposure = Math.max(0, (player.infectionExposure || 0) - dt * .72);
-    }
-    if (player.infectionExposure > .48) {
-      player.infection = clamp((player.infection || 0) + dt * (.12 + contacts * .055), 0, 1);
-    }
+    // O contato com o oportunista é calculado pela geometria real das hifas e
+    // dos esporos. A proximidade do antigo ícone não cria mais infecção.
+    player.infectionExposure = Math.max(0, (player.infectionExposure || 0) - dt * .72);
     if (player.infection > .06) {
       player.hope = Math.max(0, player.hope - dt * (.18 + player.infection * .58));
       if (!infectionAnnounced) {
@@ -161,6 +155,9 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
         player.infection = Math.max(0, player.infection - .38);
         player.infectionExposure = 0;
         entities.burst(center.x, center.y, '#ffcf8a', 18, 155);
+      }
+      if (player.fungalContamination > 0) {
+        player.fungalContamination = Math.max(0, player.fungalContamination - .22);
       }
     }
   }
@@ -377,6 +374,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
 
   return {
     get cloudCount() { return clouds.length; },
+    get deployedCloudCount() { return deployedCloudCount; },
     get biofilmCount() { return biofilms.length; },
     clear,
     reset,

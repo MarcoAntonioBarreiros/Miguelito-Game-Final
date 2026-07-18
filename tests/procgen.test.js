@@ -1,47 +1,84 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+  campaignPhaseSeed,
+  createCampaign,
+  prepareCampaignGeneration,
+} from '../src/procgen/campaign-progression.js';
 import { generateLevel } from '../src/procgen/generator.js';
 
-function runTests() {
-  let passed = 0;
-  let failed = 0;
-
-  function assert(condition, message) {
-    if (condition) {
-      passed++;
-      console.log(`✅ PASS: ${message}`);
-    } else {
-      failed++;
-      console.error(`❌ FAIL: ${message}`);
-    }
-  }
-
-  console.log('--- Testando Gerador Semiprocedural ---');
-
-  // Test 1: Reprodutibilidade
-  const seed = 'test-seed-123';
-  const level1 = generateLevel(seed);
-  const level2 = generateLevel(seed);
-
-  const l1Json = JSON.stringify(level1.platforms);
-  const l2Json = JSON.stringify(level2.platforms);
-
-  assert(l1Json === l2Json, 'Mesma seed deve produzir exatamente as mesmas plataformas');
-
-  // Test 2: Garantia de 100 trechos + 1 (início)
-  assert(level1.platforms.length === 101, `Deve gerar exatamente 101 plataformas (start + 100 chunks), gerou ${level1.platforms.length}`);
-
-  // Test 3: Zero softlocks / zero plataformas inalcançáveis
-  // In theory our generator only accepts valid geometries (or falls back to a trivial one).
-  // We can just check if any chunk was rejected completely.
-  // Actually, the generator creates 101 platforms. None of them should be null.
-  const validGeometry = level1.platforms.every(p => p && p.w > 0 && p.h > 0);
-  assert(validGeometry, 'Todas as plataformas geradas devem ter geometria válida');
-
-  console.log('---------------------------------------');
-  console.log(`Testes: ${passed + failed}, Passou: ${passed}, Falhou: ${failed}`);
-
-  if (failed > 0) {
-    process.exit(1);
-  }
+function createPhaseOneLevel(seed = 'test-seed-123') {
+  const campaign = createCampaign(seed);
+  const profile = prepareCampaignGeneration(campaign);
+  return {
+    level: generateLevel(campaignPhaseSeed(campaign)),
+    profile,
+  };
 }
 
-runTests();
+function stablePlatform(platform) {
+  return {
+    x: platform.x,
+    y: platform.y,
+    w: platform.w,
+    h: platform.h,
+    type: platform.type,
+    logicIndex: platform.logicIndex,
+    repaired: Boolean(platform.repaired),
+    recovery: Boolean(platform.recovery),
+  };
+}
+
+function stableGenerationPlan(level) {
+  return {
+    platforms: level.platforms.map(stablePlatform),
+    hazards: level.hazards,
+    crystals: level.crystals,
+    enemies: level.enemies,
+    exudates: level.exudates,
+    allies: level.allies,
+    checkpoints: level.checkpoints,
+    roots: level.roots,
+    spores: level.spores,
+    debugInfo: level.debugInfo,
+    primitives: level.primitives,
+    endX: level.endX,
+    cameraMaxX: level.cameraMaxX,
+  };
+}
+
+test('a mesma seed reproduz o mesmo plano procedural', () => {
+  const first = createPhaseOneLevel().level;
+  const second = createPhaseOneLevel().level;
+
+  // validateChunk usa o simulador completo. O sistema de saúde radicular acrescenta
+  // estado de runtime às plataformas e sorteia collapseCooldown com Math.random().
+  // Esse temporizador não faz parte do plano procedural; geometria e conteúdo fazem.
+  assert.deepEqual(stableGenerationPlan(first), stableGenerationPlan(second));
+});
+
+test('cada chunk gera uma plataforma principal e recuperações declaradas', () => {
+  const { level, profile } = createPhaseOneLevel();
+  const mainPlatforms = level.platforms.filter(platform => !platform.recovery);
+  const recoveryCount = level.debugInfo.reduce((sum, chunk) => sum + chunk.recoveryRoots, 0);
+
+  assert.equal(level.debugInfo.length, profile.totalChunks);
+  assert.equal(mainPlatforms.length, profile.totalChunks + 1, 'início + uma plataforma principal por chunk');
+  assert.equal(
+    level.platforms.length,
+    1 + profile.totalChunks + recoveryCount,
+    'total deve incluir início, chunks e raízes de recuperação condicionais',
+  );
+});
+
+test('todas as plataformas geradas têm geometria válida', () => {
+  const { level } = createPhaseOneLevel();
+  assert.equal(level.platforms.every(platform => (
+    platform
+      && Number.isFinite(platform.x)
+      && Number.isFinite(platform.y)
+      && platform.w > 0
+      && platform.h > 0
+  )), true);
+});

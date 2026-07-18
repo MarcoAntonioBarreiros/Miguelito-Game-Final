@@ -26,6 +26,43 @@ export const PRESENTATION_POLICIES = Object.freeze([
 export const SEGMENT_KINDS = Object.freeze(['fixed', 'procedural', 'final']);
 export const DERIVED_TRIGGER_BEHAVIORS = Object.freeze(['guide-only', 'open-in-guided']);
 export const MVP_EXCLUDED_PATHOGENS = Object.freeze(['ralstonia']);
+export const NITROGEN_ROOT_DEFAULTS = Object.freeze({
+  enabled: true,
+  count: 1,
+  requiredFixationRate: 0.05,
+  growthDurationSeconds: 4,
+});
+export const AZOSPIRILLUM_ROOT_LADDER_DEFAULTS = Object.freeze({
+  enabled: true,
+  count: 1,
+  stepCount: 4,
+  verticalSpacing: 85,
+  growthDurationSeconds: 3,
+});
+export const AZOSPIRILLUM_NITROGEN_DEFAULTS = Object.freeze({
+  associativeRate: 0.01,
+  rhizobiumSynergyMultiplier: 1.2,
+});
+export const MYCORRHIZA_BRIDGE_DEFAULTS = Object.freeze({
+  horizontalOnly: true,
+});
+export const OPPORTUNISTIC_FUNGUS_DEFAULTS = Object.freeze({
+  contaminationRate: 1,
+  movementSpeedReduction: .25,
+  accelerationReduction: .35,
+  jumpImpulseReduction: .15,
+  recoveryRate: .12,
+  hyphalGrowthRate: 1,
+  sporulationRate: 1,
+});
+export const PSEUDOMONAS_IRON_CONTROL_DEFAULTS = Object.freeze({
+  minimumIronReserve: 1,
+  // Nome preservado conforme o brief; funciona como vigor máximo na prova.
+  minimumFungalVigor: .25,
+  growthSuppression: .7,
+  sporulationSuppression: .8,
+  adhesionSuppression: .7,
+});
 
 export const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
   'action-exudate': Object.freeze(['action-exudate', 'action-inoculation']),
@@ -48,6 +85,8 @@ export const FINAL_TEST_KEYS = Object.freeze({
     'visibleLateralRootCount', 'functionalMycorrhizaPathCount', 'pseudomonasIronReserve',
     'neutralizedOpportunisticFungusCount', 'recoveredRootCount', 'brokenCrystalCount',
     'neutralizedEggMassCount', 'preservedRootCount', 'ecologicalScore',
+    'deployedExudateCount', 'bacillusColonyCount',
+    'opportunisticFungusVigor',
   ]),
 });
 
@@ -59,6 +98,7 @@ export const tutorialPacing = Object.freeze({
   organismFirstAppearanceBypassesSpatialGate: true,
   powerUnlockBypassesSpatialGate: true,
   diagnosticEventName: 'miguelito:tutorial-unexpected-first-appearance',
+  simultaneousFirstEncountersEventName: 'miguelito:tutorial-simultaneous-first-encounters',
 });
 
 const phases = [
@@ -91,7 +131,7 @@ const phases = [
   },
 
   {
-    id: 'phase-1', phase: 1, totalChunks: 40,
+    id: 'phase-1', phase: 1, totalChunks: 13,
     title: 'Recrutar e estabelecer', theme: 'fundamentos',
     mission: 'Recrute Bacillus com exsudatos e forme o primeiro biofilme funcional.',
     newConcepts: ['exsudato→recrutamento→inoculação', 'Bacillus→biofilme'], newCommand: null,
@@ -123,19 +163,27 @@ const phases = [
       { id: 'p1-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: [] },
       { id: 'p1-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided',
         debutPresentationIds: ['presentation-recruitment', 'presentation-bacillus'],
-        mechanicsRequired: ['exudate', 'inoculation'] },
-      { id: 'p1-challenge', kind: 'procedural', from: 9, to: 34, tutorialMode: 'silent',
-        mechanicsRequired: ['exudate', 'inoculation'] },
-      { id: 'p1-final', kind: 'final', from: 35, to: 39, tutorialMode: 'silent',
+        mechanicsRequired: ['exudate', 'inoculation'],
+        fixedBlock: {
+          template: 'phase1-intro-v1',
+          objective: 'Libere exsudato, recrute Bacillus e inocule a raiz com halo amarelo.',
+          completion: [
+            { type: 'worldState', key: 'deployedExudateCount', operator: '>=', value: 1 },
+            { type: 'worldState', key: 'functionalBiofilmCount', target: 'p1-intro-root', operator: '>=', value: 1 },
+          ],
+          exitGate: true,
+        } },
+      { id: 'p1-challenge', kind: 'procedural', from: 9, to: 12, tutorialMode: 'silent',
         mechanicsRequired: ['exudate', 'inoculation'] },
     ],
-    finalTest: { id: 'p1-test', goal: 'Criar um biofilme funcional na raiz de saída.', requires: [
-      { type: 'worldState', key: 'functionalBiofilmCount', operator: '>=', value: 1 },
+    finalTest: { id: 'p1-test', goal: 'Criar e ativar o primeiro checkpoint de Bacillus.', requires: [
+      { type: 'worldState', key: 'functionalBiofilmCount', target: 'p1-intro-root', operator: '>=', value: 1 },
     ]}, notes: [],
   },
 
   {
     id: 'phase-2', phase: 2, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Rhizobium, nódulo e FBN', theme: 'simbiose',
     mission: 'Estabeleça um nódulo maduro e mantenha a fixação de nitrogênio ativa.',
     newConcepts: ['Rhizobium→nódulo→FBN'], newCommand: null,
@@ -169,6 +217,9 @@ const phases = [
 
   {
     id: 'phase-3', phase: 3, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS },
+    azospirillumNitrogen: { ...AZOSPIRILLUM_NITROGEN_DEFAULTS },
     title: 'Azospirillum e arquitetura radicular', theme: 'arquitetura',
     mission: 'Induza raízes laterais e use o salto duplo para alcançar novas rotas.',
     newConcepts: ['Azospirillum→raiz lateral'], newCommand: 'doubleJump',
@@ -210,6 +261,14 @@ const phases = [
 
   {
     id: 'phase-4', phase: 4, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    mycorrhizaBridge: {
+      ...MYCORRHIZA_BRIDGE_DEFAULTS,
+      introSourceChunk: 3,
+      introTargetChunk: 4,
+      introGap: 325,
+      introVerticalOffset: 54,
+    },
     title: 'Micorriza e expansão do solo explorado', theme: 'expansão',
     mission: 'Estabeleça a micorriza, atravesse uma ponte hifal e domine o Dash.',
     newConcepts: ['micorriza→arbúsculo→absorção→ponte'], newCommand: 'dash',
@@ -217,7 +276,7 @@ const phases = [
       { id: 'presentation-mycorrhiza', cardId: 'organism-mycorrhiza',
         triggerIds: ['organism-mycorrhiza', 'structure-arbuscule', 'structure-mycorrhiza-path'],
         autoOpenTrigger: 'organism-mycorrhiza', policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        debutChunk: 4, moduleId: 'p4-myco-intro', debutZoneId: 'p4-mycorrhiza-debut',
+        debutChunk: 3, moduleId: 'p4-myco-intro', debutZoneId: 'p4-mycorrhiza-debut',
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
           { triggerId: 'organism-mycorrhiza', pages: [0] },
@@ -230,12 +289,12 @@ const phases = [
         debutChunk: 18, moduleId: 'p4-power-intro', pages: ['mecânica de gameplay', 'impulso horizontal'] },
     ],
     unlockEvents: [
-      { feature: 'mycorrhizaStructures', eventChunk: 8, afterModule: 'p4-myco-intro', practiceWindowChunks: 3, mandatory: true },
+      { feature: 'mycorrhizaStructures', eventChunk: 3, afterModule: 'p4-myco-intro', practiceWindowChunks: 3, mandatory: true },
       { feature: 'dash', eventChunk: 20, afterModule: 'p4-power-intro', practiceWindowChunks: 3, mandatory: true },
     ], pathogenDebuts: [],
     segments: [
-      { id: 'p4-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
-      { id: 'p4-myco-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided', debutPresentationIds: ['presentation-mycorrhiza'], mechanicsRequired: ['inoculation'] },
+      { id: 'p4-warmup', kind: 'procedural', from: 0, to: 2, tutorialMode: 'silent', mechanicsRequired: ['doubleJump'] },
+      { id: 'p4-myco-intro', kind: 'fixed', from: 3, to: 8, tutorialMode: 'guided', debutPresentationIds: ['presentation-mycorrhiza'], mechanicsRequired: ['inoculation'] },
       { id: 'p4-myco-practice', kind: 'procedural', from: 9, to: 17, tutorialMode: 'silent', mechanicsRequired: ['mycorrhizaStructures', 'doubleJump'] },
       { id: 'p4-power-intro', kind: 'fixed', from: 18, to: 20, tutorialMode: 'guided', debutPresentationIds: ['presentation-dash'], mechanicsRequired: ['doubleJump'] },
       { id: 'p4-challenge', kind: 'procedural', from: 21, to: 35, tutorialMode: 'silent', mechanicsRequired: ['dash', 'doubleJump', 'mycorrhizaStructures'] },
@@ -248,15 +307,24 @@ const phases = [
   },
 
   {
-    id: 'phase-5', phase: 5, totalChunks: 40,
+    id: 'phase-5', phase: 5, totalChunks: 20,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    opportunisticFungus: { ...OPPORTUNISTIC_FUNGUS_DEFAULTS },
+    pseudomonasIronControl: { ...PSEUDOMONAS_IRON_CONTROL_DEFAULTS },
     title: 'Ferro e biocontrole fúngico', theme: 'equilíbrio',
-    mission: 'Construa reserva de ferro e use Trichoderma contra fungos oportunistas.',
-    newConcepts: ['Pseudomonas→sideróforo→ferro', 'oportunista→Trichoderma→micoparasitismo'], newCommand: null,
+    mission: 'Perceba a contaminação fúngica e use Pseudomonas para limitar o vigor do fungo por competição por ferro.',
+    newConcepts: ['oportunista→contaminação', 'Pseudomonas→sideróforo→ferro→competição'], newCommand: null,
     presentations: [
+      { id: 'presentation-opportunistic-fungus', cardId: 'organism-opportunistic-fungus',
+        triggerIds: ['organism-opportunistic-fungus'], autoOpenTrigger: 'organism-opportunistic-fungus',
+        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
+        roamingType: 'oportunista', debutChunk: 2, poolFromChunk: 6,
+        moduleId: 'p5-fungus-intro', debutZoneId: 'p5-opportunistic-fungus-debut', tetherUntilSeen: true,
+        pages: ['Quem é?', 'Rede de hifas', 'Contaminação', 'Recuperação'] },
       { id: 'presentation-pseudomonas', cardId: 'organism-pseudomonas',
         triggerIds: ['organism-pseudomonas', 'process-siderophore'], autoOpenTrigger: 'organism-pseudomonas',
         policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        roamingType: 'pseudomonas', debutChunk: 4, poolFromChunk: 9,
+        roamingType: 'pseudomonas', debutChunk: 8, poolFromChunk: 12,
         moduleId: 'p5-pseudo-intro', debutZoneId: 'p5-pseudomonas-debut', tetherUntilSeen: true,
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
@@ -264,44 +332,34 @@ const phases = [
           { triggerId: 'process-siderophore', pages: [1, 2, 3] },
         ],
         pages: ['quem é', 'sideróforo', 'Fe³⁺', 'reserva de ferro'] },
-      { id: 'presentation-opportunistic-fungus', cardId: 'organism-opportunistic-fungus',
-        triggerIds: ['organism-opportunistic-fungus'], autoOpenTrigger: 'organism-opportunistic-fungus',
-        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
-        roamingType: 'oportunista', debutChunk: 18, poolFromChunk: 23,
-        moduleId: 'p5-biocontrol-intro', debutZoneId: 'p5-opportunistic-fungus-debut', tetherUntilSeen: true,
-        pages: ['Quem é?', 'Função biológica', 'Função no jogo', 'Como controlar'] },
-      { id: 'presentation-trichoderma', cardId: 'organism-trichoderma',
-        triggerIds: ['organism-trichoderma'], autoOpenTrigger: 'organism-trichoderma',
-        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
-        roamingType: 'trichoderma', debutChunk: 20, poolFromChunk: 23,
-        moduleId: 'p5-biocontrol-intro', debutZoneId: 'p5-trichoderma-debut', tetherUntilSeen: true,
-        pages: ['Quem é?', 'Função biológica', 'Função no jogo', 'Atenção didática'] },
-      { id: 'presentation-mycoparasitism', cardId: 'process-mycoparasitism',
-        triggerIds: ['process-mycoparasitism'], autoOpenTrigger: 'process-mycoparasitism',
+      { id: 'presentation-iron-competition', cardId: 'process-iron-competition',
+        triggerIds: ['process-iron-competition'], autoOpenTrigger: 'process-iron-competition',
         policy: 'guided-sequence', suppressIndividualCards: false,
-        prerequisitePresentationIds: ['presentation-opportunistic-fungus', 'presentation-trichoderma'],
-        debutChunk: 22, moduleId: 'p5-biocontrol-intro',
-        pages: ['O que é?', 'Mecanismos', 'Função no jogo', 'Sinergias'] },
+        prerequisitePresentationIds: ['presentation-opportunistic-fungus', 'presentation-pseudomonas'],
+        debutChunk: 13, moduleId: 'p5-interaction',
+        pages: ['Competição por ferro', 'Vigor reduzido', 'Efeito no jogo', 'Sem eliminação direta'] },
     ],
     unlockEvents: [], pathogenDebuts: [],
     segments: [
-      { id: 'p5-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'dash'] },
-      { id: 'p5-pseudo-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided', debutPresentationIds: ['presentation-pseudomonas'], mechanicsRequired: ['inoculation'] },
-      { id: 'p5-pseudo-practice', kind: 'procedural', from: 9, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
-      { id: 'p5-biocontrol-intro', kind: 'fixed', from: 18, to: 22, tutorialMode: 'guided',
-        debutPresentationIds: ['presentation-opportunistic-fungus', 'presentation-trichoderma', 'presentation-mycoparasitism'],
-        mechanicsRequired: ['inoculation'] },
-      { id: 'p5-challenge', kind: 'procedural', from: 23, to: 35, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
-      { id: 'p5-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
+      { id: 'p5-fungus-intro', kind: 'fixed', from: 0, to: 5, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-opportunistic-fungus'], mechanicsRequired: [] },
+      { id: 'p5-pseudo-intro', kind: 'fixed', from: 6, to: 11, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-pseudomonas'], mechanicsRequired: ['inoculation'] },
+      { id: 'p5-interaction', kind: 'fixed', from: 12, to: 14, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-iron-competition'], mechanicsRequired: ['inoculation'] },
+      { id: 'p5-challenge', kind: 'procedural', from: 15, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
+      { id: 'p5-final', kind: 'final', from: 18, to: 19, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
     ],
-    finalTest: { id: 'p5-test', goal: 'Atingir reserva de ferro e neutralizar um foco oportunista.', requires: [
+    finalTest: { id: 'p5-test', goal: 'Controle o vigor do fungo com a reserva de ferro e alcance a raiz final.', requires: [
       { type: 'worldState', key: 'pseudomonasIronReserve', operator: '>=', value: 1 },
-      { type: 'worldState', key: 'neutralizedOpportunisticFungusCount', operator: '>=', value: 1 },
+      { type: 'worldState', key: 'opportunisticFungusVigor', operator: '<=', value: .25 },
+      { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
     ]}, notes: [],
   },
 
   {
     id: 'phase-6', phase: 6, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Rhizoctonia, saúde da raiz e Pulso', theme: 'patologia',
     mission: 'Controle Rhizoctonia, recupere a sustentação da raiz e libere o Pulso.',
     newConcepts: ['Rhizoctonia→lesão→saúde/recuperação'], newCommand: 'pulse',
@@ -351,6 +409,7 @@ const phases = [
 
   {
     id: 'phase-7', phase: 7, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Meloidogyne: infecção, reprodução e sequela', theme: 'infestação',
     mission: 'Impeça novas penetrações, neutralize massas de ovos e preserve uma raiz.',
     newConcepts: ['J2→penetração→galha', 'fêmea→massa de ovos→sequela'], newCommand: null,
@@ -394,6 +453,7 @@ const phases = [
 
   {
     id: 'phase-8', phase: 8, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Ecossistema integrado', theme: 'síntese',
     mission: 'Proteja, controle, recupere e atravesse usando tudo o que aprendeu.',
     newConcepts: [], newCommand: null,
@@ -418,8 +478,42 @@ const phases = [
 
 export const campaignManifest = Object.freeze(phases);
 
+const phaseManifestOverrides = new Map();
+
+function cloneManifestValue(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+export function getActiveCampaignManifest() {
+  return campaignManifest.map(entry => phaseManifestOverrides.get(entry.phase) || entry);
+}
+
+export function setPhaseManifestOverride(phaseManifest) {
+  if (!phaseManifest || !Number.isInteger(phaseManifest.phase)) {
+    throw new TypeError('Override de fase precisa informar um numero de fase inteiro.');
+  }
+  if (!campaignManifest.some(entry => entry.phase === phaseManifest.phase)) {
+    throw new RangeError(`Fase inexistente no manifesto: ${phaseManifest.phase}.`);
+  }
+  const candidate = cloneManifestValue(phaseManifest);
+  const manifest = campaignManifest.map(entry => entry.phase === candidate.phase ? candidate : entry);
+  const errors = validateCampaignManifest({ manifest });
+  if (errors.length) {
+    throw new Error(`Override de fase invalido:\n${errors.join('\n')}`);
+  }
+  phaseManifestOverrides.set(candidate.phase, candidate);
+  return candidate;
+}
+
+export function clearPhaseManifestOverride(phase = null) {
+  if (phase === null) phaseManifestOverrides.clear();
+  else phaseManifestOverrides.delete(phase);
+}
+
 export function getPhaseManifest(phase) {
-  return campaignManifest.find(entry => entry.phase === phase) || null;
+  return phaseManifestOverrides.get(phase)
+    || campaignManifest.find(entry => entry.phase === phase)
+    || null;
 }
 
 export function getSegmentAt(phase, chunkIndex) {
@@ -431,7 +525,7 @@ export function getTutorialModeAt(phase, chunkIndex) {
 }
 
 export function getPresentationById(id) {
-  for (const phase of campaignManifest) {
+  for (const phase of getActiveCampaignManifest()) {
     const found = phase.presentations.find(p => p.id === id);
     if (found) return found;
   }
@@ -439,7 +533,7 @@ export function getPresentationById(id) {
 }
 
 export function getPresentationForTrigger(triggerId) {
-  for (const phase of campaignManifest) {
+  for (const phase of getActiveCampaignManifest()) {
     const found = phase.presentations.find(p => p.triggerIds.includes(triggerId));
     if (found) return found;
   }
@@ -452,9 +546,33 @@ function roamingTypesOf(presentation) {
   return [];
 }
 
+export function getRoamingDebutsAt(phase, chunkIndex) {
+  const entry = getPhaseManifest(phase);
+  if (!entry) return [];
+  const allowed = Array.isArray(entry.phaseLab?.allowedOrganisms)
+    ? new Set(entry.phaseLab.allowedOrganisms)
+    : null;
+  return entry.presentations
+    .filter(presentation => presentation.debutChunk === chunkIndex)
+    .flatMap(presentation => roamingTypesOf(presentation)
+      .filter(type => !allowed || allowed.has(type))
+      .map(type => ({
+      type,
+      cardId: presentation.cardId,
+      presentationId: presentation.id,
+      debutZoneId: presentation.debutZoneId || `${presentation.id}-debut`,
+      tetherUntilSeen: presentation.tetherUntilSeen === true,
+    })));
+}
+
 export function getProceduralPoolAt(phase, chunkIndex) {
+  const current = getPhaseManifest(phase);
+  if (Array.isArray(current?.phaseLab?.allowedOrganisms)) {
+    return [...new Set(current.phaseLab.allowedOrganisms)]
+      .filter(type => ECOLOGY_ROAMING_TYPES.includes(type));
+  }
   const types = new Set();
-  for (const entry of campaignManifest) {
+  for (const entry of getActiveCampaignManifest()) {
     if (entry.phase > phase) break;
     for (const presentation of entry.presentations) {
       const roaming = roamingTypesOf(presentation);
@@ -468,8 +586,13 @@ export function getProceduralPoolAt(phase, chunkIndex) {
 }
 
 export function getPathogensAt(phase, chunkIndex) {
+  const current = getPhaseManifest(phase);
+  if (Array.isArray(current?.phaseLab?.allowedPathogens)) {
+    return [...new Set(current.phaseLab.allowedPathogens)]
+      .filter(type => PATHOGEN_SYSTEMS.includes(type) && !MVP_EXCLUDED_PATHOGENS.includes(type));
+  }
   const active = new Set();
-  for (const entry of campaignManifest) {
+  for (const entry of getActiveCampaignManifest()) {
     if (entry.phase > phase) break;
     for (const debut of entry.pathogenDebuts) {
       if (entry.phase < phase || chunkIndex >= debut.fromChunk) active.add(debut.pathogen);
@@ -478,9 +601,24 @@ export function getPathogensAt(phase, chunkIndex) {
   return [...active];
 }
 
+export function getPathogenStartChunk(phase, pathogen) {
+  const current = getPhaseManifest(phase);
+  if (!current || MVP_EXCLUDED_PATHOGENS.includes(pathogen)) return null;
+  if (Array.isArray(current.phaseLab?.allowedPathogens)) {
+    return current.phaseLab.allowedPathogens.includes(pathogen) ? 0 : null;
+  }
+  for (const entry of getActiveCampaignManifest()) {
+    if (entry.phase > phase) break;
+    const debut = entry.pathogenDebuts.find(candidate => candidate.pathogen === pathogen);
+    if (!debut) continue;
+    return entry.phase < phase ? 0 : debut.fromChunk;
+  }
+  return null;
+}
+
 export function getPersistentUnlocksBeforePhase(phase) {
   const active = Object.fromEntries(CAMPAIGN_UNLOCKS.map(flag => [flag, false]));
-  for (const entry of campaignManifest) {
+  for (const entry of getActiveCampaignManifest()) {
     if (entry.phase >= phase) break;
     for (const event of entry.unlockEvents) active[event.feature] = true;
   }
@@ -518,7 +656,7 @@ export function getTetheredDebutsAt(phase, chunkIndex) {
 }
 
 export function globalPresentationOrder() {
-  return campaignManifest
+  return getActiveCampaignManifest()
     .flatMap(entry => entry.presentations.map(p => ({ phase: entry.phase, ...p })))
     .sort((a, b) => a.phase - b.phase || a.debutChunk - b.debutChunk);
 }
@@ -613,6 +751,13 @@ export function validateCampaignManifest({
   const triggerOwners = new Map();
   const allPresentationIds = new Set(manifest.flatMap(phase => phase.presentations.map(p => p.id)));
   const knownCards = knownCardIds ? new Set(knownCardIds) : null;
+  const validateCondition = (condition, scope) => {
+    if (!VALID_FINAL_TYPES.has(condition.type)) errors.push(`${scope}: tipo de condiÃ§Ã£o invÃ¡lido.`);
+    if (!VALID_OPERATORS.has(condition.operator)) errors.push(`${scope}: operador invÃ¡lido.`);
+    if (knownFinalTestKeys[condition.type] && !knownFinalTestKeys[condition.type].includes(condition.key)) {
+      errors.push(`${scope}: chave de prova desconhecida ${condition.type}.${condition.key}.`);
+    }
+  };
 
   manifest.forEach((phase, expectedPhase) => {
     if (phase.phase !== expectedPhase) errors.push(`Fase fora de ordem: ${phase.phase}; esperado ${expectedPhase}.`);
@@ -629,6 +774,95 @@ export function validateCampaignManifest({
       return;
     }
 
+    if (phase.nitrogenRoot) {
+      const nitrogenRoot = phase.nitrogenRoot;
+      if (typeof nitrogenRoot.enabled !== 'boolean') errors.push(`${phase.id}: nitrogenRoot.enabled invalido.`);
+      if (nitrogenRoot.enabled && phase.phase < 2) errors.push(`${phase.id}: nitrogenRoot nao pode existir antes da fase 2.`);
+      if (!Number.isInteger(nitrogenRoot.count) || nitrogenRoot.count < 0 || nitrogenRoot.count > 8) {
+        errors.push(`${phase.id}: nitrogenRoot.count invalido.`);
+      }
+      if (!Number.isFinite(nitrogenRoot.requiredFixationRate) || nitrogenRoot.requiredFixationRate <= 0) {
+        errors.push(`${phase.id}: nitrogenRoot.requiredFixationRate invalido.`);
+      }
+      if (!Number.isFinite(nitrogenRoot.growthDurationSeconds) || nitrogenRoot.growthDurationSeconds <= 0) {
+        errors.push(`${phase.id}: nitrogenRoot.growthDurationSeconds invalido.`);
+      }
+    }
+
+    if (phase.azospirillumRootLadder) {
+      const ladder = phase.azospirillumRootLadder;
+      if (typeof ladder.enabled !== 'boolean') errors.push(`${phase.id}: azospirillumRootLadder.enabled invalido.`);
+      if (ladder.enabled && phase.phase < 3) errors.push(`${phase.id}: azospirillumRootLadder nao pode existir antes da fase 3.`);
+      if (!Number.isInteger(ladder.count) || ladder.count < 0 || ladder.count > 8) {
+        errors.push(`${phase.id}: azospirillumRootLadder.count invalido.`);
+      }
+      if (!Number.isInteger(ladder.stepCount) || ladder.stepCount < 2 || ladder.stepCount > 10) {
+        errors.push(`${phase.id}: azospirillumRootLadder.stepCount invalido.`);
+      }
+      if (!Number.isFinite(ladder.verticalSpacing) || ladder.verticalSpacing < 45 || ladder.verticalSpacing > 110) {
+        errors.push(`${phase.id}: azospirillumRootLadder.verticalSpacing invalido.`);
+      }
+      if (!Number.isFinite(ladder.growthDurationSeconds) || ladder.growthDurationSeconds <= 0) {
+        errors.push(`${phase.id}: azospirillumRootLadder.growthDurationSeconds invalido.`);
+      }
+    }
+
+    if (phase.azospirillumNitrogen) {
+      const nitrogen = phase.azospirillumNitrogen;
+      if (!Number.isFinite(nitrogen.associativeRate) || nitrogen.associativeRate <= 0 || nitrogen.associativeRate >= .05) {
+        errors.push(`${phase.id}: azospirillumNitrogen.associativeRate deve ser positivo e inferior a FBN nodular.`);
+      }
+      if (!Number.isFinite(nitrogen.rhizobiumSynergyMultiplier) || nitrogen.rhizobiumSynergyMultiplier < 1) {
+        errors.push(`${phase.id}: azospirillumNitrogen.rhizobiumSynergyMultiplier invalido.`);
+      }
+    }
+
+    if (phase.mycorrhizaBridge) {
+      const bridge = phase.mycorrhizaBridge;
+      if (typeof bridge.horizontalOnly !== 'boolean') {
+        errors.push(`${phase.id}: mycorrhizaBridge.horizontalOnly invalido.`);
+      }
+      for (const key of ['introSourceChunk', 'introTargetChunk']) {
+        if (bridge[key] !== undefined && (!Number.isInteger(bridge[key]) || bridge[key] < 0 || bridge[key] >= phase.totalChunks)) {
+          errors.push(`${phase.id}: mycorrhizaBridge.${key} invalido.`);
+        }
+      }
+      if (bridge.introGap !== undefined && (!Number.isFinite(bridge.introGap) || bridge.introGap < 58 || bridge.introGap > 340)) {
+        errors.push(`${phase.id}: mycorrhizaBridge.introGap invalido.`);
+      }
+      if (bridge.introVerticalOffset !== undefined
+        && (!Number.isFinite(bridge.introVerticalOffset) || Math.abs(bridge.introVerticalOffset) > 68)) {
+        errors.push(`${phase.id}: mycorrhizaBridge.introVerticalOffset invalido.`);
+      }
+    }
+
+    if (phase.opportunisticFungus) {
+      for (const key of ['contaminationRate', 'recoveryRate', 'hyphalGrowthRate', 'sporulationRate']) {
+        if (!Number.isFinite(phase.opportunisticFungus[key]) || phase.opportunisticFungus[key] < 0) {
+          errors.push(`${phase.id}: opportunisticFungus.${key} inválido.`);
+        }
+      }
+      for (const key of ['movementSpeedReduction', 'accelerationReduction', 'jumpImpulseReduction']) {
+        const value = phase.opportunisticFungus[key];
+        if (!Number.isFinite(value) || value < 0 || value >= 1) {
+          errors.push(`${phase.id}: opportunisticFungus.${key} deve estar entre 0 e 1.`);
+        }
+      }
+    }
+
+    if (phase.pseudomonasIronControl) {
+      const control = phase.pseudomonasIronControl;
+      if (!Number.isFinite(control.minimumIronReserve) || control.minimumIronReserve < 0) {
+        errors.push(`${phase.id}: pseudomonasIronControl.minimumIronReserve inválido.`);
+      }
+      for (const key of ['minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']) {
+        const value = control[key];
+        if (!Number.isFinite(value) || value < 0 || value > 1) {
+          errors.push(`${phase.id}: pseudomonasIronControl.${key} deve estar entre 0 e 1.`);
+        }
+      }
+    }
+
     const coverage = new Array(phase.totalChunks).fill(0);
     const segmentIds = new Set();
     const segmentById = new Map();
@@ -640,6 +874,16 @@ export function validateCampaignManifest({
       if (!TUTORIAL_MODES.includes(segment.tutorialMode)) errors.push(`${phase.id}/${segment.id}: tutorialMode inválido.`);
       if (segment.from < 0 || segment.to >= phase.totalChunks || segment.from > segment.to) {
         errors.push(`${phase.id}/${segment.id}: intervalo inválido.`); continue;
+      }
+      if (segment.fixedBlock) {
+        if (!['fixed', 'final'].includes(segment.kind)) errors.push(`${phase.id}/${segment.id}: bloco autoral exige kind fixed ou final.`);
+        if (!segment.fixedBlock.template) errors.push(`${phase.id}/${segment.id}: bloco autoral sem template.`);
+        if (!segment.fixedBlock.objective) errors.push(`${phase.id}/${segment.id}: bloco autoral sem objetivo.`);
+        const completion = segment.fixedBlock.completion || [];
+        if (segment.fixedBlock.completionRef !== 'finalTest' && completion.length === 0) {
+          errors.push(`${phase.id}/${segment.id}: bloco autoral sem condição de conclusão.`);
+        }
+        for (const condition of completion) validateCondition(condition, `${phase.id}/${segment.id}`);
       }
       for (let i = segment.from; i <= segment.to; i++) coverage[i]++;
     }

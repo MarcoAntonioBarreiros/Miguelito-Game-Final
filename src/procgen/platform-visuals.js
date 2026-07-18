@@ -165,9 +165,29 @@ export function createPlatformVisuals({ state }) {
     ctx.stroke();
     ctx.setLineDash([]);
 
+    if (platform.fixedObjective) {
+      const objectivePulse = .78 + Math.sin(state.time * 3.2) * .08;
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,213,111,${objectivePulse})`;
+      ctx.fillStyle = 'rgba(255,213,111,.08)';
+      ctx.lineWidth = 3;
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#ffd56f';
+      roundedPath(ctx, platform, radius);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffd56f';
+      ctx.fillRect(platform.x + 12, platform.y - 2, Math.max(24, platform.w - 24), 4);
+      ctx.restore();
+    }
+
     if (!platform.mycorrhizaStructure) {
-      const hairCount = Math.max(0, Math.min(9, Math.floor(platform.w / 44 * health)));
-      ctx.strokeStyle = platform.healthTrend > 0 ? 'rgba(184,255,198,.78)' : `rgba(233,213,180,${.12 + health * .46})`;
+      const azospirillumHairDensity = clamp(platform.azospirillumHairDensity || 0, 0, 1);
+      const baseHairCount = Math.floor(platform.w / 44 * health);
+      const hairCount = Math.max(0, Math.min(18, baseHairCount + Math.round(azospirillumHairDensity * 10)));
+      ctx.strokeStyle = azospirillumHairDensity > .05
+        ? `rgba(190,244,211,${.34 + azospirillumHairDensity * .5})`
+        : platform.healthTrend > 0 ? 'rgba(184,255,198,.78)' : `rgba(233,213,180,${.12 + health * .46})`;
       ctx.lineWidth = 1;
       for (let i = 0; i < hairCount; i++) {
         const x = platform.x + 14 + (i + .5) / Math.max(1, hairCount) * Math.max(12, platform.w - 28);
@@ -239,7 +259,7 @@ export function createPlatformVisuals({ state }) {
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
+      if (platform.mycorrhizaStructure || platform.azospirillumStructure || platform.nitrogenRootCollider) continue;
       if (platform.x + platform.w < state.cameraX - 80 || platform.x > state.cameraX + W + 80) continue;
       if (platform.type === 'root') drawRoot(ctx, platform);
       else drawSoil(ctx, platform);
@@ -255,7 +275,7 @@ export function createPlatformVisuals({ state }) {
     let bestScore = 76;
 
     for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure) continue;
+      if (platform.mycorrhizaStructure || platform.nitrogenRootCollider) continue;
       const horizontal = centerX < platform.x
         ? platform.x - centerX
         : centerX > platform.x + platform.w
@@ -292,6 +312,9 @@ export function createPlatformVisuals({ state }) {
     if (state.gameState !== 'play') return;
     const nearby = nearbyPlatform();
     if (!nearby) return;
+    // Os blocos fixos possuem orientação contextual própria. Repetir aqui o
+    // rótulo da raiz criava duas mensagens sobrepostas.
+    if (nearby.platform.fixedObjective) return;
     const { text, color } = labelFor(nearby.platform);
     const alpha = clamp(1 - nearby.score / 82, .25, 1);
     const player = state.player;
