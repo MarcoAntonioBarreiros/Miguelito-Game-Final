@@ -16,8 +16,18 @@ const ROOT_SWAY_MAX = 74;
 const MAX_LATERAL_REACH = 360;
 // Nitrogenio necessario para a escada atingir o alcance maximo.
 const STOCK_FOR_FULL_REACH = 8;
-const RUNTIME_STEP_COUNT = 4;
+// O numero de degraus sai do alcance, nao o contrario: um numero fixo empilhava
+// os degraus quase encostados quando a escada era curta. O espacamento alvo fica
+// confortavel para subir de degrau em degrau (o salto simples cobre 96px).
+const RUNTIME_TARGET_STEP_SPACING = 58;
+const RUNTIME_MIN_STEPS = 1;
+const RUNTIME_MAX_STEPS = 6;
 const RUNTIME_GROWTH_SECONDS = 3;
+
+function runtimeStepCount(reach) {
+  const raw = Math.round(reach / RUNTIME_TARGET_STEP_SPACING) - 1;
+  return clamp(raw, RUNTIME_MIN_STEPS, RUNTIME_MAX_STEPS);
+}
 // Sem nitrogenio a raiz lateral mal supera um salto simples; com estoque cheio
 // ela alcanca alem do salto duplo. E o estoque que decide, nao a distancia.
 const RUNTIME_MIN_REACH = 96;
@@ -475,8 +485,9 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     const id = `azo-ladder-runtime-${++runtimeLadderId}`;
     const swayDirection = Math.sign(end.x - start.x || 1);
     const sway = swayDirection * Math.min(ROOT_SWAY_MAX, 18 + Math.abs(end.x - start.x) * .2);
-    const steps = Array.from({ length: RUNTIME_STEP_COUNT }, (_, index) => {
-      const t = (index + 1) / (RUNTIME_STEP_COUNT + 1);
+    const stepCount = runtimeStepCount(start.y - end.y);
+    const steps = Array.from({ length: stepCount }, (_, index) => {
+      const t = (index + 1) / (stepCount + 1);
       return {
         id: `${id}-step-${index + 1}`,
         index,
