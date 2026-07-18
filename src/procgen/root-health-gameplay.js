@@ -72,8 +72,12 @@ export function createRootHealthGameplay({ state, entities }) {
         penalty += .055;
       }
       if (gall.eggMassesLaid) penalty += .035;
+      // Uma femea que completou o ciclo e morreu deixa cicatriz maior: o tecido
+      // foi reorganizado em celulas gigantes e nao se refaz. Sem isso a raiz
+      // voltava a quase cheia depois da morte dela e a sequela nao se lia.
+      if (gall.dead) penalty += .06;
     }
-    return { penalty: clamp(penalty, 0, .48), adults, mature };
+    return { penalty: clamp(penalty, 0, .52), adults, mature };
   }
 
   function noduleSupport(root) {

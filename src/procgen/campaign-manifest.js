@@ -68,6 +68,22 @@ export const PSEUDOMONAS_IRON_CONTROL_DEFAULTS = Object.freeze({
   sporulationSuppression: .8,
   adhesionSuppression: .7,
 });
+// A dificuldade da fase do nematoide esta na populacao, nao numa femea drenando:
+// e por isso que estes numeros — quantos focos, quao espacados, quantas geracoes
+// cada linhagem encadeia — decidem a fase inteira e precisam ser ajustaveis.
+export const MELOIDOGYNE_DEFAULTS = Object.freeze({
+  // Um foco a cada N chunks elegiveis, para a infestacao acompanhar o tamanho da
+  // fase em vez de se concentrar toda no comeco.
+  focusSpacingChunks: 9,
+  maxFoci: 5,
+  // Geracoes que uma linhagem pode encadear sem controle, por foco.
+  maxGenerations: 4,
+  maxSimultaneousEggMasses: 14,
+  // Da oviposicao ate a morte da femea.
+  senescenceSeconds: 26,
+  // Cicatriz adicional deixada por uma femea que completou o ciclo na raiz.
+  completedCycleScar: .06,
+});
 export const PHOSPHATE_SOLUBILIZATION_DEFAULTS = Object.freeze({
   absorptionRadius: 175,
   chargeTimeSeconds: 1.8,

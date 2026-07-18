@@ -1,14 +1,8 @@
 import { W } from '../core/constants.js';
 import { createRootHealthGameplay } from './root-health-gameplay.js';
+import { MELOIDOGYNE_DEFAULTS } from './campaign-manifest.js';
 
 const TAU = Math.PI * 2;
-// Tempo entre a oviposicao e a morte da femea. Nao e o desafio da fase: o
-// desafio e a geracao seguinte, e por isso a linhagem precisa poder crescer.
-const SENESCENCE_SECONDS = 26;
-// Quantas geracoes a linhagem pode encadear sem controle. Com o teto antigo de
-// duas, nao dava para ver a populacao escalar — que e onde mora a dificuldade.
-const MAX_GENERATIONS = 4;
-const MAX_SIMULTANEOUS_EGG_MASSES = 14;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const hash = (p, s = 0) => {
   const v = Math.sin(((p.x || 0) * 12.9898 + (p.y || 0) * 78.233 + (p.w || 0) * 37.719 + s * 31.17) * .001) * 43758.5453;
@@ -43,6 +37,11 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     state.level.rootGalls = galls;
   }
 
+  // Parametros ajustaveis pelo Phase Lab, como nas outras mecanicas.
+  function settings() {
+    return { ...MELOIDOGYNE_DEFAULTS, ...(state.level.phaseProfile?.meloidogyne || {}) };
+  }
+
   function addEggMass(platform, x, generation = 0, sourceGallId = null, initial = false) {
     prepareRoot(platform);
     const maxEggs = initial ? 7 + Math.floor(hash(platform, 113 + generation) * 4) : 5 + generation + Math.floor(Math.random() * 3);
@@ -58,17 +57,33 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     return mass;
   }
 
+  // Os focos se distribuem ao longo da fase em vez de se concentrarem no comeco.
+  // Antes a infestacao inteira nascia nos primeiros blocos e gastava ali todas
+  // as geracoes, deixando o final da fase vazio.
   function seedInfestation() {
     const startChunk = state.level.pathogenSchedule?.meloidogyne;
     if (!Number.isInteger(startChunk)) return;
-    const candidates = roots().filter(p => (p.logicIndex ?? -1) >= startChunk && p.w >= 120 && !p.azospirillumStructure);
+    const candidates = roots()
+      .filter(p => (p.logicIndex ?? -1) >= startChunk && p.w >= 120 && !p.azospirillumStructure)
+      .sort((a, b) => (a.logicIndex ?? 0) - (b.logicIndex ?? 0));
     if (!candidates.length) return;
-    const first = candidates.reduce((best, candidate) => (
-      (candidate.logicIndex ?? Infinity) < (best.logicIndex ?? Infinity) ? candidate : best
-    ), candidates[0]);
-    let chosen = candidates.filter((p, i) => i % 5 === 2 || hash(p, 17) > .79);
-    chosen = [first, ...chosen.filter(candidate => candidate !== first)]
-      .slice(0, Math.max(1, Math.min(3, Math.ceil(candidates.length / 7))));
+
+    const config = settings();
+    const spacing = Math.max(2, config.focusSpacingChunks);
+    const span = (candidates.at(-1).logicIndex ?? 0) - (candidates[0].logicIndex ?? 0) + 1;
+    const wanted = clamp(Math.round(span / spacing), 1, Math.max(1, config.maxFoci));
+
+    const chosen = [];
+    for (let i = 0; i < wanted; i++) {
+      // Distribui os focos por posicao na lista, do primeiro bloco elegivel ate
+      // o ultimo, para a pressao acompanhar o jogador ao longo da fase.
+      const at = Math.min(
+        candidates.length - 1,
+        Math.round(i * (candidates.length - 1) / Math.max(1, wanted - 1 || 1)),
+      );
+      const platform = candidates[at];
+      if (!chosen.includes(platform)) chosen.push(platform);
+    }
     for (const p of chosen) addEggMass(p, p.x + p.w * (.28 + hash(p, 29) * .44), 0, null, true);
   }
 
@@ -241,7 +256,10 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     return g.eggMassesLaid ? 'egg-laying-female' : 'adult-female';
   }
   function layEggs(g) {
-    if (g.generation >= MAX_GENERATIONS || g.eggMassesLaid || eggs.length >= MAX_SIMULTANEOUS_EGG_MASSES) return;
+    const config = settings();
+    if (g.generation >= config.maxGenerations
+      || g.eggMassesLaid
+      || eggs.length >= config.maxSimultaneousEggMasses) return;
     const x = clamp(g.x + 22, g.platform.x + 20, g.platform.x + g.platform.w - 20);
     addEggMass(g.platform, x, g.generation + 1, g.id); g.eggMassesLaid = 1;
     entities.burst(x, g.platform.y - 6, '#ffe0a6', 18, 72);
@@ -259,7 +277,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
       } else if (!g.dead) {
         // Depois de ovipor, a femea entra em senescencia: para de produzir e a
         // drenagem cai ate zero. Ela nao poe uma segunda massa.
-        g.senescence = clamp(g.senescence + dt / SENESCENCE_SECONDS, 0, 1);
+        g.senescence = clamp(g.senescence + dt / Math.max(1, settings().senescenceSeconds), 0, 1);
         if (g.senescence >= 1) {
           g.dead = true;
           g.adultDrain = 0;
