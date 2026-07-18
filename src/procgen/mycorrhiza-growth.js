@@ -83,12 +83,40 @@ function avoidHazards(state, tip) {
   return { x: fx, y: fy };
 }
 
-export function createMycorrhizaGrowth({ state, entities }) {
+export function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
   const networks = [];
   let active = false;
+  let activeInoculants = inoculants;
+
+  // A micorriza inoculada tem a mesma morfologia da que estreia no cenario:
+  // emite hifas e forma arbusculos na raiz. Sem isto ela ficaria sendo apenas
+  // uma colonia desenhada, sem a estrutura que a define.
+  function spawnFromColonies() {
+    for (const colony of activeInoculants?.colonies || []) {
+      if (colony.type !== 'myco' || colony.dormant) continue;
+      if (colony.growth < .68 || colony.vigor <= .05) continue;
+      if (networks.some(network => network.colony === colony)) continue;
+      networks.push({
+        ally: null,
+        colony,
+        x: colony.x,
+        y: colony.y,
+        germination: 0,
+        pulse: Math.random() * TAU,
+        hypha: null,
+        arbuscules: [],
+        exudateContacts: new Set(),
+      });
+      active = true;
+    }
+  }
 
   function exposeArbuscules() {
     state.level.mycorrhizaArbuscules = networks.flatMap(network => network.arbuscules);
+  }
+
+  function setInoculants(next) {
+    activeInoculants = next;
   }
 
   function clear() {
@@ -150,24 +178,34 @@ export function createMycorrhizaGrowth({ state, entities }) {
   }
 
   function update(dt) {
+    spawnFromColonies();
     if (!active) return;
     for (const network of networks) {
+      // Uma rede inoculada acompanha a colonia: se ela se move ou e reposta, a
+      // ancora vai junto.
+      if (network.colony) {
+        network.x = network.colony.x;
+        network.y = network.colony.y;
+      }
       const playerDistance = Math.hypot(
         state.player.x + state.player.w / 2 - network.x,
         state.player.y + state.player.h / 2 - network.y,
       );
-      const awakened = playerDistance < 900 || network.ally.taken;
+      // A rede que nasce de inoculacao ja esta estabelecida: nao depende de o
+      // jogador chegar perto nem de recolher um aliado do cenario.
+      const established = Boolean(network.colony) || Boolean(network.ally?.taken);
+      const awakened = established || playerDistance < 900;
       if (!awakened) continue;
 
-      network.germination = clamp(network.germination + dt * (network.ally.taken ? .72 : .34), 0, 1);
+      network.germination = clamp(network.germination + dt * (established ? .72 : .34), 0, 1);
       if (network.germination > .16) ensureHypha(network);
       if (!network.hypha) continue;
 
       updateHyphalNetwork(network.hypha, dt, {
         time: state.time,
         bounds: { minX: 8, maxX: (state.level.endX || 6500) - 8, minY: 58, maxY: H - 48 },
-        growthScale: network.ally.taken ? 1.55 : .8,
-        branchScale: network.ally.taken ? 1.15 : .82,
+        growthScale: established ? 1.55 : .8,
+        branchScale: established ? 1.15 : .82,
         targetProvider: tip => nearestRootTarget(state, tip.x, tip.y, tip.totalDistance < 70 ? 75 : 0),
         avoidanceProvider: tip => avoidHazards(state, tip),
         onFirstContact: (hypha, tip, target) => {
@@ -200,7 +238,8 @@ export function createMycorrhizaGrowth({ state, entities }) {
   }
 
   function drawNetwork(ctx, network) {
-    const sporeAlpha = network.ally.taken ? .28 : 1;
+    // Rede inoculada nao tem esporo de cenario para desenhar por baixo.
+    const sporeAlpha = network.colony || network.ally?.taken ? .28 : 1;
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     ctx.globalAlpha = sporeAlpha;
@@ -249,7 +288,8 @@ export function createMycorrhizaGrowth({ state, entities }) {
       }
     }
 
-    if (!network.ally.taken && Math.abs(network.x - (state.cameraX + W / 2)) < W * .7) {
+    if (!network.colony && !network.ally?.taken
+      && Math.abs(network.x - (state.cameraX + W / 2)) < W * .7) {
       ctx.font = '700 12px Inter,system-ui';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#f4e6ff';
@@ -277,5 +317,6 @@ export function createMycorrhizaGrowth({ state, entities }) {
     reset,
     update,
     render,
+    setInoculants,
   };
 }

@@ -172,6 +172,8 @@ export function createSimulator() {
   // A ponte micorrizica passa a exigir colonia inoculada na raiz de origem, em
   // vez de nascer de qualquer exsudato solto perto de uma borda.
   mycorrhizaStructures.setInoculants(beneficialInoculants);
+  // A micorriza inoculada emite hifas e forma arbusculos como a do cenario.
+  mycorrhiza.setInoculants(beneficialInoculants);
   beneficialInoculants.setSelection(inoculumSelection);
   trichodermaColonies.setSelection(inoculumSelection);
   gameplay.setSelection(inoculumSelection);
