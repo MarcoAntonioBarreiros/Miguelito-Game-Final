@@ -5,6 +5,7 @@ import { getPhaseManifest } from '../src/procgen/campaign-manifest.js';
 import {
   createOpportunisticFungus,
   fungalResponse,
+  MAX_HYPHAL_SEGMENTS_PER_FOCUS,
   OPPORTUNISTIC_FUNGUS_DEFAULTS,
   PSEUDOMONAS_IRON_CONTROL_DEFAULTS,
 } from '../src/procgen/opportunistic-fungus.js';
@@ -42,6 +43,38 @@ function run(harness, seconds, dt = 1 / 30) {
     harness.system.prepare(dt);
     harness.system.update(dt);
   }
+}
+
+function rootedFungalHarness(seed = 'rooted-fungus') {
+  const root = { x: 180, y: 430, w: 360, h: 80, type: 'root', logicIndex: 2 };
+  const state = {
+    time: 0,
+    gameState: 'play',
+    cameraX: 0,
+    campaign: { phase: 5, seed },
+    player: {
+      x: 1050, y: 360, w: 32, h: 48, vitality: 5,
+      moveMultiplier: 1, accelerationMultiplier: 1, jumpMultiplier: 1,
+      fungalContamination: 0,
+    },
+    level: { platforms: [root], particles: [] },
+  };
+  const ecology = {
+    encounters: [{ id: 'oportunista', x: 350, y: 330 }],
+    agents: Array.from({ length: 4 }, (_, index) => ({
+      id: `focus:${index}`,
+      type: 'oportunista',
+      zoneIndex: 0,
+      x: 260 + index * 70,
+      y: 220 + index * 20,
+      homeX: 350,
+      homeY: 330,
+      ironLimitation: 0,
+    })),
+  };
+  const entities = { damagePlayer() {}, burst() {} };
+  const system = createOpportunisticFungus({ state, entities, ecology });
+  return { state, ecology, root, system };
 }
 
 test('hifas alcançam Miguelito, aderem e tornam a contaminação funcional', () => {
@@ -139,6 +172,51 @@ test('rede hifal e resultados são determinísticos pela seed', () => {
     contamination: harness.state.player.fungalContamination,
   }));
   assert.deepEqual(snapshot(first), snapshot(second));
+});
+
+test('um foco produz uma única rede ancorada na raiz e não persegue Miguelito', () => {
+  const harness = rootedFungalHarness();
+  run(harness, 5);
+  assert.equal(harness.system.networks.size, 1);
+  const [network] = harness.system.networks.values();
+  assert.equal(network.hostRoot, harness.root);
+  assert.equal(network.anchor.y, harness.root.y - 5);
+  assert.deepEqual(network.segments[0].start, { x: network.anchor.x, y: network.anchor.y });
+  assert.ok(network.lesions.every(lesion => lesion.root === harness.root || lesion.root === null));
+  assert.ok(harness.ecology.agents.every(agent => (
+    agent.rootedFungus
+    && agent.x === network.anchor.x
+    && agent.y === network.anchor.y
+  )));
+
+  const previousAnchor = { x: network.anchor.x, y: network.anchor.y };
+  harness.state.player.x = 2400;
+  harness.state.player.y = 90;
+  run(harness, 3);
+  assert.deepEqual(network.anchor, { ...previousAnchor, root: harness.root });
+  assert.ok(network.segments.every(segment => segment.start.x < 700 && segment.end.x < 700));
+});
+
+test('fragmentos aderem somente quando Miguelito toca uma hifa', () => {
+  const harness = rootedFungalHarness('contact-on-touch');
+  run(harness, 4);
+  assert.equal(harness.state.player.fungalContamination, 0);
+  const [network] = harness.system.networks.values();
+  const segment = network.segments[Math.floor(network.segments.length / 2)];
+  harness.state.player.x = (segment.start.x + segment.end.x) / 2 - harness.state.player.w / 2;
+  harness.state.player.y = (segment.start.y + segment.end.y) / 2 - harness.state.player.h / 2;
+  run(harness, .6);
+  assert.ok(harness.state.player.fungalContamination > 0);
+  assert.ok(harness.state.player.fungalAttachmentLevel > 0);
+});
+
+test('a rede preserva a ligação basal e respeita o orçamento de segmentos', () => {
+  const harness = rootedFungalHarness('segment-budget');
+  run(harness, 35);
+  const [network] = harness.system.networks.values();
+  assert.ok(network.segments.length <= MAX_HYPHAL_SEGMENTS_PER_FOCUS);
+  assert.deepEqual(network.segments[0].start, { x: network.anchor.x, y: network.anchor.y });
+  assert.ok(network.spores.length <= 12);
 });
 
 test('tutorial curto cria encontro, controle e corredor final determinísticos', () => {

@@ -213,7 +213,10 @@ export function createMicrobeEcology({ state, entities }) {
     const maxAgents = 156;
     const profile = MICROBE_MOTION_PROFILES[zone.id];
     if (!profile || ecology.agents.length >= maxAgents) return;
-    const count = Math.min(profile.count, maxAgents - ecology.agents.length);
+    // O fungo oportunista representa um foco radicular, não um enxame móvel.
+    // A rede hifal dedicada cuida das ramificações e dos esporos desse foco.
+    const requestedCount = zone.id === 'oportunista' ? 1 : profile.count;
+    const count = Math.min(requestedCount, maxAgents - ecology.agents.length);
     const rnd = seededRandom(hashSeed(`${zone.id}:${Math.round(zone.x)}:${Math.round(zone.y)}:${zone.index}`));
     const homeY = clamp(zone.y - 32, 95, H - 100);
 
@@ -316,6 +319,17 @@ export function createMicrobeEcology({ state, entities }) {
     for (const agent of ecology.agents) {
       const profile = MICROBE_MOTION_PROFILES[agent.type];
       if (!profile) continue;
+      if (agent.rootedFungus) {
+        agent.x = agent.rootAnchorX;
+        agent.y = agent.rootAnchorY;
+        agent.homeX = agent.rootAnchorX;
+        agent.homeY = agent.rootAnchorY;
+        agent.vx = 0;
+        agent.vy = 0;
+        agent.targetVX = 0;
+        agent.targetVY = 0;
+        continue;
+      }
       const distanceFromCamera = Math.abs(agent.x - cameraCenter);
       if (distanceFromCamera > W * 1.35) continue;
 

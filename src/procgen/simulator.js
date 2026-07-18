@@ -92,6 +92,7 @@ export function createSimulator() {
       player.infectionExposure = 0;
       player.infection = Math.min(.12, Math.max(0, (player.infection || 0) * .2));
       player.fungalContamination = Math.min(.08, Math.max(0, (player.fungalContamination || 0) * .15));
+      player.fungalAttachmentLevel = 0;
       player.nematodeLoad = 0;
       player.fungalDamageCooldown = 1.8;
       player.nematodeDamageCooldown = 1.8;
