@@ -873,7 +873,7 @@ html.tutorial-open #tutorial-library-button {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry } = __require("src/procgen/phosphate-solubilization.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
+const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry } = __require("src/procgen/phosphate-solubilization.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
@@ -999,6 +999,8 @@ function prepareLevel() {
   applyPhaseSixTutorialGeometry(levelData, campaign.phase);
   levelData = decorateCampaignLevel(levelData, campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
+  // Garante que a mecanica-tema da fase seja necessaria ao menos uma vez.
+  applySignatureChallenge(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
   applyPhaseSevenPhosphateGeometry(levelData, campaign.phase);
   levelData.microbeEncounters = generateCampaignEncounters({
@@ -2068,6 +2070,16 @@ const phases = [
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS },
     azospirillumNitrogen: { ...AZOSPIRILLUM_NITROGEN_DEFAULTS },
+    // O procedural limita qualquer subida a 112px e o salto duplo alcanca 180px,
+    // entao a escada nunca era necessaria. 230px nao se vence pulando e se vence
+    // com a escada mais fraca (96px de alcance) somada ao salto duplo.
+    signatureChallenge: {
+      enabled: true,
+      mechanic: 'azospirillumRoots',
+      rise: 230,
+      minimumChunks: 10,
+      fromChunk: 9,
+    },
     title: 'Azospirillum e arquitetura radicular', theme: 'arquitetura',
     mission: 'Induza raízes laterais e use o salto duplo para alcançar novas rotas.',
     newConcepts: ['Azospirillum→raiz lateral'], newCommand: 'doubleJump',
@@ -14229,6 +14241,116 @@ function createFixedBlockRuntime({ state, evaluator, entities, ecology = null })
   return { update, render, finalBlockCompleted };
 }
 Object.assign(__exports, { applyPhaseOneVerticalSlice, createFixedBlockRuntime });
+},
+"src/procgen/signature-challenge.js": (__exports, __require) => {
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+// O gerador limita a subida de qualquer travessia a 112px, e o salto duplo
+// alcanca 180px. Ou seja: nenhuma subida procedural jamais exige a escada de
+// Azospirillum, em nenhuma seed e em nenhum tamanho de fase. O mesmo vale para a
+// ponte micorrizica no eixo horizontal. A mecanica-tema da fase existia,
+// funcionava, e nunca era necessaria.
+//
+// Este passo cria a necessidade: depois da rota pronta, eleva (ou afasta) um
+// destino ate a faixa em que so a mecanica da fase resolve. O valor vem do
+// manifesto, entao cada fase declara o proprio desafio e fases curtas demais
+// simplesmente nao recebem nenhum.
+
+function routePlatforms(level) {
+  return (level.platforms || [])
+    .filter(platform => !platform.recovery && !platform.final && Number.isInteger(platform.logicIndex))
+    .sort((a, b) => a.logicIndex - b.logicIndex || a.x - b.x);
+}
+
+function shiftFrom(level, fromX, deltaY) {
+  if (!deltaY) return;
+  for (const name of ['platforms', 'exudates', 'crystals', 'enemies', 'allies', 'checkpoints']) {
+    for (const entity of level[name] || []) {
+      if (!Number.isFinite(entity.x) || entity.x < fromX) continue;
+      if (Number.isFinite(entity.y)) entity.y += deltaY;
+    }
+  }
+}
+
+function candidateWindow(level, config, totalChunks) {
+  // A janela acompanha o tamanho da fase: um fromChunk fixo em 9 nao sobra
+  // candidato nenhum quando a fase e encurtada para 12 chunks.
+  const declared = Number.isInteger(config.fromChunk) ? config.fromChunk : 0;
+  const from = Math.min(declared, Math.floor(totalChunks * .4));
+  const to = Number.isInteger(config.toChunk) ? config.toChunk : totalChunks - 1;
+  return routePlatforms(level).filter(platform => (
+    platform.logicIndex > from
+    && platform.logicIndex <= to
+    && platform.w >= (config.minimumWidth || 130)
+    && !platform.mycorrhizaIntroDestination
+    && !platform.fixedObjective
+    && !platform.authoredPhaseFive
+  ));
+}
+
+function applySignatureChallenge(level, phase) {
+  const manifest = getPhaseManifest(phase);
+  const config = manifest?.signatureChallenge;
+  if (!config?.enabled) return null;
+
+  const totalChunks = manifest.totalChunks || level.debugInfo?.length || 0;
+  // Fase curta demais nao comporta o desafio sem atropelar a apresentacao.
+  if (totalChunks < (config.minimumChunks || 8)) return null;
+
+  const candidates = candidateWindow(level, config, totalChunks);
+  if (candidates.length < 2) return null;
+
+  const route = routePlatforms(level);
+  const desiredRise = clamp(Number(config.rise) || 230, 120, 260);
+  const highest = 96;
+
+  // Prefere o meio da janela — cedo demais atropela a estreia, tarde demais o
+  // jogador ja passou pela pratica sem precisar da mecanica — mas percorre os
+  // vizinhos quando o alvo escolhido nao tem altura livre para receber a subida.
+  const middle = Math.floor(candidates.length / 2);
+  const ordered = [...candidates].sort((a, b) => (
+    Math.abs(candidates.indexOf(a) - middle) - Math.abs(candidates.indexOf(b) - middle)
+  ));
+
+  for (const target of ordered) {
+    const previous = route.find(platform => platform.logicIndex === target.logicIndex - 1);
+    if (!previous) continue;
+
+    const currentRise = previous.y - target.y;
+    if (currentRise >= desiredRise) {
+      level.signatureChallenge = {
+        mechanic: config.mechanic || null,
+        chunk: target.logicIndex,
+        rise: Math.round(currentRise),
+        alreadyPresent: true,
+      };
+      target.signatureChallenge = config.mechanic || true;
+      return level.signatureChallenge;
+    }
+
+    const deltaY = -(desiredRise - currentRise);
+    if (target.y + deltaY < highest) continue;
+
+    // Sobe o destino e tudo que vem depois, para nao quebrar a continuidade da
+    // rota nem deixar o resto da fase pendurado.
+    shiftFrom(level, target.x, deltaY);
+    return finish(level, config, target, previous);
+  }
+  return null;
+}
+
+function finish(level, config, target, previous) {
+
+  target.signatureChallenge = config.mechanic || true;
+  level.signatureChallenge = {
+    mechanic: config.mechanic || null,
+    chunk: target.logicIndex,
+    rise: Math.round(previous.y - target.y),
+  };
+  return level.signatureChallenge;
+}
+Object.assign(__exports, { applySignatureChallenge });
 },
 "src/procgen/phase-four-mycorrhiza-intro.js": (__exports, __require) => {
 const POSITIONED_COLLECTIONS = Object.freeze([

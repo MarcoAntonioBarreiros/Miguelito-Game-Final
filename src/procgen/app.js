@@ -4,6 +4,7 @@ import { generateUnderdevelopedNitrogenRoots } from './nitrogen-root.js';
 import { generateAzospirillumRootLadders } from './azospirillum-root-growth.js';
 import { createCampaignObjectiveEvaluator } from './campaign-objectives.js';
 import { applyPhaseOneVerticalSlice, createFixedBlockRuntime } from './phase-one-vertical-slice.js';
+import { applySignatureChallenge } from './signature-challenge.js';
 import { applyPhaseFourMycorrhizaIntro } from './phase-four-mycorrhiza-intro.js';
 import { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } from './phase-five-tutorial.js';
 import { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } from './phase-six-tutorial.js';
@@ -157,6 +158,8 @@ function prepareLevel() {
   applyPhaseSixTutorialGeometry(levelData, campaign.phase);
   levelData = decorateCampaignLevel(levelData, campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
+  // Garante que a mecanica-tema da fase seja necessaria ao menos uma vez.
+  applySignatureChallenge(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
   applyPhaseSevenPhosphateGeometry(levelData, campaign.phase);
   levelData.microbeEncounters = generateCampaignEncounters({
