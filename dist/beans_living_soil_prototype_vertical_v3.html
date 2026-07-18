@@ -873,9 +873,9 @@ html.tutorial-open #tutorial-library-button {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");
-const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");
-const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
+const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");
+const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
@@ -1008,12 +1008,24 @@ function prepareLevel() {
     campaign.phase,
     seed,
   );
+  const declaredAzospirillumLadder = getPhaseManifest(campaign.phase)?.azospirillumRootLadder;
+  const contextualAzospirillumLadder = campaign.phase >= 5
+    && campaign.unlocks.azospirillumRoots
+    ? {
+        ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
+        count: 2,
+        knownSkill: true,
+        preserveDestinationHeight: true,
+      }
+    : null;
   generateAzospirillumRootLadders({
     level: levelData,
     phase: campaign.phase,
     seedValue: seed,
     encounters: levelData.microbeEncounters,
-    config: getPhaseManifest(campaign.phase)?.azospirillumRootLadder,
+    config: declaredAzospirillumLadder?.enabled === false
+      ? null
+      : declaredAzospirillumLadder || contextualAzospirillumLadder,
   });
   generateUnderdevelopedNitrogenRoots({
     level: levelData,
@@ -1086,6 +1098,9 @@ function initGame({ announce = false } = {}) {
 function startNewCampaign() {
   if (phaseLab.enabled) {
     phaseLab.configureCampaign(campaign);
+    for (const cardId of campaign.tutorialBootstrapSeen || []) {
+      window.miguelitoTutorial?.markSeen?.(cardId);
+    }
     sim.state.discoveredMicrobes.clear();
     prepareLevel();
     initGame({ announce: true });
@@ -2087,16 +2102,6 @@ const phases = [
   {
     id: 'phase-5', phase: 5, totalChunks: 20,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
-    // Recapitulação funcional: a mesma elevação pode ser vencida pela escada
-    // vertical de Azo (a partir da raiz inferior) ou pela ponte micorrízica
-    // horizontal (a partir da raiz superior anterior).
-    azospirillumRootLadder: {
-      ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
-      count: 1,
-      recapAccessChunk: 5,
-      preserveDestinationHeight: true,
-    },
-    mycorrhizaBridge: { ...MYCORRHIZA_BRIDGE_DEFAULTS },
     opportunisticFungus: { ...OPPORTUNISTIC_FUNGUS_DEFAULTS },
     pseudomonasIronControl: { ...PSEUDOMONAS_IRON_CONTROL_DEFAULTS },
     title: 'Ferro e biocontrole fúngico', theme: 'equilíbrio',
@@ -2947,9 +2952,7 @@ function generatePrimitives() {
 Object.assign(__exports, { generatePrimitives });
 },
 "src/procgen/simulator.js": (__exports, __require) => {
-const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");
-const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");
-const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
+const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
 function createEmptyLevel() {
   return {
     platforms: [], hazards: [], crystals: [], enemies: [], exudates: [],
@@ -7336,8 +7339,7 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
 Object.assign(__exports, { createBeneficialInoculants });
 },
 "src/procgen/pseudomonas-siderophores.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");
-const { createRandom } = __require("src/procgen/random.js");
+const { W } = __require("src/core/constants.js");const { createRandom } = __require("src/procgen/random.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -7867,13 +7869,12 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
 Object.assign(__exports, { createPseudomonasSiderophores });
 },
 "src/procgen/opportunistic-fungus.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");
-const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { H, W } = __require("src/core/constants.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const MAX_HYPHAL_SEGMENTS_PER_FOCUS = 140;
-const MAX_TIPS_PER_FOCUS = 6;
+const MAX_TIPS_PER_FOCUS = 10;
 const MAX_SPORES_PER_FOCUS = 12;
 
 function hashSeed(text) {
@@ -8007,35 +8008,18 @@ function buildLesions(state, anchor, random) {
     return lesions;
   }
 
-  const roots = (state.level.platforms || [])
-    .filter(eligibleRoot)
-    .filter(root => Math.abs((root.x + root.w / 2) - anchor.x) <= 880)
-    .sort((left, right) => (
-      Math.abs((left.x + left.w / 2) - anchor.x)
-      - Math.abs((right.x + right.w / 2) - anchor.x)
-    ));
-
-  const hostPositions = [.2, .78]
+  // Um foco coloniza a superfície da própria raiz. Outras raízes recebem
+  // focos próprios; ligar plataformas distintas fazia o micélio parecer uma
+  // ponte grossa suspensa no ar.
+  const hostPositions = [.08, .2, .34, .5, .66, .8, .92]
     .map(position => clamp(anchor.root.x + anchor.root.w * position, anchor.root.x + 18, anchor.root.x + anchor.root.w - 18))
-    .filter(x => Math.abs(x - anchor.x) > 34);
+    .filter(x => Math.abs(x - anchor.x) > 22);
   for (const x of hostPositions) {
     lesions.push({
       x,
-      y: anchor.root.y - 5,
+      y: anchor.root.y - 5 - random() * 7,
       root: anchor.root,
-      maturity: .18,
-      reached: false,
-      phase: random() * TAU,
-    });
-  }
-
-  for (const root of roots) {
-    if (root === anchor.root || lesions.length >= 6) continue;
-    lesions.push({
-      x: clamp(root.x + root.w * (.28 + random() * .44), root.x + 18, root.x + root.w - 18),
-      y: root.y - 5,
-      root,
-      maturity: .12,
+      maturity: .1,
       reached: false,
       phase: random() * TAU,
     });
@@ -8115,9 +8099,11 @@ function createOpportunisticFungus({ state, entities, ecology }) {
       reachedLesions: 1,
     };
     const availableTargets = Math.max(1, network.lesions.length - 1);
-    const tipCount = Math.min(2, availableTargets);
+    const tipCount = Math.min(4, availableTargets);
     for (let index = 0; index < tipCount; index++) {
-      network.tips.push(makeTip(network, 1 + index, 0, (index ? 1 : -1) * .08));
+      const targetIndex = 1 + Math.floor(index * availableTargets / tipCount);
+      const side = index % 2 ? 1 : -1;
+      network.tips.push(makeTip(network, targetIndex, 0, side * (.08 + index * .025)));
     }
     networks.set(group.key, network);
     anchorAgents(network);
@@ -8180,7 +8166,10 @@ function createOpportunisticFungus({ state, entities, ecology }) {
     tip.angle += Math.sin(state.time * 1.65 + tip.phase + tip.age * .42) * .035;
     const start = { x: tip.x, y: tip.y };
     tip.x += Math.cos(tip.angle) * step;
-    tip.y = clamp(tip.y + Math.sin(tip.angle) * step, 48, H - 48);
+    const nextY = tip.y + Math.sin(tip.angle) * step;
+    tip.y = network.hostRoot
+      ? clamp(nextY, network.hostRoot.y - 24, network.hostRoot.y + 1)
+      : clamp(nextY, 48, H - 48);
     tip.age += step * .022;
     network.segments.push({
       start,
@@ -8192,8 +8181,8 @@ function createOpportunisticFungus({ state, entities, ecology }) {
 
     if (distance <= step * 1.8 + 8) reachLesion(network, tip, target);
 
-    const nearLesion = distance < 145 ? 1.5 : .55;
-    const branchChance = .018 * nearLesion * response.branching;
+    const nearLesion = distance < 145 ? 1.35 : .72;
+    const branchChance = .065 * nearLesion * response.branching;
     if (
       tip.active
       && tip.depth < 3
@@ -8207,7 +8196,7 @@ function createOpportunisticFungus({ state, entities, ecology }) {
         const branch = {
           x: tip.x,
           y: tip.y,
-          angle: tip.angle + side * (.42 + network.random() * .35),
+          angle: tip.angle + side * (.28 + network.random() * .48),
           targetIndex,
           depth: tip.depth + 1,
           age: 0,
@@ -8281,7 +8270,7 @@ function createOpportunisticFungus({ state, entities, ecology }) {
       while (network.growthAccumulator >= 1 && network.segments.length < MAX_HYPHAL_SEGMENTS_PER_FOCUS) {
         network.growthAccumulator -= 1;
         const tips = [...network.tips];
-        for (const tip of tips) growTip(network, tip, 4.2, response);
+        for (const tip of tips) growTip(network, tip, 3.3, response);
       }
     }
     updateSpores(network, dt, response, target);
@@ -8289,19 +8278,19 @@ function createOpportunisticFungus({ state, entities, ecology }) {
     let touching = 0;
     for (const segment of network.segments) {
       if (Math.abs(segment.end.x - target.x) > 80 || Math.abs(segment.end.y - target.y) > 80) continue;
-      if (pointSegmentDistance(target, segment.start, segment.end) < 22) touching++;
+      if (pointSegmentDistance(target, segment.start, segment.end) < 31) touching++;
     }
     if (touching) {
       const pressure = clamp(touching / 5, .16, 1) * response.adhesion;
       contactIntensity += pressure;
-      network.attached = clamp(network.attached + dt * pressure * 1.4, 0, 1);
-      network.attachmentGrace = 3.2;
+      network.attached = clamp(Math.max(network.attached, .34) + dt * pressure * 1.65, 0, 1);
+      network.attachmentGrace = 6;
     } else {
       network.attachmentGrace = Math.max(
         0,
         network.attachmentGrace - dt * (1 + limitation * 3.5),
       );
-      const graceDecay = network.attachmentGrace > 0 ? .018 : .075;
+      const graceDecay = network.attachmentGrace > 0 ? .006 : .045;
       network.attached = Math.max(
         0,
         network.attached - dt * (graceDecay + limitation * .62),
@@ -8333,7 +8322,11 @@ function createOpportunisticFungus({ state, entities, ecology }) {
     const target = playerCenter(state.player);
     contactIntensity = 0;
     maximumIronLimitation = 0;
-    state.player.fungalAttachmentLevel = 0;
+    state.player.fungalAttachmentLevel = clamp(
+      (state.player.fungalContamination || 0) * .78,
+      0,
+      1,
+    );
     for (const network of networks.values()) {
       updateNetwork(network, dt, target, settings);
       state.player.fungalAttachmentLevel = Math.max(
@@ -8344,14 +8337,14 @@ function createOpportunisticFungus({ state, entities, ecology }) {
 
     const player = state.player;
     if (contactIntensity > .02) {
-      const gain = .24 * settings.fungus.contaminationRate * clamp(contactIntensity, .2, 1.5);
+      const gain = .68 * settings.fungus.contaminationRate * clamp(contactIntensity, .35, 1.5);
       const ironDetachment = maximumIronLimitation * settings.fungus.recoveryRate * 2.6;
       player.fungalContamination = clamp(
-        (player.fungalContamination || 0) + dt * (gain - ironDetachment),
+        Math.max(player.fungalContamination || 0, .12) + dt * (gain - ironDetachment),
         0,
         1,
       );
-      player.fungalContactGrace = 3.2;
+      player.fungalContactGrace = 6;
       if (!contactAnnounced && player.fungalContamination > .12) {
         contactAnnounced = true;
         state.toast = 'Contaminação fúngica: fragmentos de hifa aderidos reduzem aceleração, velocidade e impulso do pulo.';
@@ -8412,13 +8405,13 @@ function createOpportunisticFungus({ state, entities, ecology }) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Bainha translúcida: mantém o volume orgânico sem multiplicar partículas.
+    // Bainha fina: preserva o brilho neon sem transformar as hifas em ponte.
     ctx.shadowColor = `rgba(255,74,119,${.12 + vigor * .2})`;
     ctx.shadowBlur = 7 + vigor * 7;
     for (const segment of network.segments) {
-      const width = Math.max(2.1, (6.6 - segment.depth * 1.15) * (.52 + vigor * .48));
+      const width = Math.max(1.1, (2.35 - segment.depth * .3) * (.58 + vigor * .42));
       ctx.strokeStyle = `rgba(112,23,54,${.16 + vigor * .18})`;
-      ctx.lineWidth = width + 5;
+      ctx.lineWidth = width + 1.7;
       ctx.beginPath();
       ctx.moveTo(segment.start.x, segment.start.y);
       ctx.lineTo(segment.end.x, segment.end.y);
@@ -8427,7 +8420,7 @@ function createOpportunisticFungus({ state, entities, ecology }) {
 
     ctx.shadowBlur = 4 + vigor * 5;
     for (const segment of network.segments) {
-      const width = Math.max(1.15, (3.8 - segment.depth * .68) * (.48 + vigor * .52));
+      const width = Math.max(.65, (1.55 - segment.depth * .18) * (.52 + vigor * .48));
       ctx.strokeStyle = `rgba(255,${green},125,${.34 + vigor * .55})`;
       ctx.lineWidth = width;
       ctx.beginPath();
@@ -10009,12 +10002,17 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
   const mainRoute = routePlatforms(level);
 
   for (const host of platforms) {
+    const knownSkill = Boolean(config.knownSkill);
     const recapAccess = Number.isInteger(config.recapAccessChunk)
       && host.logicIndex === config.recapAccessChunk
       && !host.recovery;
+    const eligibleHost = recapAccess
+      ? !host.recovery
+      : knownSkill
+        ? host.type === 'root' && !host.recovery
+        : host.type === 'root' && Boolean(host.recovery);
     if (
-      (!recapAccess && host.type !== 'root')
-      || (!recapAccess && !host.recovery)
+      !eligibleHost
       || host.logicIndex <= firstExudate
       || host.logicIndex < minimumHostChunk
       || host.logicIndex > maximumHostChunk
@@ -10033,6 +10031,9 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
       const destinationPoint = topPoint(destination, hostCenter);
       const dx = Math.abs(destinationPoint.x - hostCenter);
       if (naturalRise > 360 || dx > 390) continue;
+      // Uma habilidade persistente só responde a um desnível que já existe.
+      // Ela nunca eleva a plataforma seguinte nem cria um obstáculo artificial.
+      if (knownSkill && naturalRise < MIN_VERTICAL_RISE) continue;
 
       const verticalSpacing = Math.min(
         Number(config.verticalSpacing) || FIRST_DEMONSTRATION_VERTICAL_SPACING,
@@ -10043,7 +10044,7 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
         MIN_VERTICAL_RISE,
         MAX_VERTICAL_RISE,
       );
-      const destinationY = recapAccess && config.preserveDestinationHeight
+      const destinationY = (recapAccess || knownSkill) && config.preserveDestinationHeight
         ? destination.y
         : Math.min(destination.y, host.y - desiredRise);
       const following = mainRoute.find(platform => platform.logicIndex > destination.logicIndex) || null;
@@ -10104,10 +10105,10 @@ function generateAzospirillumRootLadders({
   level.azospirillumRootLadders = [];
   level.azospirillumRoots = [];
   if (phase < 3 || !config?.enabled || config.count <= 0) return level.azospirillumRootLadders;
-  // Fora da fase de estreia, a escada so existe quando o manifesto declara
-  // explicitamente um trecho de recapitulacao. Isso impede o Phase Lab de
-  // inserir uma escada de Azo por padrao na introducao da micorriza.
-  if (phase > 3 && !Number.isInteger(config.recapAccessChunk)) return level.azospirillumRootLadders;
+  const knownSkill = phase > 3 && Boolean(config.knownSkill);
+  if (phase > 3 && !knownSkill && !Number.isInteger(config.recapAccessChunk)) {
+    return level.azospirillumRootLadders;
+  }
 
   const firstAzospirillum = encounters
     .filter(encounter => encounter.id === 'azospirillum' && Number.isInteger(encounter.logicIndex))
@@ -10131,6 +10132,7 @@ function generateAzospirillumRootLadders({
     .map(exudate => exudate.logicIndex)
     .sort((left, right) => left - right)[0];
   if (!Number.isInteger(firstExudate)) {
+    if (knownSkill) return level.azospirillumRootLadders;
     const prerequisitePlatform = route.find(platform => (
       platform.logicIndex > firstAzospirillum
       && platform.logicIndex <= prerequisiteDeadline
@@ -10149,9 +10151,9 @@ function generateAzospirillumRootLadders({
   }
 
   const minimumHostChunk = recapAccessChunk
-    ?? Math.max(firstExudate + 1, unlockChunk + 1);
+    ?? (knownSkill ? firstExudate + 1 : Math.max(firstExudate + 1, unlockChunk + 1));
   const maximumHostChunk = recapAccessChunk
-    ?? unlockChunk + PRACTICE_WINDOW_CHUNKS;
+    ?? (knownSkill ? route.at(-1)?.logicIndex ?? firstExudate : unlockChunk + PRACTICE_WINDOW_CHUNKS);
   const candidates = ladderCandidates(
     level,
     firstExudate,
@@ -10212,6 +10214,7 @@ function generateAzospirillumRootLadders({
         sourceAzospirillumLogicIndex: firstAzospirillum,
         sourceExudateLogicIndex: firstExudate,
         recapAccess: slot.recapAccess,
+        knownSkill,
         growthDurationSeconds: config.growthDurationSeconds,
         progress: 0,
         visibleProgress: 0,
@@ -10357,7 +10360,7 @@ function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     ladder.paused = ladder.progress > 0 && !colony;
     if (!colony) return;
 
-    if (ladder.progress === 0) {
+    if (ladder.progress === 0 && !ladder.knownSkill) {
       announce('Azospirillum inoculado: fitormônios iniciaram a escada de ramificações radiculares.');
       entities?.burst?.(colony.x, ladder.host.y, '#72e8dd', 22, 90);
     }
@@ -12504,8 +12507,7 @@ function validateChunk(fromPlatform, toPlatform, primitive, agentType = 'normal'
 Object.assign(__exports, { validateChunk });
 },
 "src/procgen/campaign-encounters.js": (__exports, __require) => {
-const { createRandom } = __require("src/procgen/random.js");
-const { getPhaseManifest, getProceduralPoolAt, getRoamingDebutsAt } = __require("src/procgen/campaign-manifest.js");
+const { createRandom } = __require("src/procgen/random.js");const { getPhaseManifest, getProceduralPoolAt, getRoamingDebutsAt } = __require("src/procgen/campaign-manifest.js");
 const MIN_ZONE_SPACING = 390;
 const MIN_DEBUT_CLEARANCE = 430;
 const MIN_NEWCOMER_SEPARATION = 440;
@@ -13118,28 +13120,6 @@ function platformAt(level, chunk) {
   ));
 }
 
-function movePlatform(level, platform, { x = platform.x, y = platform.y, w = platform.w } = {}) {
-  if (!platform) return;
-  const dx = x - platform.x;
-  const dy = y - platform.y;
-  platform.x = x;
-  platform.y = y;
-  platform.w = w;
-  for (const collection of [
-    level.exudates,
-    level.crystals,
-    level.enemies,
-    level.allies,
-    level.checkpoints,
-  ]) {
-    for (const entity of collection || []) {
-      if (entity.logicIndex !== platform.logicIndex) continue;
-      if (Number.isFinite(entity.x)) entity.x += dx;
-      if (Number.isFinite(entity.y)) entity.y += dy;
-    }
-  }
-}
-
 function addExudate(level, chunk, lateral = .5) {
   const platform = platformAt(level, chunk);
   if (!platform) return;
@@ -13170,43 +13150,6 @@ function applyPhaseFiveTutorialGeometry(level, phase = level.campaignPhase) {
     }
   }
 
-  // Recapitulação com duas soluções reais. A raiz 4 fica no mesmo nível da
-  // raiz 6 e pode originar uma ponte micorrízica horizontal. A raiz 5 fica
-  // abaixo e é o hospedeiro da escada vertical de Azospirillum.
-  const recapEntry = platformAt(level, 3);
-  const mycorrhizaHost = platformAt(level, 4);
-  const azospirillumHost = platformAt(level, 5);
-  const recapDestination = platformAt(level, 6);
-  if (recapEntry && mycorrhizaHost && azospirillumHost && recapDestination) {
-    movePlatform(level, mycorrhizaHost, {
-      x: recapEntry.x + recapEntry.w + 92,
-      y: 315,
-      w: Math.max(210, mycorrhizaHost.w),
-    });
-    movePlatform(level, azospirillumHost, {
-      x: mycorrhizaHost.x + mycorrhizaHost.w + 80,
-      y: 525,
-      w: 170,
-    });
-    movePlatform(level, recapDestination, {
-      x: azospirillumHost.x + azospirillumHost.w + 80,
-      y: 315,
-      w: Math.max(220, recapDestination.w),
-    });
-
-    let previous = recapDestination;
-    for (let chunk = 7; chunk <= 14; chunk++) {
-      const platform = platformAt(level, chunk);
-      if (!platform) continue;
-      movePlatform(level, platform, {
-        x: previous.x + previous.w + 92,
-        y: clamp(455 + Math.sin(chunk * .72) * 34, 405, 515),
-        w: Math.max(platform.w, 200),
-      });
-      previous = platform;
-    }
-  }
-
   // Corredor final curto: sem a limitação por ferro, a rede hifal alcança
   // Miguelito durante a travessia; com Pseudomonas, o mesmo percurso é controlável.
   const corridor = [15, 16, 17, 18, 19].map(chunk => platformAt(level, chunk)).filter(Boolean);
@@ -13224,8 +13167,6 @@ function applyPhaseFiveTutorialGeometry(level, phase = level.campaignPhase) {
   });
 
   level.exudates = (level.exudates || []).filter(item => item.logicIndex < 18);
-  addExudate(level, 4, .86);
-  addExudate(level, 5, .56);
   addExudate(level, 7, .55);
   addExudate(level, 9, .42);
   addExudate(level, 12, .5);
@@ -13236,11 +13177,19 @@ function applyPhaseFiveTutorialGeometry(level, phase = level.campaignPhase) {
   const interactionHost = platformAt(level, 13);
   const challengeHost = platformAt(level, 15);
   level.ironDeposits = [];
-  for (const [index, platform] of [ironHost, interactionHost, challengeHost].filter(Boolean).entries()) {
+  const ironSlots = [
+    { platform: ironHost, lateral: .54 },
+    // O ferro do ensaio de interacao ocupa a mesma raiz e a mesma regiao do
+    // foco fungico e da colonia de Pseudomonas. Nao pode depender de Azo,
+    // micorriza ou de uma plataforma elevada para ser alcançado.
+    { platform: interactionHost, lateral: .52 },
+    { platform: challengeHost, lateral: .54 },
+  ].filter(slot => slot.platform);
+  for (const [index, { platform, lateral }] of ironSlots.entries()) {
     level.ironDeposits.push({
       id: `p5-authored-iron-${index}`,
       platform,
-      x: platform.x + platform.w * .68,
+      x: platform.x + platform.w * lateral,
       y: platform.y + 28,
       stock: 7,
       maxStock: 7,
@@ -13259,7 +13208,11 @@ function encounterAt(level, chunk, id, source, seedValue, options = {}) {
   const random = createRandom(`${seedValue}:phase-five:${chunk}:${id}:${source}`);
   return {
     id,
-    x: platform.x + platform.w * (.46 + (random() - .5) * .08),
+    x: platform.x + platform.w * (
+      Number.isFinite(options.lateral)
+        ? options.lateral
+        : .46 + (random() - .5) * .08
+    ),
     y: platform.y - 94 - random() * 16,
     r: options.r || 150,
     territory: options.territory || 360,
@@ -13280,31 +13233,28 @@ function applyPhaseFiveTutorialEncounters(level, encounters, phase, seedValue) {
     encounter.source === 'debut'
     || !['oportunista', 'pseudomonas', 'trichoderma'].includes(encounter.id)
   ));
-  const azospirillumRecap = encounterAt(level, 3, 'azospirillum', 'recap-access', seedValue, {
-    r: 120,
-    territory: 230,
-  });
   const interactionSupport = encounterAt(level, 13, 'pseudomonas', 'interaction-support', seedValue, {
     r: 118,
     territory: 210,
+    lateral: .52,
     requiresSeenCardId: 'organism-pseudomonas',
   });
   const interaction = encounterAt(level, 13, 'oportunista', 'interaction', seedValue, {
     r: 125,
     territory: 250,
+    lateral: .52,
     requiresSeenCardId: 'organism-opportunistic-fungus',
   });
   const challenge = encounterAt(level, 16, 'oportunista', 'challenge', seedValue, {
     r: 170,
     territory: 310,
+    lateral: .5,
     requiresSeenCardId: 'organism-opportunistic-fungus',
   });
-  if (azospirillumRecap) result.push(azospirillumRecap);
   if (interactionSupport) result.push(interactionSupport);
   if (interaction) result.push(interaction);
   if (challenge) result.push(challenge);
   level.authoredEncounters = [
-    azospirillumRecap,
     interactionSupport,
     interaction,
     challenge,
@@ -13349,6 +13299,11 @@ function scalePhaseLabSegments(segments, oldTotal, newTotal) {
 
 function createDefaultPhaseLabConfig(phase = 1) {
   const base = productionPhaseManifest(phase) || productionPhaseManifest(1);
+  const phaseOrganisms = [...new Set(
+    base.presentations
+      .flatMap(presentation => presentation.roamingTypes || [presentation.roamingType])
+      .filter(Boolean),
+  )];
   return {
     phase: base.phase,
     seed: `phase-lab-${base.phase}`,
@@ -13357,9 +13312,14 @@ function createDefaultPhaseLabConfig(phase = 1) {
     theme: base.theme,
     mission: base.mission,
     segments: clone(base.segments),
-    // O ensaio nasce com o pool curricular real da fase. Outros organismos
-    // continuam disponiveis no seletor, mas nao invadem o teste por padrao.
-    allowedOrganisms: getProceduralPoolAt(base.phase, base.totalChunks - 1),
+    // O ensaio nasce somente com os organismos que participam da mecânica
+    // nova da fase. Organismos já conhecidos continuam disponíveis no
+    // seletor, mas não invadem o teste focado por padrão.
+    allowedOrganisms: phaseOrganisms.length
+      ? phaseOrganisms
+      : getProceduralPoolAt(base.phase, 0).filter(type => (
+          base.presentations.some(presentation => presentation.roamingType === type)
+        )),
     allowedPathogens: base.pathogenDebuts.map(entry => entry.pathogen)
       .filter(type => !MVP_EXCLUDED_PATHOGENS.includes(type)),
     resources: {
@@ -13377,8 +13337,14 @@ function createDefaultPhaseLabConfig(phase = 1) {
     },
     azospirillumRootLadder: {
       ...(base.azospirillumRootLadder || AZOSPIRILLUM_ROOT_LADDER_DEFAULTS),
-      enabled: Boolean(base.azospirillumRootLadder)
-        && (base.azospirillumRootLadder?.enabled ?? false),
+      // A Fase 4 fica reservada à estreia da micorriza. Da Fase 5 em diante,
+      // a habilidade já aprendida pode responder a desníveis naturais, sem
+      // criar nem deslocar plataformas para forçar uma recapitulação.
+      enabled: base.phase === 3
+        ? (base.azospirillumRootLadder?.enabled ?? true)
+        : base.phase >= 5,
+      knownSkill: base.phase >= 5,
+      preserveDestinationHeight: base.phase >= 5,
     },
     azospirillumNitrogen: {
       ...(base.azospirillumNitrogen || AZOSPIRILLUM_NITROGEN_DEFAULTS),
@@ -13466,6 +13432,8 @@ function buildPhaseLabManifest(config) {
     stepCount: clamp(Math.round(Number(ladderInput.stepCount) || 0), 2, 10),
     verticalSpacing: clamp(Number(ladderInput.verticalSpacing), 45, 110),
     growthDurationSeconds: Number(ladderInput.growthDurationSeconds),
+    knownSkill: Boolean(ladderInput.knownSkill || base.phase >= 5),
+    preserveDestinationHeight: Boolean(ladderInput.preserveDestinationHeight || base.phase >= 5),
   };
   const nitrogenInput = config.azospirillumNitrogen
     || base.azospirillumNitrogen
@@ -13612,7 +13580,7 @@ function applyPhaseLabResources(level, phaseManifest, seedValue) {
 Object.assign(__exports, { PHASE_LAB_STORAGE_KEY, PHASE_LAB_MAX_RESOURCES, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, createDefaultPhaseLabConfig, buildPhaseLabManifest, validatePhaseLabConfig, applyPhaseLabResources });
 },
 "src/procgen/phase-lab.js": (__exports, __require) => {
-const { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
+const { campaignManifest, ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 
 function readConfig(storage) {
@@ -13686,6 +13654,10 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
     campaign.transitionAt = 0;
     campaign.transitionCaptured = false;
     campaign.pendingReport = null;
+    campaign.phaseLab = true;
+    campaign.tutorialBootstrapSeen = campaignManifest
+      .filter(entry => entry.phase < campaign.phase)
+      .flatMap(entry => entry.presentations.map(presentation => presentation.cardId));
     return campaign;
   }
 
@@ -14343,7 +14315,7 @@ function createRenderer({ canvas, state, entities }) {
     if (infection < .06) return;
     const opportunisticContact = clamp(Math.max(
       player.fungalAttachmentLevel || 0,
-      (player.fungalContamination || 0) * .38,
+      (player.fungalContamination || 0) * .82,
     ), 0, 1);
     const count = 2 + Math.floor((opportunisticContact || infection) * 7);
     ctx.save();
@@ -16675,6 +16647,7 @@ Object.assign(__exports, { createTrichodermaRhizoctoniaControl });
 },
 "src/procgen/ralstonia-vascular-wilt.js": (__exports, __require) => {
 const { W } = __require("src/core/constants.js");
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -16727,7 +16700,12 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
 
   function desiredFocusCount() {
     const phase = state.campaign?.phase || 1;
-    if (phase < 4) return 0;
+    const manifest = getPhaseManifest(phase);
+    const allowedInLab = manifest?.phaseLab?.allowedPathogens;
+    const scheduled = Array.isArray(allowedInLab)
+      ? allowedInLab.includes('ralstonia')
+      : manifest?.pathogenDebuts?.some(entry => entry.pathogen === 'ralstonia');
+    if (!scheduled) return 0;
     const themeBoost = state.level.phaseTheme === 'infestação' ? 1 : 0;
     return clamp(1 + Math.floor((phase - 4) / 2) + themeBoost, 1, 3);
   }
@@ -17176,9 +17154,7 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
 Object.assign(__exports, { createRalstoniaVascularWilt });
 },
 "src/procgen/mobile-controls.js": (__exports, __require) => {
-const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");
-const { createTutorialManager } = __require("src/procgen/tutorial-manager.js");
-const { createTutorialTriggers, TUTORIAL_RUNTIME_VERSION } = __require("src/procgen/tutorial-triggers.js");
+const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");const { createTutorialManager } = __require("src/procgen/tutorial-manager.js");const { createTutorialTriggers, TUTORIAL_RUNTIME_VERSION } = __require("src/procgen/tutorial-triggers.js");
 ensureTutorialInterface();
 
 const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
@@ -17389,9 +17365,7 @@ function ensureTutorialInterface() {
 Object.assign(__exports, { ensureTutorialInterface });
 },
 "src/procgen/tutorial-manager.js": (__exports, __require) => {
-const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");
-const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");
-const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");
+const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");
 const TUTORIAL_STORAGE_KEYS = Object.freeze({
   seen: 'miguelito:tutorial:seen:v3',
   unlocked: 'miguelito:tutorial:unlocked:v3',
@@ -17570,8 +17544,14 @@ function createTutorialManager({ state }) {
   const mobileLibraryButton = document.querySelector('[data-mobile-action="tutorial"]');
 
   removeLegacyLocalProgress();
+  const bootstrapSeen = Array.isArray(state.campaign?.tutorialBootstrapSeen)
+    ? state.campaign.tutorialBootstrapSeen
+    : [];
   const flow = createTutorialFlow({
-    seen: [...readStoredSet(TUTORIAL_STORAGE_KEYS.seen)],
+    seen: [...new Set([
+      ...readStoredSet(TUTORIAL_STORAGE_KEYS.seen),
+      ...bootstrapSeen,
+    ])],
     unlocked: [...readStoredSet(TUTORIAL_STORAGE_KEYS.unlocked)],
     pages: readStoredPages(TUTORIAL_STORAGE_KEYS.pages),
   });
@@ -17906,6 +17886,11 @@ function createTutorialManager({ state }) {
     openLibrary,
     resetTutorialProgress,
     resetAutomaticTutorials: resetTutorialProgress,
+    markSeen(id) {
+      const changed = flow.markSeen(id);
+      if (changed) persist();
+      return changed;
+    },
   };
 }
 Object.assign(__exports, { TUTORIAL_STORAGE_KEYS, isHardReloadShortcut, isTutorialAdvanceShortcut, createTutorialManager });
@@ -18667,8 +18652,7 @@ const structureTutorialCards = {
 Object.assign(__exports, { structureTutorialCards });
 },
 "src/procgen/tutorial-flow.js": (__exports, __require) => {
-const { getActiveCampaignManifest, getPresentationById, getSegmentAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
-const { getTutorialCard } = __require("src/procgen/tutorial-registry.js");
+const { getActiveCampaignManifest, getPresentationById, getSegmentAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { getTutorialCard } = __require("src/procgen/tutorial-registry.js");
 function findPresentation(triggerId) {
   for (const phase of getActiveCampaignManifest()) {
     const presentation = phase.presentations.find(entry => entry.triggerIds.includes(triggerId));

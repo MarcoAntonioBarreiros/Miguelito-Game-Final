@@ -5,7 +5,7 @@ const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 export const MAX_HYPHAL_SEGMENTS_PER_FOCUS = 140;
-const MAX_TIPS_PER_FOCUS = 6;
+const MAX_TIPS_PER_FOCUS = 10;
 const MAX_SPORES_PER_FOCUS = 12;
 
 function hashSeed(text) {
@@ -139,35 +139,18 @@ function buildLesions(state, anchor, random) {
     return lesions;
   }
 
-  const roots = (state.level.platforms || [])
-    .filter(eligibleRoot)
-    .filter(root => Math.abs((root.x + root.w / 2) - anchor.x) <= 880)
-    .sort((left, right) => (
-      Math.abs((left.x + left.w / 2) - anchor.x)
-      - Math.abs((right.x + right.w / 2) - anchor.x)
-    ));
-
-  const hostPositions = [.2, .78]
+  // Um foco coloniza a superfície da própria raiz. Outras raízes recebem
+  // focos próprios; ligar plataformas distintas fazia o micélio parecer uma
+  // ponte grossa suspensa no ar.
+  const hostPositions = [.08, .2, .34, .5, .66, .8, .92]
     .map(position => clamp(anchor.root.x + anchor.root.w * position, anchor.root.x + 18, anchor.root.x + anchor.root.w - 18))
-    .filter(x => Math.abs(x - anchor.x) > 34);
+    .filter(x => Math.abs(x - anchor.x) > 22);
   for (const x of hostPositions) {
     lesions.push({
       x,
-      y: anchor.root.y - 5,
+      y: anchor.root.y - 5 - random() * 7,
       root: anchor.root,
-      maturity: .18,
-      reached: false,
-      phase: random() * TAU,
-    });
-  }
-
-  for (const root of roots) {
-    if (root === anchor.root || lesions.length >= 6) continue;
-    lesions.push({
-      x: clamp(root.x + root.w * (.28 + random() * .44), root.x + 18, root.x + root.w - 18),
-      y: root.y - 5,
-      root,
-      maturity: .12,
+      maturity: .1,
       reached: false,
       phase: random() * TAU,
     });
@@ -247,9 +230,11 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
       reachedLesions: 1,
     };
     const availableTargets = Math.max(1, network.lesions.length - 1);
-    const tipCount = Math.min(2, availableTargets);
+    const tipCount = Math.min(4, availableTargets);
     for (let index = 0; index < tipCount; index++) {
-      network.tips.push(makeTip(network, 1 + index, 0, (index ? 1 : -1) * .08));
+      const targetIndex = 1 + Math.floor(index * availableTargets / tipCount);
+      const side = index % 2 ? 1 : -1;
+      network.tips.push(makeTip(network, targetIndex, 0, side * (.08 + index * .025)));
     }
     networks.set(group.key, network);
     anchorAgents(network);
@@ -312,7 +297,10 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     tip.angle += Math.sin(state.time * 1.65 + tip.phase + tip.age * .42) * .035;
     const start = { x: tip.x, y: tip.y };
     tip.x += Math.cos(tip.angle) * step;
-    tip.y = clamp(tip.y + Math.sin(tip.angle) * step, 48, H - 48);
+    const nextY = tip.y + Math.sin(tip.angle) * step;
+    tip.y = network.hostRoot
+      ? clamp(nextY, network.hostRoot.y - 24, network.hostRoot.y + 1)
+      : clamp(nextY, 48, H - 48);
     tip.age += step * .022;
     network.segments.push({
       start,
@@ -324,8 +312,8 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
 
     if (distance <= step * 1.8 + 8) reachLesion(network, tip, target);
 
-    const nearLesion = distance < 145 ? 1.5 : .55;
-    const branchChance = .018 * nearLesion * response.branching;
+    const nearLesion = distance < 145 ? 1.35 : .72;
+    const branchChance = .065 * nearLesion * response.branching;
     if (
       tip.active
       && tip.depth < 3
@@ -339,7 +327,7 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
         const branch = {
           x: tip.x,
           y: tip.y,
-          angle: tip.angle + side * (.42 + network.random() * .35),
+          angle: tip.angle + side * (.28 + network.random() * .48),
           targetIndex,
           depth: tip.depth + 1,
           age: 0,
@@ -413,7 +401,7 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
       while (network.growthAccumulator >= 1 && network.segments.length < MAX_HYPHAL_SEGMENTS_PER_FOCUS) {
         network.growthAccumulator -= 1;
         const tips = [...network.tips];
-        for (const tip of tips) growTip(network, tip, 4.2, response);
+        for (const tip of tips) growTip(network, tip, 3.3, response);
       }
     }
     updateSpores(network, dt, response, target);
@@ -421,19 +409,19 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     let touching = 0;
     for (const segment of network.segments) {
       if (Math.abs(segment.end.x - target.x) > 80 || Math.abs(segment.end.y - target.y) > 80) continue;
-      if (pointSegmentDistance(target, segment.start, segment.end) < 22) touching++;
+      if (pointSegmentDistance(target, segment.start, segment.end) < 31) touching++;
     }
     if (touching) {
       const pressure = clamp(touching / 5, .16, 1) * response.adhesion;
       contactIntensity += pressure;
-      network.attached = clamp(network.attached + dt * pressure * 1.4, 0, 1);
-      network.attachmentGrace = 3.2;
+      network.attached = clamp(Math.max(network.attached, .34) + dt * pressure * 1.65, 0, 1);
+      network.attachmentGrace = 6;
     } else {
       network.attachmentGrace = Math.max(
         0,
         network.attachmentGrace - dt * (1 + limitation * 3.5),
       );
-      const graceDecay = network.attachmentGrace > 0 ? .018 : .075;
+      const graceDecay = network.attachmentGrace > 0 ? .006 : .045;
       network.attached = Math.max(
         0,
         network.attached - dt * (graceDecay + limitation * .62),
@@ -465,7 +453,11 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     const target = playerCenter(state.player);
     contactIntensity = 0;
     maximumIronLimitation = 0;
-    state.player.fungalAttachmentLevel = 0;
+    state.player.fungalAttachmentLevel = clamp(
+      (state.player.fungalContamination || 0) * .78,
+      0,
+      1,
+    );
     for (const network of networks.values()) {
       updateNetwork(network, dt, target, settings);
       state.player.fungalAttachmentLevel = Math.max(
@@ -476,14 +468,14 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
 
     const player = state.player;
     if (contactIntensity > .02) {
-      const gain = .24 * settings.fungus.contaminationRate * clamp(contactIntensity, .2, 1.5);
+      const gain = .68 * settings.fungus.contaminationRate * clamp(contactIntensity, .35, 1.5);
       const ironDetachment = maximumIronLimitation * settings.fungus.recoveryRate * 2.6;
       player.fungalContamination = clamp(
-        (player.fungalContamination || 0) + dt * (gain - ironDetachment),
+        Math.max(player.fungalContamination || 0, .12) + dt * (gain - ironDetachment),
         0,
         1,
       );
-      player.fungalContactGrace = 3.2;
+      player.fungalContactGrace = 6;
       if (!contactAnnounced && player.fungalContamination > .12) {
         contactAnnounced = true;
         state.toast = 'Contaminação fúngica: fragmentos de hifa aderidos reduzem aceleração, velocidade e impulso do pulo.';
@@ -544,13 +536,13 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Bainha translúcida: mantém o volume orgânico sem multiplicar partículas.
+    // Bainha fina: preserva o brilho neon sem transformar as hifas em ponte.
     ctx.shadowColor = `rgba(255,74,119,${.12 + vigor * .2})`;
     ctx.shadowBlur = 7 + vigor * 7;
     for (const segment of network.segments) {
-      const width = Math.max(2.1, (6.6 - segment.depth * 1.15) * (.52 + vigor * .48));
+      const width = Math.max(1.1, (2.35 - segment.depth * .3) * (.58 + vigor * .42));
       ctx.strokeStyle = `rgba(112,23,54,${.16 + vigor * .18})`;
-      ctx.lineWidth = width + 5;
+      ctx.lineWidth = width + 1.7;
       ctx.beginPath();
       ctx.moveTo(segment.start.x, segment.start.y);
       ctx.lineTo(segment.end.x, segment.end.y);
@@ -559,7 +551,7 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
 
     ctx.shadowBlur = 4 + vigor * 5;
     for (const segment of network.segments) {
-      const width = Math.max(1.15, (3.8 - segment.depth * .68) * (.48 + vigor * .52));
+      const width = Math.max(.65, (1.55 - segment.depth * .18) * (.52 + vigor * .48));
       ctx.strokeStyle = `rgba(255,${green},125,${.34 + vigor * .55})`;
       ctx.lineWidth = width;
       ctx.beginPath();

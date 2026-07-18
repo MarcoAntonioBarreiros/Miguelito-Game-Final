@@ -48,6 +48,11 @@ export function scalePhaseLabSegments(segments, oldTotal, newTotal) {
 
 export function createDefaultPhaseLabConfig(phase = 1) {
   const base = productionPhaseManifest(phase) || productionPhaseManifest(1);
+  const phaseOrganisms = [...new Set(
+    base.presentations
+      .flatMap(presentation => presentation.roamingTypes || [presentation.roamingType])
+      .filter(Boolean),
+  )];
   return {
     phase: base.phase,
     seed: `phase-lab-${base.phase}`,
@@ -56,9 +61,14 @@ export function createDefaultPhaseLabConfig(phase = 1) {
     theme: base.theme,
     mission: base.mission,
     segments: clone(base.segments),
-    // O ensaio nasce com o pool curricular real da fase. Outros organismos
-    // continuam disponiveis no seletor, mas nao invadem o teste por padrao.
-    allowedOrganisms: getProceduralPoolAt(base.phase, base.totalChunks - 1),
+    // O ensaio nasce somente com os organismos que participam da mecânica
+    // nova da fase. Organismos já conhecidos continuam disponíveis no
+    // seletor, mas não invadem o teste focado por padrão.
+    allowedOrganisms: phaseOrganisms.length
+      ? phaseOrganisms
+      : getProceduralPoolAt(base.phase, 0).filter(type => (
+          base.presentations.some(presentation => presentation.roamingType === type)
+        )),
     allowedPathogens: base.pathogenDebuts.map(entry => entry.pathogen)
       .filter(type => !MVP_EXCLUDED_PATHOGENS.includes(type)),
     resources: {
@@ -76,8 +86,14 @@ export function createDefaultPhaseLabConfig(phase = 1) {
     },
     azospirillumRootLadder: {
       ...(base.azospirillumRootLadder || AZOSPIRILLUM_ROOT_LADDER_DEFAULTS),
-      enabled: Boolean(base.azospirillumRootLadder)
-        && (base.azospirillumRootLadder?.enabled ?? false),
+      // A Fase 4 fica reservada à estreia da micorriza. Da Fase 5 em diante,
+      // a habilidade já aprendida pode responder a desníveis naturais, sem
+      // criar nem deslocar plataformas para forçar uma recapitulação.
+      enabled: base.phase === 3
+        ? (base.azospirillumRootLadder?.enabled ?? true)
+        : base.phase >= 5,
+      knownSkill: base.phase >= 5,
+      preserveDestinationHeight: base.phase >= 5,
     },
     azospirillumNitrogen: {
       ...(base.azospirillumNitrogen || AZOSPIRILLUM_NITROGEN_DEFAULTS),
@@ -165,6 +181,8 @@ export function buildPhaseLabManifest(config) {
     stepCount: clamp(Math.round(Number(ladderInput.stepCount) || 0), 2, 10),
     verticalSpacing: clamp(Number(ladderInput.verticalSpacing), 45, 110),
     growthDurationSeconds: Number(ladderInput.growthDurationSeconds),
+    knownSkill: Boolean(ladderInput.knownSkill || base.phase >= 5),
+    preserveDestinationHeight: Boolean(ladderInput.preserveDestinationHeight || base.phase >= 5),
   };
   const nitrogenInput = config.azospirillumNitrogen
     || base.azospirillumNitrogen
