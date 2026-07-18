@@ -111,7 +111,15 @@ async function runHeadlessRunner(baseUrl) {
 
   spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
   if (userDataDir.startsWith(path.join(root, 'work')) && fs.existsSync(userDataDir)) {
-    fs.rmSync(userDataDir, { recursive: true, force: true });
+    // O Chrome no Windows pode manter handles do perfil por alguns
+    // milissegundos depois do taskkill. A limpeza com retry evita um falso
+    // negativo depois de todos os testes do navegador já terem passado.
+    fs.rmSync(userDataDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 8,
+      retryDelay: 125,
+    });
   }
 
   if (code !== 0) {

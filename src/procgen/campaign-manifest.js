@@ -262,11 +262,6 @@ const phases = [
   {
     id: 'phase-4', phase: 4, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
-    // Habilidade conquistada na Fase 3: continua valendo aqui. A licao da
-    // micorriza esta protegida pela geometria, nao por proibicao — a travessia
-    // da estreia e horizontal (325px de vao para 54px de desnivel) e a escada,
-    // que e vertical, so considera destinos a mais de 60px acima.
-    azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, count: 2 },
     mycorrhizaBridge: {
       ...MYCORRHIZA_BRIDGE_DEFAULTS,
       introSourceChunk: 3,
@@ -314,18 +309,6 @@ const phases = [
   {
     id: 'phase-5', phase: 5, totalChunks: 20,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
-    // Recapitulação funcional: a mesma elevação pode ser vencida pela escada
-    // vertical de Azo (a partir da raiz inferior) ou pela ponte micorrízica
-    // horizontal (a partir da raiz superior anterior).
-    azospirillumRootLadder: {
-      ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
-      count: 1,
-      // Piso, nao alvo: a escada nao aparece antes da estreia do fungo, mas
-      // dai em diante nasce onde a rota precisar dela.
-      recapAccessChunk: 5,
-      preserveDestinationHeight: true,
-    },
-    mycorrhizaBridge: { ...MYCORRHIZA_BRIDGE_DEFAULTS },
     opportunisticFungus: { ...OPPORTUNISTIC_FUNGUS_DEFAULTS },
     pseudomonasIronControl: { ...PSEUDOMONAS_IRON_CONTROL_DEFAULTS },
     title: 'Ferro e biocontrole fúngico', theme: 'equilíbrio',
@@ -377,7 +360,6 @@ const phases = [
   {
     id: 'phase-6', phase: 6, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
-    azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, count: 2 },
     title: 'Rhizoctonia, saúde da raiz e Pulso', theme: 'patologia',
     mission: 'Controle Rhizoctonia, recupere a sustentação da raiz e libere o Pulso.',
     newConcepts: ['Rhizoctonia→lesão→saúde/recuperação'], newCommand: 'pulse',
@@ -428,7 +410,6 @@ const phases = [
   {
     id: 'phase-7', phase: 7, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
-    azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, count: 2 },
     title: 'Meloidogyne: infecção, reprodução e sequela', theme: 'infestação',
     mission: 'Impeça novas penetrações, neutralize massas de ovos e preserve uma raiz.',
     newConcepts: ['J2→penetração→galha', 'fêmea→massa de ovos→sequela'], newCommand: null,
@@ -473,7 +454,6 @@ const phases = [
   {
     id: 'phase-8', phase: 8, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
-    azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, count: 2 },
     title: 'Ecossistema integrado', theme: 'síntese',
     mission: 'Proteja, controle, recupere e atravesse usando tudo o que aprendeu.',
     newConcepts: [], newCommand: null,

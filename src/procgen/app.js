@@ -6,7 +6,10 @@ import { createCampaignObjectiveEvaluator } from './campaign-objectives.js';
 import { applyPhaseOneVerticalSlice, createFixedBlockRuntime } from './phase-one-vertical-slice.js';
 import { applyPhaseFourMycorrhizaIntro } from './phase-four-mycorrhiza-intro.js';
 import { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } from './phase-five-tutorial.js';
-import { getPhaseManifest } from './campaign-manifest.js';
+import {
+  AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
+  getPhaseManifest,
+} from './campaign-manifest.js';
 import { applyPhaseLabResources } from './phase-lab-config.js';
 import { createPhaseLabSession } from './phase-lab.js';
 import { createSimulator } from './simulator.js';
@@ -159,12 +162,24 @@ function prepareLevel() {
     campaign.phase,
     seed,
   );
+  const declaredAzospirillumLadder = getPhaseManifest(campaign.phase)?.azospirillumRootLadder;
+  const contextualAzospirillumLadder = campaign.phase >= 5
+    && campaign.unlocks.azospirillumRoots
+    ? {
+        ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
+        count: 2,
+        knownSkill: true,
+        preserveDestinationHeight: true,
+      }
+    : null;
   generateAzospirillumRootLadders({
     level: levelData,
     phase: campaign.phase,
     seedValue: seed,
     encounters: levelData.microbeEncounters,
-    config: getPhaseManifest(campaign.phase)?.azospirillumRootLadder,
+    config: declaredAzospirillumLadder?.enabled === false
+      ? null
+      : declaredAzospirillumLadder || contextualAzospirillumLadder,
   });
   generateUnderdevelopedNitrogenRoots({
     level: levelData,
@@ -237,6 +252,9 @@ function initGame({ announce = false } = {}) {
 function startNewCampaign() {
   if (phaseLab.enabled) {
     phaseLab.configureCampaign(campaign);
+    for (const cardId of campaign.tutorialBootstrapSeen || []) {
+      window.miguelitoTutorial?.markSeen?.(cardId);
+    }
     sim.state.discoveredMicrobes.clear();
     prepareLevel();
     initGame({ announce: true });

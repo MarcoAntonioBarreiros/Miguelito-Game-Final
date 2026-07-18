@@ -16,6 +16,15 @@ import {
   scalePhaseLabSegments,
   validatePhaseLabConfig,
 } from '../src/procgen/phase-lab-config.js';
+import { createPhaseLabSession } from '../src/procgen/phase-lab.js';
+
+function memoryStorage() {
+  const values = new Map();
+  return {
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, String(value)),
+  };
+}
 
 afterEach(() => clearPhaseManifestOverride());
 
@@ -35,6 +44,26 @@ test('Phase Lab da Fase 3 abre focado no Azo e respeita o pool curricular', () =
   assert.ok(phase3.allowedOrganisms.includes('azospirillum'));
   assert.equal(phase3.allowedOrganisms.includes('pseudomonas'), false);
   assert.equal(phase3.allowedOrganisms.includes('trichoderma'), false);
+});
+
+test('Phase Lab foca apenas os organismos novos da fase e trata cartões anteriores como conhecidos', () => {
+  const config = createDefaultPhaseLabConfig(5);
+  assert.deepEqual(config.allowedOrganisms.sort(), ['oportunista', 'pseudomonas']);
+
+  const session = createPhaseLabSession({
+    windowObject: {
+      location: { search: '?phaseLab=1' },
+      localStorage: memoryStorage(),
+    },
+  });
+  session.api.applyConfig(config);
+  const campaign = { unlocks: {} };
+  session.configureCampaign(campaign);
+
+  assert.equal(campaign.phaseLab, true);
+  assert.equal(campaign.tutorialBootstrapSeen.includes('power-double-jump'), true);
+  assert.equal(campaign.tutorialBootstrapSeen.includes('power-dash'), true);
+  assert.equal(campaign.tutorialBootstrapSeen.includes('organism-opportunistic-fungus'), false);
 });
 
 test('configuracao altera perfil, segmentos, organismos, recursos e prova final no manifesto real', () => {
@@ -88,7 +117,7 @@ test('configuracao altera perfil, segmentos, organismos, recursos e prova final 
   assert.deepEqual(active.nitrogenRoot, config.nitrogenRoot);
   assert.deepEqual(active.azospirillumRootLadder, {
     ...config.azospirillumRootLadder,
-    recapAccessChunk: 5,
+    knownSkill: true,
     preserveDestinationHeight: true,
   });
   assert.deepEqual(active.azospirillumNitrogen, config.azospirillumNitrogen);

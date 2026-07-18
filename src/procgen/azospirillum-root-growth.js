@@ -11,11 +11,10 @@ const MAX_VERTICAL_RISE = 300;
 const FIRST_DEMONSTRATION_VERTICAL_SPACING = 58;
 const BRANCH_WIDTH = 90;
 const ROOT_SWAY_MAX = 74;
-// Alcance lateral maximo de uma raiz lateral: ela sobe, mas pode inclinar ate
-// aqui para encontrar um bloco. Acima disso o destino e ignorado e ela sobe reta.
+// A raiz lateral sobe, mas pode inclinar ate aqui para encontrar um bloco.
+// Passando disso o destino e ignorado e ela sobe reta.
 const MAX_LATERAL_REACH = 360;
-// Nitrogenio necessario para a escada atingir o alcance maximo. Abaixo disso ela
-// cresce proporcionalmente menos.
+// Nitrogenio necessario para a escada atingir o alcance maximo.
 const STOCK_FOR_FULL_REACH = 8;
 const RUNTIME_STEP_COUNT = 4;
 const RUNTIME_GROWTH_SECONDS = 3;
@@ -62,25 +61,24 @@ function shiftContentsWithPlatform(level, encounters, platform, deltaY) {
   }
 }
 
-function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChunk, config, mastered) {
+function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChunk, config) {
   const candidates = [];
   const platforms = (level.platforms || [])
     .filter(platform => !platform.final && Number.isInteger(platform.logicIndex));
   const mainRoute = routePlatforms(level);
 
   for (const host of platforms) {
-    // Na fase de estreia a escada nasce de uma raiz de recuperacao, para a
-    // demonstracao ficar legivel. Depois que a habilidade esta dominada ela vale
-    // em qualquer raiz da rota, como qualquer outro poder ja conquistado.
-    const recapAccess = mastered
-      || (
-        Number.isInteger(config.recapAccessChunk)
-        && host.logicIndex >= config.recapAccessChunk
-        && !host.recovery
-      );
+    const knownSkill = Boolean(config.knownSkill);
+    const recapAccess = Number.isInteger(config.recapAccessChunk)
+      && host.logicIndex === config.recapAccessChunk
+      && !host.recovery;
+    const eligibleHost = recapAccess
+      ? !host.recovery
+      : knownSkill
+        ? host.type === 'root' && !host.recovery
+        : host.type === 'root' && Boolean(host.recovery);
     if (
-      (!recapAccess && host.type !== 'root')
-      || (!recapAccess && !host.recovery)
+      !eligibleHost
       || host.logicIndex <= firstExudate
       || host.logicIndex < minimumHostChunk
       || host.logicIndex > maximumHostChunk
@@ -92,9 +90,6 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
       && target.logicIndex <= host.logicIndex + 1
       && target !== host
       && target.y < host.y - 60
-      // A travessia que estreia a micorriza e a prova daquela mecanica: uma
-      // escada de Azo ali resolveria a licao pelo caminho errado.
-      && !target.mycorrhizaIntroDestination
     ));
     let bestForHost = null;
     for (const destination of targets) {
@@ -102,6 +97,9 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
       const destinationPoint = topPoint(destination, hostCenter);
       const dx = Math.abs(destinationPoint.x - hostCenter);
       if (naturalRise > 360 || dx > 390) continue;
+      // Uma habilidade persistente só responde a um desnível que já existe.
+      // Ela nunca eleva a plataforma seguinte nem cria um obstáculo artificial.
+      if (knownSkill && naturalRise < MIN_VERTICAL_RISE) continue;
 
       const verticalSpacing = Math.min(
         Number(config.verticalSpacing) || FIRST_DEMONSTRATION_VERTICAL_SPACING,
@@ -112,7 +110,7 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
         MIN_VERTICAL_RISE,
         MAX_VERTICAL_RISE,
       );
-      const destinationY = recapAccess && config.preserveDestinationHeight
+      const destinationY = (recapAccess || knownSkill) && config.preserveDestinationHeight
         ? destination.y
         : Math.min(destination.y, host.y - desiredRise);
       const following = mainRoute.find(platform => platform.logicIndex > destination.logicIndex) || null;
@@ -172,10 +170,11 @@ export function generateAzospirillumRootLadders({
 } = {}) {
   level.azospirillumRootLadders = [];
   level.azospirillumRoots = [];
-  // A escada e uma habilidade do sistema, nao cenario: depois de destravada ela
-  // vale em toda fase que a declare, exatamente como a raiz dependente de FBN.
-  // Quem controla a disponibilidade e o `enabled` do manifesto.
   if (phase < 3 || !config?.enabled || config.count <= 0) return level.azospirillumRootLadders;
+  const knownSkill = phase > 3 && Boolean(config.knownSkill);
+  if (phase > 3 && !knownSkill && !Number.isInteger(config.recapAccessChunk)) {
+    return level.azospirillumRootLadders;
+  }
 
   const firstAzospirillum = encounters
     .filter(encounter => encounter.id === 'azospirillum' && Number.isInteger(encounter.logicIndex))
@@ -183,12 +182,8 @@ export function generateAzospirillumRootLadders({
     .sort((left, right) => left - right)[0];
   if (!Number.isInteger(firstAzospirillum)) return level.azospirillumRootLadders;
 
-  // A fase que traz o evento de desbloqueio e a da estreia; nas seguintes o
-  // jogador ja chega com a habilidade e ela nao precisa de janela de pratica.
-  const unlockEvent = getPhaseManifest(phase)?.unlockEvents
-    .find(event => event.feature === 'azospirillumRoots') || null;
-  const mastered = !unlockEvent;
-  const unlockChunk = unlockEvent?.eventChunk ?? firstAzospirillum + 4;
+  const unlockChunk = getPhaseManifest(phase)?.unlockEvents
+    .find(event => event.feature === 'azospirillumRoots')?.eventChunk ?? firstAzospirillum + 4;
   const recapAccessChunk = Number.isInteger(config.recapAccessChunk)
     ? config.recapAccessChunk
     : null;
@@ -203,6 +198,7 @@ export function generateAzospirillumRootLadders({
     .map(exudate => exudate.logicIndex)
     .sort((left, right) => left - right)[0];
   if (!Number.isInteger(firstExudate)) {
+    if (knownSkill) return level.azospirillumRootLadders;
     const prerequisitePlatform = route.find(platform => (
       platform.logicIndex > firstAzospirillum
       && platform.logicIndex <= prerequisiteDeadline
@@ -220,22 +216,16 @@ export function generateAzospirillumRootLadders({
     firstExudate = prerequisiteExudate.logicIndex;
   }
 
-  // Na estreia a escada fica confinada a janela de pratica logo apos o
-  // desbloqueio. Ja dominada, ela pode nascer em qualquer trecho posterior ao
-  // pre-requisito — o que decide onde e a geometria, nao um chunk apontado.
-  const minimumHostChunk = mastered
-    ? Math.max(firstExudate + 1, recapAccessChunk ?? 0)
-    : recapAccessChunk ?? Math.max(firstExudate + 1, unlockChunk + 1);
-  const maximumHostChunk = mastered
-    ? Number.MAX_SAFE_INTEGER
-    : recapAccessChunk ?? unlockChunk + PRACTICE_WINDOW_CHUNKS;
+  const minimumHostChunk = recapAccessChunk
+    ?? (knownSkill ? firstExudate + 1 : Math.max(firstExudate + 1, unlockChunk + 1));
+  const maximumHostChunk = recapAccessChunk
+    ?? (knownSkill ? route.at(-1)?.logicIndex ?? firstExudate : unlockChunk + PRACTICE_WINDOW_CHUNKS);
   const candidates = ladderCandidates(
     level,
     firstExudate,
     minimumHostChunk,
     maximumHostChunk,
     config,
-    mastered,
   );
   if (!candidates.length) return level.azospirillumRootLadders;
 
@@ -290,6 +280,7 @@ export function generateAzospirillumRootLadders({
         sourceAzospirillumLogicIndex: firstAzospirillum,
         sourceExudateLogicIndex: firstExudate,
         recapAccess: slot.recapAccess,
+        knownSkill,
         growthDurationSeconds: config.growthDurationSeconds,
         progress: 0,
         visibleProgress: 0,
@@ -435,7 +426,7 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     ladder.paused = ladder.progress > 0 && !colony;
     if (!colony) return;
 
-    if (ladder.progress === 0) {
+    if (ladder.progress === 0 && !ladder.knownSkill) {
       announce('Azospirillum inoculado: fitormônios iniciaram a escada de ramificações radiculares.');
       entities?.burst?.(colony.x, ladder.host.y, '#72e8dd', 22, 90);
     }
@@ -457,8 +448,8 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     ladder.paused = false;
     if (ladder.developed && !ladder.announced) {
       ladder.announced = true;
-      // Uma escada sem bloco alvo sobe reta e nao conecta sistemas radiculares:
-      // ela ganha altura, mas nao ha destino com quem compartilhar o sistema.
+      // Uma escada sem bloco alvo sobe reta: ganha altura, mas nao ha destino
+      // com quem compartilhar o sistema radicular.
       if (ladder.destination) {
         ladder.destination.rootSystemId = ladder.host.rootSystemId || `root-system-${ladder.hostLogicIndex}`;
         ladder.host.rootSystemId = ladder.destination.rootSystemId;
@@ -472,6 +463,8 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
 
   let runtimeLadderId = 0;
 
+  // A escada e efeito da inoculacao, nao recurso do nivel: onde a colonia de
+  // Azospirillum amadurece sobre uma raiz, a raiz lateral sai dali.
   function createRuntimeLadder(host, destination, reach) {
     const start = topPoint(host, host.x + host.w / 2);
     const end = destination
@@ -524,9 +517,9 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     };
   }
 
-  // O nitrogenio disponivel governa quanto a raiz lateral consegue crescer:
-  // fixacao associativa do proprio Azospirillum mais a simbiotica dos nodulos.
-  // Trocar a fonte aqui e suficiente para trocar a regra de alcance.
+  // O nitrogenio disponivel governa quanto a raiz lateral cresce: fixacao
+  // associativa do proprio Azospirillum mais a simbiotica dos nodulos. Trocar a
+  // fonte aqui e suficiente para trocar a regra de alcance.
   function nitrogenStock() {
     const associative = state.azospirillumNitrogen?.associativeNitrogenRate || 0;
     const symbiotic = (state.level.rhizobiumNodules || [])
@@ -539,13 +532,14 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     return RUNTIME_MIN_REACH + supply * (RUNTIME_MAX_REACH - RUNTIME_MIN_REACH);
   }
 
-  // A plataforma e a parede da raiz: a raiz lateral sai dela para cima. Se ha um
-  // bloco alcancavel acima, a escada inclina em direcao a ele; senao sobe reta.
+  // A plataforma e a parede da raiz: a raiz lateral sai dela para cima. Havendo
+  // bloco alcancavel, a escada inclina em direcao a ele; senao sobe reta.
   function destinationFor(host, reach) {
     const hostCenter = host.x + host.w / 2;
     let best = null;
     for (const candidate of state.level.platforms || []) {
       if (candidate === host || candidate.azospirillumStructure || candidate.mycorrhizaStructure) continue;
+      if (candidate.mycorrhizaIntroDestination) continue;
       const rise = host.y - candidate.y;
       if (rise < 60 || rise > reach) continue;
       const point = topPoint(candidate, hostCenter);
@@ -567,8 +561,7 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
       if (ladders().some(ladder => ladder.host === host)) continue;
 
       const reach = reachFromStock();
-      const destination = destinationFor(host, reach);
-      const ladder = createRuntimeLadder(host, destination, reach);
+      const ladder = createRuntimeLadder(host, destinationFor(host, reach), reach);
       if (ladder) state.level.azospirillumRootLadders.push(ladder);
     }
   }

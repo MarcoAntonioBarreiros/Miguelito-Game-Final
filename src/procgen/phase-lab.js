@@ -1,4 +1,5 @@
 import {
+  campaignManifest,
   ECOLOGY_ROAMING_TYPES,
   PATHOGEN_SYSTEMS,
   clearPhaseManifestOverride,
@@ -88,6 +89,10 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
     campaign.transitionAt = 0;
     campaign.transitionCaptured = false;
     campaign.pendingReport = null;
+    campaign.phaseLab = true;
+    campaign.tutorialBootstrapSeen = campaignManifest
+      .filter(entry => entry.phase < campaign.phase)
+      .flatMap(entry => entry.presentations.map(presentation => presentation.cardId));
     return campaign;
   }
 
