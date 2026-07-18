@@ -214,6 +214,31 @@ function drawHyphalFragment(ctx, time, agent, profile) {
 // Micelio extrarradicular: a trama de hifas que explora o solo e sobre a qual
 // os esporos se formam. E o organismo estabelecido; o esporo flutuando acima e
 // so o propagulo. Deterministico pela posicao da zona, para nao tremer.
+// O micelio e o organismo fixo: escolhe um ponto de raiz uma unica vez e fica
+// nele. Antes eu recalculava a cada quadro a partir da zona, e como a zona
+// acompanha os esporos o micelio deslizava pela raiz e ate pulava de bloco.
+function ensureMyceliumAnchor(state, zone) {
+  if (zone.myceliumAnchor?.root && (state.level.platforms || []).includes(zone.myceliumAnchor.root)) {
+    return zone.myceliumAnchor;
+  }
+  const root = rootUnderZone(state, zone);
+  if (!root) return null;
+  zone.myceliumAnchor = {
+    root,
+    // Guarda a posicao relativa a raiz: se a raiz se mover, o micelio vai junto,
+    // que e o correto — ele esta colonizando aquela raiz.
+    offset: clamp(zone.x - root.x, 16, Math.max(16, root.w - 16)),
+  };
+  return zone.myceliumAnchor;
+}
+
+function myceliumPoint(anchor) {
+  return {
+    x: anchor.root.x + anchor.offset,
+    y: anchor.root.y - 4,
+  };
+}
+
 function rootUnderZone(state, zone) {
   let best = null;
   let bestDistance = 240;
@@ -229,13 +254,13 @@ function rootUnderZone(state, zone) {
   return best;
 }
 
-function drawExtraradicalMycelium(ctx, time, zone, root) {
+function drawExtraradicalMycelium(ctx, time, anchor) {
   // O micelio nasce da superficie da raiz e se espalha pelo solo em volta. Ele
   // nao flutua no ar junto com os esporos: e a parte fixa do organismo, e os
   // esporos e que se formam acima dele.
-  const anchorX = clamp(zone.x, root.x + 16, root.x + root.w - 16);
-  const anchorY = root.y - 4;
-  const seed = Math.abs(Math.round(root.x) * 73856093 ^ Math.round(root.y) * 19349663);
+  const root = anchor.root;
+  const { x: anchorX, y: anchorY } = myceliumPoint(anchor);
+  const seed = Math.abs(Math.round(root.x + anchor.offset) * 73856093 ^ Math.round(root.y) * 19349663);
   const random = (index) => {
     const value = Math.sin(seed * .0001 + index * 12.9898) * 43758.5453;
     return value - Math.floor(value);
@@ -496,6 +521,21 @@ export function createMicrobeEcology({ state, entities }) {
         agent.targetVY = 0;
         continue;
       }
+      // Esporo de micorriza pertence ao micelio, nao o contrario: a casa dele e
+      // o ponto de raiz onde o micelio esta, e ele so flutua em volta disso.
+      // Antes o micelio e que seguia os esporos e deslizava pela raiz.
+      const myceliumZone = agent.type === 'myco' && !agent.beneficialRecruitedUntil
+        ? ecology.encounters[agent.zoneIndex]
+        : null;
+      if (myceliumZone) {
+        const anchor = ensureMyceliumAnchor(state, myceliumZone);
+        if (anchor) {
+          const point = myceliumPoint(anchor);
+          agent.homeX = point.x;
+          agent.homeY = point.y - 34;
+        }
+      }
+
       const distanceFromCamera = Math.abs(agent.x - cameraCenter);
       if (distanceFromCamera > W * 1.35) continue;
 
@@ -668,8 +708,8 @@ export function createMicrobeEcology({ state, entities }) {
       if (zone.x < state.cameraX - 220 || zone.x > state.cameraX + W + 220) continue;
       // Sem raiz por perto nao ha micelio extrarradicular: o fungo e biotrofico
       // obrigatorio e nao se estabelece solto no solo.
-      const root = rootUnderZone(state, zone);
-      if (root) drawExtraradicalMycelium(ctx, state.time, zone, root);
+      const anchor = ensureMyceliumAnchor(state, zone);
+      if (anchor) drawExtraradicalMycelium(ctx, state.time, anchor);
     }
 
     for (const agent of ecology.agents) {
