@@ -57,9 +57,12 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
   const mainRoute = routePlatforms(level);
 
   for (const host of platforms) {
+    const recapAccess = Number.isInteger(config.recapAccessChunk)
+      && host.logicIndex === config.recapAccessChunk
+      && !host.recovery;
     if (
-      host.type !== 'root'
-      || !host.recovery
+      (!recapAccess && host.type !== 'root')
+      || (!recapAccess && !host.recovery)
       || host.logicIndex <= firstExudate
       || host.logicIndex < minimumHostChunk
       || host.logicIndex > maximumHostChunk
@@ -88,7 +91,9 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
         MIN_VERTICAL_RISE,
         MAX_VERTICAL_RISE,
       );
-      const destinationY = Math.min(destination.y, host.y - desiredRise);
+      const destinationY = recapAccess && config.preserveDestinationHeight
+        ? destination.y
+        : Math.min(destination.y, host.y - desiredRise);
       const following = mainRoute.find(platform => platform.logicIndex > destination.logicIndex) || null;
       const score = (host.logicIndex - minimumHostChunk) * 1000
         + Math.abs(desiredRise - naturalRise)
@@ -100,6 +105,7 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
         destinationY,
         desiredRise,
         dx,
+        recapAccess,
         score,
       };
       if (!bestForHost || candidate.score < bestForHost.score) bestForHost = candidate;
@@ -155,19 +161,23 @@ export function generateAzospirillumRootLadders({
 
   const unlockChunk = getPhaseManifest(phase)?.unlockEvents
     .find(event => event.feature === 'azospirillumRoots')?.eventChunk ?? firstAzospirillum + 4;
+  const recapAccessChunk = Number.isInteger(config.recapAccessChunk)
+    ? config.recapAccessChunk
+    : null;
+  const prerequisiteDeadline = recapAccessChunk ?? unlockChunk;
   const route = routePlatforms(level);
   let firstExudate = (level.exudates || [])
     .filter(exudate => (
       Number.isInteger(exudate.logicIndex)
       && exudate.logicIndex > firstAzospirillum
-      && exudate.logicIndex <= unlockChunk
+      && exudate.logicIndex <= prerequisiteDeadline
     ))
     .map(exudate => exudate.logicIndex)
     .sort((left, right) => left - right)[0];
   if (!Number.isInteger(firstExudate)) {
     const prerequisitePlatform = route.find(platform => (
       platform.logicIndex > firstAzospirillum
-      && platform.logicIndex <= unlockChunk
+      && platform.logicIndex <= prerequisiteDeadline
       && platform.w >= 100
     ));
     if (!prerequisitePlatform) return level.azospirillumRootLadders;
@@ -182,8 +192,10 @@ export function generateAzospirillumRootLadders({
     firstExudate = prerequisiteExudate.logicIndex;
   }
 
-  const minimumHostChunk = Math.max(firstExudate + 1, unlockChunk + 1);
-  const maximumHostChunk = unlockChunk + PRACTICE_WINDOW_CHUNKS;
+  const minimumHostChunk = recapAccessChunk
+    ?? Math.max(firstExudate + 1, unlockChunk + 1);
+  const maximumHostChunk = recapAccessChunk
+    ?? unlockChunk + PRACTICE_WINDOW_CHUNKS;
   const candidates = ladderCandidates(
     level,
     firstExudate,
@@ -217,8 +229,9 @@ export function generateAzospirillumRootLadders({
       if (Number.isFinite(slot.destination.rootBaseY)) {
         slot.destination.rootBaseY = slot.destinationY;
       }
-      slot.host.wasRecoveryRoot = true;
+      slot.host.wasRecoveryRoot = Boolean(slot.host.recovery);
       slot.host.recovery = false;
+      if (slot.recapAccess) slot.host.type = 'root';
       slot.host.azospirillumLadderHost = true;
       slot.host.rootHealth = Number.isFinite(slot.host.rootHealth) ? slot.host.rootHealth : 1;
       slot.host.rootMaxHealth = Number.isFinite(slot.host.rootMaxHealth) ? slot.host.rootMaxHealth : 1;
@@ -242,6 +255,7 @@ export function generateAzospirillumRootLadders({
         horizontalSpacing: slot.dx,
         sourceAzospirillumLogicIndex: firstAzospirillum,
         sourceExudateLogicIndex: firstExudate,
+        recapAccess: slot.recapAccess,
         growthDurationSeconds: config.growthDurationSeconds,
         progress: 0,
         visibleProgress: 0,

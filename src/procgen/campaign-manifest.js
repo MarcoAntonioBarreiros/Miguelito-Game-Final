@@ -244,6 +244,11 @@ const phases = [
   {
     id: 'phase-4', phase: 4, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    azospirillumRootLadder: {
+      ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
+      recapAccessChunk: 4,
+      preserveDestinationHeight: true,
+    },
     mycorrhizaBridge: { ...MYCORRHIZA_BRIDGE_DEFAULTS },
     title: 'Micorriza e expansão do solo explorado', theme: 'expansão',
     mission: 'Estabeleça a micorriza, atravesse uma ponte hifal e domine o Dash.',
