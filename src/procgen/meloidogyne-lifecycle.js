@@ -2,6 +2,13 @@ import { W } from '../core/constants.js';
 import { createRootHealthGameplay } from './root-health-gameplay.js';
 
 const TAU = Math.PI * 2;
+// Tempo entre a oviposicao e a morte da femea. Nao e o desafio da fase: o
+// desafio e a geracao seguinte, e por isso a linhagem precisa poder crescer.
+const SENESCENCE_SECONDS = 26;
+// Quantas geracoes a linhagem pode encadear sem controle. Com o teto antigo de
+// duas, nao dava para ver a populacao escalar — que e onde mora a dificuldade.
+const MAX_GENERATIONS = 4;
+const MAX_SIMULTANEOUS_EGG_MASSES = 14;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const hash = (p, s = 0) => {
   const v = Math.sin(((p.x || 0) * 12.9898 + (p.y || 0) * 78.233 + (p.w || 0) * 37.719 + s * 31.17) * .001) * 43758.5453;
@@ -192,6 +199,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
       generation: j.generation, progress: .04, age: 0, stage: 'feeding-site', femaleMaturity: 0,
       eggTimer: 10 + Math.random() * 4, eggMassesLaid: 0, phase: Math.random() * TAU,
       permanentPenalty: 0, adultDrain: 0, adultAnnounced: false,
+      senescence: 0, dead: false,
     });
     j.alive = false; entities.burst(j.feedingX, p.y + 4, '#ffb08f', 16, 78);
     announce('Sítio de alimentação: células gigantes começaram a sustentar a formação da galha.', 5.5);
@@ -220,7 +228,12 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     for (let i = juveniles.length - 1; i >= 0; i--) if (!juveniles[i].alive) juveniles.splice(i, 1);
   }
 
+  // A femea nao drena para sempre: ela ovipoe, envelhece e morre. O que fica e a
+  // sequela — a galha e a saude maxima perdida. A pressao do nematoide nao vem
+  // de uma femea sangrando eternamente, vem da geracao seguinte.
   function stage(g) {
+    if (g.dead) return 'residual-gall';
+    if (g.senescence > 0) return 'senescent-female';
     if (g.progress < .2) return 'feeding-site';
     if (g.progress < .5) return 'young-gall';
     if (g.progress < .78) return 'mature-gall';
@@ -228,7 +241,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     return g.eggMassesLaid ? 'egg-laying-female' : 'adult-female';
   }
   function layEggs(g) {
-    if (g.generation >= 2 || g.eggMassesLaid || eggs.length >= 8) return;
+    if (g.generation >= MAX_GENERATIONS || g.eggMassesLaid || eggs.length >= MAX_SIMULTANEOUS_EGG_MASSES) return;
     const x = clamp(g.x + 22, g.platform.x + 20, g.platform.x + g.platform.w - 20);
     addEggMass(g.platform, x, g.generation + 1, g.id); g.eggMassesLaid = 1;
     entities.burst(x, g.platform.y - 6, '#ffe0a6', 18, 72);
@@ -239,13 +252,31 @@ export function createMeloidogyneLifecycle({ state, entities }) {
       g.age += dt; g.x = clamp(g.x, g.platform.x + 28, g.platform.x + g.platform.w - 28);
       g.y = g.platform.y + Math.min(22, g.platform.h * .34);
       if (g.progress < 1) g.progress = clamp(g.progress + dt * (.045 + (1 - clamp(g.platform.rootHealth ?? 1, .15, 1)) * .012), 0, 1);
-      else { g.femaleMaturity = clamp(g.femaleMaturity + dt * .09, 0, 1); g.eggTimer -= dt; if (g.femaleMaturity >= .8 && g.eggTimer <= 0) layEggs(g); }
+      else if (!g.eggMassesLaid) {
+        g.femaleMaturity = clamp(g.femaleMaturity + dt * .09, 0, 1);
+        g.eggTimer -= dt;
+        if (g.femaleMaturity >= .8 && g.eggTimer <= 0) layEggs(g);
+      } else if (!g.dead) {
+        // Depois de ovipor, a femea entra em senescencia: para de produzir e a
+        // drenagem cai ate zero. Ela nao poe uma segunda massa.
+        g.senescence = clamp(g.senescence + dt / SENESCENCE_SECONDS, 0, 1);
+        if (g.senescence >= 1) {
+          g.dead = true;
+          g.adultDrain = 0;
+          announce('A fêmea morreu de velhice. A galha e a perda de saúde máxima permanecem: é sequela, não infecção ativa.', 6);
+        }
+      }
       g.stage = stage(g);
       g.permanentPenalty = g.progress >= .78 ? .12 + (g.eggMassesLaid ? .035 : 0) : g.progress >= .5 ? .065 : 0;
-      g.adultDrain = g.progress >= .78 ? .085 + g.femaleMaturity * .035 : 0;
+      // A drenagem e da femea viva. Morta, a galha continua sendo cicatriz — sem
+      // dano ativo, mas tambem sem devolver a saude maxima perdida.
+      const liveDrain = .085 + g.femaleMaturity * .035;
+      g.adultDrain = g.dead ? 0
+        : g.progress >= .78 ? liveDrain * (1 - g.senescence)
+          : 0;
       if (g.progress >= .78 && !g.adultAnnounced) {
         g.adultAnnounced = true;
-        announce('Fêmea adulta de Meloidogyne: o corpo sedentário drena continuamente a raiz, reduz a recuperação e deixa dano permanente.', 6);
+        announce('Fêmea adulta de Meloidogyne: protegida dentro da raiz, não pode ser atingida. O controle possível é sobre ovos e J2.', 6);
       }
     }
   }
