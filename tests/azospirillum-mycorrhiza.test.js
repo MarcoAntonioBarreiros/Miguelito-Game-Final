@@ -340,7 +340,20 @@ test('Fase 4 usa a propria estreia da micorriza para desbloquear a primeira pont
   assert.equal(intro.source.type, 'root');
   assert.equal(intro.gap, 325);
   assert.equal(validateChunk(intro.source, intro.target, DOUBLE_JUMP), false);
-  assert.deepEqual(ladders, [], 'a introducao da micorriza nao deve depender de Azo');
+
+  // A licao da micorriza e protegida pela geometria, nao por proibir a escada:
+  // a travessia da estreia e horizontal (vao grande, desnivel pequeno) e a
+  // escada de Azo e vertical, so considerando destinos bem acima do hospedeiro.
+  // Assim a habilidade da Fase 3 continua existindo aqui sem resolver a prova.
+  assert.ok(intro.verticalOffset < 60, 'a estreia da micorriza precisa ser horizontal');
+  assert.ok(
+    ladders.every(ladder => ladder.destination !== intro.target),
+    'nenhuma escada pode vencer a travessia que estreia a micorriza',
+  );
+  assert.ok(
+    ladders.every(ladder => ladder.host !== intro.source),
+    'a raiz que ancora a estreia da micorriza nao vira hospedeira de escada',
+  );
 
   const mycorrhiza = level.allies.filter(ally => ally.id === 'myco');
   assert.equal(mycorrhiza.length, 1, 'cartao e poder devem pertencer a mesma micorriza');

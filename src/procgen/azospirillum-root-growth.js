@@ -50,16 +50,22 @@ function shiftContentsWithPlatform(level, encounters, platform, deltaY) {
   }
 }
 
-function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChunk, config) {
+function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChunk, config, mastered) {
   const candidates = [];
   const platforms = (level.platforms || [])
     .filter(platform => !platform.final && Number.isInteger(platform.logicIndex));
   const mainRoute = routePlatforms(level);
 
   for (const host of platforms) {
-    const recapAccess = Number.isInteger(config.recapAccessChunk)
-      && host.logicIndex === config.recapAccessChunk
-      && !host.recovery;
+    // Na fase de estreia a escada nasce de uma raiz de recuperacao, para a
+    // demonstracao ficar legivel. Depois que a habilidade esta dominada ela vale
+    // em qualquer raiz da rota, como qualquer outro poder ja conquistado.
+    const recapAccess = mastered
+      || (
+        Number.isInteger(config.recapAccessChunk)
+        && host.logicIndex >= config.recapAccessChunk
+        && !host.recovery
+      );
     if (
       (!recapAccess && host.type !== 'root')
       || (!recapAccess && !host.recovery)
@@ -74,6 +80,9 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
       && target.logicIndex <= host.logicIndex + 1
       && target !== host
       && target.y < host.y - 60
+      // A travessia que estreia a micorriza e a prova daquela mecanica: uma
+      // escada de Azo ali resolveria a licao pelo caminho errado.
+      && !target.mycorrhizaIntroDestination
     ));
     let bestForHost = null;
     for (const destination of targets) {
@@ -151,11 +160,10 @@ export function generateAzospirillumRootLadders({
 } = {}) {
   level.azospirillumRootLadders = [];
   level.azospirillumRoots = [];
+  // A escada e uma habilidade do sistema, nao cenario: depois de destravada ela
+  // vale em toda fase que a declare, exatamente como a raiz dependente de FBN.
+  // Quem controla a disponibilidade e o `enabled` do manifesto.
   if (phase < 3 || !config?.enabled || config.count <= 0) return level.azospirillumRootLadders;
-  // Fora da fase de estreia, a escada so existe quando o manifesto declara
-  // explicitamente um trecho de recapitulacao. Isso impede o Phase Lab de
-  // inserir uma escada de Azo por padrao na introducao da micorriza.
-  if (phase > 3 && !Number.isInteger(config.recapAccessChunk)) return level.azospirillumRootLadders;
 
   const firstAzospirillum = encounters
     .filter(encounter => encounter.id === 'azospirillum' && Number.isInteger(encounter.logicIndex))
@@ -163,8 +171,12 @@ export function generateAzospirillumRootLadders({
     .sort((left, right) => left - right)[0];
   if (!Number.isInteger(firstAzospirillum)) return level.azospirillumRootLadders;
 
-  const unlockChunk = getPhaseManifest(phase)?.unlockEvents
-    .find(event => event.feature === 'azospirillumRoots')?.eventChunk ?? firstAzospirillum + 4;
+  // A fase que traz o evento de desbloqueio e a da estreia; nas seguintes o
+  // jogador ja chega com a habilidade e ela nao precisa de janela de pratica.
+  const unlockEvent = getPhaseManifest(phase)?.unlockEvents
+    .find(event => event.feature === 'azospirillumRoots') || null;
+  const mastered = !unlockEvent;
+  const unlockChunk = unlockEvent?.eventChunk ?? firstAzospirillum + 4;
   const recapAccessChunk = Number.isInteger(config.recapAccessChunk)
     ? config.recapAccessChunk
     : null;
@@ -196,16 +208,22 @@ export function generateAzospirillumRootLadders({
     firstExudate = prerequisiteExudate.logicIndex;
   }
 
-  const minimumHostChunk = recapAccessChunk
-    ?? Math.max(firstExudate + 1, unlockChunk + 1);
-  const maximumHostChunk = recapAccessChunk
-    ?? unlockChunk + PRACTICE_WINDOW_CHUNKS;
+  // Na estreia a escada fica confinada a janela de pratica logo apos o
+  // desbloqueio. Ja dominada, ela pode nascer em qualquer trecho posterior ao
+  // pre-requisito — o que decide onde e a geometria, nao um chunk apontado.
+  const minimumHostChunk = mastered
+    ? Math.max(firstExudate + 1, recapAccessChunk ?? 0)
+    : recapAccessChunk ?? Math.max(firstExudate + 1, unlockChunk + 1);
+  const maximumHostChunk = mastered
+    ? Number.MAX_SAFE_INTEGER
+    : recapAccessChunk ?? unlockChunk + PRACTICE_WINDOW_CHUNKS;
   const candidates = ladderCandidates(
     level,
     firstExudate,
     minimumHostChunk,
     maximumHostChunk,
     config,
+    mastered,
   );
   if (!candidates.length) return level.azospirillumRootLadders;
 

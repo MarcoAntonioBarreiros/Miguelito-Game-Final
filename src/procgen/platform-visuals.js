@@ -291,11 +291,33 @@ export function createPlatformVisuals({ state }) {
     return best ? { platform: best, score: bestScore } : null;
   }
 
+  // Somente uma raiz aceita a escada de Azospirillum, e ela é visualmente igual
+  // às vizinhas. Sem dizer qual é, o jogador inocula numa raiz qualquer, vê a
+  // colônia pegar e o rizoplano ativar, e nunca descobre por que nada sobe.
+  function ladderForHost(platform) {
+    if (!platform.azospirillumLadderHost) return null;
+    return (state.level.azospirillumRootLadders || [])
+      .find(ladder => ladder.host === platform) || null;
+  }
+
   function labelFor(platform) {
     const health = Math.round(clamp(platform.rootHealth ?? 1, 0, 1) * 100);
     const maxHealth = Math.round(clamp(platform.rootMaxHealth ?? 1, 0, 1) * 100);
     const stateStyle = stateInfo(platform);
     const scar = maxHealth < 100 ? ` · máx. ${maxHealth}%` : '';
+    const ladder = ladderForHost(platform);
+    if (ladder && !ladder.mature) {
+      if (ladder.paused) {
+        return { text: 'Escada de Azospirillum pausada · a colônia perdeu vigor', color: '#ffd36f' };
+      }
+      if (ladder.progress > 0) {
+        return {
+          text: `Escada de Azospirillum crescendo · ${Math.round(clamp(ladder.progress, 0, 1) * 100)}%`,
+          color: '#8ff5c8',
+        };
+      }
+      return { text: 'Raiz apta à escada de Azospirillum · inocule Azo aqui', color: '#8ff5c8' };
+    }
     if (platform.azospirillumStructure) {
       return { text: `Raiz lateral ${stateStyle.label} · ${health}%${scar}`, color: stateStyle.color };
     }
