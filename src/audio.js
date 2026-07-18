@@ -82,7 +82,7 @@ export function createAudioController({ document, getPlayer }) {
       if (s === 0 || s === 8) drum(t, 'kick');
       if (s === 4 || s === 12) drum(t, 'snare');
       if (player.canDash && [0, 3, 6, 8, 11, 14].includes(s)) tone([82, 98, 110, 123][(s / 3 | 0) % 4], t, .1, 'square', .035);
-      if (player.canPulse && [0, 2, 4, 6, 8, 10, 12, 14].includes(s)) tone([164, 196, 220, 247][(s / 2 | 0) % 4], t, .06, 'sawtooth', .018);
+      if (player.canPhosphateSolubilization && [0, 2, 4, 6, 8, 10, 12, 14].includes(s)) tone([164, 196, 220, 247][(s / 2 | 0) % 4], t, .06, 'sawtooth', .018);
       audio.step++;
       audio.next += sp;
     }

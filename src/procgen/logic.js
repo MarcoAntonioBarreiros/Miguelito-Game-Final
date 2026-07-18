@@ -6,7 +6,7 @@ import {
   getRequiredPracticeAbilityAt,
 } from './campaign-manifest.js';
 
-const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash', 'pulse']);
+const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash']);
 let activeProfile = null;
 
 export function setLogicCampaignProfile(profile) {
@@ -31,7 +31,6 @@ function weightedAbility(rnd, abilities, theme) {
   const weighted = [];
   for (const ability of abilities) {
     let weight = 1;
-    if (theme === 'mineral' && ability === 'pulse') weight = 3;
     if (theme === 'arquitetura' && (ability === 'doubleJump' || ability === 'dash')) weight = 2;
     if (theme === 'infestação' && ability === 'dash') weight = 1.6;
     for (let i = 0; i < Math.ceil(weight * 2); i++) weighted.push(ability);

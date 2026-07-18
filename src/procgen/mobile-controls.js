@@ -70,7 +70,7 @@ for (const button of document.querySelectorAll('.touch-key')) {
 
 function clearAllInputs() {
   for (const pointerId of [...pressed.keys()]) releasePointer(pointerId);
-  for (const code of ['ArrowLeft', 'ArrowRight', 'Space', 'KeyE', 'ShiftLeft', 'KeyK']) {
+  for (const code of ['ArrowLeft', 'ArrowRight', 'Space', 'KeyE', 'ShiftLeft', 'ArrowDown']) {
     emit(code, false);
   }
 }

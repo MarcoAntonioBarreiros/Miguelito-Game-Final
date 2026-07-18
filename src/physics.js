@@ -6,7 +6,7 @@ import { unlockCampaignFeature } from './procgen/campaign-progression.js';
 export function createPhysicsSystem({ state, input, entities, hud, audio }) {
   function collectCampaignUnlock(ally, player) {
     const feature = ally.unlockFeature
-      || (ally.id === 'azo' ? 'doubleJump' : ally.id === 'myco' ? 'mycorrhizaStructures' : ally.id === 'phos' ? 'pulse' : ally.id === 'dash' ? 'dash' : null);
+      || (ally.id === 'azo' ? 'doubleJump' : ally.id === 'myco' ? 'mycorrhizaStructures' : ally.id === 'phos-power' ? 'phosphateSolubilization' : ally.id === 'dash' ? 'dash' : null);
     unlockCampaignFeature(state, feature);
 
     let color = '#72e8dd';
@@ -27,11 +27,11 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
       player.hope += 5;
       hud.setMission('Libere exsudatos nas bordas para formar pontes micorrízicas horizontais');
       entities.discoverMicrobe('myco', false);
-    } else if (feature === 'pulse') {
+    } else if (feature === 'phosphateSolubilization') {
       color = '#8db8ff';
       player.soil += 9;
       player.hope += 6;
-      hud.setMission('Use o pulso para romper cristais alaranjados e liberar minerais');
+      hud.setMission('Selecione Solubilização P, carregue perto do Bacillus e solte E na direção do depósito');
       entities.discoverMicrobe('phos', false);
     } else if (feature === 'azospirillumRoots') {
       player.soil += 8;
@@ -78,30 +78,6 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
       enemy.right = enemy.hostPlatform.x + enemy.hostPlatform.w - enemy.w - 14;
       enemy.x = clamp(enemy.x, enemy.left, enemy.right);
       enemy.y = enemy.hostPlatform.y - enemy.h - 5;
-    }
-  }
-
-  function hitRhizoctonia(enemy, player) {
-    ensureRhizoctonia(enemy, state.level);
-    if (!enemy.alive) return;
-    enemy.hp = Math.max(0, enemy.hp - 1);
-    enemy.stun = 1.05;
-    enemy.attackTime = 0;
-    enemy.attackCharge = 0;
-    enemy.mode = 'stunned';
-    entities.burst(enemy.x + enemy.w / 2, enemy.y + enemy.h / 2, '#ffb15c', 28, 210);
-
-    if (enemy.hp <= 0) {
-      enemy.alive = false;
-      if (enemy.hostPlatform) enemy.hostPlatform.rhizoctoniaPressure = 0;
-      player.soil += 4.5;
-      player.hope += 5;
-      state.toast = 'Rhizoctonia desestruturada: o foco de infecção foi interrompido. Trichoderma será uma resposta biológica mais eficiente nas próximas etapas.';
-      state.toastTime = 4.8;
-      entities.burst(enemy.x + enemy.w / 2, enemy.y + enemy.h / 2, '#8df0a8', 38, 235);
-    } else {
-      state.toast = `Pulso interrompeu Rhizoctonia: resistência ${enemy.hp}/${enemy.maxHp}.`;
-      state.toastTime = 3.2;
     }
   }
 
@@ -252,27 +228,6 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
       entities.burst(player.x + 16, player.y + 24, '#6ce7df', 16, 170);
       keys.ShiftLeft = keys.ShiftRight = keys.KeyJ = false;
     }
-    if (player.canPulse && keys.KeyK) {
-      level.pulses.push({ x: player.x + 16, y: player.y + 24, r: 8, life: .34 });
-      entities.burst(player.x + 16, player.y + 24, '#ffb15c', 22, 210);
-      keys.KeyK = false;
-      state.shake = .22;
-      level.crystals.forEach(c => {
-        if (!c.broken && Math.hypot(c.x + c.w / 2 - (player.x + 16), c.y + c.h / 2 - (player.y + 24)) < 185) {
-          c.broken = true;
-          player.soil += 9;
-          player.hope += 7;
-          entities.burst(c.x + c.w / 2, c.y + c.h / 2, '#ffb15c', 34, 260);
-        }
-      });
-      level.enemies.forEach(enemy => {
-        if (
-          enemy.alive
-          && Math.hypot(enemy.x + enemy.w / 2 - (player.x + 16), enemy.y + enemy.h / 2 - (player.y + 24)) < 160
-        ) hitRhizoctonia(enemy, player);
-      });
-    }
-
     const prevY = player.y;
     player.x += player.vx * dt;
     const maxX = level.endX !== undefined ? level.endX : PLAYER_MAX_X;
@@ -381,12 +336,6 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
       p.vx *= Math.pow(.12, dt);
     });
     for (let i = level.particles.length - 1; i >= 0; i--) if (level.particles[i].life <= 0) level.particles.splice(i, 1);
-    level.pulses.forEach(p => {
-      p.life -= dt;
-      p.r += 520 * dt;
-    });
-    for (let i = level.pulses.length - 1; i >= 0; i--) if (level.pulses[i].life <= 0) level.pulses.splice(i, 1);
-
     const endX = level.endX !== undefined ? level.endX : 4590;
     if (player.x > endX) player.x = endX - player.w;
 

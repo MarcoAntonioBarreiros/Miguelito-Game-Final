@@ -860,10 +860,10 @@ html.tutorial-open #tutorial-library-button {
     </div>
     <div class="touch-cluster actions">
       <div class="action-stack">
-        <button class="touch-key small" data-key="KeyK" data-mode="tap" aria-label="Pulso">PULSO</button>
+        <button class="touch-key small" data-key="ArrowDown" data-mode="tap" aria-label="Trocar acao">↓ TROCAR</button>
         <button class="touch-key small" data-key="ShiftLeft" data-mode="tap" aria-label="Dash">DASH</button>
       </div>
-      <button class="touch-key small" data-key="KeyE" data-mode="tap" aria-label="Exsudato ou inoculação">E<span class="touch-label">AÇÃO</span></button>
+      <button class="touch-key small" data-key="KeyE" aria-label="Acao selecionada">E<span class="touch-label">AÇÃO</span></button>
       <button class="touch-key primary" data-key="Space" aria-label="Pular">↑<span class="touch-label">PULO</span></button>
     </div>
   </div>
@@ -873,9 +873,8 @@ html.tutorial-open #tutorial-library-button {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");
-const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");
-const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");
+const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");
+const { applyPhaseSevenPhosphateGeometry } = __require("src/procgen/phosphate-solubilization.js");
 const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
@@ -884,7 +883,7 @@ const missionDiv = document.getElementById('mission');
 const hudBar = document.getElementById('hud-bar');
 const toastDiv = document.getElementById('toast');
 const dashTouchButton = document.querySelector('[data-key="ShiftLeft"]');
-const pulseTouchButton = document.querySelector('[data-key="KeyK"]');
+const selectionTouchButton = document.querySelector('[data-key="ArrowDown"]');
 
 let campaignStorage = null;
 try { campaignStorage = window.sessionStorage; } catch (_) {}
@@ -927,6 +926,7 @@ const objectiveEvaluator = createCampaignObjectiveEvaluator({
     opportunisticFungus: sim.opportunisticFungus,
     trichoderma: trichodermaRhizoctoniaControl,
     meloidogyneControl: trichodermaMeloidogyneControl,
+    phosphate: sim.phosphateSolubilization,
   },
 });
 const fixedBlockRuntime = createFixedBlockRuntime({
@@ -999,6 +999,7 @@ function prepareLevel() {
   levelData = decorateCampaignLevel(levelData, campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
+  applyPhaseSevenPhosphateGeometry(levelData, campaign.phase);
   levelData.microbeEncounters = generateCampaignEncounters({
     platforms: levelData.platforms,
     phase: campaign.phase,
@@ -1047,7 +1048,7 @@ function prepareLevel() {
 const FEATURE_LABELS = {
   doubleJump: 'salto duplo',
   dash: 'Dash',
-  pulse: 'Pulso',
+  phosphateSolubilization: 'Solubilizacao de fosfato',
   mycorrhizaStructures: 'pontes micorrízicas horizontais',
   azospirillumRoots: 'escadas radiculares de Azospirillum',
 };
@@ -1063,10 +1064,7 @@ function updateTouchAbilityVisibility() {
     dashTouchButton.hidden = !sim.state.player.canDash;
     dashTouchButton.disabled = !sim.state.player.canDash;
   }
-  if (pulseTouchButton) {
-    pulseTouchButton.hidden = !sim.state.player.canPulse;
-    pulseTouchButton.disabled = !sim.state.player.canPulse;
-  }
+  if (selectionTouchButton) selectionTouchButton.disabled = false;
 }
 
 function initGame({ announce = false } = {}) {
@@ -1232,6 +1230,7 @@ function renderWorld() {
     sim.goal.render(ctx);
     sim.gameplay.render(ctx);
     sim.bacillusBioprotection.render(ctx);
+    sim.phosphateSolubilization.render(ctx);
     fixedBlockRuntime.render(ctx);
     platformVisuals.renderLabel(ctx);
   } finally {
@@ -1283,7 +1282,7 @@ function loop(now) {
       inoculationAction,
       player.canDoubleJump ? '⬆⬆ Salto' : null,
       player.canDash ? '💨 Dash' : null,
-      player.canPulse ? '💥 Pulso' : null,
+      player.canPhosphateSolubilization ? `P ${Math.round((player.phosphateCharge || 0) * 100)}%` : null,
     ].filter(Boolean).join(' | ');
     const infection = player.infection > .01 ? ` | Infecção: ${(player.infection * 100).toFixed(0)}%` : '';
     const fungalContamination = player.fungalContamination > .01
@@ -1309,6 +1308,12 @@ function loop(now) {
       : '';
     hudBar.textContent = `F${campaign.phase} · ${campaign.totalScore} pts | Solo: ${player.soil.toFixed(0)} | Esperança: ${player.hope.toFixed(0)} | Exsudatos: ${player.exudates}${infection}${fungalContamination}${bacillusDefense}${nematodePressure}${rhizoctonia}${ralstonia}${trichoRhizo}${trichoNematode}${abilities ? ' | ' + abilities : ''}`;
 
+    const availablePhosphate = (sim.state.level.availablePhosphatePools || [])
+      .reduce((sum, pool) => sum + (pool.amount || 0), 0);
+    if (campaign.phase === 7 && (availablePhosphate > .001 || sim.phosphateSolubilization.transportedPhosphate > .001)) {
+      hudBar.textContent += ` | P disponivel: ${availablePhosphate.toFixed(2)} | P transportado: ${sim.phosphateSolubilization.transportedPhosphate.toFixed(2)} | P raiz: ${sim.phosphateSolubilization.rootPhosphateStock.toFixed(2)}`;
+    }
+
     if (showDebug) {
       const logicIndex = currentLogicIndex();
       const info = levelData.debugInfo[logicIndex];
@@ -1323,7 +1328,7 @@ function loop(now) {
         : 100;
       debugDiv.textContent = `CAMPANHA: ${campaign.seed} | Fase ${campaign.phase} — ${profile.title} [${profile.theme}]\nSEED: ${seed} [R=nova campanha | Tab=debug]\nTrecho ${Math.max(0, logicIndex + 1)}/${levelData.debugInfo.length}`
         + (info ? ` | ${info.primitive} | ${info.logic.difficultyTarget} | vão ${info.gap}px` : '')
-        + `\nPoderes: salto ${campaign.unlocks.doubleJump ? '✓' : '—'} / dash ${campaign.unlocks.dash ? '✓' : '—'} / pulso ${campaign.unlocks.pulse ? '✓' : '—'} / pontes AM ${campaign.unlocks.mycorrhizaStructures ? '✓' : '—'} / raízes Azo ${campaign.unlocks.azospirillumRoots ? '✓' : '—'}`
+        + `\nPoderes: salto ${campaign.unlocks.doubleJump ? '✓' : '—'} / dash ${campaign.unlocks.dash ? '✓' : '—'} / solubilizacao P ${campaign.unlocks.phosphateSolubilization ? '✓' : '—'} / pontes AM ${campaign.unlocks.mycorrhizaStructures ? '✓' : '—'} / raízes Azo ${campaign.unlocks.azospirillumRoots ? '✓' : '—'}`
         + `\nCâmera: ${cameraView.zoom.toFixed(2)}× [roda ou +/− | 0=restaurar]`
         + `\nEcologia: ${sim.ecology.agents.length} organismos / ${sim.ecology.nicheCount} nichos`
         + `\nRhizoctonia: ${rhizoctoniaControl.activeCount} focos / ${rhizoctoniaControl.controlledCount} contidos por biocontrole`
@@ -1338,6 +1343,7 @@ function loop(now) {
         + (sim.beneficialInoculants.colonySummary ? ` [${sim.beneficialInoculants.colonySummary}]` : '')
         + `\nBacillus: ${sim.bacillusBioprotection.matureBiofilmCount} biofilmes maduros / ${sim.bacillusBioprotection.sporulatedCount} esporulados / ${sim.bacillusBioprotection.germinatingCount} reativando`
         + `\nBioproteção: ${sim.bacillusBioprotection.fungiUnderAntibiosis} fungos sob antibiose / ${sim.bacillusBioprotection.protectedRootCount} raízes protegidas`
+        + `\nFosfato: reserva Bacillus ${(sim.bacillusBioprotection.solubilizerEntries.reduce((sum, entry) => sum + (entry.phosphateMetaboliteReserve || 0), 0)).toFixed(2)} / carga ${(player.phosphateCharge || 0).toFixed(2)} / depositos ativos ${(sim.state.level.phosphateDeposits || []).filter(deposit => !deposit.broken).length} / insoluvel ${(sim.state.level.phosphateDeposits || []).reduce((sum, deposit) => sum + (deposit.remainingPhosphate || 0), 0).toFixed(2)} / disponivel ${availablePhosphate.toFixed(2)} / transportado ${sim.phosphateSolubilization.transportedPhosphate.toFixed(2)} / raiz ${sim.phosphateSolubilization.rootPhosphateStock.toFixed(2)}`
         + `\nSideróforos: ${sim.pseudomonasSiderophores.freeCount} livres / ${sim.pseudomonasSiderophores.loadedCount} com Fe³⁺ / Fe recuperado ${ironRecovered} / ${sim.pseudomonasSiderophores.fungiLimitedCount} fungos limitados`
         + `\nDepósitos Fe³⁺: ${sim.pseudomonasSiderophores.activeDepositCount}/${sim.pseudomonasSiderophores.depositCount} ativos / ${sim.pseudomonasSiderophores.activeColonyCount} colônias com reserva`
         + `\nEscadas Azo: ${sim.azospirillumRootGrowth.rootCount} totais / ${sim.azospirillumRootGrowth.growingCount} crescendo / ${sim.azospirillumRootGrowth.matureCount} maduras / ${sim.azospirillumRootGrowth.pausedCount} pausadas · N associativo ${associativeNitrogen} · sinergias ${sim.azospirillumNitrogen.synergizedNoduleCount}`
@@ -1542,9 +1548,9 @@ function generateLevel(seedString) {
         name = 'Mira, a Micorriza';
         desc = 'As hifas ampliam o volume de solo explorado e ajudam a transportar fósforo e água até a raiz. No jogo, pressione Shift para o Impulso de Hifa.';
       }
-      if (chunk.allyId === 'phos') {
-        name = 'Sol, a Solubilizadora';
-        desc = 'A comunidade concentra secreções junto ao mineral e libera parte do fósforo antes inacessível. Pressione K para o Pulso Mineral.';
+      if (chunk.allyId === 'phos-power') {
+        name = 'Pulso de solubilização';
+        desc = 'Selecione Solubilização P, segure E perto da cepa de Bacillus e solte para disparar no depósito.';
       }
       allies.push({
         id: chunk.allyId,
@@ -1562,7 +1568,7 @@ function generateLevel(seedString) {
       nextPlatform.w = Math.max(nextPlatform.w, 150);
     }
 
-    if (chunk.hasEnemy && !chunk.requires.includes('pulse') && nextPlatform.w > 130) {
+    if (chunk.hasEnemy && nextPlatform.w > 130) {
       const ew = 42;
       const eh = 38;
       enemies.push({
@@ -1577,21 +1583,6 @@ function generateLevel(seedString) {
         type: chunk.pathogenType,
         logicIndex: i,
         debut: chunk.isPathogenDebut,
-      });
-    }
-
-    if (chunk.requires.includes('pulse')) {
-      const cw = 56;
-      const ch = 110;
-      crystals.push({
-        logicIndex: i,
-        requiredFeature: 'pulse',
-        x: nextPlatform.x + nextPlatform.w - cw - 5,
-        y: nextPlatform.y - ch,
-        w: cw,
-        h: ch,
-        hp: 1,
-        broken: false,
       });
     }
 
@@ -1689,7 +1680,7 @@ Object.assign(__exports, { createRandom });
 },
 "src/procgen/logic.js": (__exports, __require) => {
 const { CAMPAIGN_UNLOCKS, getAvailableUnlocksAt, getPathogensAt, getPhaseManifest, getRequiredPracticeAbilityAt } = __require("src/procgen/campaign-manifest.js");
-const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash', 'pulse']);
+const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash']);
 let activeProfile = null;
 
 function setLogicCampaignProfile(profile) {
@@ -1714,7 +1705,6 @@ function weightedAbility(rnd, abilities, theme) {
   const weighted = [];
   for (const ability of abilities) {
     let weight = 1;
-    if (theme === 'mineral' && ability === 'pulse') weight = 3;
     if (theme === 'arquitetura' && (ability === 'doubleJump' || ability === 'dash')) weight = 2;
     if (theme === 'infestação' && ability === 'dash') weight = 1.6;
     for (let i = 0; i < Math.ceil(weight * 2); i++) weighted.push(ability);
@@ -1819,7 +1809,7 @@ const ECOLOGY_ROAMING_TYPES = Object.freeze([
 
 const PATHOGEN_SYSTEMS = Object.freeze(['rhizoctonia', 'meloidogyne', 'ralstonia']);
 const CAMPAIGN_UNLOCKS = Object.freeze([
-  'doubleJump', 'dash', 'pulse', 'mycorrhizaStructures', 'azospirillumRoots',
+  'doubleJump', 'dash', 'phosphateSolubilization', 'mycorrhizaStructures', 'azospirillumRoots',
 ]);
 const TUTORIAL_MODES = Object.freeze(['guided', 'silent', 'disabled']);
 const PRESENTATION_POLICIES = Object.freeze([
@@ -1865,6 +1855,20 @@ const PSEUDOMONAS_IRON_CONTROL_DEFAULTS = Object.freeze({
   sporulationSuppression: .8,
   adhesionSuppression: .7,
 });
+const PHOSPHATE_SOLUBILIZATION_DEFAULTS = Object.freeze({
+  absorptionRadius: 175,
+  chargeTimeSeconds: 1.8,
+  minimumCharge: .18,
+  maximumCharge: 1,
+  shotRange: 430,
+  shotSpeed: 620,
+  amountSolubilizedPerCharge: 1,
+  metaboliteProductionRate: .11,
+  exudateProductionMultiplier: 2.4,
+  localPoolCaptureRadius: 92,
+  mycorrhizalTransportRate: .16,
+  minimumTransportedPhosphate: .65,
+});
 
 const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
   'action-exudate': Object.freeze(['action-exudate', 'action-inoculation']),
@@ -1881,14 +1885,15 @@ const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
 });
 
 const FINAL_TEST_KEYS = Object.freeze({
-  playerUnlock: Object.freeze(['doubleJump', 'dash', 'pulse']),
+  playerUnlock: Object.freeze(['doubleJump', 'dash', 'phosphateSolubilization']),
   worldState: Object.freeze([
     'reachedFinalRoot', 'functionalBiofilmCount', 'activeMatureNoduleCount', 'totalFixationRate',
     'visibleLateralRootCount', 'functionalMycorrhizaPathCount', 'pseudomonasIronReserve',
     'neutralizedOpportunisticFungusCount', 'recoveredRootCount', 'brokenCrystalCount',
     'neutralizedEggMassCount', 'preservedRootCount', 'ecologicalScore',
     'deployedExudateCount', 'bacillusColonyCount',
-    'opportunisticFungusVigor',
+    'opportunisticFungusVigor', 'solubilizedPhosphateDepositCount',
+    'mycorrhizalPhosphateTransported', 'rootPhosphateStock',
   ]),
 });
 
@@ -2164,7 +2169,7 @@ const phases = [
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Trichoderma contra Rhizoctonia', theme: 'patologia',
     mission: 'Observe a lesão de Rhizoctonia, recrute Trichoderma e inocule-o próximo ao foco para recuperar a raiz.',
-    newConcepts: ['Rhizoctonia→lesão', 'Trichoderma→micoparasitismo→recuperação'], newCommand: 'pulse',
+    newConcepts: ['Rhizoctonia→lesão', 'Trichoderma→micoparasitismo→recuperação'], newCommand: null,
     presentations: [
       { id: 'presentation-root-health', cardId: 'organism-rhizoctonia',
         triggerIds: ['organism-rhizoctonia', 'process-root-health', 'process-root-recovery', 'process-root-collapse'],
@@ -2190,41 +2195,65 @@ const phases = [
         prerequisitePresentationIds: ['presentation-root-health', 'presentation-trichoderma'],
         debutChunk: 4, moduleId: 'p6-tricho-intro',
         pages: ['Micoparasitismo', 'Reconhecimento', 'Enovelamento e lise', 'Recuperação da raiz'] },
-      { id: 'presentation-phosphate-solubilizer', cardId: 'organism-phosphate-solubilizer',
-        triggerIds: ['organism-phosphate-solubilizer'], autoOpenTrigger: 'organism-phosphate-solubilizer',
-        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
-        debutChunk: 18, moduleId: 'p6-pulse-intro', debutZoneId: 'p6-phosphate-solubilizer-debut',
-        pages: ['Quem é?', 'Função biológica', 'Função no jogo', 'Atenção didática'] },
-      { id: 'presentation-pulse', cardId: 'power-pulse',
-        triggerIds: ['power-pulse'], autoOpenTrigger: 'power-pulse',
-        policy: 'event-immediate', suppressIndividualCards: false,
-        debutChunk: 20, moduleId: 'p6-pulse-intro',
-        pages: ['Função no jogo', 'Relação com a biologia', 'Como usar'] },
     ],
-    unlockEvents: [
-      { feature: 'pulse', eventChunk: 20, afterModule: 'p6-pulse-intro', practiceWindowChunks: 3, mandatory: true },
-    ],
+    unlockEvents: [],
     pathogenDebuts: [{ pathogen: 'rhizoctonia', fromChunk: 1, presentationId: 'presentation-root-health' }],
     segments: [
       { id: 'p6-rhizo-intro', kind: 'fixed', from: 0, to: 1, tutorialMode: 'guided',
         debutPresentationIds: ['presentation-root-health'], mechanicsRequired: [] },
       { id: 'p6-tricho-intro', kind: 'fixed', from: 2, to: 10, tutorialMode: 'guided',
         debutPresentationIds: ['presentation-trichoderma', 'presentation-mycoparasitism'], mechanicsRequired: ['exudate', 'inoculation'] },
-      { id: 'p6-rhizo-practice', kind: 'procedural', from: 11, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
-      { id: 'p6-pulse-intro', kind: 'fixed', from: 18, to: 20, tutorialMode: 'guided',
-        debutPresentationIds: ['presentation-phosphate-solubilizer', 'presentation-pulse'], mechanicsRequired: [] },
-      { id: 'p6-challenge', kind: 'procedural', from: 21, to: 35, tutorialMode: 'silent', mechanicsRequired: ['pulse', 'doubleJump', 'dash', 'inoculation'] },
-      { id: 'p6-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['pulse'] },
+      { id: 'p6-rhizo-practice', kind: 'procedural', from: 11, to: 35, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
+      { id: 'p6-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
     ],
-    finalTest: { id: 'p6-test', goal: 'Recuperar uma raiz e quebrar o cristal da saída.', requires: [
-      { type: 'playerUnlock', key: 'pulse', operator: '===', value: true },
+    finalTest: { id: 'p6-test', goal: 'Conter Rhizoctonia com Trichoderma e recuperar uma raiz.', requires: [
       { type: 'worldState', key: 'recoveredRootCount', operator: '>=', value: 1 },
-      { type: 'worldState', key: 'brokenCrystalCount', operator: '>=', value: 1 },
     ]}, notes: [],
   },
 
   {
-    id: 'phase-7', phase: 7, totalChunks: 40,
+    id: 'phase-7', phase: 7, totalChunks: 16,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    phosphateSolubilization: { ...PHOSPHATE_SOLUBILIZATION_DEFAULTS },
+    title: 'Fósforo: solubilização e transporte', theme: 'fósforo',
+    mission: 'Use uma cepa solubilizadora de Bacillus para liberar o fósforo preso no mineral e permita que a micorriza o transporte até a raiz.',
+    newConcepts: ['Bacillus solubilizador→P disponível', 'micorriza→transporte→raiz'], newCommand: 'phosphateSolubilization',
+    presentations: [
+      { id: 'presentation-phosphate-solubilizer', cardId: 'organism-phosphate-solubilizer',
+        triggerIds: ['organism-phosphate-solubilizer'], autoOpenTrigger: 'organism-phosphate-solubilizer',
+        policy: 'mandatory-first-appearance', suppressIndividualCards: false,
+        debutChunk: 2, moduleId: 'p7-solubilizer-intro', debutZoneId: 'p7-phosphate-solubilizer-debut',
+        pages: ['Cepa específica', 'Metabólitos solubilizadores', 'Como carregar', 'Solubilização e transporte'] },
+      { id: 'presentation-pulse', cardId: 'power-pulse',
+        triggerIds: ['power-pulse'], autoOpenTrigger: 'power-pulse',
+        policy: 'event-immediate', suppressIndividualCards: false,
+        debutChunk: 3, moduleId: 'p7-solubilizer-intro',
+        pages: ['Selecionar', 'Carregar', 'Disparar', 'Alvo exclusivo'] },
+    ],
+    unlockEvents: [
+      { feature: 'phosphateSolubilization', eventChunk: 3, afterModule: 'p7-solubilizer-intro', practiceWindowChunks: 4, mandatory: true },
+    ],
+    pathogenDebuts: [],
+    segments: [
+      { id: 'p7-solubilizer-intro', kind: 'fixed', from: 0, to: 3, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-phosphate-solubilizer', 'presentation-pulse'], mechanicsRequired: [] },
+      { id: 'p7-phosphate-chain', kind: 'fixed', from: 4, to: 11, tutorialMode: 'guided',
+        debutPresentationIds: [], mechanicsRequired: ['phosphateSolubilization', 'mycorrhizaStructures'] },
+      { id: 'p7-short-challenge', kind: 'procedural', from: 12, to: 13, tutorialMode: 'silent',
+        mechanicsRequired: ['doubleJump', 'dash'] },
+      { id: 'p7-final', kind: 'final', from: 14, to: 15, tutorialMode: 'silent',
+        mechanicsRequired: ['phosphateSolubilization'] },
+    ],
+    finalTest: { id: 'p7-test', goal: 'Solubilizar o depósito, transportar P pela micorriza e entregá-lo à raiz final.', requires: [
+      { type: 'worldState', key: 'solubilizedPhosphateDepositCount', operator: '>=', value: 1 },
+      { type: 'worldState', key: 'mycorrhizalPhosphateTransported', operator: '>=', value: PHOSPHATE_SOLUBILIZATION_DEFAULTS.minimumTransportedPhosphate },
+      { type: 'worldState', key: 'rootPhosphateStock', operator: '>=', value: PHOSPHATE_SOLUBILIZATION_DEFAULTS.minimumTransportedPhosphate },
+      { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
+    ]}, notes: [],
+  },
+
+  {
+    id: 'phase-8', phase: 8, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Meloidogyne: infecção, reprodução e sequela', theme: 'infestação',
     mission: 'Impeça novas penetrações, neutralize massas de ovos e preserve uma raiz.',
@@ -2233,7 +2262,7 @@ const phases = [
       { id: 'presentation-meloidogyne-infection', cardId: 'organism-meloidogyne-j2',
         triggerIds: ['organism-meloidogyne-j2', 'structure-gall'], autoOpenTrigger: 'organism-meloidogyne-j2',
         policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        debutChunk: 4, moduleId: 'p7-infection-intro', debutZoneId: 'p7-meloidogyne-j2-debut',
+        debutChunk: 4, moduleId: 'p8-infection-intro', debutZoneId: 'p8-meloidogyne-j2-debut',
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
           { triggerId: 'organism-meloidogyne-j2', pages: [0] },
@@ -2243,7 +2272,7 @@ const phases = [
       { id: 'presentation-meloidogyne-reproduction', cardId: 'organism-meloidogyne-female',
         triggerIds: ['organism-meloidogyne-female', 'structure-egg-mass'], autoOpenTrigger: 'organism-meloidogyne-female',
         policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        debutChunk: 18, moduleId: 'p7-reproduction-intro', debutZoneId: 'p7-meloidogyne-female-debut',
+        debutChunk: 18, moduleId: 'p8-reproduction-intro', debutZoneId: 'p8-meloidogyne-female-debut',
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
           { triggerId: 'organism-meloidogyne-female', pages: [0] },
@@ -2254,21 +2283,21 @@ const phases = [
     unlockEvents: [],
     pathogenDebuts: [{ pathogen: 'meloidogyne', fromChunk: 4, presentationId: 'presentation-meloidogyne-infection' }],
     segments: [
-      { id: 'p7-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'dash', 'pulse'] },
-      { id: 'p7-infection-intro', kind: 'fixed', from: 4, to: 10, tutorialMode: 'guided', debutPresentationIds: ['presentation-meloidogyne-infection'], mechanicsRequired: [] },
-      { id: 'p7-infection-practice', kind: 'procedural', from: 11, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
-      { id: 'p7-reproduction-intro', kind: 'fixed', from: 18, to: 23, tutorialMode: 'guided', debutPresentationIds: ['presentation-meloidogyne-reproduction'], mechanicsRequired: [] },
-      { id: 'p7-challenge', kind: 'procedural', from: 24, to: 35, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash', 'pulse'] },
-      { id: 'p7-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
+      { id: 'p8-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'dash'] },
+      { id: 'p8-infection-intro', kind: 'fixed', from: 4, to: 10, tutorialMode: 'guided', debutPresentationIds: ['presentation-meloidogyne-infection'], mechanicsRequired: [] },
+      { id: 'p8-infection-practice', kind: 'procedural', from: 11, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
+      { id: 'p8-reproduction-intro', kind: 'fixed', from: 18, to: 23, tutorialMode: 'guided', debutPresentationIds: ['presentation-meloidogyne-reproduction'], mechanicsRequired: [] },
+      { id: 'p8-challenge', kind: 'procedural', from: 24, to: 35, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
+      { id: 'p8-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
     ],
-    finalTest: { id: 'p7-test', goal: 'Neutralizar uma massa de ovos e preservar uma raiz.', requires: [
+    finalTest: { id: 'p8-test', goal: 'Neutralizar uma massa de ovos e preservar uma raiz.', requires: [
       { type: 'worldState', key: 'neutralizedEggMassCount', operator: '>=', value: 1 },
       { type: 'worldState', key: 'preservedRootCount', operator: '>=', value: 1 },
     ]}, notes: [],
   },
 
   {
-    id: 'phase-8', phase: 8, totalChunks: 40,
+    id: 'phase-9', phase: 9, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Ecossistema integrado', theme: 'síntese',
     mission: 'Proteja, controle, recupere e atravesse usando tudo o que aprendeu.',
@@ -2279,12 +2308,12 @@ const phases = [
       { pathogen: 'meloidogyne', fromChunk: 0, presentationId: null },
     ],
     segments: [
-      { id: 'p8-integrated', kind: 'procedural', from: 0, to: 35, tutorialMode: 'silent',
-        mechanicsRequired: ['doubleJump', 'dash', 'pulse', 'inoculation'] },
-      { id: 'p8-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent',
-        mechanicsRequired: ['doubleJump', 'dash', 'pulse', 'inoculation'] },
+      { id: 'p9-integrated', kind: 'procedural', from: 0, to: 35, tutorialMode: 'silent',
+        mechanicsRequired: ['doubleJump', 'dash', 'inoculation'] },
+      { id: 'p9-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent',
+        mechanicsRequired: ['doubleJump', 'dash', 'inoculation'] },
     ],
-    finalTest: { id: 'p8-test', goal: 'Concluir o desafio integrado com pontuação mínima.', requires: [
+    finalTest: { id: 'p9-test', goal: 'Concluir o desafio integrado com pontuação mínima.', requires: [
       { type: 'worldState', key: 'ecologicalScore', operator: '>=', value: 1 },
       { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
     ]},
@@ -2479,7 +2508,7 @@ function globalPresentationOrder() {
 
 const VALID_FINAL_TYPES = new Set(['worldState', 'playerUnlock']);
 const VALID_OPERATORS = new Set(['===', '!==', '>', '>=', '<', '<=']);
-const VALID_COMMANDS = new Set(['doubleJump', 'dash', 'pulse']);
+const VALID_COMMANDS = new Set(['doubleJump', 'dash', 'phosphateSolubilization']);
 
 function availableUnlocksIn(manifest, phaseNumber, chunkIndex, knownUnlocks) {
   const active = Object.fromEntries(knownUnlocks.map(flag => [flag, false]));
@@ -2602,6 +2631,21 @@ function validateCampaignManifest({
       }
       if (!Number.isFinite(nitrogenRoot.growthDurationSeconds) || nitrogenRoot.growthDurationSeconds <= 0) {
         errors.push(`${phase.id}: nitrogenRoot.growthDurationSeconds invalido.`);
+      }
+    }
+
+    if (phase.phosphateSolubilization) {
+      const phosphate = phase.phosphateSolubilization;
+      for (const key of Object.keys(PHOSPHATE_SOLUBILIZATION_DEFAULTS)) {
+        if (!Number.isFinite(phosphate[key]) || phosphate[key] < 0) {
+          errors.push(`${phase.id}: phosphateSolubilization.${key} invalido.`);
+        }
+      }
+      if (phosphate.minimumCharge <= 0 || phosphate.minimumCharge > phosphate.maximumCharge) {
+        errors.push(`${phase.id}: faixa de carga da solubilizacao de P invalida.`);
+      }
+      if (phosphate.minimumTransportedPhosphate <= 0) {
+        errors.push(`${phase.id}: phosphateSolubilization.minimumTransportedPhosphate invalido.`);
       }
     }
 
@@ -2817,7 +2861,7 @@ function validateCampaignManifest({
 
   return errors;
 }
-Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getActiveCampaignManifest, setPhaseManifestOverride, clearPhaseManifestOverride, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
+Object.assign(__exports, { ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, CAMPAIGN_UNLOCKS, TUTORIAL_MODES, PRESENTATION_POLICIES, SEGMENT_KINDS, DERIVED_TRIGGER_BEHAVIORS, MVP_EXCLUDED_PATHOGENS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, PRESENTATION_TRIGGER_CHAINS, FINAL_TEST_KEYS, tutorialPacing, campaignManifest, getActiveCampaignManifest, setPhaseManifestOverride, clearPhaseManifestOverride, getPhaseManifest, getSegmentAt, getTutorialModeAt, getPresentationById, getPresentationForTrigger, getRoamingDebutsAt, getProceduralPoolAt, getPathogensAt, getPathogenStartChunk, getPersistentUnlocksBeforePhase, getAvailableUnlocksAt, getRequiredPracticeAbilityAt, getTetheredDebutsAt, globalPresentationOrder, validateFirstEncounterProximity, validateCampaignManifest });
 },
 "src/procgen/primitives.js": (__exports, __require) => {
 const { createSimulator } = __require("src/procgen/simulator.js");
@@ -2976,6 +3020,7 @@ Object.assign(__exports, { generatePrimitives });
 },
 "src/procgen/simulator.js": (__exports, __require) => {
 const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");const { createInoculumSelection } = __require("src/procgen/inoculum-selection.js");
+const { createPhosphateSolubilization } = __require("src/procgen/phosphate-solubilization.js");
 function createEmptyLevel() {
   return {
     platforms: [], hazards: [], crystals: [], enemies: [], exudates: [],
@@ -2983,6 +3028,7 @@ function createEmptyLevel() {
     exudateClouds: [], biofilms: [], beneficialColonies: [], rhizobiumNodules: [],
     nitrogenRoots: [],
     azospirillumRootLadders: [], azospirillumRoots: [], ironDeposits: [], siderophores: [],
+    phosphateDeposits: [], availablePhosphatePools: [], phosphateTransportParticles: [],
     nematodeEggMasses: [], nematodeJuveniles: [], rootGalls: [],
   };
 }
@@ -3009,7 +3055,7 @@ function createSimulator() {
       ArrowRight: false, KeyD: false,
       Space: false, KeyW: false, ArrowUp: false,
       ShiftLeft: false, ShiftRight: false, KeyJ: false,
-      KeyK: false, KeyE: false,
+      KeyE: false,
       // Seta para baixo cicla o inoculo carregado. A de cima nao serve: e pulo.
       ArrowDown: false,
     },
@@ -3123,6 +3169,13 @@ function createSimulator() {
   trichodermaColonies.setSelection(inoculumSelection);
   gameplay.setSelection(inoculumSelection);
   state.inoculumSelection = inoculumSelection;
+  const phosphateSolubilization = createPhosphateSolubilization({
+    state,
+    input,
+    entities,
+    selection: inoculumSelection,
+    bacillus: bacillusBioprotection,
+  });
 
   state.microbeEcology = ecology;
   state.mycorrhizaGrowth = mycorrhiza;
@@ -3143,6 +3196,7 @@ function createSimulator() {
   state.goalSystem = goal;
   state.ecologicalGameplay = gameplay;
   state.pathogenSurvival = pathogenSurvival;
+  state.phosphateSolubilization = phosphateSolubilization;
 
   const physics = createPhysicsSystem({ state, input, entities, hud, audio });
 
@@ -3171,6 +3225,7 @@ function createSimulator() {
     goal.clear();
     gameplay.clear();
     pathogenSurvival.clear();
+    phosphateSolubilization.clear();
     state.level = createEmptyLevel();
     for (const key in input.keys) input.keys[key] = false;
   }
@@ -3197,6 +3252,7 @@ function createSimulator() {
     nitrogenRootDevelopment.reset();
     meloidogyneLifecycle.reset();
     pathogenSurvival.reset();
+    phosphateSolubilization.reset();
   }
 
   function setInputs(newKeys) {
@@ -3206,6 +3262,7 @@ function createSimulator() {
 
   function step(dt) {
     inoculumSelection.prepare(dt);
+    phosphateSolubilization.prepare(dt);
     trichodermaColonies.prepare(dt);
     beneficialInoculants.prepare(dt);
     gameplay.prepare(dt);
@@ -3232,6 +3289,7 @@ function createSimulator() {
     trichodermaColonies.update(dt);
     gameplay.update(dt);
     bacillusBioprotection.update(dt);
+    phosphateSolubilization.update(dt);
     bacillusBioprotectionSafety.update(dt);
     meloidogyneLifecycle.update(dt);
     trichoderma.update(dt);
@@ -3254,6 +3312,7 @@ function createSimulator() {
     rhizobiumNodulation, nitrogenRootDevelopment, azospirillumRootGrowth, azospirillumRootSafety,
     azospirillumNitrogen,
     meloidogyneLifecycle, pathogenSurvival, goal, gameplay,
+    phosphateSolubilization,
     inoculumSelection,
     reset, resetEcology, resetBiology, setInputs, step,
   };
@@ -3267,7 +3326,7 @@ const { PLAYER_MAX_X, W } = __require("src/core/constants.js");const { clamp, le
 function createPhysicsSystem({ state, input, entities, hud, audio }) {
   function collectCampaignUnlock(ally, player) {
     const feature = ally.unlockFeature
-      || (ally.id === 'azo' ? 'doubleJump' : ally.id === 'myco' ? 'mycorrhizaStructures' : ally.id === 'phos' ? 'pulse' : ally.id === 'dash' ? 'dash' : null);
+      || (ally.id === 'azo' ? 'doubleJump' : ally.id === 'myco' ? 'mycorrhizaStructures' : ally.id === 'phos-power' ? 'phosphateSolubilization' : ally.id === 'dash' ? 'dash' : null);
     unlockCampaignFeature(state, feature);
 
     let color = '#72e8dd';
@@ -3288,11 +3347,11 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
       player.hope += 5;
       hud.setMission('Libere exsudatos nas bordas para formar pontes micorrízicas horizontais');
       entities.discoverMicrobe('myco', false);
-    } else if (feature === 'pulse') {
+    } else if (feature === 'phosphateSolubilization') {
       color = '#8db8ff';
       player.soil += 9;
       player.hope += 6;
-      hud.setMission('Use o pulso para romper cristais alaranjados e liberar minerais');
+      hud.setMission('Selecione Solubilização P, carregue perto do Bacillus e solte E na direção do depósito');
       entities.discoverMicrobe('phos', false);
     } else if (feature === 'azospirillumRoots') {
       player.soil += 8;
@@ -3339,30 +3398,6 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
       enemy.right = enemy.hostPlatform.x + enemy.hostPlatform.w - enemy.w - 14;
       enemy.x = clamp(enemy.x, enemy.left, enemy.right);
       enemy.y = enemy.hostPlatform.y - enemy.h - 5;
-    }
-  }
-
-  function hitRhizoctonia(enemy, player) {
-    ensureRhizoctonia(enemy, state.level);
-    if (!enemy.alive) return;
-    enemy.hp = Math.max(0, enemy.hp - 1);
-    enemy.stun = 1.05;
-    enemy.attackTime = 0;
-    enemy.attackCharge = 0;
-    enemy.mode = 'stunned';
-    entities.burst(enemy.x + enemy.w / 2, enemy.y + enemy.h / 2, '#ffb15c', 28, 210);
-
-    if (enemy.hp <= 0) {
-      enemy.alive = false;
-      if (enemy.hostPlatform) enemy.hostPlatform.rhizoctoniaPressure = 0;
-      player.soil += 4.5;
-      player.hope += 5;
-      state.toast = 'Rhizoctonia desestruturada: o foco de infecção foi interrompido. Trichoderma será uma resposta biológica mais eficiente nas próximas etapas.';
-      state.toastTime = 4.8;
-      entities.burst(enemy.x + enemy.w / 2, enemy.y + enemy.h / 2, '#8df0a8', 38, 235);
-    } else {
-      state.toast = `Pulso interrompeu Rhizoctonia: resistência ${enemy.hp}/${enemy.maxHp}.`;
-      state.toastTime = 3.2;
     }
   }
 
@@ -3513,27 +3548,6 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
       entities.burst(player.x + 16, player.y + 24, '#6ce7df', 16, 170);
       keys.ShiftLeft = keys.ShiftRight = keys.KeyJ = false;
     }
-    if (player.canPulse && keys.KeyK) {
-      level.pulses.push({ x: player.x + 16, y: player.y + 24, r: 8, life: .34 });
-      entities.burst(player.x + 16, player.y + 24, '#ffb15c', 22, 210);
-      keys.KeyK = false;
-      state.shake = .22;
-      level.crystals.forEach(c => {
-        if (!c.broken && Math.hypot(c.x + c.w / 2 - (player.x + 16), c.y + c.h / 2 - (player.y + 24)) < 185) {
-          c.broken = true;
-          player.soil += 9;
-          player.hope += 7;
-          entities.burst(c.x + c.w / 2, c.y + c.h / 2, '#ffb15c', 34, 260);
-        }
-      });
-      level.enemies.forEach(enemy => {
-        if (
-          enemy.alive
-          && Math.hypot(enemy.x + enemy.w / 2 - (player.x + 16), enemy.y + enemy.h / 2 - (player.y + 24)) < 160
-        ) hitRhizoctonia(enemy, player);
-      });
-    }
-
     const prevY = player.y;
     player.x += player.vx * dt;
     const maxX = level.endX !== undefined ? level.endX : PLAYER_MAX_X;
@@ -3642,12 +3656,6 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
       p.vx *= Math.pow(.12, dt);
     });
     for (let i = level.particles.length - 1; i >= 0; i--) if (level.particles[i].life <= 0) level.particles.splice(i, 1);
-    level.pulses.forEach(p => {
-      p.life -= dt;
-      p.r += 520 * dt;
-    });
-    for (let i = level.pulses.length - 1; i >= 0; i--) if (level.pulses[i].life <= 0) level.pulses.splice(i, 1);
-
     const endX = level.endX !== undefined ? level.endX : 4590;
     if (player.x > endX) player.x = endX - player.w;
 
@@ -3779,7 +3787,7 @@ Object.assign(__exports, { microbeCatalog, microbeEncounters, createMicrobeArt }
 },
 "src/procgen/campaign-progression.js": (__exports, __require) => {
 const { CAMPAIGN_UNLOCKS, campaignManifest, getPathogenStartChunk, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { setLogicCampaignProfile } = __require("src/procgen/logic.js");
-const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash', 'pulse']);
+const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash']);
 const DEFAULT_START_PHASE = 1;
 const campaignStorage = new WeakMap();
 
@@ -3788,7 +3796,7 @@ const CAMPAIGN_STORAGE_KEY = 'miguelito:campaign:v2';
 const FEATURE_ALLIES = Object.freeze({
   doubleJump: 'azo',
   dash: 'dash',
-  pulse: 'phos',
+  phosphateSolubilization: 'phos-power',
   mycorrhizaStructures: 'myco',
   azospirillumRoots: 'azo',
 });
@@ -3914,6 +3922,9 @@ function getPhaseProfile(campaign) {
     newConcepts: [...manifest.newConcepts],
     newCommand: manifest.newCommand,
     unlockEvents: manifest.unlockEvents.map(runtimeUnlockEvent),
+    phosphateSolubilization: manifest.phosphateSolubilization
+      ? { ...manifest.phosphateSolubilization }
+      : undefined,
     initialUnlocks,
     initialAbilities: [...MOVEMENT_FEATURES].filter(feature => initialUnlocks[feature]),
     ...tuning,
@@ -3949,10 +3960,10 @@ function featurePresentation(feature) {
       desc: 'A rede micorrízica agora pode orientar hifas finas horizontalmente e formar pontes laterais dirigidas por exsudatos.',
     };
   }
-  if (feature === 'pulse') {
+  if (feature === 'phosphateSolubilization') {
     return {
-      name: 'Sol, a Solubilizadora',
-      desc: 'O pulso mineral rompe cristais alaranjados e libera nutrientes antes inacessíveis.',
+      name: 'Pulso de solubilização',
+      desc: 'Selecione Solubilização P, carregue metabólitos perto da cepa de Bacillus e solte E para disparar no depósito.',
     };
   }
   return {
@@ -4049,7 +4060,7 @@ function applyPersistentUnlocks(player, campaign) {
   const unlocks = blankUnlocks(campaign?.unlocks);
   player.canDoubleJump = unlocks.doubleJump;
   player.canDash = unlocks.dash;
-  player.canPulse = unlocks.pulse;
+  player.canPhosphateSolubilization = unlocks.phosphateSolubilization;
   player.airJumpAvailable = player.canDoubleJump;
 }
 
@@ -4092,7 +4103,8 @@ const initialPlayer = {
   canDoubleJump: false,
   airJumpAvailable: false,
   canDash: false,
-  canPulse: false,
+  canPhosphateSolubilization: false,
+  phosphateCharge: 0,
   dashTime: 0,
   dashCooldown: 0,
   invuln: 0,
@@ -4130,7 +4142,7 @@ function resetPlayer(player, unlocks = null) {
   if (!unlocks) return;
   player.canDoubleJump = Boolean(unlocks.doubleJump);
   player.canDash = Boolean(unlocks.dash);
-  player.canPulse = Boolean(unlocks.pulse);
+  player.canPhosphateSolubilization = Boolean(unlocks.phosphateSolubilization);
   player.airJumpAvailable = player.canDoubleJump;
 }
 Object.assign(__exports, { createPlayer, resetPlayer });
@@ -7032,6 +7044,7 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
   function reset() {
     clear();
     state.level.beneficialColonies = colonies;
+    for (const spec of state.level.authoredBeneficialColonies || []) createAuthoredColony(spec);
   }
 
   function recruitFromClouds() {
@@ -7198,6 +7211,34 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
       colony.stage = 'biofilme';
     }
     entities.burst(colony.x, colony.y, profile.color, 24 + count * 5, 125);
+    return colony;
+  }
+
+  function createAuthoredColony(spec) {
+    const platform = spec.platform || state.level.platforms?.[spec.platformIndex];
+    if (!platform) return null;
+    const colony = {
+      id: spec.id || `beneficial-colony-${nextColonyId++}`,
+      type: spec.type || 'bacillus',
+      x: Number.isFinite(spec.x) ? spec.x : platform.x + platform.w / 2,
+      y: Number.isFinite(spec.y) ? spec.y : platform.y - 8,
+      platform,
+      sourceCount: spec.sourceCount || 4,
+      vigor: clamp(spec.vigor ?? 1, 0, 1),
+      growth: clamp(spec.growth ?? 1, 0, 1),
+      age: spec.age || 30,
+      stage: spec.stage || 'biofilme maduro',
+      dormant: Boolean(spec.dormant),
+      rechargeIntensity: clamp(spec.rechargeIntensity ?? .35, 0, 1),
+      radius: spec.radius || 82,
+      phase: Number.isFinite(spec.phase) ? spec.phase : 0,
+      linkedBiofilm: null,
+      authored: true,
+      solubilizerStrain: Boolean(spec.solubilizerStrain),
+    };
+    colonies.push(colony);
+    if (colony.type === 'bacillus') colony.linkedBiofilm = createBacillusBiofilm(colony);
+    state.discoveredMicrobes.add(colony.type);
     return colony;
   }
 
@@ -7444,6 +7485,7 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
       return colonies.reduce((sum, colony) => sum + colony.vigor, 0) / colonies.length;
     },
     get colonies() { return colonies; },
+    createAuthoredColony,
     clear,
     reset,
     prepare,
@@ -8728,12 +8770,14 @@ function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
   }
 
   function createEntry(colony) {
+    const authoredMature = Boolean(colony.authored && colony.growth >= .95 && !colony.dormant);
     const entry = {
       colony,
       film: ensureBiofilm(colony),
-      mode: 'adhesion',
-      maturity: .08,
+      mode: authoredMature ? 'mature' : 'adhesion',
+      maturity: authoredMature ? 1 : .08,
       antibioticReserve: 0,
+      phosphateMetaboliteReserve: colony.solubilizerStrain && authoredMature ? .7 : 0,
       sporulation: 0,
       germination: 0,
       activePressure: 0,
@@ -8842,6 +8886,7 @@ function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
       colony.dormant = true;
       colony.vigor = Math.min(colony.vigor, .08);
       entry.antibioticReserve = Math.max(0, entry.antibioticReserve - dt * .01);
+      entry.phosphateMetaboliteReserve = Math.max(0, entry.phosphateMetaboliteReserve - dt * .008);
       if (fuel > .08) {
         colony.dormant = false;
         colony.vigor = Math.max(colony.vigor, .065);
@@ -8885,6 +8930,22 @@ function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
       const production = dt * (.009 + fuel * .075 + colony.vigor * .012) * sourceBoost;
       entry.antibioticReserve = clamp(entry.antibioticReserve + production, 0, 1.25);
       if (entry.antibioticReserve > .12 && entry.mode === 'mature') enterMode(entry, 'antibiosis');
+    }
+
+
+    if (entry.colony.solubilizerStrain
+      && entry.maturity >= .72
+      && isMetabolicallyActive(entry)
+      && entry.mode !== 'sporulating') {
+      const config = state.level.phaseProfile?.phosphateSolubilization || {};
+      const baseRate = Number(config.metaboliteProductionRate) || .11;
+      const exudateMultiplier = Number(config.exudateProductionMultiplier) || 2.4;
+      const multiplier = 1 + fuel * Math.max(0, exudateMultiplier - 1);
+      entry.phosphateMetaboliteReserve = clamp(
+        entry.phosphateMetaboliteReserve + dt * baseRate * multiplier * colony.vigor,
+        0,
+        1,
+      );
     }
 
     const carbonStress = colony.vigor < .15 && fuel < .035;
@@ -9118,6 +9179,21 @@ function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
     ctx.fillStyle = 'rgba(255,227,164,.9)';
     ctx.fillText('antibiose', 0, 41);
     ctx.restore();
+
+    if (entry.colony.solubilizerStrain && entry.mode !== 'spores') {
+      const phosphate = clamp(entry.phosphateMetaboliteReserve || 0, 0, 1);
+      ctx.save();
+      ctx.translate(colony.x, colony.y);
+      ctx.fillStyle = 'rgba(3,18,24,.76)';
+      ctx.fillRect(-width / 2 - 2, 45, width + 4, 7);
+      ctx.fillStyle = '#dc8cff';
+      ctx.fillRect(-width / 2, 47, width * phosphate, 3);
+      ctx.font = '700 8px Inter,system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#f2c7ff';
+      ctx.fillText('metabolitos P', 0, 61);
+      ctx.restore();
+    }
   }
 
   function render(ctx) {
@@ -9152,6 +9228,10 @@ function createBacillusBioprotection({ state, entities, ecology, inoculants }) {
       return [...colonyStates.values()].filter(entry => entry.mode === 'germinating').length;
     },
     get fungiUnderAntibiosis() { return fungiUnderAntibiosis; },
+    get entries() { return [...colonyStates.values()]; },
+    get solubilizerEntries() {
+      return [...colonyStates.values()].filter(entry => entry.colony.solubilizerStrain);
+    },
     get protectedRootCount() {
       const platforms = new Set();
       for (const entry of colonyStates.values()) {
@@ -11921,22 +12001,10 @@ function createEcologicalGameplay({ state, input, entities, ecology }) {
       player.hope = Math.max(0, player.hope - dt * (.18 + player.infection * .58));
       if (!infectionAnnounced) {
         infectionAnnounced = true;
-        toast('Contaminação oportunista', 'Propágulos aderiram. Procure Bacillus, Trichoderma ou use o Pulso para reduzir a infecção.', 5.2);
+        toast('Contaminação oportunista', 'Propágulos aderiram. Afaste-se ou procure Bacillus e Trichoderma para reduzir a pressão.', 5.2);
       }
     } else if (player.infection <= .015) {
       infectionAnnounced = false;
-    }
-    for (const pulse of state.level.pulses) {
-      if (pulse.ecologyApplied) continue;
-      pulse.ecologyApplied = true;
-      if (player.infection > 0) {
-        player.infection = Math.max(0, player.infection - .38);
-        player.infectionExposure = 0;
-        entities.burst(center.x, center.y, '#ffcf8a', 18, 155);
-      }
-      if (player.fungalContamination > 0) {
-        player.fungalContamination = Math.max(0, player.fungalContamination - .22);
-      }
     }
   }
 
@@ -12419,20 +12487,17 @@ function createPathogenSurvival({ state, entities, ecology }) {
       }
     }
 
-    const pulseActive = (state.level.pulses || []).some(pulse => pulse.life > 0);
     const safeFilm = filmProtectsPlayer(state);
-    if ((pulseActive || safeFilm) && carried.length) {
+    if (safeFilm && carried.length) {
       for (const juvenile of carried) juvenile.alive = false;
       const removed = carried.length;
       carried = [];
       announce(
-        pulseActive
-          ? `Pulso mineral removeu ${removed} J2 transportado${removed > 1 ? 's' : ''}.`
-          : `Biofilme de Bacillus repeliu ${removed} J2 transportado${removed > 1 ? 's' : ''}.`,
+        `Biofilme de Bacillus repeliu ${removed} J2 transportado${removed > 1 ? 's' : ''}.`,
         4.1,
         .8,
       );
-      entities.burst(center.x, center.y + 12, pulseActive ? '#ffcf8a' : '#a8ffe6', 18, 120);
+      entities.burst(center.x, center.y + 12, '#a8ffe6', 18, 120);
     }
 
     const root = standingRoot(state);
@@ -12609,10 +12674,7 @@ const LABELS = Object.freeze({
   trichoderma: 'Trichoderma',
 });
 
-// Carregando mais de um organismo, o E soltava todos de uma vez ou obedecia a
-// uma ordem fixa de prioridade — nao havia como escolher. Aqui existe uma
-// selecao unica: cada sistema so responde ao E quando e ele o selecionado, e o
-// exsudato disputa a mesma vaga, para decidir entre inocular e capturar.
+// Uma unica selecao decide qual acao responde ao E.
 function createInoculumSelection({ state, input, inoculants, trichodermaColonies }) {
   let index = 0;
   let cycleHeldLast = false;
@@ -12628,8 +12690,16 @@ function createInoculumSelection({ state, input, inoculants, trichodermaColonies
       list.push({ kind: 'trichoderma', type: 'trichoderma', count: trichoderma, label: LABELS.trichoderma });
     }
     const exudates = state.player.exudates || 0;
-    if (exudates > 0) {
-      list.push({ kind: 'exudate', type: 'exudate', count: exudates, label: 'Exsudato' });
+    if (exudates > 0) list.push({ kind: 'exudate', type: 'exudate', count: exudates, label: 'Exsudato' });
+    if (state.player.canPhosphateSolubilization) {
+      const reserve = state.bacillusBioprotection?.solubilizerEntries
+        ?.reduce((sum, entry) => sum + (entry.phosphateMetaboliteReserve || 0), 0) || 0;
+      list.push({
+        kind: 'phosphate-solubilization',
+        type: 'phosphate-solubilization',
+        count: `${Math.round(Math.min(1, reserve) * 100)}%`,
+        label: 'Solubilizacao P',
+      });
     }
     return list;
   }
@@ -12650,9 +12720,13 @@ function createInoculumSelection({ state, input, inoculants, trichodermaColonies
 
   function announce(selected) {
     if (state.time - lastToastAt < .5) return;
-    state.toast = selected.kind === 'exudate'
-      ? `Selecionado: exsudato (${selected.count}) — E lança para capturar ou reforçar colônia.`
-      : `Selecionado: ${selected.label} (${selected.count}) — E inocula na raiz.`;
+    if (selected.kind === 'phosphate-solubilization') {
+      state.toast = 'Selecionado: Solubilizacao P — segure E perto da cepa solubilizadora e solte para disparar.';
+    } else if (selected.kind === 'exudate') {
+      state.toast = `Selecionado: exsudato (${selected.count}) — E lanca para capturar ou reforcar colonia.`;
+    } else {
+      state.toast = `Selecionado: ${selected.label} (${selected.count}) — E inocula na raiz.`;
+    }
     state.toastTime = 2.4;
     lastToastAt = state.time;
   }
@@ -12689,12 +12763,350 @@ function createInoculumSelection({ state, input, inoculants, trichodermaColonies
       const selected = current();
       if (!selected) return '';
       const total = options().length;
-      const posicao = total > 1 ? ` ${index + 1}/${total}` : '';
-      return `${selected.label} (${selected.count})${posicao}`;
+      const position = total > 1 ? ` ${index + 1}/${total}` : '';
+      return `${selected.label} (${selected.count})${position}`;
     },
   };
 }
 Object.assign(__exports, { createInoculumSelection });
+},
+"src/procgen/phosphate-solubilization.js": (__exports, __require) => {
+const { W } = __require("src/core/constants.js");
+const { PHOSPHATE_SOLUBILIZATION_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
+const TAU = Math.PI * 2;
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function routePlatforms(level) {
+  return (level.platforms || [])
+    .filter(platform => !platform.recovery && !platform.final && !platform.mycorrhizaStructure)
+    .sort((a, b) => (a.logicIndex ?? 0) - (b.logicIndex ?? 0) || a.x - b.x);
+}
+
+function applyPhaseSevenPhosphateGeometry(level, phase) {
+  if (phase !== 7) return level;
+  const platforms = routePlatforms(level);
+  if (platforms.length < 10) return level;
+  const colonyPlatform = platforms[Math.min(2, platforms.length - 1)];
+  const depositPlatform = platforms[Math.min(6, platforms.length - 1)];
+  const rootPlatform = platforms[Math.min(9, platforms.length - 1)];
+  rootPlatform.type = 'root';
+  rootPlatform.phosphateTarget = true;
+  rootPlatform.phosphateStock = 0;
+
+  level.authoredBeneficialColonies = [{
+    id: 'phase-7-solubilizer-colony',
+    type: 'bacillus',
+    platform: colonyPlatform,
+    x: colonyPlatform.x + colonyPlatform.w * .58,
+    y: colonyPlatform.y - 8,
+    sourceCount: 5,
+    vigor: 1,
+    growth: 1,
+    rechargeIntensity: .35,
+    solubilizerStrain: true,
+  }];
+
+  const deposit = {
+    id: 'phase-7-phosphate-deposit',
+    phosphateDeposit: true,
+    logicIndex: depositPlatform.logicIndex,
+    requiredFeature: 'phosphateSolubilization',
+    x: depositPlatform.x + depositPlatform.w - 64,
+    y: depositPlatform.y - 150,
+    w: 58,
+    h: 150,
+    remainingPhosphate: 1,
+    initialPhosphate: 1,
+    hp: 1,
+    broken: false,
+    localAvailablePhosphate: 0,
+  };
+  level.crystals = (level.crystals || []).filter(crystal => crystal.requiredFeature !== 'pulse');
+  level.crystals.push(deposit);
+  level.phosphateDeposits = [deposit];
+  level.availablePhosphatePools = [];
+  level.phosphateTransportParticles = [];
+  level.authoredPhosphateRoute = {
+    id: 'phase-7-mycorrhizal-route',
+    functional: true,
+    depositId: deposit.id,
+    rootPlatform,
+    arbuscule: { x: rootPlatform.x + rootPlatform.w * .45, y: rootPlatform.y - 7, maturity: 1 },
+    points: [
+      { x: deposit.x + deposit.w / 2, y: deposit.y + deposit.h * .55 },
+      { x: deposit.x + 100, y: deposit.y + 18 },
+      { x: (deposit.x + rootPlatform.x) / 2, y: Math.min(deposit.y, rootPlatform.y) - 54 },
+      { x: rootPlatform.x - 42, y: rootPlatform.y - 34 },
+      { x: rootPlatform.x + rootPlatform.w * .45, y: rootPlatform.y - 7 },
+    ],
+  };
+  return level;
+}
+
+function pointOnRoute(points, progress) {
+  if (!points?.length) return { x: 0, y: 0 };
+  if (points.length === 1) return points[0];
+  const scaled = clamp(progress, 0, .999999) * (points.length - 1);
+  const index = Math.floor(scaled);
+  const local = scaled - index;
+  const a = points[index];
+  const b = points[Math.min(points.length - 1, index + 1)];
+  return { x: a.x + (b.x - a.x) * local, y: a.y + (b.y - a.y) * local };
+}
+
+function createPhosphateSolubilization({ state, input, entities, selection, bacillus }) {
+  let charge = 0;
+  let eHeldLast = false;
+  let shots = [];
+  let chargeParticles = [];
+  let transported = 0;
+  let solubilizedCount = 0;
+
+  function settings() {
+    return { ...PHOSPHATE_SOLUBILIZATION_DEFAULTS, ...(state.level.phaseProfile?.phosphateSolubilization || {}) };
+  }
+
+  function selected() {
+    return Boolean(state.player.canPhosphateSolubilization
+      && selection?.isSelected('phosphate-solubilization'));
+  }
+
+  function nearestSolubilizer() {
+    const px = state.player.x + state.player.w / 2;
+    const py = state.player.y + state.player.h / 2;
+    const radius = settings().absorptionRadius;
+    return bacillus.solubilizerEntries
+      .filter(entry => entry.mode !== 'spores' && entry.mode !== 'sporulating' && entry.maturity >= .72)
+      .map(entry => ({ entry, distance: Math.hypot(entry.colony.x - px, entry.colony.y - py) }))
+      .filter(item => item.distance <= radius)
+      .sort((a, b) => a.distance - b.distance)[0]?.entry || null;
+  }
+
+  function fireShot() {
+    const config = settings();
+    if (charge < config.minimumCharge) {
+      charge = 0;
+      state.player.phosphateCharge = 0;
+      return;
+    }
+    const x = state.player.x + state.player.w / 2 + state.player.facing * 18;
+    const y = state.player.y + state.player.h * .45;
+    shots.push({
+      x, y, originX: x, originY: y, direction: state.player.facing || 1,
+      charge, energy: charge * 2, distance: 0, hitDeposits: new Set(),
+    });
+    entities.burst(x, y, '#df91ff', 10 + Math.round(charge * 12), 110);
+    charge = 0;
+    state.player.phosphateCharge = 0;
+  }
+
+  function prepare(dt) {
+    if (state.gameState !== 'play') return;
+    const held = Boolean(input.keys.KeyE);
+    if (selected() && held) {
+      const entry = nearestSolubilizer();
+      if (entry && entry.phosphateMetaboliteReserve > 0) {
+        const config = settings();
+        const gain = dt / Math.max(.1, config.chargeTimeSeconds);
+        const consumed = Math.min(gain, entry.phosphateMetaboliteReserve, config.maximumCharge - charge);
+        charge = clamp(charge + consumed, 0, config.maximumCharge);
+        entry.phosphateMetaboliteReserve -= consumed;
+        if (consumed > 0 && chargeParticles.length < 22) {
+          chargeParticles.push({
+            fromX: entry.colony.x,
+            fromY: entry.colony.y,
+            progress: 0,
+            speed: 1.5 + charge * 1.2,
+            phase: state.time * 5,
+          });
+        }
+      }
+    }
+    if (selected() && !held && eHeldLast) fireShot();
+    if (!selected() && !held) charge = 0;
+    eHeldLast = held;
+    state.player.phosphateCharge = charge;
+  }
+
+  function dissolveWithShot(shot) {
+    const config = settings();
+    for (const deposit of state.level.phosphateDeposits || []) {
+      if (deposit.broken || shot.hitDeposits.has(deposit.id)) continue;
+      const cx = deposit.x + deposit.w / 2;
+      const cy = deposit.y + deposit.h / 2;
+      const along = (cx - shot.originX) * shot.direction;
+      if (along < 0 || along > config.shotRange || along > shot.distance + 36) continue;
+      const halfWidth = 12 + along * (.12 + shot.charge * .13);
+      if (Math.abs(cy - shot.originY) > halfWidth + deposit.h / 2) continue;
+      const amount = Math.min(deposit.remainingPhosphate, shot.energy * config.amountSolubilizedPerCharge);
+      if (amount <= 0) continue;
+      shot.hitDeposits.add(deposit.id);
+      shot.energy = Math.max(0, shot.energy - amount / Math.max(.001, config.amountSolubilizedPerCharge));
+      deposit.remainingPhosphate = clamp(deposit.remainingPhosphate - amount, 0, deposit.initialPhosphate);
+      deposit.localAvailablePhosphate = (deposit.localAvailablePhosphate || 0) + amount;
+      let pool = (state.level.availablePhosphatePools || []).find(candidate => candidate.depositId === deposit.id);
+      if (!pool) {
+        pool = {
+          depositId: deposit.id, x: cx, y: cy, amount: 0, phase: 0,
+          captureRadius: config.localPoolCaptureRadius,
+          absorptionState: 'available',
+        };
+        state.level.availablePhosphatePools.push(pool);
+      }
+      pool.amount += amount;
+      if (deposit.remainingPhosphate <= .0001) {
+        deposit.broken = true;
+        solubilizedCount += 1;
+        state.toast = 'Deposito esgotado: o fosforo foi solubilizado e permanece disponivel localmente.';
+        state.toastTime = 4;
+      } else {
+        state.toast = `Solubilizacao parcial: ${Math.round((1 - deposit.remainingPhosphate / deposit.initialPhosphate) * 100)}%.`;
+        state.toastTime = 2.5;
+      }
+      if (shot.energy <= .001) shot.distance = config.shotRange;
+    }
+  }
+
+  function updateTransport(dt) {
+    const route = state.level.authoredPhosphateRoute;
+    if (!route?.functional || route.arbuscule?.maturity < 1) return;
+    const config = settings();
+    const pool = (state.level.availablePhosphatePools || []).find(candidate => candidate.depositId === route.depositId);
+    if (!pool || pool.amount <= 0) return;
+    const amount = Math.min(pool.amount, dt * config.mycorrhizalTransportRate);
+    pool.amount -= amount;
+    pool.absorptionState = pool.amount > .001 ? 'absorbing' : 'depleted';
+    const sourceDeposit = (state.level.phosphateDeposits || []).find(deposit => deposit.id === pool.depositId);
+    if (sourceDeposit) sourceDeposit.localAvailablePhosphate = Math.max(0, pool.amount);
+    transported += amount;
+    route.rootPlatform.phosphateStock = (route.rootPlatform.phosphateStock || 0) + amount;
+    route.rootPlatform.nutritionalEfficiency = clamp((route.rootPlatform.nutritionalEfficiency || 0) + amount * .08, 0, 1);
+    route.rootPlatform.metabolicMaintenance = clamp((route.rootPlatform.metabolicMaintenance || 0) + amount * .06, 0, 1);
+    const maximumHealth = clamp(route.rootPlatform.maxRootHealth ?? 1, 0, 1);
+    route.rootPlatform.rootHealth = Math.min(
+      maximumHealth,
+      (route.rootPlatform.rootHealth ?? maximumHealth) + amount * .025,
+    );
+    state.player.soil += amount * .35;
+    state.player.hope += amount * .22;
+    const particles = state.level.phosphateTransportParticles || (state.level.phosphateTransportParticles = []);
+    if (particles.length < 18) particles.push({ progress: 0, speed: .28 + amount * 2, life: 1 });
+  }
+
+  function update(dt) {
+    const config = settings();
+    for (const shot of shots) {
+      shot.distance += config.shotSpeed * dt;
+      shot.x = shot.originX + shot.direction * shot.distance;
+      dissolveWithShot(shot);
+    }
+    shots = shots.filter(shot => shot.distance < config.shotRange);
+    for (const particle of chargeParticles) particle.progress += dt * particle.speed;
+    chargeParticles = chargeParticles.filter(particle => particle.progress < 1);
+    updateTransport(dt);
+    for (const particle of state.level.phosphateTransportParticles || []) particle.progress += dt * particle.speed;
+    state.level.phosphateTransportParticles = (state.level.phosphateTransportParticles || []).filter(particle => particle.progress < 1);
+  }
+
+  function render(ctx) {
+    const route = state.level.authoredPhosphateRoute;
+    ctx.save();
+    ctx.translate(-state.cameraX, 0);
+    for (const deposit of state.level.phosphateDeposits || []) {
+      if (deposit.broken) continue;
+      const ratio = deposit.remainingPhosphate / deposit.initialPhosphate;
+      ctx.save();
+      ctx.translate(deposit.x + deposit.w / 2, deposit.y + deposit.h / 2);
+      ctx.globalAlpha = .48 + ratio * .52;
+      ctx.shadowBlur = 18;
+      ctx.shadowColor = '#db83ff';
+      ctx.fillStyle = '#67447b';
+      ctx.strokeStyle = '#efb4ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-deposit.w * .42, deposit.h * .45);
+      ctx.lineTo(-deposit.w * .5, -deposit.h * .18);
+      ctx.lineTo(-deposit.w * .16, -deposit.h * .5);
+      ctx.lineTo(deposit.w * .42, -deposit.h * .3);
+      ctx.lineTo(deposit.w * .5, deposit.h * .42);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+    for (const pool of state.level.availablePhosphatePools || []) {
+      if (pool.amount <= .001) continue;
+      for (let i = 0; i < 9; i++) {
+        const angle = state.time * .5 + i * TAU / 9;
+        ctx.fillStyle = i % 2 ? '#f2b4ff' : '#ffc966';
+        ctx.globalAlpha = .38 + Math.min(1, pool.amount) * .5;
+        ctx.beginPath();
+        ctx.arc(pool.x + Math.cos(angle) * (15 + i % 3 * 5), pool.y + Math.sin(angle) * (9 + i % 2 * 5), 2.2, 0, TAU);
+        ctx.fill();
+      }
+    }
+    if (route?.functional) {
+      ctx.strokeStyle = 'rgba(209,159,255,.72)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      route.points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+      ctx.stroke();
+      for (const particle of state.level.phosphateTransportParticles || []) {
+        const point = pointOnRoute(route.points, particle.progress);
+        ctx.fillStyle = '#ffd56f';
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#e4a2ff';
+        ctx.beginPath(); ctx.arc(point.x, point.y, 3.2, 0, TAU); ctx.fill();
+      }
+    }
+    for (const shot of shots) {
+      const width = 10 + shot.distance * (.12 + shot.charge * .13);
+      ctx.fillStyle = 'rgba(223,145,255,.20)';
+      ctx.beginPath();
+      ctx.moveTo(shot.originX, shot.originY);
+      ctx.lineTo(shot.x, shot.y - width);
+      ctx.lineTo(shot.x, shot.y + width);
+      ctx.closePath(); ctx.fill();
+    }
+    for (const particle of chargeParticles) {
+      const px = state.player.x + state.player.w / 2;
+      const py = state.player.y + state.player.h * .45;
+      const t = clamp(particle.progress, 0, 1);
+      const x = particle.fromX + (px - particle.fromX) * t;
+      const y = particle.fromY + (py - particle.fromY) * t + Math.sin(t * TAU + particle.phase) * 9;
+      ctx.fillStyle = '#e8a4ff';
+      ctx.globalAlpha = .35 + t * .65;
+      ctx.beginPath(); ctx.arc(x, y, 2.2 + t, 0, TAU); ctx.fill();
+    }
+    if (charge > 0) {
+      const px = state.player.x + state.player.w / 2;
+      const py = state.player.y + state.player.h * .45;
+      ctx.strokeStyle = '#e6a2ff';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(px, py, 18 + charge * 18, -.5 * Math.PI, (-.5 + charge * 2) * Math.PI); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function clear() {
+    charge = 0;
+    eHeldLast = false;
+    shots = [];
+    chargeParticles = [];
+    transported = 0;
+    solubilizedCount = 0;
+    state.player.phosphateCharge = 0;
+  }
+
+  return {
+    prepare, update, render, clear, reset: clear,
+    get charge() { return charge; },
+    get shotCount() { return shots.length; },
+    get solubilizedDepositCount() { return solubilizedCount; },
+    get transportedPhosphate() { return transported; },
+    get rootPhosphateStock() { return state.level.authoredPhosphateRoute?.rootPlatform?.phosphateStock || 0; },
+  };
+}
+Object.assign(__exports, { applyPhaseSevenPhosphateGeometry, createPhosphateSolubilization });
 },
 "src/procgen/geometry.js": (__exports, __require) => {
 function generateGeometry(logicChunk, prevPlatform, primitive, rnd) {
@@ -12793,7 +13205,6 @@ function validateChunk(fromPlatform, toPlatform, primitive, agentType = 'normal'
   sim.state.player.canDoubleJump = primitive.requires.includes('doubleJump');
   sim.state.player.airJumpAvailable = primitive.requires.includes('doubleJump');
   sim.state.player.canDash = primitive.requires.includes('dash');
-  sim.state.player.canPulse = primitive.requires.includes('pulse');
 
   let jumpTiming = 0;
   if (agentType === 'conservative') jumpTiming = -5;
@@ -13036,6 +13447,9 @@ function createCampaignObjectiveEvaluator({ state, systems = {} }) {
       return (state.level.platforms || []).filter(root => root.type === 'root' && root.healthTrend > 0 && (root.rootHealth || 0) >= .75).length;
     }
     if (key === 'brokenCrystalCount') return (state.level.crystals || []).filter(crystal => crystal.broken).length;
+    if (key === 'solubilizedPhosphateDepositCount') return systems.phosphate?.solubilizedDepositCount || 0;
+    if (key === 'mycorrhizalPhosphateTransported') return systems.phosphate?.transportedPhosphate || 0;
+    if (key === 'rootPhosphateStock') return systems.phosphate?.rootPhosphateStock || 0;
     if (key === 'neutralizedEggMassCount') return systems.meloidogyneControl?.eggMassesNeutralized || 0;
     if (key === 'preservedRootCount') {
       return (state.level.platforms || []).filter(root => root.type === 'root' && (root.rootHealth ?? 1) >= .75).length;
@@ -13702,7 +14116,7 @@ function applyPhaseSixTutorialEncounters(level, encounters, phase = level.campai
 Object.assign(__exports, { applyPhaseSixTutorialGeometry, applyPhaseSixTutorialEncounters });
 },
 "src/procgen/phase-lab-config.js": (__exports, __require) => {
-const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, campaignManifest, getProceduralPoolAt, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
+const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, campaignManifest, getProceduralPoolAt, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
 const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v4';
 const PHASE_LAB_MAX_RESOURCES = 100;
 
@@ -13795,6 +14209,9 @@ function createDefaultPhaseLabConfig(phase = 1) {
     },
     pseudomonasIronControl: {
       ...(base.pseudomonasIronControl || PSEUDOMONAS_IRON_CONTROL_DEFAULTS),
+    },
+    phosphateSolubilization: {
+      ...(base.phosphateSolubilization || PHOSPHATE_SOLUBILIZATION_DEFAULTS),
     },
     finalGoal: base.finalTest.goal,
     finalConditions: clone(base.finalTest.requires),
@@ -13899,6 +14316,12 @@ function buildPhaseLabManifest(config) {
   const pseudomonasIronControl = Object.fromEntries(
     Object.keys(PSEUDOMONAS_IRON_CONTROL_DEFAULTS).map(key => [key, Number(ironInput[key])]),
   );
+  const phosphateInput = config.phosphateSolubilization
+    || base.phosphateSolubilization
+    || PHOSPHATE_SOLUBILIZATION_DEFAULTS;
+  const phosphateSolubilization = Object.fromEntries(
+    Object.keys(PHOSPHATE_SOLUBILIZATION_DEFAULTS).map(key => [key, Number(phosphateInput[key])]),
+  );
 
   return {
     ...clone(base),
@@ -13916,6 +14339,7 @@ function buildPhaseLabManifest(config) {
     mycorrhizaBridge,
     opportunisticFungus,
     pseudomonasIronControl,
+    phosphateSolubilization,
     finalTest: {
       ...clone(base.finalTest),
       goal: String(config.finalGoal || base.finalTest.goal).trim(),
@@ -14003,7 +14427,10 @@ function applyPhaseLabResources(level, phaseManifest, seedValue) {
       const height = 110;
       return {
         logicIndex: platform?.logicIndex ?? -1,
-        requiredFeature: 'pulse',
+        requiredFeature: 'phosphateSolubilization',
+        phosphateDeposit: true,
+        remainingPhosphate: 1,
+        initialPhosphate: 1,
         x: (platform?.x || 160) + Math.max(5, (platform?.w || 140) - width - 5),
         y: (platform?.y || 500) - height,
         w: width,
@@ -14119,7 +14546,7 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
     panel.setAttribute('aria-label', 'Phase Lab');
     panel.innerHTML = `
       <h2>Phase Lab</h2><p>Runtime real · Ctrl+Enter reinicia · sem editor de plataformas</p>
-      <label>Fase <select data-field="phase">${[...Array(9)].map((_, phase) => `<option value="${phase}">Fase ${phase}</option>`).join('')}</select></label>
+      <label>Fase <select data-field="phase">${[...Array(10)].map((_, phase) => `<option value="${phase}">Fase ${phase}</option>`).join('')}</select></label>
       <label>Seed <input data-field="seed"></label>
       <label>Quantidade de chunks <input data-field="totalChunks" type="number" min="3" max="120"></label>
       <label>Titulo <input data-field="title"></label>
@@ -14173,6 +14600,20 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
         <label>Supressão esporos<input data-iron-control="sporulationSuppression" type="number" min="0" max="1" step="0.05"></label>
         <label>Supressão aderência<input data-iron-control="adhesionSuppression" type="number" min="0" max="1" step="0.05"></label>
       </div></fieldset>
+      <fieldset><legend>Solubilizacao e transporte de fosfato</legend><div class="resources">
+        <label>Raio de carga<input data-phosphate="absorptionRadius" type="number" min="40" step="5"></label>
+        <label>Tempo de carga (s)<input data-phosphate="chargeTimeSeconds" type="number" min="0.1" step="0.1"></label>
+        <label>Carga minima<input data-phosphate="minimumCharge" type="number" min="0.01" max="1" step="0.01"></label>
+        <label>Carga maxima<input data-phosphate="maximumCharge" type="number" min="0.01" max="2" step="0.01"></label>
+        <label>Alcance<input data-phosphate="shotRange" type="number" min="80" step="10"></label>
+        <label>Velocidade do disparo<input data-phosphate="shotSpeed" type="number" min="50" step="10"></label>
+        <label>Solubilizacao/carga<input data-phosphate="amountSolubilizedPerCharge" type="number" min="0.01" step="0.05"></label>
+        <label>Producao metabolitos<input data-phosphate="metaboliteProductionRate" type="number" min="0" step="0.01"></label>
+        <label>Multiplicador exsudato<input data-phosphate="exudateProductionMultiplier" type="number" min="1" step="0.1"></label>
+        <label>Raio de captacao<input data-phosphate="localPoolCaptureRadius" type="number" min="20" step="5"></label>
+        <label>Transporte micorrizico<input data-phosphate="mycorrhizalTransportRate" type="number" min="0" step="0.01"></label>
+        <label>P minimo transportado<input data-phosphate="minimumTransportedPhosphate" type="number" min="0" step="0.05"></label>
+      </div></fieldset>
       <label>Objetivo final <input data-field="finalGoal"></label>
       <label>Condicoes finais (JSON) <textarea data-field="finalConditions"></textarea></label>
       <div class="phase-lab-status" role="status"></div>
@@ -14215,6 +14656,9 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
       }
       for (const key of ['minimumIronReserve', 'minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']) {
         panel.querySelector(`[data-iron-control="${key}"]`).value = next.pseudomonasIronControl?.[key] ?? '';
+      }
+      for (const key of ['absorptionRadius', 'chargeTimeSeconds', 'minimumCharge', 'maximumCharge', 'shotRange', 'shotSpeed', 'amountSolubilizedPerCharge', 'metaboliteProductionRate', 'exudateProductionMultiplier', 'localPoolCaptureRadius', 'mycorrhizalTransportRate', 'minimumTransportedPhosphate']) {
+        panel.querySelector(`[data-phosphate="${key}"]`).value = next.phosphateSolubilization?.[key] ?? '';
       }
     }
     function read() {
@@ -14261,6 +14705,13 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
           ['minimumIronReserve', 'minimumFungalVigor', 'growthSuppression', 'sporulationSuppression', 'adhesionSuppression']
             .map(key => [key, Number(panel.querySelector(`[data-iron-control="${key}"]`).value)]),
         ),
+        phosphateSolubilization: {
+          ...config.phosphateSolubilization,
+          ...Object.fromEntries(
+            ['absorptionRadius', 'chargeTimeSeconds', 'minimumCharge', 'maximumCharge', 'shotRange', 'shotSpeed', 'amountSolubilizedPerCharge', 'metaboliteProductionRate', 'exudateProductionMultiplier', 'localPoolCaptureRadius', 'mycorrhizalTransportRate', 'minimumTransportedPhosphate']
+              .map(key => [key, Number(panel.querySelector(`[data-phosphate="${key}"]`).value)]),
+          ),
+        },
         finalGoal: value('finalGoal'),
         finalConditions: JSON.parse(value('finalConditions')),
       };
@@ -14590,6 +15041,7 @@ function createRenderer({ canvas, state, entities }) {
     }
 
     level.crystals.forEach(c => {
+      if (c.phosphateDeposit) return;
       if (c.broken) return;
       ctx.save();
       ctx.translate(c.x + c.w / 2, c.y + c.h);
@@ -14735,14 +15187,6 @@ function createRenderer({ canvas, state, entities }) {
       ctx.fill();
     });
     ctx.globalAlpha = 1;
-    level.pulses.forEach(p => {
-      ctx.globalAlpha = clamp(p.life / .34, 0, 1);
-      ctx.strokeStyle = '#ffb15c';
-      ctx.lineWidth = 6 * ctx.globalAlpha;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.stroke();
-    });
     ctx.globalAlpha = 1;
     drawPlayer();
     ctx.restore();
@@ -14834,12 +15278,12 @@ function createRenderer({ canvas, state, entities }) {
 
     drawFungalAttachment(player, time);
 
-    if (player.canPulse) {
+    if (player.canPhosphateSolubilization) {
       ctx.shadowBlur = 16;
-      ctx.shadowColor = '#ffb15c';
-      ctx.fillStyle = '#ffb15c';
+      ctx.shadowColor = '#df91ff';
+      ctx.fillStyle = '#df91ff';
       ctx.beginPath();
-      ctx.arc(15, -2, 4, 0, Math.PI * 2);
+      ctx.arc(15, -2, 3 + (player.phosphateCharge || 0) * 4, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
     }
@@ -15988,7 +16432,7 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
 
     if (!mem.announced && Math.abs((state.player.x + state.player.w / 2) - enemy.infectionX) < 330) {
       mem.announced = true;
-      announce('Controle de Rhizoctonia: Bacillus maduro contém a expansão; Pseudomonas com reserva de Fe enfraquece o fungo; o Pulso remove 1/3 da resistência.', 6.4, .2);
+      announce('Controle de Rhizoctonia: Bacillus maduro contém a expansão, Pseudomonas com reserva de Fe enfraquece o fungo e Trichoderma realiza micoparasitismo.', 6.4, .2);
     }
   }
 
@@ -17657,7 +18101,7 @@ for (const button of document.querySelectorAll('.touch-key')) {
 
 function clearAllInputs() {
   for (const pointerId of [...pressed.keys()]) releasePointer(pointerId);
-  for (const code of ['ArrowLeft', 'ArrowRight', 'Space', 'KeyE', 'ShiftLeft', 'KeyK']) {
+  for (const code of ['ArrowLeft', 'ArrowRight', 'Space', 'KeyE', 'ShiftLeft', 'ArrowDown']) {
     emit(code, false);
   }
 }
@@ -18507,25 +18951,26 @@ const gameplayTutorialCards = {
   'power-pulse': card(
     'power-pulse',
     'Poder',
-    'Pulso mineral',
-    'Ação direta de curto alcance',
+    'Pulso de solubilização',
+    'Metabólitos de Bacillus liberam P do mineral',
     '✦',
     '#ffb15c',
     [
       page(
-        'Função no jogo',
-        'O pulso rompe cristais minerais, reduz contaminação aderida, remove J2 transportados e interrompe certos patógenos.',
+        'Selecionar',
+        'Escolha Solubilização P no seletor. Somente essa opção transforma o E em carga e disparo; as demais ações continuam instantâneas.',
       ),
       page(
-        'Relação com a biologia',
-        'O pulso é uma simplificação fictícia. Plantas não emitem uma onda instantânea com todos esses efeitos. A mecânica reúne respostas químicas e intervenções de manejo em uma ação jogável.',
+        'Carregar',
+        'Segure E perto de uma colônia madura da cepa solubilizadora. A carga consome uma reserva separada de metabólitos, produzida mais rapidamente com exsudatos.',
       ),
       page(
-        'Como usar',
-        'Use perto do alvo. Rhizoctonia exige vários pulsos; controles biológicos bem estabelecidos podem ser mais eficientes.',
+        'Disparar',
+        'Solte E para lançar os metabólitos na direção de Miguelito. O cone se alarga com a distância e dissolve apenas depósitos de fosfato.',
       ),
+      page('Alvo exclusivo', 'O disparo não remove patógenos, nematoides ou contaminação. O P liberado fica local até uma micorriza funcional transportá-lo à raiz.'),
     ],
-    ['Acionamento', 'Expansão', 'Interação com alvos', 'Recarga'],
+    ['Selecionar', 'Carregar', 'Disparar', 'Solubilizar', 'Transportar'],
     'Etapas no jogo',
   ),
 
@@ -18677,7 +19122,7 @@ const organismTutorialCards = {
         'Função biológica',
         'As hifas exploram o solo além da zona alcançada pelos pelos radiculares. Dentro das células corticais, os arbúsculos funcionam como interfaces de troca.',
       ),
-      page('Função no jogo', 'A micorriza melhora recuperação e sustentação da raiz. Também pode formar pontes e escadas jogáveis.'),
+      page('Função no jogo', 'A micorriza forma pontes horizontais e transporta fosfato disponível pela rede hifal até o arbúsculo e a raiz.'),
       page(
         'Atenção didática',
         'As estruturas capazes de sustentar Miguelito são uma metáfora visual. Hifas reais ampliam absorção e conectividade, mas não formam plataformas para pessoas.',
@@ -18759,20 +19204,20 @@ const organismTutorialCards = {
   'organism-phosphate-solubilizer': card(
     'organism-phosphate-solubilizer',
     'Organismo benéfico',
-    'Microrganismo solubilizador de fósforo',
-    'Mobilização de fósforo pouco disponível',
+    'Bacillus — cepa solubilizadora',
+    'Uma cepa específica mobiliza fósforo pouco disponível',
     'P',
     '#8db8ff',
     [
-      page('Quem é?', 'Não se trata de uma única espécie. Diferentes bactérias e fungos podem aumentar a disponibilidade de formas pouco solúveis de fósforo.'),
+      page('Cepa específica', 'Nem todo Bacillus realiza esta função. A fase apresenta uma cepa solubilizadora especializada, diferente das colônias comuns de Bacillus.'),
       page(
-        'Função biológica',
-        'Ácidos orgânicos, prótons, enzimas e outros mecanismos podem mobilizar fósforo, dependendo do composto e das condições do solo.',
+        'Metabólitos solubilizadores',
+        'Ácidos orgânicos, prótons e outros metabólitos alteram a química ao redor do mineral e liberam fosfato gradualmente.',
       ),
-      page('Função no jogo', 'Sua descoberta está ligada ao pulso mineral e à liberação de recursos presos nos cristais alaranjados.'),
+      page('Como carregar', 'A colônia madura acumula uma reserva própria de metabólitos. Exsudatos aumentam a produção; dormência e endósporos interrompem-na.'),
       page(
-        'Atenção didática',
-        'O rompimento instantâneo dos cristais é uma metáfora. Na natureza, a mobilização é gradual e depende da química do solo.',
+        'Solubilização e transporte',
+        'A cepa libera o P do depósito, mas não o transporta à raiz. O fosfato fica local e depende da rede micorrízica e do arbúsculo para chegar à planta.',
       ),
     ],
     ['Colonização', 'Secreção', 'Interação com mineral', 'Mobilização de P', 'Absorção'],
@@ -19023,12 +19468,12 @@ const structureTutorialCards = {
   'structure-mycorrhiza-path': card(
     'structure-mycorrhiza-path',
     'Estrutura de jogo',
-    'Ponte ou escada micorrízica',
+    'Ponte micorrízica horizontal',
     'Rede hifal transformada em caminho',
     '⌁',
     '#d6afff',
     [
-      page('Função no jogo', 'Exsudatos liberados nas bordas podem orientar a formação de uma ponte ou escada que se torna atravessável quando madura.'),
+      page('Função no jogo', 'Exsudatos liberados nas bordas podem orientar uma ponte horizontal que se torna atravessável quando madura.'),
       page('Base biológica', 'A inspiração vem da capacidade das hifas de explorar o solo, conectar regiões e formar redes extensas.'),
       page('Atenção didática', 'A capacidade de sustentar Miguelito é uma metáfora de plataforma, não uma propriedade literal das hifas.'),
       page('Como criar', 'Use exsudato perto da borda de uma raiz quando houver outra plataforma alcançável.'),
@@ -19417,7 +19862,7 @@ function createTutorialTriggers({
         || sim.trichodermaColonies.followerCount > 0,
       doubleJump: Boolean(state.player.canDoubleJump),
       dash: Boolean(state.player.canDash),
-      pulse: Boolean(state.player.canPulse),
+      phosphateSolubilization: Boolean(state.player.canPhosphateSolubilization),
     };
   }
 
@@ -19625,7 +20070,7 @@ function createTutorialTriggers({
       ['action-inoculation', current.inoculation && !previousConditions.inoculation],
       ['power-double-jump', current.doubleJump && !previousConditions.doubleJump],
       ['power-dash', current.dash && !previousConditions.dash],
-      ['power-pulse', current.pulse && !previousConditions.pulse],
+      ['power-pulse', current.phosphateSolubilization && !previousConditions.phosphateSolubilization],
     ];
     previousConditions = current;
     for (const [id, active] of transitions) {

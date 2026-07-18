@@ -109,8 +109,10 @@ Garantias:
 4. Fase 3 — Azospirillum, raiz lateral e salto duplo.
 5. Fase 4 — micorriza, arbúsculo, ponte e Dash.
 6. Fase 5 — Pseudomonas, ferro, oportunista, Trichoderma e micoparasitismo.
-7. Fase 6 — Rhizoctonia, saúde/recuperação e Pulso.
-8. Fase 7 — Meloidogyne: J2, galha, fêmea, massa de ovos e sequela.
+7. Fase 6 — Rhizoctonia, Trichoderma e micoparasitismo.
+8. Fase 7 — fósforo: Bacillus solubilizador, depósito de P, micorriza e estoque radicular.
+9. Fase 8 — Meloidogyne: J2, galha, fêmea, massa de ovos e sequela.
+10. Fase 9 — integração dos sistemas aprendidos.
 9. Fase 8 — síntese sem novos cartões automáticos.
 
 Ralstonia fica para expansão pós-piloto.
@@ -121,7 +123,7 @@ As comunidades vagantes são geradas por `generateCampaignEncounters` a partir d
 
 `poolFromChunk` é apenas o limite espacial mínimo da recorrência. As zonas procedurais do organismo estreante permanecem dormentes até o primeiro encontro por proximidade concluir a apresentação; portanto, alcançar ou recarregar um trecho posterior não antecipa curricularmente o organismo. Organismos de fases anteriores continuam recorrendo normalmente.
 
-Micorriza e microrganismo solubilizador de fosfato são estreias fixas, associadas às plataformas dos chunks 4 e 18 de suas fases. Eles não entram no pool das comunidades vagantes. Rhizoctonia e Meloidogyne são controlados por agendas próprias: o inimigo de Rhizoctonia começa na fase 6/chunk 4 e a infestação de Meloidogyne na fase 7/chunk 4; fases posteriores preservam somente os patógenos já introduzidos pelo manifesto.
+Micorriza e Bacillus solubilizador são estreias fixas e não entram no pool das comunidades vagantes. Na Fase 7, a cepa madura fornece metabólitos para o disparo direcional; o P liberado permanece local e só chega à raiz por uma rede micorrízica funcional. Rhizoctonia e Meloidogyne são controlados por agendas próprias: Rhizoctonia permanece na Fase 6 e Meloidogyne passa à Fase 8, sem alteração de suas mecânicas.
 
 Os testes multi-seed verificam a sequência Bacillus → Rhizobium → Azospirillum → micorriza → Pseudomonas → oportunista → Trichoderma → micoparasitismo → Rhizoctonia → Meloidogyne, a separação física das estreias, a ativação pós-cartão e a posição inicial dos dois subsistemas patogênicos.
 

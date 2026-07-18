@@ -101,20 +101,12 @@ test('múltiplas seeds nunca criam vão obrigatório de Dash antes do desbloquei
 
 test('múltiplas seeds não geram cristal ou requisito de Pulso antes do desbloqueio', () => {
   for (const seed of SEEDS) {
-    for (let phase = 0; phase < 6; phase++) {
+    for (let phase = 0; phase < 7; phase++) {
       assert.deepEqual(generatePhase(phase, `${seed}:phase-${phase}`).level.crystals, []);
     }
-
-    const { level } = generatePhase(6, seed);
-    assertFeatureStartsAfterEvent(level, 6, 'pulse');
-    assert.equal(level.crystals.length > 0, true);
-    for (const crystal of level.crystals) {
-      const info = level.debugInfo[crystal.logicIndex];
-      assert.equal(crystal.requiredFeature, 'pulse');
-      assert.equal(crystal.logicIndex > 20, true);
-      assert.equal(info.logic.availableUnlocks.pulse, true);
-      assert.equal(info.logic.requires.includes('pulse'), true);
-    }
+    const { level } = generatePhase(7, seed);
+    assertFeatureStartsAfterEvent(level, 7, 'phosphateSolubilization');
+    assert.deepEqual(level.crystals, []);
   }
 });
 
@@ -165,26 +157,26 @@ test('morte, checkpoint, reset e recarga preservam somente poderes obtidos', () 
   assert.deepEqual(sim.state.currentCheckpoint, { x: 305, y: 222 });
 
   sim.state.player.canDash = true;
-  sim.state.player.canPulse = true;
+  sim.state.player.canPhosphateSolubilization = true;
   sim.entities.respawn('death');
 
   assert.equal(sim.state.player.x, 305);
   assert.equal(sim.state.player.y, 222);
   assert.equal(sim.state.player.canDoubleJump, true);
   assert.equal(sim.state.player.canDash, false);
-  assert.equal(sim.state.player.canPulse, false);
+  assert.equal(sim.state.player.canPhosphateSolubilization, false);
 
   sim.reset();
   assert.equal(sim.state.player.canDoubleJump, true);
   assert.equal(sim.state.player.canDash, false);
-  assert.equal(sim.state.player.canPulse, false);
+  assert.equal(sim.state.player.canPhosphateSolubilization, false);
 
   const reloaded = createCampaign('ignored-fallback', { storage });
   assert.equal(reloaded.seed, 'persistent-seed');
   assert.deepEqual(reloaded.unlocks, {
     doubleJump: true,
     dash: false,
-    pulse: false,
+    phosphateSolubilization: false,
     mycorrhizaStructures: true,
     azospirillumRoots: false,
   });
@@ -198,14 +190,14 @@ test('avanço de fase não concede automaticamente poderes não obtidos', () => 
   assert.deepEqual(campaign.unlocks, {
     doubleJump: true,
     dash: false,
-    pulse: false,
+    phosphateSolubilization: false,
     mycorrhizaStructures: false,
     azospirillumRoots: false,
   });
 });
 
 test('a última fase do manifesto encerra a progressão sem criar uma fase inexistente', () => {
-  const campaign = campaignAtPhase(8, 'campaign-end', { normalProgression: false });
+  const campaign = campaignAtPhase(9, 'campaign-end', { normalProgression: false });
   assert.equal(advanceCampaignPhase(campaign), false);
-  assert.equal(campaign.phase, 8);
+  assert.equal(campaign.phase, 9);
 });

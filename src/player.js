@@ -12,7 +12,8 @@ const initialPlayer = {
   canDoubleJump: false,
   airJumpAvailable: false,
   canDash: false,
-  canPulse: false,
+  canPhosphateSolubilization: false,
+  phosphateCharge: 0,
   dashTime: 0,
   dashCooldown: 0,
   invuln: 0,
@@ -50,6 +51,6 @@ export function resetPlayer(player, unlocks = null) {
   if (!unlocks) return;
   player.canDoubleJump = Boolean(unlocks.doubleJump);
   player.canDash = Boolean(unlocks.dash);
-  player.canPulse = Boolean(unlocks.pulse);
+  player.canPhosphateSolubilization = Boolean(unlocks.phosphateSolubilization);
   player.airJumpAvailable = player.canDoubleJump;
 }

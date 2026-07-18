@@ -188,9 +188,9 @@ export function generateLevel(seedString) {
         name = 'Mira, a Micorriza';
         desc = 'As hifas ampliam o volume de solo explorado e ajudam a transportar fósforo e água até a raiz. No jogo, pressione Shift para o Impulso de Hifa.';
       }
-      if (chunk.allyId === 'phos') {
-        name = 'Sol, a Solubilizadora';
-        desc = 'A comunidade concentra secreções junto ao mineral e libera parte do fósforo antes inacessível. Pressione K para o Pulso Mineral.';
+      if (chunk.allyId === 'phos-power') {
+        name = 'Pulso de solubilização';
+        desc = 'Selecione Solubilização P, segure E perto da cepa de Bacillus e solte para disparar no depósito.';
       }
       allies.push({
         id: chunk.allyId,
@@ -208,7 +208,7 @@ export function generateLevel(seedString) {
       nextPlatform.w = Math.max(nextPlatform.w, 150);
     }
 
-    if (chunk.hasEnemy && !chunk.requires.includes('pulse') && nextPlatform.w > 130) {
+    if (chunk.hasEnemy && nextPlatform.w > 130) {
       const ew = 42;
       const eh = 38;
       enemies.push({
@@ -223,21 +223,6 @@ export function generateLevel(seedString) {
         type: chunk.pathogenType,
         logicIndex: i,
         debut: chunk.isPathogenDebut,
-      });
-    }
-
-    if (chunk.requires.includes('pulse')) {
-      const cw = 56;
-      const ch = 110;
-      crystals.push({
-        logicIndex: i,
-        requiredFeature: 'pulse',
-        x: nextPlatform.x + nextPlatform.w - cw - 5,
-        y: nextPlatform.y - ch,
-        w: cw,
-        h: ch,
-        hp: 1,
-        broken: false,
       });
     }
 

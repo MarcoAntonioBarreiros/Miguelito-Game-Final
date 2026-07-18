@@ -252,20 +252,17 @@ export function createPathogenSurvival({ state, entities, ecology }) {
       }
     }
 
-    const pulseActive = (state.level.pulses || []).some(pulse => pulse.life > 0);
     const safeFilm = filmProtectsPlayer(state);
-    if ((pulseActive || safeFilm) && carried.length) {
+    if (safeFilm && carried.length) {
       for (const juvenile of carried) juvenile.alive = false;
       const removed = carried.length;
       carried = [];
       announce(
-        pulseActive
-          ? `Pulso mineral removeu ${removed} J2 transportado${removed > 1 ? 's' : ''}.`
-          : `Biofilme de Bacillus repeliu ${removed} J2 transportado${removed > 1 ? 's' : ''}.`,
+        `Biofilme de Bacillus repeliu ${removed} J2 transportado${removed > 1 ? 's' : ''}.`,
         4.1,
         .8,
       );
-      entities.burst(center.x, center.y + 12, pulseActive ? '#ffcf8a' : '#a8ffe6', 18, 120);
+      entities.burst(center.x, center.y + 12, '#a8ffe6', 18, 120);
     }
 
     const root = standingRoot(state);

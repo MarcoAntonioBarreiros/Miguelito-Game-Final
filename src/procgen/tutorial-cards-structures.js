@@ -120,12 +120,12 @@ export const structureTutorialCards = {
   'structure-mycorrhiza-path': card(
     'structure-mycorrhiza-path',
     'Estrutura de jogo',
-    'Ponte ou escada micorrízica',
+    'Ponte micorrízica horizontal',
     'Rede hifal transformada em caminho',
     '⌁',
     '#d6afff',
     [
-      page('Função no jogo', 'Exsudatos liberados nas bordas podem orientar a formação de uma ponte ou escada que se torna atravessável quando madura.'),
+      page('Função no jogo', 'Exsudatos liberados nas bordas podem orientar uma ponte horizontal que se torna atravessável quando madura.'),
       page('Base biológica', 'A inspiração vem da capacidade das hifas de explorar o solo, conectar regiões e formar redes extensas.'),
       page('Atenção didática', 'A capacidade de sustentar Miguelito é uma metáfora de plataforma, não uma propriedade literal das hifas.'),
       page('Como criar', 'Use exsudato perto da borda de uma raiz quando houver outra plataforma alcançável.'),

@@ -217,7 +217,7 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
 
     if (!mem.announced && Math.abs((state.player.x + state.player.w / 2) - enemy.infectionX) < 330) {
       mem.announced = true;
-      announce('Controle de Rhizoctonia: Bacillus maduro contém a expansão; Pseudomonas com reserva de Fe enfraquece o fungo; o Pulso remove 1/3 da resistência.', 6.4, .2);
+      announce('Controle de Rhizoctonia: Bacillus maduro contém a expansão, Pseudomonas com reserva de Fe enfraquece o fungo e Trichoderma realiza micoparasitismo.', 6.4, .2);
     }
   }
 

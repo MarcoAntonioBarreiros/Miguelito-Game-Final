@@ -7,6 +7,7 @@ import { applyPhaseOneVerticalSlice, createFixedBlockRuntime } from './phase-one
 import { applyPhaseFourMycorrhizaIntro } from './phase-four-mycorrhiza-intro.js';
 import { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } from './phase-five-tutorial.js';
 import { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } from './phase-six-tutorial.js';
+import { applyPhaseSevenPhosphateGeometry } from './phosphate-solubilization.js';
 import {
   AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
   getPhaseManifest,
@@ -38,7 +39,7 @@ const missionDiv = document.getElementById('mission');
 const hudBar = document.getElementById('hud-bar');
 const toastDiv = document.getElementById('toast');
 const dashTouchButton = document.querySelector('[data-key="ShiftLeft"]');
-const pulseTouchButton = document.querySelector('[data-key="KeyK"]');
+const selectionTouchButton = document.querySelector('[data-key="ArrowDown"]');
 
 let campaignStorage = null;
 try { campaignStorage = window.sessionStorage; } catch (_) {}
@@ -81,6 +82,7 @@ const objectiveEvaluator = createCampaignObjectiveEvaluator({
     opportunisticFungus: sim.opportunisticFungus,
     trichoderma: trichodermaRhizoctoniaControl,
     meloidogyneControl: trichodermaMeloidogyneControl,
+    phosphate: sim.phosphateSolubilization,
   },
 });
 const fixedBlockRuntime = createFixedBlockRuntime({
@@ -153,6 +155,7 @@ function prepareLevel() {
   levelData = decorateCampaignLevel(levelData, campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
+  applyPhaseSevenPhosphateGeometry(levelData, campaign.phase);
   levelData.microbeEncounters = generateCampaignEncounters({
     platforms: levelData.platforms,
     phase: campaign.phase,
@@ -201,7 +204,7 @@ function prepareLevel() {
 const FEATURE_LABELS = {
   doubleJump: 'salto duplo',
   dash: 'Dash',
-  pulse: 'Pulso',
+  phosphateSolubilization: 'Solubilizacao de fosfato',
   mycorrhizaStructures: 'pontes micorrízicas horizontais',
   azospirillumRoots: 'escadas radiculares de Azospirillum',
 };
@@ -217,10 +220,7 @@ function updateTouchAbilityVisibility() {
     dashTouchButton.hidden = !sim.state.player.canDash;
     dashTouchButton.disabled = !sim.state.player.canDash;
   }
-  if (pulseTouchButton) {
-    pulseTouchButton.hidden = !sim.state.player.canPulse;
-    pulseTouchButton.disabled = !sim.state.player.canPulse;
-  }
+  if (selectionTouchButton) selectionTouchButton.disabled = false;
 }
 
 function initGame({ announce = false } = {}) {
@@ -386,6 +386,7 @@ function renderWorld() {
     sim.goal.render(ctx);
     sim.gameplay.render(ctx);
     sim.bacillusBioprotection.render(ctx);
+    sim.phosphateSolubilization.render(ctx);
     fixedBlockRuntime.render(ctx);
     platformVisuals.renderLabel(ctx);
   } finally {
@@ -437,7 +438,7 @@ function loop(now) {
       inoculationAction,
       player.canDoubleJump ? '⬆⬆ Salto' : null,
       player.canDash ? '💨 Dash' : null,
-      player.canPulse ? '💥 Pulso' : null,
+      player.canPhosphateSolubilization ? `P ${Math.round((player.phosphateCharge || 0) * 100)}%` : null,
     ].filter(Boolean).join(' | ');
     const infection = player.infection > .01 ? ` | Infecção: ${(player.infection * 100).toFixed(0)}%` : '';
     const fungalContamination = player.fungalContamination > .01
@@ -463,6 +464,12 @@ function loop(now) {
       : '';
     hudBar.textContent = `F${campaign.phase} · ${campaign.totalScore} pts | Solo: ${player.soil.toFixed(0)} | Esperança: ${player.hope.toFixed(0)} | Exsudatos: ${player.exudates}${infection}${fungalContamination}${bacillusDefense}${nematodePressure}${rhizoctonia}${ralstonia}${trichoRhizo}${trichoNematode}${abilities ? ' | ' + abilities : ''}`;
 
+    const availablePhosphate = (sim.state.level.availablePhosphatePools || [])
+      .reduce((sum, pool) => sum + (pool.amount || 0), 0);
+    if (campaign.phase === 7 && (availablePhosphate > .001 || sim.phosphateSolubilization.transportedPhosphate > .001)) {
+      hudBar.textContent += ` | P disponivel: ${availablePhosphate.toFixed(2)} | P transportado: ${sim.phosphateSolubilization.transportedPhosphate.toFixed(2)} | P raiz: ${sim.phosphateSolubilization.rootPhosphateStock.toFixed(2)}`;
+    }
+
     if (showDebug) {
       const logicIndex = currentLogicIndex();
       const info = levelData.debugInfo[logicIndex];
@@ -477,7 +484,7 @@ function loop(now) {
         : 100;
       debugDiv.textContent = `CAMPANHA: ${campaign.seed} | Fase ${campaign.phase} — ${profile.title} [${profile.theme}]\nSEED: ${seed} [R=nova campanha | Tab=debug]\nTrecho ${Math.max(0, logicIndex + 1)}/${levelData.debugInfo.length}`
         + (info ? ` | ${info.primitive} | ${info.logic.difficultyTarget} | vão ${info.gap}px` : '')
-        + `\nPoderes: salto ${campaign.unlocks.doubleJump ? '✓' : '—'} / dash ${campaign.unlocks.dash ? '✓' : '—'} / pulso ${campaign.unlocks.pulse ? '✓' : '—'} / pontes AM ${campaign.unlocks.mycorrhizaStructures ? '✓' : '—'} / raízes Azo ${campaign.unlocks.azospirillumRoots ? '✓' : '—'}`
+        + `\nPoderes: salto ${campaign.unlocks.doubleJump ? '✓' : '—'} / dash ${campaign.unlocks.dash ? '✓' : '—'} / solubilizacao P ${campaign.unlocks.phosphateSolubilization ? '✓' : '—'} / pontes AM ${campaign.unlocks.mycorrhizaStructures ? '✓' : '—'} / raízes Azo ${campaign.unlocks.azospirillumRoots ? '✓' : '—'}`
         + `\nCâmera: ${cameraView.zoom.toFixed(2)}× [roda ou +/− | 0=restaurar]`
         + `\nEcologia: ${sim.ecology.agents.length} organismos / ${sim.ecology.nicheCount} nichos`
         + `\nRhizoctonia: ${rhizoctoniaControl.activeCount} focos / ${rhizoctoniaControl.controlledCount} contidos por biocontrole`
@@ -492,6 +499,7 @@ function loop(now) {
         + (sim.beneficialInoculants.colonySummary ? ` [${sim.beneficialInoculants.colonySummary}]` : '')
         + `\nBacillus: ${sim.bacillusBioprotection.matureBiofilmCount} biofilmes maduros / ${sim.bacillusBioprotection.sporulatedCount} esporulados / ${sim.bacillusBioprotection.germinatingCount} reativando`
         + `\nBioproteção: ${sim.bacillusBioprotection.fungiUnderAntibiosis} fungos sob antibiose / ${sim.bacillusBioprotection.protectedRootCount} raízes protegidas`
+        + `\nFosfato: reserva Bacillus ${(sim.bacillusBioprotection.solubilizerEntries.reduce((sum, entry) => sum + (entry.phosphateMetaboliteReserve || 0), 0)).toFixed(2)} / carga ${(player.phosphateCharge || 0).toFixed(2)} / depositos ativos ${(sim.state.level.phosphateDeposits || []).filter(deposit => !deposit.broken).length} / insoluvel ${(sim.state.level.phosphateDeposits || []).reduce((sum, deposit) => sum + (deposit.remainingPhosphate || 0), 0).toFixed(2)} / disponivel ${availablePhosphate.toFixed(2)} / transportado ${sim.phosphateSolubilization.transportedPhosphate.toFixed(2)} / raiz ${sim.phosphateSolubilization.rootPhosphateStock.toFixed(2)}`
         + `\nSideróforos: ${sim.pseudomonasSiderophores.freeCount} livres / ${sim.pseudomonasSiderophores.loadedCount} com Fe³⁺ / Fe recuperado ${ironRecovered} / ${sim.pseudomonasSiderophores.fungiLimitedCount} fungos limitados`
         + `\nDepósitos Fe³⁺: ${sim.pseudomonasSiderophores.activeDepositCount}/${sim.pseudomonasSiderophores.depositCount} ativos / ${sim.pseudomonasSiderophores.activeColonyCount} colônias com reserva`
         + `\nEscadas Azo: ${sim.azospirillumRootGrowth.rootCount} totais / ${sim.azospirillumRootGrowth.growingCount} crescendo / ${sim.azospirillumRootGrowth.matureCount} maduras / ${sim.azospirillumRootGrowth.pausedCount} pausadas · N associativo ${associativeNitrogen} · sinergias ${sim.azospirillumNitrogen.synergizedNoduleCount}`
