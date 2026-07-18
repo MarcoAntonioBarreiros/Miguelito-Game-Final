@@ -3192,6 +3192,8 @@ function createSimulator() {
   // A ponte micorrizica passa a exigir colonia inoculada na raiz de origem, em
   // vez de nascer de qualquer exsudato solto perto de uma borda.
   mycorrhizaStructures.setInoculants(beneficialInoculants);
+  // A micorriza inoculada emite hifas e forma arbusculos como a do cenario.
+  mycorrhiza.setInoculants(beneficialInoculants);
   beneficialInoculants.setSelection(inoculumSelection);
   trichodermaColonies.setSelection(inoculumSelection);
   gameplay.setSelection(inoculumSelection);
@@ -4701,7 +4703,7 @@ const MICROBE_MOTION_PROFILES = {
     color: '#d6afff', count: 6, speed: 16, radius: 94,
     cohesion: .17, alignment: .04, separation: 1.44,
     homePull: .94, playerPull: .03, wander: .16,
-    kind: 'spore', flagella: null, scale: .86, trail: false,
+    kind: 'hypha', flagella: null, scale: .86, trail: false,
   },
 };
 
@@ -4807,6 +4809,57 @@ function drawBacterium(ctx, time, agent, profile) {
     ctx.arc(-7 + i * 4.5, Math.sin(time * 2 + agent.phase + i) * 1.2, .8, 0, TAU);
     ctx.fill();
   }
+  ctx.restore();
+}
+
+// Propagulo micorrizico: fragmento de hifa com septo e ponta viva, nao esporo
+// nem bacteria. Mantem a leitura filamentosa da micorriza tambem quando ela
+// ainda esta solta no solo, esperando ser capturada.
+function drawHyphalFragment(ctx, time, agent, profile) {
+  const s = agent.size * profile.scale;
+  const sway = Math.sin(time * 1.6 + agent.phase) * .22;
+  ctx.save();
+  ctx.translate(agent.x, agent.y);
+  ctx.rotate(agent.angle + sway);
+
+  const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, 26 * s);
+  halo.addColorStop(0, `${profile.color}55`);
+  halo.addColorStop(1, `${profile.color}00`);
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(0, 0, 26 * s, 0, TAU);
+  ctx.fill();
+
+  ctx.strokeStyle = profile.color;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 3.1 * s;
+  ctx.beginPath();
+  ctx.moveTo(-15 * s, 2 * s);
+  ctx.bezierCurveTo(-5 * s, -5 * s, 5 * s, 5 * s, 15 * s, -2 * s);
+  ctx.stroke();
+
+  // Ramo lateral curto: a hifa se ramifica, e e isso que a distingue.
+  ctx.lineWidth = 2.1 * s;
+  ctx.beginPath();
+  ctx.moveTo(1 * s, 1 * s);
+  ctx.quadraticCurveTo(5 * s, -7 * s, 11 * s, -9 * s);
+  ctx.stroke();
+
+  // Septos.
+  ctx.strokeStyle = 'rgba(255,255,255,.42)';
+  ctx.lineWidth = 1;
+  for (const at of [-7, 0, 7]) {
+    ctx.beginPath();
+    ctx.moveTo(at * s, -3.2 * s);
+    ctx.lineTo(at * s, 3.2 * s);
+    ctx.stroke();
+  }
+
+  // Ponta apical mais clara: onde a hifa cresce.
+  ctx.fillStyle = profile.pale || 'rgba(255,255,255,.8)';
+  ctx.beginPath();
+  ctx.arc(15 * s, -2 * s, 2.4 * s, 0, TAU);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -5183,7 +5236,8 @@ function createMicrobeEcology({ state, entities }) {
       if (!profile) continue;
       // O fungo oportunista é desenhado como rede hifal pelo sistema dedicado.
       if (agent.type === 'oportunista') continue;
-      if (profile.kind === 'spore' || profile.kind === 'conidium') drawSpore(ctx, state.time, agent, profile);
+      if (profile.kind === 'hypha') drawHyphalFragment(ctx, state.time, agent, profile);
+      else if (profile.kind === 'spore' || profile.kind === 'conidium') drawSpore(ctx, state.time, agent, profile);
       else drawBacterium(ctx, state.time, agent, profile);
     }
 
@@ -5283,12 +5337,40 @@ function avoidHazards(state, tip) {
   return { x: fx, y: fy };
 }
 
-function createMycorrhizaGrowth({ state, entities }) {
+function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
   const networks = [];
   let active = false;
+  let activeInoculants = inoculants;
+
+  // A micorriza inoculada tem a mesma morfologia da que estreia no cenario:
+  // emite hifas e forma arbusculos na raiz. Sem isto ela ficaria sendo apenas
+  // uma colonia desenhada, sem a estrutura que a define.
+  function spawnFromColonies() {
+    for (const colony of activeInoculants?.colonies || []) {
+      if (colony.type !== 'myco' || colony.dormant) continue;
+      if (colony.growth < .68 || colony.vigor <= .05) continue;
+      if (networks.some(network => network.colony === colony)) continue;
+      networks.push({
+        ally: null,
+        colony,
+        x: colony.x,
+        y: colony.y,
+        germination: 0,
+        pulse: Math.random() * TAU,
+        hypha: null,
+        arbuscules: [],
+        exudateContacts: new Set(),
+      });
+      active = true;
+    }
+  }
 
   function exposeArbuscules() {
     state.level.mycorrhizaArbuscules = networks.flatMap(network => network.arbuscules);
+  }
+
+  function setInoculants(next) {
+    activeInoculants = next;
   }
 
   function clear() {
@@ -5350,24 +5432,34 @@ function createMycorrhizaGrowth({ state, entities }) {
   }
 
   function update(dt) {
+    spawnFromColonies();
     if (!active) return;
     for (const network of networks) {
+      // Uma rede inoculada acompanha a colonia: se ela se move ou e reposta, a
+      // ancora vai junto.
+      if (network.colony) {
+        network.x = network.colony.x;
+        network.y = network.colony.y;
+      }
       const playerDistance = Math.hypot(
         state.player.x + state.player.w / 2 - network.x,
         state.player.y + state.player.h / 2 - network.y,
       );
-      const awakened = playerDistance < 900 || network.ally.taken;
+      // A rede que nasce de inoculacao ja esta estabelecida: nao depende de o
+      // jogador chegar perto nem de recolher um aliado do cenario.
+      const established = Boolean(network.colony) || Boolean(network.ally?.taken);
+      const awakened = established || playerDistance < 900;
       if (!awakened) continue;
 
-      network.germination = clamp(network.germination + dt * (network.ally.taken ? .72 : .34), 0, 1);
+      network.germination = clamp(network.germination + dt * (established ? .72 : .34), 0, 1);
       if (network.germination > .16) ensureHypha(network);
       if (!network.hypha) continue;
 
       updateHyphalNetwork(network.hypha, dt, {
         time: state.time,
         bounds: { minX: 8, maxX: (state.level.endX || 6500) - 8, minY: 58, maxY: H - 48 },
-        growthScale: network.ally.taken ? 1.55 : .8,
-        branchScale: network.ally.taken ? 1.15 : .82,
+        growthScale: established ? 1.55 : .8,
+        branchScale: established ? 1.15 : .82,
         targetProvider: tip => nearestRootTarget(state, tip.x, tip.y, tip.totalDistance < 70 ? 75 : 0),
         avoidanceProvider: tip => avoidHazards(state, tip),
         onFirstContact: (hypha, tip, target) => {
@@ -5400,7 +5492,8 @@ function createMycorrhizaGrowth({ state, entities }) {
   }
 
   function drawNetwork(ctx, network) {
-    const sporeAlpha = network.ally.taken ? .28 : 1;
+    // Rede inoculada nao tem esporo de cenario para desenhar por baixo.
+    const sporeAlpha = network.colony || network.ally?.taken ? .28 : 1;
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     ctx.globalAlpha = sporeAlpha;
@@ -5449,7 +5542,8 @@ function createMycorrhizaGrowth({ state, entities }) {
       }
     }
 
-    if (!network.ally.taken && Math.abs(network.x - (state.cameraX + W / 2)) < W * .7) {
+    if (!network.colony && !network.ally?.taken
+      && Math.abs(network.x - (state.cameraX + W / 2)) < W * .7) {
       ctx.font = '700 12px Inter,system-ui';
       ctx.textAlign = 'center';
       ctx.fillStyle = '#f4e6ff';
@@ -5477,6 +5571,7 @@ function createMycorrhizaGrowth({ state, entities }) {
     reset,
     update,
     render,
+    setInoculants,
   };
 }
 Object.assign(__exports, { createMycorrhizaGrowth });

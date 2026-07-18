@@ -49,7 +49,7 @@ export const MICROBE_MOTION_PROFILES = {
     color: '#d6afff', count: 6, speed: 16, radius: 94,
     cohesion: .17, alignment: .04, separation: 1.44,
     homePull: .94, playerPull: .03, wander: .16,
-    kind: 'spore', flagella: null, scale: .86, trail: false,
+    kind: 'hypha', flagella: null, scale: .86, trail: false,
   },
 };
 
@@ -155,6 +155,57 @@ function drawBacterium(ctx, time, agent, profile) {
     ctx.arc(-7 + i * 4.5, Math.sin(time * 2 + agent.phase + i) * 1.2, .8, 0, TAU);
     ctx.fill();
   }
+  ctx.restore();
+}
+
+// Propagulo micorrizico: fragmento de hifa com septo e ponta viva, nao esporo
+// nem bacteria. Mantem a leitura filamentosa da micorriza tambem quando ela
+// ainda esta solta no solo, esperando ser capturada.
+function drawHyphalFragment(ctx, time, agent, profile) {
+  const s = agent.size * profile.scale;
+  const sway = Math.sin(time * 1.6 + agent.phase) * .22;
+  ctx.save();
+  ctx.translate(agent.x, agent.y);
+  ctx.rotate(agent.angle + sway);
+
+  const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, 26 * s);
+  halo.addColorStop(0, `${profile.color}55`);
+  halo.addColorStop(1, `${profile.color}00`);
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(0, 0, 26 * s, 0, TAU);
+  ctx.fill();
+
+  ctx.strokeStyle = profile.color;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 3.1 * s;
+  ctx.beginPath();
+  ctx.moveTo(-15 * s, 2 * s);
+  ctx.bezierCurveTo(-5 * s, -5 * s, 5 * s, 5 * s, 15 * s, -2 * s);
+  ctx.stroke();
+
+  // Ramo lateral curto: a hifa se ramifica, e e isso que a distingue.
+  ctx.lineWidth = 2.1 * s;
+  ctx.beginPath();
+  ctx.moveTo(1 * s, 1 * s);
+  ctx.quadraticCurveTo(5 * s, -7 * s, 11 * s, -9 * s);
+  ctx.stroke();
+
+  // Septos.
+  ctx.strokeStyle = 'rgba(255,255,255,.42)';
+  ctx.lineWidth = 1;
+  for (const at of [-7, 0, 7]) {
+    ctx.beginPath();
+    ctx.moveTo(at * s, -3.2 * s);
+    ctx.lineTo(at * s, 3.2 * s);
+    ctx.stroke();
+  }
+
+  // Ponta apical mais clara: onde a hifa cresce.
+  ctx.fillStyle = profile.pale || 'rgba(255,255,255,.8)';
+  ctx.beginPath();
+  ctx.arc(15 * s, -2 * s, 2.4 * s, 0, TAU);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -531,7 +582,8 @@ export function createMicrobeEcology({ state, entities }) {
       if (!profile) continue;
       // O fungo oportunista é desenhado como rede hifal pelo sistema dedicado.
       if (agent.type === 'oportunista') continue;
-      if (profile.kind === 'spore' || profile.kind === 'conidium') drawSpore(ctx, state.time, agent, profile);
+      if (profile.kind === 'hypha') drawHyphalFragment(ctx, state.time, agent, profile);
+      else if (profile.kind === 'spore' || profile.kind === 'conidium') drawSpore(ctx, state.time, agent, profile);
       else drawBacterium(ctx, state.time, agent, profile);
     }
 
