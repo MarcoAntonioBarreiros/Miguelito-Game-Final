@@ -10,13 +10,29 @@ function routePlatforms(level) {
     .sort((a, b) => (a.logicIndex ?? 0) - (b.logicIndex ?? 0) || a.x - b.x);
 }
 
-export function applyPhaseSevenPhosphateGeometry(level, phase) {
+// Fracoes tiradas da fase padrao (rota de 17: colonia 2, deposito 6, raiz 9).
+// Indices fixos faziam a fase inteira desaparecer quando o Phase Lab a encurtava
+// — sem colonia, sem deposito e sem raiz-alvo o finalTest fica inalcancavel e a
+// fase trava. As fracoes acompanham o reescalonamento.
+const COLONY_RATIO = .125;
+const DEPOSIT_RATIO = .375;
+const ROOT_RATIO = .5625;
+
+export function applyPhaseSevenPhosphateGeometry(level, phase, config = null) {
   if (phase !== 7) return level;
   const platforms = routePlatforms(level);
-  if (platforms.length < 10) return level;
-  const colonyPlatform = platforms[Math.min(2, platforms.length - 1)];
-  const depositPlatform = platforms[Math.min(6, platforms.length - 1)];
-  const rootPlatform = platforms[Math.min(9, platforms.length - 1)];
+  // Abaixo disso nao cabem tres pontos distintos na ordem colonia -> deposito ->
+  // raiz, e forcar geraria uma fase pior que uma fase sem desafio.
+  if (platforms.length < 5) return level;
+  const settings = { ...PHOSPHATE_SOLUBILIZATION_DEFAULTS, ...(config || {}) };
+  const last = platforms.length - 1;
+  const at = ratio => Math.max(1, Math.round(last * ratio));
+  const colonyIndex = at(COLONY_RATIO);
+  const depositIndex = Math.max(colonyIndex + 1, at(DEPOSIT_RATIO));
+  const rootIndex = Math.min(last, Math.max(depositIndex + 1, at(ROOT_RATIO)));
+  const colonyPlatform = platforms[colonyIndex];
+  const depositPlatform = platforms[depositIndex];
+  const rootPlatform = platforms[rootIndex];
   rootPlatform.type = 'root';
   rootPlatform.phosphateTarget = true;
   rootPlatform.phosphateStock = 0;
@@ -33,15 +49,19 @@ export function applyPhaseSevenPhosphateGeometry(level, phase) {
     rechargeIntensity: .35,
   }];
 
+  // O deposito e o desafio-assinatura da fase: ele fecha a rota e so a
+  // solubilizacao abre. A altura precisa derrotar salto duplo mais dash, senao
+  // vira cenario. Ver a medicao em PHOSPHATE_SOLUBILIZATION_DEFAULTS.
+  const depositHeight = Math.max(190, Number(settings.depositHeight) || 210);
   const deposit = {
     id: 'phase-7-phosphate-deposit',
     phosphateDeposit: true,
     logicIndex: depositPlatform.logicIndex,
     requiredFeature: 'phosphateSolubilization',
     x: depositPlatform.x + depositPlatform.w - 64,
-    y: depositPlatform.y - 150,
+    y: depositPlatform.y - depositHeight,
     w: 58,
-    h: 150,
+    h: depositHeight,
     remainingPhosphate: 1,
     initialPhosphate: 1,
     hp: 1,

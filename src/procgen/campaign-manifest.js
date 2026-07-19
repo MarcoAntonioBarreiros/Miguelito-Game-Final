@@ -99,6 +99,12 @@ export const PHOSPHATE_SOLUBILIZATION_DEFAULTS = Object.freeze({
   // Alcance da colonia de micorriza inoculada ate a poca de fosfato disponivel.
   mycorrhizalReach: 320,
   minimumTransportedPhosphate: .65,
+  // Medido: um deposito de 150px se transpoe com salto duplo mais dash em 44 de
+  // 48 tentativas, e ate 170px ainda passa. A partir de 190px nao passa em
+  // nenhuma. 210px deixa margem para variacao de timing sem virar parede
+  // absurda. Abaixo disso o deposito e cenario: o jogador pula por cima e nunca
+  // precisa solubilizar nada para seguir.
+  depositHeight: 210,
 });
 
 export const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
@@ -900,6 +906,11 @@ export function validateCampaignManifest({
       }
       if (phosphate.minimumTransportedPhosphate <= 0) {
         errors.push(`${phase.id}: phosphateSolubilization.minimumTransportedPhosphate invalido.`);
+      }
+      // Medido: ate 170px o salto duplo com dash transpoe o deposito e ele deixa
+      // de exigir a solubilizacao para seguir.
+      if (phosphate.depositHeight < 190) {
+        errors.push(`${phase.id}: deposito de ${phosphate.depositHeight}px se transpoe pulando; minimo 190.`);
       }
     }
 

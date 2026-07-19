@@ -1002,7 +1002,11 @@ function prepareLevel() {
   // Garante que a mecanica-tema da fase seja necessaria ao menos uma vez.
   applySignatureChallenge(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
-  applyPhaseSevenPhosphateGeometry(levelData, campaign.phase);
+  applyPhaseSevenPhosphateGeometry(
+    levelData,
+    campaign.phase,
+    getPhaseManifest(campaign.phase)?.phosphateSolubilization,
+  );
   levelData.microbeEncounters = generateCampaignEncounters({
     platforms: levelData.platforms,
     phase: campaign.phase,
@@ -1911,6 +1915,12 @@ const PHOSPHATE_SOLUBILIZATION_DEFAULTS = Object.freeze({
   // Alcance da colonia de micorriza inoculada ate a poca de fosfato disponivel.
   mycorrhizalReach: 320,
   minimumTransportedPhosphate: .65,
+  // Medido: um deposito de 150px se transpoe com salto duplo mais dash em 44 de
+  // 48 tentativas, e ate 170px ainda passa. A partir de 190px nao passa em
+  // nenhuma. 210px deixa margem para variacao de timing sem virar parede
+  // absurda. Abaixo disso o deposito e cenario: o jogador pula por cima e nunca
+  // precisa solubilizar nada para seguir.
+  depositHeight: 210,
 });
 
 const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
@@ -2712,6 +2722,11 @@ function validateCampaignManifest({
       }
       if (phosphate.minimumTransportedPhosphate <= 0) {
         errors.push(`${phase.id}: phosphateSolubilization.minimumTransportedPhosphate invalido.`);
+      }
+      // Medido: ate 170px o salto duplo com dash transpoe o deposito e ele deixa
+      // de exigir a solubilizacao para seguir.
+      if (phosphate.depositHeight < 190) {
+        errors.push(`${phase.id}: deposito de ${phosphate.depositHeight}px se transpoe pulando; minimo 190.`);
       }
     }
 
@@ -13205,13 +13220,29 @@ function routePlatforms(level) {
     .sort((a, b) => (a.logicIndex ?? 0) - (b.logicIndex ?? 0) || a.x - b.x);
 }
 
-function applyPhaseSevenPhosphateGeometry(level, phase) {
+// Fracoes tiradas da fase padrao (rota de 17: colonia 2, deposito 6, raiz 9).
+// Indices fixos faziam a fase inteira desaparecer quando o Phase Lab a encurtava
+// — sem colonia, sem deposito e sem raiz-alvo o finalTest fica inalcancavel e a
+// fase trava. As fracoes acompanham o reescalonamento.
+const COLONY_RATIO = .125;
+const DEPOSIT_RATIO = .375;
+const ROOT_RATIO = .5625;
+
+function applyPhaseSevenPhosphateGeometry(level, phase, config = null) {
   if (phase !== 7) return level;
   const platforms = routePlatforms(level);
-  if (platforms.length < 10) return level;
-  const colonyPlatform = platforms[Math.min(2, platforms.length - 1)];
-  const depositPlatform = platforms[Math.min(6, platforms.length - 1)];
-  const rootPlatform = platforms[Math.min(9, platforms.length - 1)];
+  // Abaixo disso nao cabem tres pontos distintos na ordem colonia -> deposito ->
+  // raiz, e forcar geraria uma fase pior que uma fase sem desafio.
+  if (platforms.length < 5) return level;
+  const settings = { ...PHOSPHATE_SOLUBILIZATION_DEFAULTS, ...(config || {}) };
+  const last = platforms.length - 1;
+  const at = ratio => Math.max(1, Math.round(last * ratio));
+  const colonyIndex = at(COLONY_RATIO);
+  const depositIndex = Math.max(colonyIndex + 1, at(DEPOSIT_RATIO));
+  const rootIndex = Math.min(last, Math.max(depositIndex + 1, at(ROOT_RATIO)));
+  const colonyPlatform = platforms[colonyIndex];
+  const depositPlatform = platforms[depositIndex];
+  const rootPlatform = platforms[rootIndex];
   rootPlatform.type = 'root';
   rootPlatform.phosphateTarget = true;
   rootPlatform.phosphateStock = 0;
@@ -13228,15 +13259,19 @@ function applyPhaseSevenPhosphateGeometry(level, phase) {
     rechargeIntensity: .35,
   }];
 
+  // O deposito e o desafio-assinatura da fase: ele fecha a rota e so a
+  // solubilizacao abre. A altura precisa derrotar salto duplo mais dash, senao
+  // vira cenario. Ver a medicao em PHOSPHATE_SOLUBILIZATION_DEFAULTS.
+  const depositHeight = Math.max(190, Number(settings.depositHeight) || 210);
   const deposit = {
     id: 'phase-7-phosphate-deposit',
     phosphateDeposit: true,
     logicIndex: depositPlatform.logicIndex,
     requiredFeature: 'phosphateSolubilization',
     x: depositPlatform.x + depositPlatform.w - 64,
-    y: depositPlatform.y - 150,
+    y: depositPlatform.y - depositHeight,
     w: 58,
-    h: 150,
+    h: depositHeight,
     remainingPhosphate: 1,
     initialPhosphate: 1,
     hp: 1,
@@ -15095,13 +15130,41 @@ function applyPhaseLabResources(level, phaseManifest, seedValue) {
 Object.assign(__exports, { PHASE_LAB_STORAGE_KEY, PHASE_LAB_MAX_RESOURCES, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, createDefaultPhaseLabConfig, buildPhaseLabManifest, validatePhaseLabConfig, applyPhaseLabResources });
 },
 "src/procgen/phase-lab.js": (__exports, __require) => {
-const { campaignManifest, ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
+const { campaignManifest, ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");
+const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 
 const MELOIDOGYNE_FIELDS = Object.freeze([
   'focusSpacingChunks', 'maxFoci', 'maxGenerations',
   'maxSimultaneousEggMasses', 'senescenceSeconds', 'completedCycleScar',
 ]);
+
+// A lista sai dos proprios defaults. Quando ela era escrita a mao, uma chave
+// nova (mycorrhizalReach) ficava sem campo no painel, o valor lido virava NaN e
+// a fase 7 inteira parava de abrir no Phase Lab com "parametro invalido".
+const PHOSPHATE_FIELDS = Object.freeze(Object.keys(PHOSPHATE_SOLUBILIZATION_DEFAULTS));
+const PHOSPHATE_LABELS = Object.freeze({
+  absorptionRadius: 'Raio de carga',
+  chargeTimeSeconds: 'Tempo de carga (s)',
+  minimumCharge: 'Carga minima',
+  maximumCharge: 'Carga maxima',
+  shotRange: 'Alcance',
+  shotSpeed: 'Velocidade do disparo',
+  amountSolubilizedPerCharge: 'Solubilizacao/carga',
+  metaboliteProductionRate: 'Producao metabolitos',
+  exudateProductionMultiplier: 'Multiplicador exsudato',
+  localPoolCaptureRadius: 'Raio de captacao',
+  mycorrhizalTransportRate: 'Transporte micorrizico',
+  mycorrhizalReach: 'Alcance da micorriza',
+  minimumTransportedPhosphate: 'P minimo transportado',
+  depositHeight: 'Altura do deposito (min 190)',
+});
+const PHOSPHATE_STEPS = Object.freeze({
+  chargeTimeSeconds: '0.1', minimumCharge: '0.01', maximumCharge: '0.01',
+  amountSolubilizedPerCharge: '0.05', metaboliteProductionRate: '0.01',
+  exudateProductionMultiplier: '0.1', mycorrhizalTransportRate: '0.01',
+  minimumTransportedPhosphate: '0.05', depositHeight: '10',
+});
 
 function readConfig(storage) {
   try {
@@ -15256,18 +15319,7 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
         <label>Supressão aderência<input data-iron-control="adhesionSuppression" type="number" min="0" max="1" step="0.05"></label>
       </div></fieldset>
       <fieldset><legend>Solubilizacao e transporte de fosfato</legend><div class="resources">
-        <label>Raio de carga<input data-phosphate="absorptionRadius" type="number" min="40" step="5"></label>
-        <label>Tempo de carga (s)<input data-phosphate="chargeTimeSeconds" type="number" min="0.1" step="0.1"></label>
-        <label>Carga minima<input data-phosphate="minimumCharge" type="number" min="0.01" max="1" step="0.01"></label>
-        <label>Carga maxima<input data-phosphate="maximumCharge" type="number" min="0.01" max="2" step="0.01"></label>
-        <label>Alcance<input data-phosphate="shotRange" type="number" min="80" step="10"></label>
-        <label>Velocidade do disparo<input data-phosphate="shotSpeed" type="number" min="50" step="10"></label>
-        <label>Solubilizacao/carga<input data-phosphate="amountSolubilizedPerCharge" type="number" min="0.01" step="0.05"></label>
-        <label>Producao metabolitos<input data-phosphate="metaboliteProductionRate" type="number" min="0" step="0.01"></label>
-        <label>Multiplicador exsudato<input data-phosphate="exudateProductionMultiplier" type="number" min="1" step="0.1"></label>
-        <label>Raio de captacao<input data-phosphate="localPoolCaptureRadius" type="number" min="20" step="5"></label>
-        <label>Transporte micorrizico<input data-phosphate="mycorrhizalTransportRate" type="number" min="0" step="0.01"></label>
-        <label>P minimo transportado<input data-phosphate="minimumTransportedPhosphate" type="number" min="0" step="0.05"></label>
+        ${PHOSPHATE_FIELDS.map(key => `<label>${PHOSPHATE_LABELS[key] || key}<input data-phosphate="${key}" type="number" min="0" step="${PHOSPHATE_STEPS[key] || '1'}"></label>`).join('')}
       </div></fieldset>
       <fieldset><legend>Meloidogyne</legend><div class="resources">
         <label>Focos: 1 a cada N chunks<input data-meloidogyne="focusSpacingChunks" type="number" min="2" max="40"></label>
@@ -15323,7 +15375,7 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
       for (const key of MELOIDOGYNE_FIELDS) {
         panel.querySelector(`[data-meloidogyne="${key}"]`).value = next.meloidogyne?.[key] ?? '';
       }
-      for (const key of ['absorptionRadius', 'chargeTimeSeconds', 'minimumCharge', 'maximumCharge', 'shotRange', 'shotSpeed', 'amountSolubilizedPerCharge', 'metaboliteProductionRate', 'exudateProductionMultiplier', 'localPoolCaptureRadius', 'mycorrhizalTransportRate', 'minimumTransportedPhosphate']) {
+      for (const key of PHOSPHATE_FIELDS) {
         panel.querySelector(`[data-phosphate="${key}"]`).value = next.phosphateSolubilization?.[key] ?? '';
       }
     }
@@ -15377,7 +15429,7 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
         phosphateSolubilization: {
           ...config.phosphateSolubilization,
           ...Object.fromEntries(
-            ['absorptionRadius', 'chargeTimeSeconds', 'minimumCharge', 'maximumCharge', 'shotRange', 'shotSpeed', 'amountSolubilizedPerCharge', 'metaboliteProductionRate', 'exudateProductionMultiplier', 'localPoolCaptureRadius', 'mycorrhizalTransportRate', 'minimumTransportedPhosphate']
+            PHOSPHATE_FIELDS
               .map(key => [key, Number(panel.querySelector(`[data-phosphate="${key}"]`).value)]),
           ),
         },
