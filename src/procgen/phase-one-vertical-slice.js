@@ -1,4 +1,5 @@
 import { getPhaseManifest } from './campaign-manifest.js';
+import { drawWorldLabel } from './world-label.js';
 
 const BLOCK_LAYOUTS = Object.freeze({
   'phase1-intro-v1': Object.freeze({
@@ -264,32 +265,17 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
       || (state.level.biofilms || []).some(film => film.platform?.objectiveTarget === 'p1-intro-root');
   }
 
-  // Sem caixa e sem contorno: a moldura transformava a orientacao num widget
-  // colado por cima da cena. Legibilidade vem de sombra e de um escurecimento
-  // suave sem borda, entao o texto pertence ao mundo em vez de flutuar sobre ele.
+  // A tentativa anterior usava um gradiente radial pintado num fillRect: como o
+  // raio era calculado pela largura do texto, o topo e a base do retangulo eram
+  // cortados no meio do gradiente e apareciam como uma faixa escura de aresta
+  // dura — a mesma caixa quadrada de antes, so que pior. Agora e so texto com
+  // glow, igual ao nome das colonias.
   function drawGuidance(ctx, x, y, label, color = '#ffd56f') {
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '900 13px Inter,system-ui';
-    const width = ctx.measureText(label).width;
-
-    const shade = ctx.createRadialGradient(x, y, 0, x, y, width * .62);
-    shade.addColorStop(0, 'rgba(3,16,22,.82)');
-    shade.addColorStop(.6, 'rgba(3,16,22,.5)');
-    shade.addColorStop(1, 'rgba(3,16,22,0)');
-    ctx.fillStyle = shade;
-    ctx.fillRect(x - width * .7, y - 22, width * 1.4, 44);
-
-    ctx.shadowColor = 'rgba(0,0,0,.95)';
-    ctx.shadowBlur = 7;
-    ctx.fillStyle = 'rgba(0,0,0,.7)';
-    ctx.fillText(label, x, y + 1.5);
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = color === '#ffd56f' ? 'rgba(255,190,90,.5)' : 'rgba(0,0,0,.8)';
-    ctx.fillStyle = color === '#ffd56f' ? '#ffe58f' : color;
-    ctx.fillText(label, x, y + .5);
-    ctx.restore();
+    drawWorldLabel(ctx, x, y, label, {
+      color: color === '#ffd56f' ? '#ffe58f' : color,
+      font: '900 15px Inter,system-ui',
+      glow: 14,
+    });
   }
 
   function render(ctx) {

@@ -1,5 +1,6 @@
 import { W } from '../core/constants.js';
 import { createRandom } from './random.js';
+import { drawWorldLabel } from './world-label.js';
 
 export const NITROGEN_ROOT_BLOCK_TYPE = 'underdeveloped-nitrogen-root';
 
@@ -419,21 +420,11 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
       const label = progress > 0
         ? `Raiz recebendo N · ${percent}%`
         : 'Raiz subdesenvolvida · forme o nódulo na raiz anterior';
-      ctx.font = '700 10px Inter, system-ui, sans-serif';
-      const labelWidth = Math.min(286, ctx.measureText(label).width + 20);
-      const labelX = root.x + root.targetWidth / 2 - labelWidth / 2;
-      const labelY = root.y - 27;
-      ctx.fillStyle = 'rgba(5, 24, 31, .9)';
-      ctx.strokeStyle = progress > 0 ? 'rgba(137, 224, 218, .92)' : 'rgba(255, 211, 111, .92)';
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.roundRect(labelX, labelY, labelWidth, 20, 10);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = progress > 0 ? '#a8f0ea' : '#ffd36f';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, root.x + root.targetWidth / 2, labelY + 10, labelWidth - 14);
+      drawWorldLabel(ctx, root.x + root.targetWidth / 2, root.y - 20, label, {
+        color: progress > 0 ? '#a8f0ea' : '#ffd36f',
+        font: '800 12px Inter,system-ui',
+        glow: 12,
+      });
     }
     ctx.restore();
   }

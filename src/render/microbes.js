@@ -1,4 +1,5 @@
 import { W } from '../core/constants.js';
+import { drawWorldLabel } from '../procgen/world-label.js';
 import { lerp } from '../core/math.js';
 import { microbeCatalog, microbeEncounters } from '../data/microbes.js';
 
@@ -152,20 +153,12 @@ export function createMicrobeRenderer({ ctx, state, entities }) {
     if (Math.hypot(z.x - px, z.y - py) > 220) return;
     const m = microbeCatalog[z.id];
     const known = state.discoveredMicrobes.has(z.id);
-    ctx.save();
-    ctx.font = '700 12px Inter,system-ui';
     const label = known ? m.name : 'Sinal biológico';
-    const w = ctx.measureText(label).width + 22;
-    ctx.fillStyle = 'rgba(4,16,20,.78)';
-    ctx.strokeStyle = known ? m.color : 'rgba(255,255,255,.18)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(z.x - w / 2, z.y - 105, w, 27, 12);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = known ? '#effff6' : '#c0d3cb';
-    ctx.fillText(label, z.x - w / 2 + 11, z.y - 87);
-    ctx.restore();
+    drawWorldLabel(ctx, z.x, z.y - 91, label, {
+      color: known ? '#effff6' : '#c0d3cb',
+      font: '800 13px Inter,system-ui',
+      glow: known ? 12 : 7,
+    });
   }
 
   function drawRhizobiumScene(z) {

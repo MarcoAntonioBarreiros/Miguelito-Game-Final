@@ -1,4 +1,5 @@
 import { H, W } from '../core/constants.js';
+import { drawWorldLabel } from './world-label.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -329,19 +330,9 @@ export function createPlatformVisuals({ state }) {
     );
     const screenY = clamp(platform.y + 17, 54, H - 24);
 
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.font = '800 11px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0,0,0,.9)';
-    ctx.shadowBlur = 5;
-    ctx.fillStyle = 'rgba(0,0,0,.62)';
-    ctx.fillText(text, screenX, screenY + 1);
-    ctx.shadowBlur = 3;
-    ctx.fillStyle = color;
-    ctx.fillText(text, screenX, screenY);
-    ctx.restore();
+    drawWorldLabel(ctx, screenX, screenY, text, {
+      color, font: '800 12px Inter,system-ui', glow: 9, alpha,
+    });
   }
 
   return { drawWorld, renderLabel };
