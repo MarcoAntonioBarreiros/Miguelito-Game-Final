@@ -106,13 +106,19 @@ export function createPlayerSprite(skin) {
     const index = frameIndex(sheet, player, time);
 
     // O renderer ja aplicou translate para o centro do jogador e o scale do
-    // facing, entao aqui basta desenhar em torno da origem. Os pes encostam na
-    // base da caixa de colisao: e o pe que precisa bater na plataforma.
+    // facing, entao aqui basta desenhar em torno da origem.
+    //
+    // O alinhamento e pela linha do pe, nao pelo fundo do quadro: quase toda
+    // folha exportada tem vazio embaixo do personagem, e alinhar pelo fundo faz
+    // ele flutuar essa sobra inteira acima da plataforma. baseline diz em que
+    // fracao da altura do quadro esta o chao.
     const footY = player.h / 2;
+    const baseline = Number.isFinite(sheet.baseline) ? sheet.baseline : 1;
+    const top = footY - drawHeight * baseline + offsetY;
     ctx.drawImage(
       sheet.image,
       index * frameWidth, 0, frameWidth, frameHeight,
-      -drawWidth / 2 + offsetX, footY - drawHeight + offsetY, drawWidth, drawHeight,
+      -drawWidth / 2 + offsetX, top, drawWidth, drawHeight,
     );
     return true;
   }

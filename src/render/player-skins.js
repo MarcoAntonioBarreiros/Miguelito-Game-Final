@@ -24,17 +24,28 @@ export const PLAYER_SKINS = Object.freeze({
     // A arte e mais alta que a caixa de colisao de 32x48 — cabeca e mochila
     // passam do corpo fisico, como em quase todo personagem de plataforma. A
     // caixa nao muda: a fisica ja esta medida e validada em cima dela.
-    heightScale: 1.32,
+    //
+    // Medido na folha: o corpo ocupa ~356 dos 400px do quadro, entao com
+    // heightScale 1.2 o Miguelito aparece com ~51px de altura visivel para uma
+    // caixa de 48px. Fica um pouco maior que o astronauta, que desenha 42px.
+    heightScale: 1.2,
     offsetX: 0,
+    // Medido quadro a quadro, o pe ficava de 1 a 3px acima da plataforma. Esses
+    // 2px encostam o passo mais baixo no chao; a variacao que sobra e o balanco
+    // natural da corrida, nao erro de encaixe.
     offsetY: 2,
     states: Object.freeze({
       // Enquanto so existir a tira de corrida, ela responde por tudo: parado
       // usa o primeiro quadro, pulo e dash caem nela pela cadeia de fallback.
       run: Object.freeze({
         src: 'assets/miguelito/run.png',
-        frames: 9,
+        // Medido na folha: 2560x400, oito quadros de exatamente 320px.
+        frames: 8,
         fps: 12,
         speedFromMotion: true,
+        // O pe mais baixo da folha esta na linha 379 de 400: sobra 20px de
+        // vazio embaixo. Sem isto o personagem flutua essa sobra inteira.
+        baseline: 379 / 400,
       }),
       // Quando as outras folhas chegarem, e so descomentar e ajustar frames:
       // idle:      { src: 'assets/miguelito/idle.png', frames: 4, fps: 6 },

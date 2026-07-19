@@ -28,9 +28,27 @@ altura em todos os quadros, senão a corrida sobe e desce.
 
 ## Arquivos
 
-| arquivo | estado | quadros declarados |
-|---|---|---|
-| `run.png` | corrida | 9 |
+| arquivo | estado | quadros | medida |
+|---|---|---|---|
+| `run.png` | corrida | 8 | 2560x400 (320x400 por quadro) |
+
+## Medidas da folha de corrida (para as proximas baterem)
+
+Medidas pixel a pixel na `run.png` que ja esta aqui:
+
+- **8 quadros de exatamente 320px.** Divisao limpa, sem margem sobrando.
+- **Fundo transparente**, com colunas totalmente vazias entre as figuras.
+- **Chao na linha 379 de 400** — sobram 20px de vazio abaixo do pe mais baixo.
+- **A base varia 18px entre quadros** (361 a 379). No jogo isso vira 1 a 3px de
+  balanco, que passa por movimento natural da corrida.
+- Personagem visivel no jogo: **~50px de altura por ~28px de largura**, contra
+  uma caixa de colisao de 32x48. Encaixe bom: mais alto que a caixa (cabeca e
+  mochila passam) e um pouco mais estreito (nao invade os vaos).
+
+**O que manter igual nas proximas folhas:** mesmo quadro de 320x400, mesma
+linha de chao (379) e mesma escala do personagem. Se as tres baterem, salto,
+dash, dano e comemoracao encaixam sozinhos e nao precisam de ajuste nenhum.
+Se a linha de chao mudar, e so ajustar `baseline` daquela folha.
 
 As demais (`idle`, `jump`, `dash`, `hurt`, `celebrate`, `pulse`) já têm linha
 pronta e comentada em [`src/render/player-skins.js`](../../src/render/player-skins.js).
