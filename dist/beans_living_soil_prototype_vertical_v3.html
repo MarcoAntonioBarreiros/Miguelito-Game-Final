@@ -15915,7 +15915,7 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
 Object.assign(__exports, { createPhaseLabSession });
 },
 "src/render/renderer.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");
+const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");const { createPlayerSprite } = __require("src/render/player-sprite.js");const { resolvePlayerSkin } = __require("src/render/player-skins.js");
 function mixHex(a, b, t) {
   const value = clamp(t, 0, 1);
   const parse = color => [
@@ -15929,9 +15929,14 @@ function mixHex(a, b, t) {
   return `#${channel(ar, br)}${channel(ag, bg)}${channel(ab, bb)}`;
 }
 
-function createRenderer({ canvas, state, entities }) {
+function createRenderer({ canvas, state, entities, playerSkin = null }) {
   const ctx = canvas.getContext('2d');
   const microbes = createMicrobeRenderer({ ctx, state, entities });
+  const skin = playerSkin || resolvePlayerSkin({
+    locationLike: typeof window === 'undefined' ? null : window.location,
+    storage: (() => { try { return window.localStorage; } catch (_) { return null; } })(),
+  });
+  const sprite = skin?.states ? createPlayerSprite(skin) : null;
 
   function roundedRect(x, y, w, h, r) {
     ctx.beginPath();
@@ -16372,7 +16377,7 @@ function createRenderer({ canvas, state, entities }) {
     const player = state.player;
     const time = state.time;
     ctx.save();
-    ctx.translate(player.x + 16, player.y + 24);
+    ctx.translate(player.x + player.w / 2, player.y + player.h / 2);
     ctx.scale(player.facing, 1);
     if (!player.alive) {
       ctx.rotate(-.28);
@@ -16380,6 +16385,34 @@ function createRenderer({ canvas, state, entities }) {
     }
     const blink = player.invuln > 0 && Math.floor(time * 14) % 2 === 0;
     if (blink) ctx.globalAlpha = .35;
+
+    // A skin troca so o corpo. Tudo que vem depois — hifa aderida, carga de
+    // fosfato, aviso de dash bloqueado — e informacao de jogo, nao enfeite do
+    // astronauta, e precisa aparecer em qualquer personagem.
+    if (!sprite?.draw(ctx, player, time)) drawAstronautBody(player);
+
+    drawFungalAttachment(player, time);
+
+    if (player.canPhosphateSolubilization) {
+      ctx.shadowBlur = 16;
+      ctx.shadowColor = '#df91ff';
+      ctx.fillStyle = '#df91ff';
+      ctx.beginPath();
+      ctx.arc(15, -2, 3 + (player.phosphateCharge || 0) * 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    if ((player.nematodeLoad || 0) >= 2) {
+      ctx.fillStyle = '#ffd7a0';
+      ctx.font = '800 8px Inter,system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('DASH BLOQUEADO', 0, -36);
+    }
+    ctx.restore();
+  }
+
+  function drawAstronautBody(player) {
     ctx.strokeStyle = '#ff6f91';
     ctx.lineWidth = 5;
     ctx.lineCap = 'round';
@@ -16415,26 +16448,6 @@ function createRenderer({ canvas, state, entities }) {
     ctx.moveTo(7, 16);
     ctx.lineTo(9, 24);
     ctx.stroke();
-
-    drawFungalAttachment(player, time);
-
-    if (player.canPhosphateSolubilization) {
-      ctx.shadowBlur = 16;
-      ctx.shadowColor = '#df91ff';
-      ctx.fillStyle = '#df91ff';
-      ctx.beginPath();
-      ctx.arc(15, -2, 3 + (player.phosphateCharge || 0) * 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    }
-
-    if ((player.nematodeLoad || 0) >= 2) {
-      ctx.fillStyle = '#ffd7a0';
-      ctx.font = '800 8px Inter,system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText('DASH BLOQUEADO', 0, -36);
-    }
-    ctx.restore();
   }
 
   function drawIntroBackdrop() {
@@ -16468,7 +16481,10 @@ function createRenderer({ canvas, state, entities }) {
     ctx.restore();
   }
 
-  return { render, drawBackground, drawWorld, drawPlayer };
+  return {
+    render, drawBackground, drawWorld, drawPlayer,
+    playerSkin: { id: skin?.id || 'astronaut', usingSprite: () => Boolean(sprite && !sprite.isFallback()), debug: () => sprite?.debug() || null },
+  };
 }
 Object.assign(__exports, { createRenderer });
 },
@@ -16852,6 +16868,203 @@ function createMicrobeRenderer({ ctx, state, entities }) {
   };
 }
 Object.assign(__exports, { getMicrobeSceneEncounters, createMicrobeRenderer });
+},
+"src/render/player-sprite.js": (__exports, __require) => {
+// Skin de sprite para o jogador.
+//
+// O astronauta e desenhado a mao no canvas e funciona. Esta camada nao o
+// substitui: ela se oferece como alternativa e some sozinha se qualquer coisa
+// der errado. Sem folha configurada, folha que nao carrega, folha com medida
+// impossivel — em todos os casos isFallback() responde true e o renderer
+// continua desenhando o astronauta. Trocar de skin nunca pode ser um jeito de
+// ficar sem personagem.
+//
+// A folha e uma tira horizontal de quadros de largura igual. A largura de cada
+// quadro sai de image.width / frames, entao basta declarar quantos quadros a
+// tira tem.
+
+const STATE_FALLBACK = Object.freeze({
+  idle: ['idle', 'run'],
+  run: ['run', 'idle'],
+  jump: ['jump', 'run', 'idle'],
+  fall: ['fall', 'jump', 'run', 'idle'],
+  dash: ['dash', 'run', 'idle'],
+  hurt: ['hurt', 'idle', 'run'],
+  celebrate: ['celebrate', 'idle', 'run'],
+  pulse: ['pulse', 'idle', 'run'],
+});
+
+function loadSheet(definition) {
+  const sheet = {
+    ...definition,
+    image: null,
+    ready: false,
+    failed: false,
+  };
+  if (typeof Image === 'undefined') {
+    sheet.failed = true;
+    return sheet;
+  }
+  const image = new Image();
+  image.onload = () => {
+    // Uma folha sem largura util e tao inutil quanto uma que nao carregou, e
+    // deixar passar renderiza um quadro de largura zero — personagem invisivel.
+    if (!image.naturalWidth || !image.naturalHeight) { sheet.failed = true; return; }
+    sheet.image = image;
+    sheet.ready = true;
+  };
+  image.onerror = () => { sheet.failed = true; };
+  image.src = definition.src;
+  return sheet;
+}
+
+function createPlayerSprite(skin) {
+  if (!skin?.states) return null;
+
+  const sheets = new Map();
+  for (const [name, definition] of Object.entries(skin.states)) {
+    sheets.set(name, loadSheet({ frames: 1, fps: 12, loop: true, ...definition }));
+  }
+
+  // Escala: a arte se ajusta pela altura da caixa de colisao, nunca o
+  // contrario. A fisica ja esta medida e calibrada em 32x48 — mudar a caixa
+  // para caber num desenho invalidaria todas as travessias validadas.
+  const heightScale = Number(skin.heightScale) || 1;
+  const offsetX = Number(skin.offsetX) || 0;
+  const offsetY = Number(skin.offsetY) || 0;
+
+  function resolve(requested) {
+    const chain = STATE_FALLBACK[requested] || [requested, 'idle', 'run'];
+    for (const name of chain) {
+      const sheet = sheets.get(name);
+      if (sheet?.ready) return sheet;
+    }
+    for (const sheet of sheets.values()) if (sheet.ready) return sheet;
+    return null;
+  }
+
+  function stateFor(player) {
+    if (!player.alive) return 'hurt';
+    if (player.invuln > 0) return 'hurt';
+    if (player.dashTime > 0) return 'dash';
+    if (!player.onGround) return player.vy < 0 ? 'jump' : 'fall';
+    if (Math.abs(player.vx) > 12) return 'run';
+    return 'idle';
+  }
+
+  function frameIndex(sheet, player, time) {
+    const frames = Math.max(1, Math.floor(sheet.frames));
+    if (frames === 1) return 0;
+    // A corrida acompanha a velocidade: a passada acelera junto com o
+    // personagem em vez de patinar num compasso fixo.
+    const rate = sheet.speedFromMotion
+      ? Math.min(sheet.fps * 1.6, 4 + Math.abs(player.vx) * .055)
+      : sheet.fps;
+    const raw = Math.floor(time * rate);
+    return sheet.loop === false ? Math.min(frames - 1, raw) : ((raw % frames) + frames) % frames;
+  }
+
+  function draw(ctx, player, time) {
+    const sheet = resolve(stateFor(player));
+    if (!sheet) return false;
+
+    const frames = Math.max(1, Math.floor(sheet.frames));
+    const frameWidth = sheet.image.naturalWidth / frames;
+    const frameHeight = sheet.image.naturalHeight;
+    if (!(frameWidth > 0) || !(frameHeight > 0)) return false;
+
+    const drawHeight = player.h * heightScale;
+    const drawWidth = frameWidth * (drawHeight / frameHeight);
+    const index = frameIndex(sheet, player, time);
+
+    // O renderer ja aplicou translate para o centro do jogador e o scale do
+    // facing, entao aqui basta desenhar em torno da origem. Os pes encostam na
+    // base da caixa de colisao: e o pe que precisa bater na plataforma.
+    const footY = player.h / 2;
+    ctx.drawImage(
+      sheet.image,
+      index * frameWidth, 0, frameWidth, frameHeight,
+      -drawWidth / 2 + offsetX, footY - drawHeight + offsetY, drawWidth, drawHeight,
+    );
+    return true;
+  }
+
+  return {
+    draw,
+    // Enquanto nenhuma folha estiver pronta o astronauta continua no comando.
+    // Isso cobre tanto a falha permanente quanto os primeiros quadros, antes de
+    // a imagem terminar de carregar.
+    isFallback: () => ![...sheets.values()].some(sheet => sheet.ready),
+    debug: () => [...sheets.entries()].map(([name, sheet]) => ({
+      name, src: sheet.src, ready: sheet.ready, failed: sheet.failed, frames: sheet.frames,
+    })),
+  };
+}
+Object.assign(__exports, { createPlayerSprite });
+},
+"src/render/player-skins.js": (__exports, __require) => {
+// Catalogo de skins do jogador.
+//
+// "astronaut" nao tem folha: e o desenho a mao que sempre existiu, e continua
+// sendo o padrao. Nenhuma skin nova pode tira-lo do caminho — ele e a rede de
+// seguranca de todas as outras.
+//
+// Para experimentar o Miguelito: ?player=miguelito
+// Para voltar:                    ?player=astronaut
+// A escolha fica guardada, entao da para testar varias fases sem repetir o
+// parametro.
+
+const PLAYER_SKIN_STORAGE_KEY = 'miguelito:player-skin:v1';
+
+const PLAYER_SKINS = Object.freeze({
+  astronaut: Object.freeze({
+    id: 'astronaut',
+    label: 'Astronauta (desenhado)',
+    states: null,
+  }),
+
+  miguelito: Object.freeze({
+    id: 'miguelito',
+    label: 'Miguelito (sprites)',
+    // A arte e mais alta que a caixa de colisao de 32x48 — cabeca e mochila
+    // passam do corpo fisico, como em quase todo personagem de plataforma. A
+    // caixa nao muda: a fisica ja esta medida e validada em cima dela.
+    heightScale: 1.32,
+    offsetX: 0,
+    offsetY: 2,
+    states: Object.freeze({
+      // Enquanto so existir a tira de corrida, ela responde por tudo: parado
+      // usa o primeiro quadro, pulo e dash caem nela pela cadeia de fallback.
+      run: Object.freeze({
+        src: 'assets/miguelito/run.png',
+        frames: 9,
+        fps: 12,
+        speedFromMotion: true,
+      }),
+      // Quando as outras folhas chegarem, e so descomentar e ajustar frames:
+      // idle:      { src: 'assets/miguelito/idle.png', frames: 4, fps: 6 },
+      // jump:      { src: 'assets/miguelito/jump.png', frames: 4, fps: 10, loop: false },
+      // dash:      { src: 'assets/miguelito/dash.png', frames: 3, fps: 14, loop: false },
+      // hurt:      { src: 'assets/miguelito/hurt.png', frames: 3, fps: 10, loop: false },
+      // celebrate: { src: 'assets/miguelito/celebrate.png', frames: 6, fps: 10 },
+      // pulse:     { src: 'assets/miguelito/pulse.png', frames: 5, fps: 12, loop: false },
+    }),
+  }),
+});
+
+function resolvePlayerSkin({ locationLike = null, storage = null } = {}) {
+  const requested = new URLSearchParams(locationLike?.search || '').get('player');
+  if (requested && PLAYER_SKINS[requested]) {
+    try { storage?.setItem(PLAYER_SKIN_STORAGE_KEY, requested); } catch (_) {}
+    return PLAYER_SKINS[requested];
+  }
+  let saved = null;
+  try { saved = storage?.getItem(PLAYER_SKIN_STORAGE_KEY); } catch (_) {}
+  // Um valor guardado que nao existe mais no catalogo nao pode deixar o jogo
+  // sem personagem: cai no astronauta.
+  return PLAYER_SKINS[saved] || PLAYER_SKINS.astronaut;
+}
+Object.assign(__exports, { PLAYER_SKIN_STORAGE_KEY, PLAYER_SKINS, resolvePlayerSkin });
 },
 "src/procgen/platform-visuals.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");const { drawWorldLabel } = __require("src/procgen/world-label.js");
