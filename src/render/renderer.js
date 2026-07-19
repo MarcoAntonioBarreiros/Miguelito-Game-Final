@@ -478,7 +478,7 @@ export function createRenderer({ canvas, state, entities, playerSkin = null }) {
     // A skin troca so o corpo. Tudo que vem depois — hifa aderida, carga de
     // fosfato, aviso de dash bloqueado — e informacao de jogo, nao enfeite do
     // astronauta, e precisa aparecer em qualquer personagem.
-    if (!sprite?.draw(ctx, player, time)) drawAstronautBody(player);
+    if (!sprite?.draw(ctx, player, time, state.gameState)) drawAstronautBody(player);
 
     drawFungalAttachment(player, time);
 

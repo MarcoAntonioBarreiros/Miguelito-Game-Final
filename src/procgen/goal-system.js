@@ -31,7 +31,11 @@ export function createGoalSystem({ state, entities }) {
     state.mission = 'Raiz principal alcançada — preparando a próxima fase';
     state.toast = `Fase ${state.campaign?.phase || 1} concluída: o sistema radicular atual será substituído`;
     state.toastTime = 6;
-    state.shake = .5;
+    // O tremor da chegada era .5, mais forte que o do dano (.3 a .42): somado
+    // ao jogador congelado, vencer a fase parecia levar um golpe. A comemoracao
+    // agora e dita pela animacao do personagem, entao aqui basta um baque leve,
+    // claramente abaixo de qualquer dano.
+    state.shake = .16;
 
     if (state.campaign) {
       state.campaign.transitionRequested = true;

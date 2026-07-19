@@ -12559,7 +12559,11 @@ function createGoalSystem({ state, entities }) {
     state.mission = 'Raiz principal alcançada — preparando a próxima fase';
     state.toast = `Fase ${state.campaign?.phase || 1} concluída: o sistema radicular atual será substituído`;
     state.toastTime = 6;
-    state.shake = .5;
+    // O tremor da chegada era .5, mais forte que o do dano (.3 a .42): somado
+    // ao jogador congelado, vencer a fase parecia levar um golpe. A comemoracao
+    // agora e dita pela animacao do personagem, entao aqui basta um baque leve,
+    // claramente abaixo de qualquer dano.
+    state.shake = .16;
 
     if (state.campaign) {
       state.campaign.transitionRequested = true;
@@ -16033,14 +16037,14 @@ const PLAYER_SKINS = Object.freeze({
         src: 'assets/miguelito/run.png',
         // Medido na folha: 2560x400, oito quadros de exatamente 320px.
         frames: 8,
-        // Teto do ritmo. A primeira versao chegava a 17,5 quadros por segundo
-        // na velocidade maxima (245) e depois a 10,8 — as duas ainda pareciam
-        // adiantadas jogando. Agora 2 + 245*0,022 da ~7,4, e o slider do Phase
-        // Lab multiplica isso ao vivo para achar o ponto no olho.
-        fps: 8,
+        // Teto do ritmo. O ponto foi caindo a cada teste jogando: 17,5 quadros
+        // por segundo na velocidade maxima (245), depois 10,8, depois 7,4 — e
+        // ainda parecia adiantado. Agora 1,5 + 245*0,016 da ~5,4. O slider do
+        // Phase Lab multiplica isso ao vivo para o ajuste fino.
+        fps: 6,
         speedFromMotion: true,
-        motionBase: 2,
-        motionFactor: .022,
+        motionBase: 1.5,
+        motionFactor: .016,
         // O pe mais baixo da folha esta na linha 379 de 400: sobra 20px de
         // vazio embaixo. Sem isto o personagem flutua essa sobra inteira.
         baseline: 379 / 400,
@@ -16058,6 +16062,27 @@ const PLAYER_SKINS = Object.freeze({
         // Nesta folha o menino foi desenhado bem menor: 224 dos 400px, contra
         // 347 na corrida. Sem normalizar, ele encolheria ao parar de andar.
         contentHeight: 224,
+      }),
+      // Toca uma vez e para no ultimo quadro: a invulnerabilidade dura ~1,05s,
+      // entao 8 quadros a 8fps cobrem a janela quase exatamente. Repetir faria
+      // o menino apanhar em loop enquanto so estava piscando.
+      hurt: Object.freeze({
+        src: 'assets/miguelito/hurt.png',
+        frames: 8,
+        fps: 8,
+        loop: false,
+        // Aqui a base varia 53px porque o personagem sai do chao no empurrao.
+        // A referencia e o quadro mais baixo, onde ele esta apoiado.
+        baseline: 381 / 400,
+        contentHeight: 329,
+      }),
+      // Repete durante os 3,4s entre chegar na raiz final e a proxima fase.
+      celebrate: Object.freeze({
+        src: 'assets/miguelito/celebrate.png',
+        frames: 8,
+        fps: 6,
+        baseline: 381 / 400,
+        contentHeight: 337,
       }),
       // Quando as outras folhas chegarem, e so descomentar e ajustar frames:
       // idle:      { src: 'assets/miguelito/idle.png', frames: 4, fps: 6 },
@@ -16623,7 +16648,7 @@ function createRenderer({ canvas, state, entities, playerSkin = null }) {
     // A skin troca so o corpo. Tudo que vem depois — hifa aderida, carga de
     // fosfato, aviso de dash bloqueado — e informacao de jogo, nao enfeite do
     // astronauta, e precisa aparecer em qualquer personagem.
-    if (!sprite?.draw(ctx, player, time)) drawAstronautBody(player);
+    if (!sprite?.draw(ctx, player, time, state.gameState)) drawAstronautBody(player);
 
     drawFungalAttachment(player, time);
 
@@ -17198,7 +17223,12 @@ function createPlayerSprite(skin) {
     return null;
   }
 
-  function stateFor(player) {
+  function stateFor(player, gameState) {
+    // Chegar a raiz final congela o jogador e abre uma janela de 3,4s antes da
+    // proxima fase. Antes ela nao dizia nada — parado, com a tela tremendo, a
+    // vitoria parecia dano. E o momento da comemoracao, e vem antes de tudo:
+    // um golpe recebido nos ultimos passos nao pode roubar a chegada.
+    if (gameState === 'transition' || gameState === 'end') return 'celebrate';
     if (!player.alive) return 'hurt';
     if (player.invuln > 0) return 'hurt';
     if (player.dashTime > 0) return 'dash';
@@ -17238,8 +17268,8 @@ function createPlayerSprite(skin) {
     return sheet.loop === false ? Math.min(frames - 1, raw) : ((raw % frames) + frames) % frames;
   }
 
-  function draw(ctx, player, time) {
-    const sheet = resolve(stateFor(player));
+  function draw(ctx, player, time, gameState = null) {
+    const sheet = resolve(stateFor(player, gameState));
     if (!sheet) { lastTime = time; return false; }
 
     // Trocar de animacao recomeca o ciclo dela. Sem isto uma folha que nao
@@ -17287,6 +17317,9 @@ function createPlayerSprite(skin) {
 
   return {
     draw,
+    // Exposto para teste: a escolha de estado e regra de jogo (a chegada ganha
+    // do dano) e merece ser verificada sem depender de canvas.
+    stateFor,
     // Enquanto nenhuma folha estiver pronta o astronauta continua no comando.
     // Isso cobre tanto a falha permanente quanto os primeiros quadros, antes de
     // a imagem terminar de carregar.
