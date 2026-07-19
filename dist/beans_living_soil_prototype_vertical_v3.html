@@ -295,15 +295,14 @@
       top: calc(52px + var(--safe-top));
       padding: 16px 30px;
       width: auto;
-      max-width: min(82vw, 560px);
+      max-width: min(88vw, 620px);
       /* Continua sendo o texto mais importante: encolhe menos que o resto. */
-      font-size: clamp(15px, 3.4vw, 20px);
-      line-height: 1.26;
-      max-height: 3.9em;
-      overflow: hidden;
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 3;
+      font-size: clamp(14px, 3.1vw, 19px);
+      line-height: 1.28;
+      /* Sem corte. O limite de 3 linhas com max-height cortava a frase no meio
+         — "pressione E novamente para inocular" virava "pressione E novamen".
+         Uma instrucao pela metade e pior do que ocupar mais duas linhas: o
+         jogador fica sem saber o que fazer. Quem manda no tamanho e a frase. */
     }
     .touch-device #mission {
       left: calc(7px + var(--safe-left));
@@ -651,45 +650,46 @@
 }
 .tutorial-visual {
   position: relative;
-  min-height: 390px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--tutorial-accent) 34%, transparent);
   border-radius: 18px;
   background:
-    radial-gradient(circle at 50% 37%, color-mix(in srgb, var(--tutorial-accent) 24%, transparent), transparent 36%),
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--tutorial-accent) 24%, transparent), transparent 42%),
     linear-gradient(180deg, rgba(3,25,31,.62), rgba(2,13,20,.78));
 }
-.tutorial-visual::after {
-  content: '';
-  position: absolute;
-  left: 12%;
-  right: 12%;
-  bottom: 103px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--tutorial-accent), transparent);
-  box-shadow: 0 0 18px var(--tutorial-accent);
+/* Simbolo e aneis num unico bloco, com o mesmo centro.
+   Antes os aneis eram absolutos em top:38% do container e o glifo era um item
+   flex com margem — dois sistemas de ancoragem diferentes. Bastava o container
+   mudar de tamanho para eles se separarem, e era isso que desalinhava no
+   celular. Agora o anel se centra no simbolo, entao nao ha como derivar. */
+.tutorial-symbol {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(96px, 13vw, 150px);
+  aspect-ratio: 1;
 }
 .tutorial-hologram-ring {
   position: absolute;
   left: 50%;
-  top: 38%;
+  top: 50%;
+  width: 100%;
+  height: 100%;
   border: 1px solid color-mix(in srgb, var(--tutorial-accent) 65%, transparent);
   border-radius: 50%;
   transform: translate(-50%, -50%);
   box-shadow: 0 0 22px color-mix(in srgb, var(--tutorial-accent) 18%, transparent);
 }
-.ring-one {
-  width: 165px;
-  height: 165px;
-  animation: tutorial-ring 8s linear infinite;
-}
+/* Proporcionais ao simbolo, nao em pixels fixos: assim acompanham o clamp em
+   qualquer tela sem precisar de um override por media query. */
+.ring-one { animation: tutorial-ring 8s linear infinite; }
 .ring-two {
-  width: 120px;
-  height: 120px;
+  width: 72%;
+  height: 72%;
   border-style: dashed;
   animation: tutorial-ring-reverse 6s linear infinite;
 }
@@ -706,9 +706,8 @@
   z-index: 2;
   display: grid;
   place-items: center;
-  width: 112px;
-  height: 112px;
-  margin-bottom: 108px;
+  width: 62%;
+  height: 62%;
   color: #f4fffc;
   border: 1px solid color-mix(in srgb, var(--tutorial-accent) 72%, transparent);
   border-radius: 50%;
@@ -720,17 +719,22 @@
   letter-spacing: -.08em;
   text-shadow: 0 0 14px var(--tutorial-accent);
 }
+/* Faixa propria, largura toda, entre o miolo e o rodape. Centralizada, entao
+   uma sequencia curta fica no meio em vez de sobrar espaco de um lado so. */
 .tutorial-cycle-block {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 17px;
+  flex: none;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--tutorial-accent) 26%, transparent);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(3,25,31,.5), rgba(2,13,20,.66));
 }
+.tutorial-cycle-block:has(.tutorial-cycle:empty) { display: none; }
 .tutorial-cycle-label {
   display: block;
   margin-bottom: 8px;
   color: rgba(233,255,249,.63);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 900;
   letter-spacing: .12em;
   text-transform: uppercase;
@@ -741,16 +745,19 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 5px 6px;
 }
+/* Com a largura toda disponivel, a etapa nunca precisa quebrar no meio do
+   nome — era o que fazia a sequencia parecer pequena e truncada. */
 .tutorial-cycle-step {
-  padding: 4px 7px;
+  padding: 5px 10px;
   border-radius: 999px;
   color: #eafff8;
   background: color-mix(in srgb, var(--tutorial-accent) 12%, rgba(0,0,0,.28));
   border: 1px solid color-mix(in srgb, var(--tutorial-accent) 30%, transparent);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.15;
+  white-space: nowrap;
   text-align: center;
 }
 .tutorial-cycle-arrow {
@@ -992,33 +999,12 @@ html.tutorial-open .phase-lab {
     gap: 14px;
     margin-top: 16px;
   }
-  .tutorial-visual {
-    min-height: 150px;
-    flex-direction: row;
-    justify-content: flex-start;
-    padding: 16px 14px 16px 142px;
-  }
-  .tutorial-hologram-ring { left: 72px; top: 50%; }
-  .ring-one { width: 105px; height: 105px; }
-  .ring-two { width: 76px; height: 76px; }
-  .tutorial-glyph {
-    position: absolute;
-    left: 32px;
-    top: 50%;
-    width: 80px;
-    height: 80px;
-    margin: 0;
-    transform: translateY(-50%);
-    font-size: 22px;
-  }
-  .tutorial-visual::after { display: none; }
-  .tutorial-cycle-block {
-    position: static;
-    width: 100%;
-  }
-  .tutorial-cycle-label { text-align: left; }
-  .tutorial-cycle { justify-content: flex-start; }
-  .tutorial-cycle-step { font-size: 8px; }
+  /* O simbolo e os aneis agora sao um bloco so e escalam pelo clamp, entao
+     nao precisam mais de posicao nem tamanho por media query. */
+  .tutorial-visual { padding: 12px; }
+  .tutorial-symbol { width: clamp(78px, 22vw, 110px); }
+  .tutorial-cycle-block { margin-top: 12px; padding: 10px 12px; }
+  .tutorial-cycle-step { font-size: 10px; padding: 4px 8px; }
   .tutorial-page { min-height: 255px; padding: 19px 18px; }
   .tutorial-page-title { margin-top: 12px; font-size: 24px; }
   .tutorial-page-body { font-size: 15px; line-height: 1.48; }
@@ -1053,13 +1039,13 @@ html.tutorial-open .phase-lab {
   }
   .tutorial-visual,
   .tutorial-page { min-height: 0; }
-  .tutorial-visual { padding: 12px 10px; }
-  .tutorial-glyph { width: 62px; height: 62px; margin: 0 0 8px; font-size: 20px; }
-  .ring-one { width: 96px; height: 96px; }
-  .ring-two { width: 68px; height: 68px; }
-  .tutorial-cycle-block { position: static; width: 100%; }
-  .tutorial-cycle { flex-wrap: wrap; justify-content: center; gap: 4px; }
-  .tutorial-cycle-step { font-size: 9px; padding: 2px 7px; }
+  /* Em paisagem falta altura: o simbolo encolhe e a faixa da sequencia fica
+     rasa, mas continua com a largura toda — que e o que ela precisa. */
+  .tutorial-visual { padding: 10px; }
+  .tutorial-symbol { width: clamp(64px, 16vh, 104px); }
+  .tutorial-cycle-block { margin-top: 8px; padding: 7px 10px; }
+  .tutorial-cycle-label { margin-bottom: 5px; font-size: 9px; }
+  .tutorial-cycle-step { font-size: 10px; padding: 3px 8px; }
   .tutorial-page { padding: 12px 15px; }
   .tutorial-page-counter { font-size: 10px; }
   .tutorial-page-title { margin: 6px 0 6px; font-size: clamp(17px, 3vh, 22px); }
@@ -20030,12 +20016,10 @@ function createTutorialManager({ state }) {
 
           <div class="tutorial-content">
             <aside class="tutorial-visual" aria-hidden="true">
-              <div class="tutorial-hologram-ring ring-one"></div>
-              <div class="tutorial-hologram-ring ring-two"></div>
-              <div class="tutorial-glyph"></div>
-              <div class="tutorial-cycle-block">
-                <span class="tutorial-cycle-label"></span>
-                <div class="tutorial-cycle"></div>
+              <div class="tutorial-symbol">
+                <div class="tutorial-hologram-ring ring-one"></div>
+                <div class="tutorial-hologram-ring ring-two"></div>
+                <div class="tutorial-glyph"></div>
               </div>
             </aside>
 
@@ -20045,6 +20029,14 @@ function createTutorialManager({ state }) {
               <p class="tutorial-page-body"></p>
               <ul class="tutorial-page-points"></ul>
             </main>
+          </div>
+
+          <!-- A sequencia saiu de dentro da coluna do simbolo e virou uma faixa
+               propria: ela e dado sequencial e quer largura, nao altura. Numa
+               coluna de 250px cada etapa quebrava em duas linhas. -->
+          <div class="tutorial-cycle-block">
+            <span class="tutorial-cycle-label"></span>
+            <div class="tutorial-cycle"></div>
           </div>
 
           <footer class="tutorial-footer">
