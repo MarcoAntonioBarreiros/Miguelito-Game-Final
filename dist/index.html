@@ -15550,7 +15550,7 @@ function applyPhaseLabResources(level, phaseManifest, seedValue) {
 Object.assign(__exports, { PHASE_LAB_STORAGE_KEY, PHASE_LAB_MAX_RESOURCES, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, createDefaultPhaseLabConfig, buildPhaseLabManifest, validatePhaseLabConfig, applyPhaseLabResources });
 },
 "src/procgen/phase-lab.js": (__exports, __require) => {
-const { campaignManifest, ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
+const { campaignManifest, ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");const { PLAYER_SKINS, PLAYER_SKIN_STORAGE_KEY, resolvePlayerSkin } = __require("src/render/player-skins.js");const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 
 const MELOIDOGYNE_FIELDS = Object.freeze([
@@ -15685,6 +15685,9 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
       <h2>Phase Lab</h2><p>Runtime real · Ctrl+Enter reinicia · sem editor de plataformas</p>
       <label>Fase <select data-field="phase">${[...Array(10)].map((_, phase) => `<option value="${phase}">Fase ${phase}</option>`).join('')}</select></label>
       <label>Seed <input data-field="seed"></label>
+      <label>Personagem <select data-field="playerSkin">${
+        Object.values(PLAYER_SKINS).map(entry => `<option value="${entry.id}">${entry.label}</option>`).join('')
+      }</select></label>
       <label>Quantidade de chunks <input data-field="totalChunks" type="number" min="3" max="120"></label>
       <label>Titulo <input data-field="title"></label>
       <label>Tema <input data-field="theme"></label>
@@ -15881,6 +15884,20 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
         panel.dataset.totalChunks = String(nextTotal);
       } catch (_) {}
     });
+    // O renderizador resolve a skin uma vez, na criacao, entao trocar de
+    // personagem recarrega a pagina em vez de so reiniciar a fase. Recarregar e
+    // honesto: a escolha ja esta salva e o Phase Lab tambem guarda a config.
+    const skinSelect = panel.querySelector('[data-field="playerSkin"]');
+    try { skinSelect.value = resolvePlayerSkin({ locationLike: windowObject.location, storage }).id; } catch (_) {}
+    skinSelect.addEventListener('change', event => {
+      const chosen = event.target.value;
+      try { storage?.setItem(PLAYER_SKIN_STORAGE_KEY, chosen); } catch (_) {}
+      // Tira ?player= da URL para o parametro antigo nao vencer a escolha nova.
+      const url = new URL(windowObject.location.href);
+      url.searchParams.delete('player');
+      windowObject.location.replace(url.toString());
+    });
+
     panel.querySelector('[data-action="apply"]').addEventListener('click', () => runApply());
     panel.querySelector('[data-action="seed"]').addEventListener('click', () => {
       panel.querySelector('[data-field="seed"]').value = `phase-lab-${Date.now().toString(36)}`;
@@ -15913,6 +15930,95 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
   return { enabled, get config() { return config; }, get manifest() { return manifest; }, configureCampaign, mount, api };
 }
 Object.assign(__exports, { createPhaseLabSession });
+},
+"src/render/player-skins.js": (__exports, __require) => {
+// Catalogo de skins do jogador.
+//
+// "astronaut" nao tem folha: e o desenho a mao que sempre existiu, e continua
+// sendo o padrao. Nenhuma skin nova pode tira-lo do caminho — ele e a rede de
+// seguranca de todas as outras.
+//
+// Para experimentar o Miguelito: ?player=miguelito
+// Para voltar:                    ?player=astronaut
+// A escolha fica guardada, entao da para testar varias fases sem repetir o
+// parametro.
+
+const PLAYER_SKIN_STORAGE_KEY = 'miguelito:player-skin:v1';
+
+const PLAYER_SKINS = Object.freeze({
+  astronaut: Object.freeze({
+    id: 'astronaut',
+    label: 'Astronauta (desenhado)',
+    states: null,
+  }),
+
+  miguelito: Object.freeze({
+    id: 'miguelito',
+    label: 'Miguelito (sprites)',
+    // Altura visivel do personagem em pixels de jogo. A caixa de colisao
+    // continua 32x48 — cabeca e mochila passam dela, como em quase todo
+    // personagem de plataforma. Este e o numero para mexer se ele parecer
+    // pequeno ou grande demais; nada aqui altera a fisica.
+    characterHeight: 64,
+    offsetX: 0,
+    // Medido quadro a quadro, o pe ficava de 1 a 3px acima da plataforma. Esses
+    // 2px encostam o passo mais baixo no chao; a variacao que sobra e o balanco
+    // natural da corrida, nao erro de encaixe.
+    offsetY: 2,
+    states: Object.freeze({
+      run: Object.freeze({
+        src: 'assets/miguelito/run.png',
+        // Medido na folha: 2560x400, oito quadros de exatamente 320px.
+        frames: 8,
+        // Teto do ritmo. Antes a corrida chegava a 17,5 quadros por segundo na
+        // velocidade maxima (245) e parecia acelerada demais; parado ficava em
+        // 4. Este e o meio termo: 3 + 245*0,032 da ~10,8.
+        fps: 11,
+        speedFromMotion: true,
+        motionBase: 3,
+        motionFactor: .032,
+        // O pe mais baixo da folha esta na linha 379 de 400: sobra 20px de
+        // vazio embaixo. Sem isto o personagem flutua essa sobra inteira.
+        baseline: 379 / 400,
+        // Quanto do quadro o personagem ocupa. Serve para as duas folhas
+        // renderizarem do mesmo tamanho, apesar de a arte ter sido desenhada em
+        // escalas diferentes.
+        contentHeight: 347,
+      }),
+      idle: Object.freeze({
+        src: 'assets/miguelito/idle.png',
+        frames: 8,
+        // Respiracao, nao caminhada: devagar de proposito.
+        fps: 6,
+        baseline: 379 / 400,
+        // Nesta folha o menino foi desenhado bem menor: 224 dos 400px, contra
+        // 347 na corrida. Sem normalizar, ele encolheria ao parar de andar.
+        contentHeight: 224,
+      }),
+      // Quando as outras folhas chegarem, e so descomentar e ajustar frames:
+      // idle:      { src: 'assets/miguelito/idle.png', frames: 4, fps: 6 },
+      // jump:      { src: 'assets/miguelito/jump.png', frames: 4, fps: 10, loop: false },
+      // dash:      { src: 'assets/miguelito/dash.png', frames: 3, fps: 14, loop: false },
+      // hurt:      { src: 'assets/miguelito/hurt.png', frames: 3, fps: 10, loop: false },
+      // celebrate: { src: 'assets/miguelito/celebrate.png', frames: 6, fps: 10 },
+      // pulse:     { src: 'assets/miguelito/pulse.png', frames: 5, fps: 12, loop: false },
+    }),
+  }),
+});
+
+function resolvePlayerSkin({ locationLike = null, storage = null } = {}) {
+  const requested = new URLSearchParams(locationLike?.search || '').get('player');
+  if (requested && PLAYER_SKINS[requested]) {
+    try { storage?.setItem(PLAYER_SKIN_STORAGE_KEY, requested); } catch (_) {}
+    return PLAYER_SKINS[requested];
+  }
+  let saved = null;
+  try { saved = storage?.getItem(PLAYER_SKIN_STORAGE_KEY); } catch (_) {}
+  // Um valor guardado que nao existe mais no catalogo nao pode deixar o jogo
+  // sem personagem: cai no astronauta.
+  return PLAYER_SKINS[saved] || PLAYER_SKINS.astronaut;
+}
+Object.assign(__exports, { PLAYER_SKIN_STORAGE_KEY, PLAYER_SKINS, resolvePlayerSkin });
 },
 "src/render/renderer.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");const { createPlayerSprite } = __require("src/render/player-sprite.js");const { resolvePlayerSkin } = __require("src/render/player-skins.js");
@@ -16926,9 +17032,16 @@ function createPlayerSprite(skin) {
     sheets.set(name, loadSheet({ frames: 1, fps: 12, loop: true, ...definition }));
   }
 
-  // Escala: a arte se ajusta pela altura da caixa de colisao, nunca o
-  // contrario. A fisica ja esta medida e calibrada em 32x48 — mudar a caixa
-  // para caber num desenho invalidaria todas as travessias validadas.
+  // Escala: a arte se ajusta ao jogo, nunca o contrario. A fisica esta medida e
+  // calibrada em 32x48 — mudar a caixa para caber num desenho invalidaria todas
+  // as travessias validadas.
+  //
+  // O tamanho e declarado como altura do personagem em pixels de jogo, e cada
+  // folha diz quanto do seu quadro o personagem ocupa (contentHeight). Sem isso
+  // o Miguelito encolhia ao parar: na folha de corrida ele ocupa 347 dos 400px
+  // do quadro e na de parado so 224, entao a mesma escala aplicada as duas
+  // daria dois personagens de tamanhos diferentes.
+  const characterHeight = Number(skin.characterHeight) || 0;
   const heightScale = Number(skin.heightScale) || 1;
   const offsetX = Number(skin.offsetX) || 0;
   const offsetY = Number(skin.offsetY) || 0;
@@ -16956,9 +17069,11 @@ function createPlayerSprite(skin) {
     const frames = Math.max(1, Math.floor(sheet.frames));
     if (frames === 1) return 0;
     // A corrida acompanha a velocidade: a passada acelera junto com o
-    // personagem em vez de patinar num compasso fixo.
+    // personagem em vez de patinar num compasso fixo. O ritmo sai da folha —
+    // constante escondida aqui vira animacao rapida demais sem nada para
+    // ajustar. O fps declarado e o teto.
     const rate = sheet.speedFromMotion
-      ? Math.min(sheet.fps * 1.6, 4 + Math.abs(player.vx) * .055)
+      ? Math.min(sheet.fps, (sheet.motionBase ?? 3) + Math.abs(player.vx) * (sheet.motionFactor ?? .032))
       : sheet.fps;
     const raw = Math.floor(time * rate);
     return sheet.loop === false ? Math.min(frames - 1, raw) : ((raw % frames) + frames) % frames;
@@ -16973,7 +17088,13 @@ function createPlayerSprite(skin) {
     const frameHeight = sheet.image.naturalHeight;
     if (!(frameWidth > 0) || !(frameHeight > 0)) return false;
 
-    const drawHeight = player.h * heightScale;
+    // Quando a folha declara quanto do quadro o personagem ocupa, o desenho e
+    // dimensionado para que a altura VISIVEL bata com characterHeight — assim
+    // trocar de folha nao muda o tamanho do Miguelito. Sem contentHeight, cai
+    // no modo antigo de escalar pela caixa.
+    const drawHeight = characterHeight && sheet.contentHeight
+      ? characterHeight * (frameHeight / sheet.contentHeight)
+      : player.h * heightScale;
     const drawWidth = frameWidth * (drawHeight / frameHeight);
     const index = frameIndex(sheet, player, time);
 
@@ -17007,81 +17128,6 @@ function createPlayerSprite(skin) {
   };
 }
 Object.assign(__exports, { createPlayerSprite });
-},
-"src/render/player-skins.js": (__exports, __require) => {
-// Catalogo de skins do jogador.
-//
-// "astronaut" nao tem folha: e o desenho a mao que sempre existiu, e continua
-// sendo o padrao. Nenhuma skin nova pode tira-lo do caminho — ele e a rede de
-// seguranca de todas as outras.
-//
-// Para experimentar o Miguelito: ?player=miguelito
-// Para voltar:                    ?player=astronaut
-// A escolha fica guardada, entao da para testar varias fases sem repetir o
-// parametro.
-
-const PLAYER_SKIN_STORAGE_KEY = 'miguelito:player-skin:v1';
-
-const PLAYER_SKINS = Object.freeze({
-  astronaut: Object.freeze({
-    id: 'astronaut',
-    label: 'Astronauta (desenhado)',
-    states: null,
-  }),
-
-  miguelito: Object.freeze({
-    id: 'miguelito',
-    label: 'Miguelito (sprites)',
-    // A arte e mais alta que a caixa de colisao de 32x48 — cabeca e mochila
-    // passam do corpo fisico, como em quase todo personagem de plataforma. A
-    // caixa nao muda: a fisica ja esta medida e validada em cima dela.
-    //
-    // Medido na folha: o corpo ocupa ~356 dos 400px do quadro, entao com
-    // heightScale 1.2 o Miguelito aparece com ~51px de altura visivel para uma
-    // caixa de 48px. Fica um pouco maior que o astronauta, que desenha 42px.
-    heightScale: 1.2,
-    offsetX: 0,
-    // Medido quadro a quadro, o pe ficava de 1 a 3px acima da plataforma. Esses
-    // 2px encostam o passo mais baixo no chao; a variacao que sobra e o balanco
-    // natural da corrida, nao erro de encaixe.
-    offsetY: 2,
-    states: Object.freeze({
-      // Enquanto so existir a tira de corrida, ela responde por tudo: parado
-      // usa o primeiro quadro, pulo e dash caem nela pela cadeia de fallback.
-      run: Object.freeze({
-        src: 'assets/miguelito/run.png',
-        // Medido na folha: 2560x400, oito quadros de exatamente 320px.
-        frames: 8,
-        fps: 12,
-        speedFromMotion: true,
-        // O pe mais baixo da folha esta na linha 379 de 400: sobra 20px de
-        // vazio embaixo. Sem isto o personagem flutua essa sobra inteira.
-        baseline: 379 / 400,
-      }),
-      // Quando as outras folhas chegarem, e so descomentar e ajustar frames:
-      // idle:      { src: 'assets/miguelito/idle.png', frames: 4, fps: 6 },
-      // jump:      { src: 'assets/miguelito/jump.png', frames: 4, fps: 10, loop: false },
-      // dash:      { src: 'assets/miguelito/dash.png', frames: 3, fps: 14, loop: false },
-      // hurt:      { src: 'assets/miguelito/hurt.png', frames: 3, fps: 10, loop: false },
-      // celebrate: { src: 'assets/miguelito/celebrate.png', frames: 6, fps: 10 },
-      // pulse:     { src: 'assets/miguelito/pulse.png', frames: 5, fps: 12, loop: false },
-    }),
-  }),
-});
-
-function resolvePlayerSkin({ locationLike = null, storage = null } = {}) {
-  const requested = new URLSearchParams(locationLike?.search || '').get('player');
-  if (requested && PLAYER_SKINS[requested]) {
-    try { storage?.setItem(PLAYER_SKIN_STORAGE_KEY, requested); } catch (_) {}
-    return PLAYER_SKINS[requested];
-  }
-  let saved = null;
-  try { saved = storage?.getItem(PLAYER_SKIN_STORAGE_KEY); } catch (_) {}
-  // Um valor guardado que nao existe mais no catalogo nao pode deixar o jogo
-  // sem personagem: cai no astronauta.
-  return PLAYER_SKINS[saved] || PLAYER_SKINS.astronaut;
-}
-Object.assign(__exports, { PLAYER_SKIN_STORAGE_KEY, PLAYER_SKINS, resolvePlayerSkin });
 },
 "src/procgen/platform-visuals.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");const { drawWorldLabel } = __require("src/procgen/world-label.js");

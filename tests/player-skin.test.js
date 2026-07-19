@@ -70,5 +70,48 @@ test('a caixa de colisao nao muda com a skin: so a arte escala', () => {
     assert.equal(skin.w, undefined, `${skin.id} nao pode declarar largura de colisao`);
     assert.equal(skin.h, undefined, `${skin.id} nao pode declarar altura de colisao`);
   }
-  assert.ok(PLAYER_SKINS.miguelito.heightScale > 1, 'a arte do Miguelito passa da caixa, e isso e so visual');
+  assert.ok(
+    PLAYER_SKINS.miguelito.characterHeight > 48,
+    'a arte do Miguelito passa da caixa de 48px, e isso e so visual',
+  );
+});
+
+test('as duas folhas do Miguelito renderizam do mesmo tamanho', () => {
+  // As duas artes foram desenhadas em escalas diferentes: o menino ocupa 347 dos
+  // 400px do quadro na corrida e so 224 no parado. Sem normalizar por
+  // contentHeight ele encolheria 35% ao parar de andar.
+  const { characterHeight, states } = PLAYER_SKINS.miguelito;
+  const alturas = Object.entries(states).map(([nome, folha]) => {
+    assert.ok(folha.contentHeight > 0, `${nome} precisa declarar contentHeight`);
+    const frameHeight = 400;
+    const drawHeight = characterHeight * (frameHeight / folha.contentHeight);
+    return { nome, visivel: drawHeight * (folha.contentHeight / frameHeight) };
+  });
+  for (const { nome, visivel } of alturas) {
+    assert.ok(
+      Math.abs(visivel - characterHeight) < .01,
+      `${nome} renderiza com ${visivel.toFixed(1)}px em vez de ${characterHeight}px`,
+    );
+  }
+});
+
+test('o pe assenta no mesmo lugar nas duas folhas', () => {
+  // Linhas de base diferentes fariam o Miguelito pular alguns pixels ao trocar
+  // de animacao, parado sobre a mesma plataforma.
+  const bases = Object.values(PLAYER_SKINS.miguelito.states).map(folha => folha.baseline);
+  assert.ok(bases.every(base => base > 0 && base <= 1), 'baseline e uma fracao da altura do quadro');
+  assert.equal(new Set(bases).size, 1, 'as folhas precisam compartilhar a mesma linha de chao');
+});
+
+test('a corrida nao acelera alem do teto declarado', () => {
+  // A velocidade maxima do jogador e 245. Antes a formula chegava a 17,5
+  // quadros por segundo e a corrida parecia adiantada; o teto agora e o fps.
+  const run = PLAYER_SKINS.miguelito.states.run;
+  const ritmoNaVelocidadeMaxima = run.motionBase + 245 * run.motionFactor;
+  assert.ok(ritmoNaVelocidadeMaxima <= run.fps, 'o ritmo maximo nao pode passar do fps declarado');
+  assert.ok(
+    ritmoNaVelocidadeMaxima > 8 && ritmoNaVelocidadeMaxima < 13,
+    `ritmo de ${ritmoNaVelocidadeMaxima.toFixed(1)}fps fora do meio termo pedido`,
+  );
+  assert.ok(PLAYER_SKINS.miguelito.states.idle.fps < run.fps, 'parado precisa ser mais lento que correndo');
 });

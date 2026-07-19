@@ -7,6 +7,7 @@ import {
   getPersistentUnlocksBeforePhase,
   setPhaseManifestOverride,
 } from './campaign-manifest.js';
+import { PLAYER_SKINS, PLAYER_SKIN_STORAGE_KEY, resolvePlayerSkin } from '../render/player-skins.js';
 import {
   PHASE_LAB_STORAGE_KEY,
   buildPhaseLabManifest,
@@ -151,6 +152,9 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
       <h2>Phase Lab</h2><p>Runtime real · Ctrl+Enter reinicia · sem editor de plataformas</p>
       <label>Fase <select data-field="phase">${[...Array(10)].map((_, phase) => `<option value="${phase}">Fase ${phase}</option>`).join('')}</select></label>
       <label>Seed <input data-field="seed"></label>
+      <label>Personagem <select data-field="playerSkin">${
+        Object.values(PLAYER_SKINS).map(entry => `<option value="${entry.id}">${entry.label}</option>`).join('')
+      }</select></label>
       <label>Quantidade de chunks <input data-field="totalChunks" type="number" min="3" max="120"></label>
       <label>Titulo <input data-field="title"></label>
       <label>Tema <input data-field="theme"></label>
@@ -347,6 +351,20 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
         panel.dataset.totalChunks = String(nextTotal);
       } catch (_) {}
     });
+    // O renderizador resolve a skin uma vez, na criacao, entao trocar de
+    // personagem recarrega a pagina em vez de so reiniciar a fase. Recarregar e
+    // honesto: a escolha ja esta salva e o Phase Lab tambem guarda a config.
+    const skinSelect = panel.querySelector('[data-field="playerSkin"]');
+    try { skinSelect.value = resolvePlayerSkin({ locationLike: windowObject.location, storage }).id; } catch (_) {}
+    skinSelect.addEventListener('change', event => {
+      const chosen = event.target.value;
+      try { storage?.setItem(PLAYER_SKIN_STORAGE_KEY, chosen); } catch (_) {}
+      // Tira ?player= da URL para o parametro antigo nao vencer a escolha nova.
+      const url = new URL(windowObject.location.href);
+      url.searchParams.delete('player');
+      windowObject.location.replace(url.toString());
+    });
+
     panel.querySelector('[data-action="apply"]').addEventListener('click', () => runApply());
     panel.querySelector('[data-action="seed"]').addEventListener('click', () => {
       panel.querySelector('[data-field="seed"]').value = `phase-lab-${Date.now().toString(36)}`;
