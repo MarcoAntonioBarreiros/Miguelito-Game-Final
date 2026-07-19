@@ -76,32 +76,121 @@
       box-shadow: 0 8px 24px rgba(0,0,0,.24);
     }
     #toast.show { opacity: 1; }
-    #mission, #hud-bar {
+    #mission {
       position: absolute;
       z-index: 25;
       top: calc(8px + var(--safe-top));
+      left: calc(10px + var(--safe-left));
+      max-width: 46vw;
       pointer-events: none;
-      background: rgba(2,15,21,.48);
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: 10px;
-      padding: 5px 9px;
-      backdrop-filter: blur(4px);
+      padding: 4px 10px 4px 0;
+      font-size: 12px;
+      color: rgba(255,255,255,.8);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      text-shadow: 0 2px 6px rgba(0,0,0,.85);
     }
-    #mission {
-      left: calc(10px + var(--safe-left));
-      max-width: 48vw;
-      font-size: 12px;
-      color: rgba(255,255,255,.82);
-    }
-    #hud-bar {
+
+    /* Recursos: um chip por coisa, com o numero grande e o rotulo pequeno. A
+       barra antiga era uma frase unica com ate 12 trechos colados por "|" —
+       pontos, solo, esperanca, infeccao, contagem de ataques de Trichoderma —
+       tudo no mesmo tamanho e na mesma cor. Sem hierarquia, nada se destacava.
+       A telemetria saiu daqui: lugar dela e o console do Phase Lab. */
+    #hud-stock {
+      position: absolute;
+      z-index: 25;
+      top: calc(8px + var(--safe-top));
       right: calc(10px + var(--safe-right));
-      max-width: 48vw;
-      font-size: 11px;
-      color: rgba(255,255,255,.76);
-      text-align: right;
+      display: flex;
+      gap: 6px;
+      align-items: stretch;
+      pointer-events: none;
+    }
+    .stock-chip {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      min-width: 62px;
+      padding: 5px 10px;
+      border: 1px solid rgba(126,214,205,.3);
+      border-radius: 11px;
+      background: rgba(6,26,32,.82);
+      box-shadow: 0 4px 14px rgba(0,0,0,.34);
+      backdrop-filter: blur(5px);
+    }
+    .stock-chip .icon { width: 20px; height: 20px; flex: none; }
+    .stock-chip .read { display: grid; line-height: 1; }
+    .stock-chip .label {
+      font-size: 8.5px;
+      font-weight: 800;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      color: rgba(196,232,226,.66);
+    }
+    .stock-chip .value {
+      margin-top: 2px;
+      font-size: 16px;
+      font-weight: 800;
+      color: #eafffb;
+      font-variant-numeric: tabular-nums;
+    }
+    /* A mao e o unico chip que responde a uma tecla, entao e o unico com
+       destaque e com a tecla desenhada. Antes era o rabo de uma frase. */
+    .stock-chip.hand {
+      border-color: rgba(122,232,214,.72);
+      background: rgba(10,45,48,.9);
+      box-shadow: 0 4px 16px rgba(0,0,0,.4), 0 0 18px rgba(112,229,214,.16);
+    }
+    .stock-chip.hand .value { color: #9dfff0; }
+    .stock-chip .key {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 17px;
+      height: 17px;
+      margin-left: 2px;
+      padding: 0 4px;
+      border: 1px solid rgba(160,255,240,.6);
+      border-radius: 5px;
+      background: rgba(2,20,24,.9);
+      font-size: 9px;
+      font-weight: 900;
+      color: #b6fff2;
+    }
+    .stock-chip .swap { font-size: 8.5px; font-weight: 700; color: rgba(150,230,220,.72); }
+
+    /* Alertas: so existem quando ha problema, e ai gritam. Antes viravam mais
+       um trecho igual aos outros no meio da frase. */
+    #hud-alerts {
+      position: absolute;
+      z-index: 25;
+      top: calc(52px + var(--safe-top));
+      right: calc(10px + var(--safe-right));
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: flex-end;
+      max-width: 44vw;
+      pointer-events: none;
+    }
+    .hud-alert {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      padding: 3px 9px;
+      border-radius: 7px;
+      border: 1px solid rgba(255,176,102,.52);
+      background: rgba(58,29,6,.86);
+      color: #ffd9ab;
+      font-size: 10.5px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .hud-alert.grave {
+      border-color: rgba(255,124,142,.6);
+      background: rgba(60,10,22,.88);
+      color: #ffcdd6;
     }
 
     #touch-controls, #mobile-tools { display: none; }
@@ -135,14 +224,24 @@
     .touch-device #mission {
       left: calc(7px + var(--safe-left));
       max-width: 43vw;
-      padding: 4px 7px;
       font-size: clamp(9px, 2vw, 11px);
     }
-    .touch-device #hud-bar {
-      right: calc(7px + var(--safe-right));
-      max-width: 51vw;
-      padding: 4px 7px;
-      font-size: clamp(8px, 1.8vw, 10px);
+    .touch-device #hud-stock { right: calc(7px + var(--safe-right)); gap: 4px; }
+    .touch-device .stock-chip { min-width: 0; gap: 5px; padding: 4px 7px; }
+    .touch-device .stock-chip .icon { width: 16px; height: 16px; }
+    .touch-device .stock-chip .value { font-size: 13px; }
+    .touch-device .stock-chip .label { font-size: 7.5px; }
+    .touch-device #hud-alerts { top: calc(44px + var(--safe-top)); right: calc(7px + var(--safe-right)); }
+    .touch-device .hud-alert { font-size: 9px; padding: 2px 7px; }
+
+    /* Paisagem de celular: e o modo de jogo, e o que falta e altura. Os chips
+       perdem o rotulo e ficam so icone + numero. */
+    @media (max-height: 560px) and (orientation: landscape) {
+      .stock-chip { min-width: 0; padding: 3px 7px; gap: 5px; }
+      .stock-chip .label { display: none; }
+      .stock-chip .value { margin-top: 0; font-size: 13px; }
+      .stock-chip .icon { width: 16px; height: 16px; }
+      #hud-alerts { top: calc(42px + var(--safe-top)); }
     }
     .touch-device #touch-controls {
       position: fixed;
@@ -238,12 +337,20 @@
     @media (pointer: coarse) and (orientation: portrait) {
       .touch-device #toast { top: calc(70px + var(--safe-top)); max-width: 88vw; }
       .touch-device #mission { max-width: 58vw; }
-      .touch-device #hud-bar {
-        top: calc(35px + var(--safe-top));
+      /* Retrato e estreito: os chips passam para baixo do objetivo em vez de
+         disputarem a mesma linha com ele. */
+      .touch-device #hud-stock {
+        top: calc(32px + var(--safe-top));
         left: calc(7px + var(--safe-left));
         right: auto;
-        max-width: 78vw;
-        text-align: left;
+        flex-wrap: wrap;
+        max-width: 84vw;
+      }
+      .touch-device #hud-alerts {
+        top: auto;
+        bottom: calc(96px + var(--safe-bottom));
+        right: calc(7px + var(--safe-right));
+        max-width: 62vw;
       }
       .touch-device #mobile-tools { top: calc(70px + var(--safe-top)); }
       .touch-cluster.actions { gap: 6px; }
@@ -390,11 +497,21 @@
 .tutorial-library-view {
   position: relative;
   max-height: min(90dvh, 760px);
-  overflow: auto;
   scrollbar-color: color-mix(in srgb, var(--tutorial-accent) 55%, transparent) rgba(0,0,0,.2);
 }
-.tutorial-card-view { padding: 28px 32px 24px; }
-.tutorial-header { padding-right: 46px; }
+.tutorial-library-view { overflow: auto; }
+/* O cartao rola por dentro, nao por fora. Quando a view inteira rolava, em
+   paisagem no celular o cabecalho saia da tela e o jogador perdia justamente o
+   nome do organismo que o cartao esta ensinando. Cabecalho e rodape ficam
+   presos; so o miolo rola. */
+.tutorial-card-view {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 28px 32px 24px;
+}
+.tutorial-header { flex: none; padding-right: 46px; }
+.tutorial-footer { flex: none; }
 .tutorial-heading-meta {
   display: flex;
   align-items: center;
@@ -439,6 +556,9 @@
   line-height: 1.4;
 }
 .tutorial-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   display: grid;
   grid-template-columns: minmax(215px, 280px) minmax(0, 1fr);
   gap: 30px;
@@ -757,11 +877,21 @@
 html.tutorial-open #toast,
 html.tutorial-open #mission,
 html.tutorial-open #hud-bar,
+html.tutorial-open #hud-stock,
+html.tutorial-open #hud-alerts,
+html.tutorial-open #survival-hud,
 html.tutorial-open #touch-controls,
 html.tutorial-open #mobile-tools,
 html.tutorial-open #tutorial-library-button {
   opacity: .08 !important;
   pointer-events: none !important;
+}
+/* O Phase Lab vive em z-index 10020 e o cartao em 220: sem isto o botao fica
+   por cima do cartao, tapando o holograma do organismo. Some de vez em vez de
+   desbotar, senao continua um fantasma sobre o conteudo. */
+html.tutorial-open .phase-lab-toggle,
+html.tutorial-open .phase-lab {
+  display: none !important;
 }
 
 @media (max-width: 760px) {
@@ -816,30 +946,52 @@ html.tutorial-open #tutorial-library-button {
   .tutorial-library-footer { flex-direction: column-reverse; }
 }
 
-@media (max-height: 520px) and (orientation: landscape) {
+/* Paisagem no celular e o modo em que o jogo e feito para ser jogado, e era o
+   mais quebrado: sobra largura e falta altura. As alturas minimas pediam 275px
+   de miolo quando a tela inteira oferecia ~345px, entao tudo transbordava e o
+   cabecalho rolava para fora. Aqui nada tem altura minima — o miolo rola por
+   dentro — e a coluna do holograma fica larga o bastante para os passos do
+   ciclo nao virarem uma pilha de uma palavra por linha. */
+@media (max-height: 560px) and (orientation: landscape) {
+  .tutorial-overlay { padding: calc(6px + var(--safe-top)) calc(10px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(10px + var(--safe-left)); }
   .tutorial-panel,
   .tutorial-card-view,
-  .tutorial-library-view { max-height: 96dvh; }
-  .tutorial-card-view { padding: 17px 21px 14px; }
-  .tutorial-title { font-size: 27px; }
-  .tutorial-content { grid-template-columns: 205px 1fr; gap: 16px; margin-top: 13px; }
+  .tutorial-library-view { max-height: 97dvh; }
+  .tutorial-card-view { padding: 12px 18px 11px; }
+  .tutorial-heading-meta { margin-bottom: 4px; }
+  .tutorial-title { font-size: clamp(19px, 3.4vh, 26px); }
+  .tutorial-subtitle { margin-top: 3px; font-size: 12px; }
+  .tutorial-content {
+    grid-template-columns: minmax(210px, 250px) minmax(0, 1fr);
+    gap: 14px;
+    margin-top: 9px;
+  }
   .tutorial-visual,
-  .tutorial-page { min-height: 275px; }
-  .tutorial-glyph { width: 86px; height: 86px; margin-bottom: 92px; font-size: 25px; }
-  .ring-one { width: 130px; height: 130px; }
-  .ring-two { width: 92px; height: 92px; }
-  .tutorial-page { padding: 17px 19px; }
-  .tutorial-page-title { margin: 11px 0 8px; font-size: 23px; }
-  .tutorial-page-body { font-size: 14px; line-height: 1.42; }
-  .tutorial-page-points { gap: 6px; margin-top: 12px; }
-  .tutorial-page-points li { font-size: 12px; }
-  .tutorial-footer { margin-top: 12px; }
+  .tutorial-page { min-height: 0; }
+  .tutorial-visual { padding: 12px 10px; }
+  .tutorial-glyph { width: 62px; height: 62px; margin: 0 0 8px; font-size: 20px; }
+  .ring-one { width: 96px; height: 96px; }
+  .ring-two { width: 68px; height: 68px; }
+  .tutorial-cycle-block { position: static; width: 100%; }
+  .tutorial-cycle { flex-wrap: wrap; justify-content: center; gap: 4px; }
+  .tutorial-cycle-step { font-size: 9px; padding: 2px 7px; }
+  .tutorial-page { padding: 12px 15px; }
+  .tutorial-page-counter { font-size: 10px; }
+  .tutorial-page-title { margin: 6px 0 6px; font-size: clamp(17px, 3vh, 22px); }
+  .tutorial-page-body { font-size: 13px; line-height: 1.4; }
+  .tutorial-page-points { gap: 5px; margin-top: 9px; }
+  .tutorial-page-points li { font-size: 11px; }
+  .tutorial-footer { margin-top: 9px; }
+  .tutorial-button { min-height: 36px; padding: 0 13px; font-size: 12px; }
+  .tutorial-close { width: 34px; height: 34px; top: 8px; right: 8px; font-size: 19px; }
 }
 </style>
 </head>
 <body>
   <div id="mission"></div>
-  <div id="hud-bar"></div>
+  <div id="hud-stock"></div>
+  <div id="hud-alerts" aria-live="polite"></div>
+  <div id="hud-bar" hidden></div>
   <div id="toast"></div>
   <div id="debug"></div>
   <canvas width="1280" height="720" aria-label="Jogo Miguelito e o solo vivo"></canvas>
@@ -879,7 +1031,53 @@ const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
 const missionDiv = document.getElementById('mission');
 const hudBar = document.getElementById('hud-bar');
+const stockDiv = document.getElementById('hud-stock');
+const alertsDiv = document.getElementById('hud-alerts');
 const toastDiv = document.getElementById('toast');
+
+// Icones do HUD. Desenhados em vez de emoji porque emoji muda de forma e de cor
+// conforme o sistema, e aqui a cor carrega significado.
+const HUD_ICONS = Object.freeze({
+  soil: '<path d="M3 15c2-3 5-3 7-1s5 2 8-1v7H3z" fill="#b07a4a"/><path d="M3 15c2-3 5-3 7-1s5 2 8-1" stroke="#e0a86c" stroke-width="1.6" fill="none"/><circle cx="8" cy="18" r="1.2" fill="#7a5233"/><circle cx="14" cy="19" r="1" fill="#7a5233"/>',
+  hope: '<path d="M12 21c0-5 2-8 6-10-1 5-3 8-6 10z" fill="#79e07f"/><path d="M12 21c0-5-2-8-6-10 1 5 3 8 6 10z" fill="#4fbf75"/><path d="M12 21V9" stroke="#adf5b4" stroke-width="1.5"/>',
+  exudate: '<path d="M12 3c3.4 4.3 5.4 7.2 5.4 9.6A5.4 5.4 0 0 1 6.6 12.6C6.6 10.2 8.6 7.3 12 3z" fill="#5fd6c8"/><path d="M9.6 13.2a2.6 2.6 0 0 0 2.4 2.6" stroke="#d6fff8" stroke-width="1.3" fill="none"/>',
+  microbe: '<ellipse cx="12" cy="12" rx="6.4" ry="4.2" transform="rotate(-24 12 12)" fill="#6ce7df"/><path d="M5 17c-1.6 1-2.4 2-2.6 3M19 7c1.6-1 2.4-2 2.6-3" stroke="#9ff6ee" stroke-width="1.4" fill="none"/><circle cx="10.4" cy="11" r="1.1" fill="#093b3a"/>',
+  phosphate: '<path d="m12 3 7 4.5v9L12 21l-7-4.5v-9z" fill="#c9a5ff"/><path d="m12 3 7 4.5v9L12 21l-7-4.5v-9z" stroke="#e6d4ff" stroke-width="1.2" fill="none"/><text x="12" y="15" font-size="8" font-weight="800" text-anchor="middle" fill="#3a1f63">P</text>',
+});
+
+function hudIcon(name) {
+  return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${HUD_ICONS[name] || ''}</svg>`;
+}
+
+function renderStockChips(chips) {
+  if (!stockDiv) return;
+  const markup = chips.map(chip => (
+    `<div class="stock-chip${chip.kind === 'hand' ? ' hand' : ''}">`
+    + hudIcon(chip.icon)
+    + `<div class="read"><span class="label">${chip.label}</span>`
+    + `<span class="value">${chip.value}</span></div>`
+    + (chip.key ? `<span class="key">${chip.key}</span>` : '')
+    + (chip.swap ? `<span class="swap">${chip.swap}</span>` : '')
+    + '</div>'
+  )).join('');
+  // Reescrever o HTML a cada quadro descarta a transicao e pesa; so troca
+  // quando o conteudo muda mesmo.
+  if (stockDiv.dataset.markup !== markup) {
+    stockDiv.dataset.markup = markup;
+    stockDiv.innerHTML = markup;
+  }
+}
+
+function renderAlerts(alerts) {
+  if (!alertsDiv) return;
+  const markup = alerts
+    .map(alert => `<div class="hud-alert${alert.grave ? ' grave' : ''}">${alert.text}</div>`)
+    .join('');
+  if (alertsDiv.dataset.markup !== markup) {
+    alertsDiv.dataset.markup = markup;
+    alertsDiv.innerHTML = markup;
+  }
+}
 const dashTouchButton = document.querySelector('[data-key="ShiftLeft"]');
 const selectionTouchButton = document.querySelector('[data-key="ArrowDown"]');
 
@@ -953,7 +1151,11 @@ let seed = '';
 let levelData = null;
 let renderer = null;
 let platformVisuals = null;
-let showDebug = true;
+// O console de telemetria e ferramenta de desenvolvimento, nao HUD de jogo:
+// nasce ligado so dentro do Phase Lab. Fora dele continua acessivel pelo Tab
+// (e pelo botao (i) no celular) para quando eu precisar dele numa partida real.
+let showDebug = phaseLab.enabled;
+debugDiv.classList.toggle('hidden', !showDebug);
 let lastTime = performance.now();
 let lastToast = '';
 let loopErrorCount = 0;
@@ -1281,45 +1483,46 @@ function loop(now) {
     // O seletor manda: o HUD mostra o item escolhido, nao uma ordem de prioridade.
     const selected = sim.inoculumSelection.current;
     const totalCarregado = sim.inoculumSelection.options().length;
-    const inoculationAction = selected
-      ? `${selected.kind === 'exudate' ? '🟢' : '🧪'} E ${selected.label} (${selected.count})`
-        + (totalCarregado > 1 ? ` ↓ trocar (${totalCarregado})` : '')
-      : null;
-    const abilities = [
-      inoculationAction,
-      player.canDoubleJump ? '⬆⬆ Salto' : null,
-      player.canDash ? '💨 Dash' : null,
-      player.canPhosphateSolubilization ? `P ${Math.round((player.phosphateCharge || 0) * 100)}%` : null,
-    ].filter(Boolean).join(' | ');
-    const infection = player.infection > .01 ? ` | Infecção: ${(player.infection * 100).toFixed(0)}%` : '';
-    const fungalContamination = player.fungalContamination > .01
-      ? ` | Contaminação fúngica: ${(player.fungalContamination * 100).toFixed(0)}%`
-      : '';
-    const bacillusDefense = (player.bacillusResistance || 0) > .04
-      ? ` | Defesa Bacillus: ${Math.round(player.bacillusResistance * 100)}%`
-      : '';
-    const nematodePressure = sim.meloidogyneLifecycle.infestationPercent > 2
-      ? ` | Meloidogyne: ${sim.meloidogyneLifecycle.infestationPercent.toFixed(0)}%`
-      : '';
-    const rhizoctonia = rhizoctoniaControl.activeCount
-      ? ` | Rhizoctonia: ${rhizoctoniaControl.controlledCount}/${rhizoctoniaControl.activeCount} contida${rhizoctoniaControl.activeCount > 1 ? 's' : ''}`
-      : '';
-    const ralstonia = ralstoniaControl.focusCount
-      ? ` | Ralstonia: ${ralstoniaControl.focusCount} · transporte ${Math.round(ralstoniaControl.averageTransport * 100)}%`
-      : '';
-    const trichoRhizo = trichodermaRhizoctoniaControl.activeAttackCount
-      ? ` | Trichoderma→Rhizoctonia: ${trichodermaRhizoctoniaControl.activeAttackCount}`
-      : '';
-    const trichoNematode = trichodermaMeloidogyneControl.activeAttackCount
-      ? ` | Trichoderma→Meloidogyne: ${trichodermaMeloidogyneControl.activeAttackCount}`
-      : '';
-    hudBar.textContent = `F${campaign.phase} · ${campaign.totalScore} pts | Solo: ${player.soil.toFixed(0)} | Esperança: ${player.hope.toFixed(0)} | Exsudatos: ${player.exudates}${infection}${fungalContamination}${bacillusDefense}${nematodePressure}${rhizoctonia}${ralstonia}${trichoRhizo}${trichoNematode}${abilities ? ' | ' + abilities : ''}`;
-
+    // Salto duplo e Dash eram texto permanente no HUD. Sao poderes que o
+    // jogador ja tem para sempre: uma vez aprendidos, o lembrete vira ruido.
+    // Estoque: o que eu tenho. Numero grande, rotulo pequeno, um chip por coisa.
     const availablePhosphate = (sim.state.level.availablePhosphatePools || [])
       .reduce((sum, pool) => sum + (pool.amount || 0), 0);
-    if (campaign.phase === 7 && (availablePhosphate > .001 || sim.phosphateSolubilization.transportedPhosphate > .001)) {
-      hudBar.textContent += ` | P disponivel: ${availablePhosphate.toFixed(2)} | P transportado: ${sim.phosphateSolubilization.transportedPhosphate.toFixed(2)} | P raiz: ${sim.phosphateSolubilization.rootPhosphateStock.toFixed(2)}`;
+    const chips = [];
+    if (selected) {
+      chips.push({
+        kind: 'hand', icon: selected.kind === 'exudate' ? 'exudate' : 'microbe',
+        label: selected.label, value: selected.count,
+        key: 'E', swap: totalCarregado > 1 ? `↓ ${totalCarregado}` : '',
+      });
     }
+    chips.push({ icon: 'soil', label: 'Solo', value: Math.round(player.soil) });
+    chips.push({ icon: 'hope', label: 'Esperança', value: Math.round(player.hope) });
+    chips.push({ icon: 'exudate', label: 'Exsudatos', value: player.exudates });
+    if (player.canPhosphateSolubilization) {
+      chips.push({ icon: 'phosphate', label: 'Carga P', value: `${Math.round((player.phosphateCharge || 0) * 100)}%` });
+    }
+    renderStockChips(chips);
+
+    // Alertas: so nascem quando ha problema, e ai tem cor propria. Antes eram
+    // mais um trecho igual aos outros no meio da mesma frase.
+    const alerts = [];
+    if (player.fungalContamination > .01) {
+      alerts.push({ text: `Contaminação fúngica ${Math.round(player.fungalContamination * 100)}%`, grave: player.fungalContamination > .4 });
+    }
+    if (player.infection > .01) {
+      alerts.push({ text: `Infecção ${Math.round(player.infection * 100)}%`, grave: player.infection > .5 });
+    }
+    if (sim.meloidogyneLifecycle.infestationPercent > 2) {
+      alerts.push({ text: `Meloidogyne ${sim.meloidogyneLifecycle.infestationPercent.toFixed(0)}%`, grave: sim.meloidogyneLifecycle.infestationPercent > 45 });
+    }
+    if (rhizoctoniaControl.activeCount) {
+      alerts.push({ text: `Rhizoctonia ${rhizoctoniaControl.controlledCount}/${rhizoctoniaControl.activeCount} contida${rhizoctoniaControl.activeCount > 1 ? 's' : ''}` });
+    }
+    if (ralstoniaControl.focusCount) {
+      alerts.push({ text: `Ralstonia ${ralstoniaControl.focusCount} · transporte ${Math.round(ralstoniaControl.averageTransport * 100)}%` });
+    }
+    renderAlerts(alerts);
 
     if (showDebug) {
       const logicIndex = currentLogicIndex();
@@ -12674,6 +12877,14 @@ Object.assign(__exports, { createEcologicalGameplay });
 "src/procgen/pathogen-survival.js": (__exports, __require) => {
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+const HEART_PATH = 'M12 21s-7.3-4.7-9.4-9A5.3 5.3 0 0 1 12 6.6 5.3 5.3 0 0 1 21.4 12c-2.1 4.3-9.4 9-9.4 9Z';
+
+function heartMarkup(filled) {
+  return `<svg class="heart${filled ? '' : ' empty'}" viewBox="0 0 24 24" aria-hidden="true">`
+    + `<path d="${HEART_PATH}" fill="${filled ? '#ff4d63' : '#5d7078'}"`
+    + `${filled ? ' stroke="#ffa8b6" stroke-width="1.1"' : ''}/></svg>`;
+}
+
 function ensureDom() {
   if (typeof document === 'undefined') return { hud: null, vignette: null };
 
@@ -12682,33 +12893,45 @@ function ensureDom() {
     style = document.createElement('style');
     style.id = 'pathogen-survival-style';
     style.textContent = `
+      /* Vida e o dado mais importante do HUD, entao e o unico com cor quente:
+         vermelho e a unica cor fora da paleta teal do jogo e por isso e lida
+         num relance, sem precisar de rotulo. Sem caixa em volta — a moldura so
+         competia com o coracao. */
       #survival-hud {
         position: fixed;
         z-index: 45;
-        left: max(10px, env(safe-area-inset-left));
-        top: max(56px, calc(env(safe-area-inset-top) + 48px));
+        left: max(12px, env(safe-area-inset-left));
+        top: max(52px, calc(env(safe-area-inset-top) + 44px));
         display: flex;
-        gap: 8px;
+        gap: 10px;
         align-items: center;
-        max-width: calc(100vw - 20px);
-        padding: 5px 9px;
-        border: 1px solid rgba(219,255,242,.28);
-        border-radius: 12px;
-        background: rgba(10,25,31,.76);
-        box-shadow: 0 5px 18px rgba(0,0,0,.28);
+        max-width: calc(100vw - 24px);
         color: #ecfff7;
-        font: 700 12px/1.15 Inter,system-ui,sans-serif;
+        font: 800 11px/1.15 Inter,system-ui,sans-serif;
         pointer-events: none;
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
       }
-      #survival-hud .hearts { letter-spacing: 1px; white-space: nowrap; }
+      #survival-hud .hearts { display: flex; gap: 4px; align-items: center; }
+      #survival-hud .heart {
+        width: 21px;
+        height: 21px;
+        filter: drop-shadow(0 2px 5px rgba(0,0,0,.55));
+        transition: transform .16s ease, opacity .16s ease;
+      }
+      #survival-hud .heart.empty { opacity: .26; transform: scale(.82); }
+      /* Estado normal nao merece texto. So aparece quando ha algo errado —
+         assim ler a condicao ja significa "presta atencao". */
       #survival-hud .condition {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        padding: 3px 9px;
+        border-radius: 7px;
+        border: 1px solid rgba(255,138,160,.5);
+        background: rgba(58,10,22,.82);
         color: #ffd3dc;
+        letter-spacing: .02em;
       }
+      #survival-hud .condition:empty { display: none; }
       #pathogen-vignette {
         position: fixed;
         z-index: 40;
@@ -12721,11 +12944,20 @@ function ensureDom() {
       @media (pointer: coarse), (max-width: 760px) {
         #survival-hud {
           top: max(44px, calc(env(safe-area-inset-top) + 38px));
-          padding: 4px 7px;
           font-size: 10px;
-          gap: 6px;
+          gap: 7px;
           max-width: 72vw;
         }
+        #survival-hud .heart { width: 17px; height: 17px; }
+        #survival-hud .hearts { gap: 3px; }
+      }
+      /* Em paisagem de celular a altura e o recurso escasso. */
+      @media (max-height: 560px) and (orientation: landscape) {
+        #survival-hud {
+          top: max(38px, calc(env(safe-area-inset-top) + 32px));
+          gap: 6px;
+        }
+        #survival-hud .heart { width: 15px; height: 15px; }
       }
     `;
     document.head.appendChild(style);
@@ -12806,9 +13038,14 @@ function createPathogenSurvival({ state, entities, ecology }) {
     const player = state.player;
     const vitality = clamp(Math.round(player.vitality || 0), 0, player.maxVitality || 5);
     const max = player.maxVitality || 5;
-    const filled = '♥'.repeat(vitality);
-    const empty = '♡'.repeat(Math.max(0, max - vitality));
-    dom.hud.querySelector('.hearts').textContent = `${filled}${empty}`;
+    const hearts = dom.hud.querySelector('.hearts');
+    const desenhado = `${vitality}/${max}`;
+    // Redesenhar o SVG a cada quadro custa caro e mata a transicao; so refaz
+    // quando o numero muda de fato.
+    if (hearts.dataset.state !== desenhado) {
+      hearts.dataset.state = desenhado;
+      hearts.innerHTML = Array.from({ length: max }, (_, index) => heartMarkup(index < vitality)).join('');
+    }
 
     const infection = clamp(player.infection || 0, 0, 1);
     const fungalContamination = clamp(player.fungalContamination || 0, 0, 1);
@@ -12819,7 +13056,9 @@ function createPathogenSurvival({ state, entities, ecology }) {
     else if (infection >= .72) condition = `Colonização fúngica ${Math.round(infection * 100)}%`;
     else if (infection >= .28) condition = `Propágulos aderidos ${Math.round(infection * 100)}%`;
     else if (load) condition = `${load} J2 transportado${load > 1 ? 's' : ''}`;
-    else condition = 'Integridade estável';
+    // "Integridade estável" era a frase mais frequente do jogo e nao dizia
+    // nada: os coracoes cheios ja dizem. Silencio quando esta tudo bem.
+    else condition = '';
     dom.hud.querySelector('.condition').textContent = condition;
 
     if (dom.vignette) {
@@ -15130,8 +15369,7 @@ function applyPhaseLabResources(level, phaseManifest, seedValue) {
 Object.assign(__exports, { PHASE_LAB_STORAGE_KEY, PHASE_LAB_MAX_RESOURCES, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, createDefaultPhaseLabConfig, buildPhaseLabManifest, validatePhaseLabConfig, applyPhaseLabResources });
 },
 "src/procgen/phase-lab.js": (__exports, __require) => {
-const { campaignManifest, ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");
-const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
+const { campaignManifest, ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 
 const MELOIDOGYNE_FIELDS = Object.freeze([

@@ -127,11 +127,21 @@
 .tutorial-library-view {
   position: relative;
   max-height: min(90dvh, 760px);
-  overflow: auto;
   scrollbar-color: color-mix(in srgb, var(--tutorial-accent) 55%, transparent) rgba(0,0,0,.2);
 }
-.tutorial-card-view { padding: 28px 32px 24px; }
-.tutorial-header { padding-right: 46px; }
+.tutorial-library-view { overflow: auto; }
+/* O cartao rola por dentro, nao por fora. Quando a view inteira rolava, em
+   paisagem no celular o cabecalho saia da tela e o jogador perdia justamente o
+   nome do organismo que o cartao esta ensinando. Cabecalho e rodape ficam
+   presos; so o miolo rola. */
+.tutorial-card-view {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 28px 32px 24px;
+}
+.tutorial-header { flex: none; padding-right: 46px; }
+.tutorial-footer { flex: none; }
 .tutorial-heading-meta {
   display: flex;
   align-items: center;
@@ -176,6 +186,9 @@
   line-height: 1.4;
 }
 .tutorial-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
   display: grid;
   grid-template-columns: minmax(215px, 280px) minmax(0, 1fr);
   gap: 30px;
@@ -494,11 +507,21 @@
 html.tutorial-open #toast,
 html.tutorial-open #mission,
 html.tutorial-open #hud-bar,
+html.tutorial-open #hud-stock,
+html.tutorial-open #hud-alerts,
+html.tutorial-open #survival-hud,
 html.tutorial-open #touch-controls,
 html.tutorial-open #mobile-tools,
 html.tutorial-open #tutorial-library-button {
   opacity: .08 !important;
   pointer-events: none !important;
+}
+/* O Phase Lab vive em z-index 10020 e o cartao em 220: sem isto o botao fica
+   por cima do cartao, tapando o holograma do organismo. Some de vez em vez de
+   desbotar, senao continua um fantasma sobre o conteudo. */
+html.tutorial-open .phase-lab-toggle,
+html.tutorial-open .phase-lab {
+  display: none !important;
 }
 
 @media (max-width: 760px) {
@@ -553,22 +576,42 @@ html.tutorial-open #tutorial-library-button {
   .tutorial-library-footer { flex-direction: column-reverse; }
 }
 
-@media (max-height: 520px) and (orientation: landscape) {
+/* Paisagem no celular e o modo em que o jogo e feito para ser jogado, e era o
+   mais quebrado: sobra largura e falta altura. As alturas minimas pediam 275px
+   de miolo quando a tela inteira oferecia ~345px, entao tudo transbordava e o
+   cabecalho rolava para fora. Aqui nada tem altura minima — o miolo rola por
+   dentro — e a coluna do holograma fica larga o bastante para os passos do
+   ciclo nao virarem uma pilha de uma palavra por linha. */
+@media (max-height: 560px) and (orientation: landscape) {
+  .tutorial-overlay { padding: calc(6px + var(--safe-top)) calc(10px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(10px + var(--safe-left)); }
   .tutorial-panel,
   .tutorial-card-view,
-  .tutorial-library-view { max-height: 96dvh; }
-  .tutorial-card-view { padding: 17px 21px 14px; }
-  .tutorial-title { font-size: 27px; }
-  .tutorial-content { grid-template-columns: 205px 1fr; gap: 16px; margin-top: 13px; }
+  .tutorial-library-view { max-height: 97dvh; }
+  .tutorial-card-view { padding: 12px 18px 11px; }
+  .tutorial-heading-meta { margin-bottom: 4px; }
+  .tutorial-title { font-size: clamp(19px, 3.4vh, 26px); }
+  .tutorial-subtitle { margin-top: 3px; font-size: 12px; }
+  .tutorial-content {
+    grid-template-columns: minmax(210px, 250px) minmax(0, 1fr);
+    gap: 14px;
+    margin-top: 9px;
+  }
   .tutorial-visual,
-  .tutorial-page { min-height: 275px; }
-  .tutorial-glyph { width: 86px; height: 86px; margin-bottom: 92px; font-size: 25px; }
-  .ring-one { width: 130px; height: 130px; }
-  .ring-two { width: 92px; height: 92px; }
-  .tutorial-page { padding: 17px 19px; }
-  .tutorial-page-title { margin: 11px 0 8px; font-size: 23px; }
-  .tutorial-page-body { font-size: 14px; line-height: 1.42; }
-  .tutorial-page-points { gap: 6px; margin-top: 12px; }
-  .tutorial-page-points li { font-size: 12px; }
-  .tutorial-footer { margin-top: 12px; }
+  .tutorial-page { min-height: 0; }
+  .tutorial-visual { padding: 12px 10px; }
+  .tutorial-glyph { width: 62px; height: 62px; margin: 0 0 8px; font-size: 20px; }
+  .ring-one { width: 96px; height: 96px; }
+  .ring-two { width: 68px; height: 68px; }
+  .tutorial-cycle-block { position: static; width: 100%; }
+  .tutorial-cycle { flex-wrap: wrap; justify-content: center; gap: 4px; }
+  .tutorial-cycle-step { font-size: 9px; padding: 2px 7px; }
+  .tutorial-page { padding: 12px 15px; }
+  .tutorial-page-counter { font-size: 10px; }
+  .tutorial-page-title { margin: 6px 0 6px; font-size: clamp(17px, 3vh, 22px); }
+  .tutorial-page-body { font-size: 13px; line-height: 1.4; }
+  .tutorial-page-points { gap: 5px; margin-top: 9px; }
+  .tutorial-page-points li { font-size: 11px; }
+  .tutorial-footer { margin-top: 9px; }
+  .tutorial-button { min-height: 36px; padding: 0 13px; font-size: 12px; }
+  .tutorial-close { width: 34px; height: 34px; top: 8px; right: 8px; font-size: 19px; }
 }

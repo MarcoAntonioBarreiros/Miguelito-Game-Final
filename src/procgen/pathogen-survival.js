@@ -1,5 +1,13 @@
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+const HEART_PATH = 'M12 21s-7.3-4.7-9.4-9A5.3 5.3 0 0 1 12 6.6 5.3 5.3 0 0 1 21.4 12c-2.1 4.3-9.4 9-9.4 9Z';
+
+function heartMarkup(filled) {
+  return `<svg class="heart${filled ? '' : ' empty'}" viewBox="0 0 24 24" aria-hidden="true">`
+    + `<path d="${HEART_PATH}" fill="${filled ? '#ff4d63' : '#5d7078'}"`
+    + `${filled ? ' stroke="#ffa8b6" stroke-width="1.1"' : ''}/></svg>`;
+}
+
 function ensureDom() {
   if (typeof document === 'undefined') return { hud: null, vignette: null };
 
@@ -8,33 +16,45 @@ function ensureDom() {
     style = document.createElement('style');
     style.id = 'pathogen-survival-style';
     style.textContent = `
+      /* Vida e o dado mais importante do HUD, entao e o unico com cor quente:
+         vermelho e a unica cor fora da paleta teal do jogo e por isso e lida
+         num relance, sem precisar de rotulo. Sem caixa em volta — a moldura so
+         competia com o coracao. */
       #survival-hud {
         position: fixed;
         z-index: 45;
-        left: max(10px, env(safe-area-inset-left));
-        top: max(56px, calc(env(safe-area-inset-top) + 48px));
+        left: max(12px, env(safe-area-inset-left));
+        top: max(52px, calc(env(safe-area-inset-top) + 44px));
         display: flex;
-        gap: 8px;
+        gap: 10px;
         align-items: center;
-        max-width: calc(100vw - 20px);
-        padding: 5px 9px;
-        border: 1px solid rgba(219,255,242,.28);
-        border-radius: 12px;
-        background: rgba(10,25,31,.76);
-        box-shadow: 0 5px 18px rgba(0,0,0,.28);
+        max-width: calc(100vw - 24px);
         color: #ecfff7;
-        font: 700 12px/1.15 Inter,system-ui,sans-serif;
+        font: 800 11px/1.15 Inter,system-ui,sans-serif;
         pointer-events: none;
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
       }
-      #survival-hud .hearts { letter-spacing: 1px; white-space: nowrap; }
+      #survival-hud .hearts { display: flex; gap: 4px; align-items: center; }
+      #survival-hud .heart {
+        width: 21px;
+        height: 21px;
+        filter: drop-shadow(0 2px 5px rgba(0,0,0,.55));
+        transition: transform .16s ease, opacity .16s ease;
+      }
+      #survival-hud .heart.empty { opacity: .26; transform: scale(.82); }
+      /* Estado normal nao merece texto. So aparece quando ha algo errado —
+         assim ler a condicao ja significa "presta atencao". */
       #survival-hud .condition {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        padding: 3px 9px;
+        border-radius: 7px;
+        border: 1px solid rgba(255,138,160,.5);
+        background: rgba(58,10,22,.82);
         color: #ffd3dc;
+        letter-spacing: .02em;
       }
+      #survival-hud .condition:empty { display: none; }
       #pathogen-vignette {
         position: fixed;
         z-index: 40;
@@ -47,11 +67,20 @@ function ensureDom() {
       @media (pointer: coarse), (max-width: 760px) {
         #survival-hud {
           top: max(44px, calc(env(safe-area-inset-top) + 38px));
-          padding: 4px 7px;
           font-size: 10px;
-          gap: 6px;
+          gap: 7px;
           max-width: 72vw;
         }
+        #survival-hud .heart { width: 17px; height: 17px; }
+        #survival-hud .hearts { gap: 3px; }
+      }
+      /* Em paisagem de celular a altura e o recurso escasso. */
+      @media (max-height: 560px) and (orientation: landscape) {
+        #survival-hud {
+          top: max(38px, calc(env(safe-area-inset-top) + 32px));
+          gap: 6px;
+        }
+        #survival-hud .heart { width: 15px; height: 15px; }
       }
     `;
     document.head.appendChild(style);
@@ -132,9 +161,14 @@ export function createPathogenSurvival({ state, entities, ecology }) {
     const player = state.player;
     const vitality = clamp(Math.round(player.vitality || 0), 0, player.maxVitality || 5);
     const max = player.maxVitality || 5;
-    const filled = '♥'.repeat(vitality);
-    const empty = '♡'.repeat(Math.max(0, max - vitality));
-    dom.hud.querySelector('.hearts').textContent = `${filled}${empty}`;
+    const hearts = dom.hud.querySelector('.hearts');
+    const desenhado = `${vitality}/${max}`;
+    // Redesenhar o SVG a cada quadro custa caro e mata a transicao; so refaz
+    // quando o numero muda de fato.
+    if (hearts.dataset.state !== desenhado) {
+      hearts.dataset.state = desenhado;
+      hearts.innerHTML = Array.from({ length: max }, (_, index) => heartMarkup(index < vitality)).join('');
+    }
 
     const infection = clamp(player.infection || 0, 0, 1);
     const fungalContamination = clamp(player.fungalContamination || 0, 0, 1);
@@ -145,7 +179,9 @@ export function createPathogenSurvival({ state, entities, ecology }) {
     else if (infection >= .72) condition = `Colonização fúngica ${Math.round(infection * 100)}%`;
     else if (infection >= .28) condition = `Propágulos aderidos ${Math.round(infection * 100)}%`;
     else if (load) condition = `${load} J2 transportado${load > 1 ? 's' : ''}`;
-    else condition = 'Integridade estável';
+    // "Integridade estável" era a frase mais frequente do jogo e nao dizia
+    // nada: os coracoes cheios ja dizem. Silencio quando esta tudo bem.
+    else condition = '';
     dom.hud.querySelector('.condition').textContent = condition;
 
     if (dom.vignette) {

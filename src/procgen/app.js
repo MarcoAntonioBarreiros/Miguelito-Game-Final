@@ -38,7 +38,53 @@ const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
 const missionDiv = document.getElementById('mission');
 const hudBar = document.getElementById('hud-bar');
+const stockDiv = document.getElementById('hud-stock');
+const alertsDiv = document.getElementById('hud-alerts');
 const toastDiv = document.getElementById('toast');
+
+// Icones do HUD. Desenhados em vez de emoji porque emoji muda de forma e de cor
+// conforme o sistema, e aqui a cor carrega significado.
+const HUD_ICONS = Object.freeze({
+  soil: '<path d="M3 15c2-3 5-3 7-1s5 2 8-1v7H3z" fill="#b07a4a"/><path d="M3 15c2-3 5-3 7-1s5 2 8-1" stroke="#e0a86c" stroke-width="1.6" fill="none"/><circle cx="8" cy="18" r="1.2" fill="#7a5233"/><circle cx="14" cy="19" r="1" fill="#7a5233"/>',
+  hope: '<path d="M12 21c0-5 2-8 6-10-1 5-3 8-6 10z" fill="#79e07f"/><path d="M12 21c0-5-2-8-6-10 1 5 3 8 6 10z" fill="#4fbf75"/><path d="M12 21V9" stroke="#adf5b4" stroke-width="1.5"/>',
+  exudate: '<path d="M12 3c3.4 4.3 5.4 7.2 5.4 9.6A5.4 5.4 0 0 1 6.6 12.6C6.6 10.2 8.6 7.3 12 3z" fill="#5fd6c8"/><path d="M9.6 13.2a2.6 2.6 0 0 0 2.4 2.6" stroke="#d6fff8" stroke-width="1.3" fill="none"/>',
+  microbe: '<ellipse cx="12" cy="12" rx="6.4" ry="4.2" transform="rotate(-24 12 12)" fill="#6ce7df"/><path d="M5 17c-1.6 1-2.4 2-2.6 3M19 7c1.6-1 2.4-2 2.6-3" stroke="#9ff6ee" stroke-width="1.4" fill="none"/><circle cx="10.4" cy="11" r="1.1" fill="#093b3a"/>',
+  phosphate: '<path d="m12 3 7 4.5v9L12 21l-7-4.5v-9z" fill="#c9a5ff"/><path d="m12 3 7 4.5v9L12 21l-7-4.5v-9z" stroke="#e6d4ff" stroke-width="1.2" fill="none"/><text x="12" y="15" font-size="8" font-weight="800" text-anchor="middle" fill="#3a1f63">P</text>',
+});
+
+function hudIcon(name) {
+  return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${HUD_ICONS[name] || ''}</svg>`;
+}
+
+function renderStockChips(chips) {
+  if (!stockDiv) return;
+  const markup = chips.map(chip => (
+    `<div class="stock-chip${chip.kind === 'hand' ? ' hand' : ''}">`
+    + hudIcon(chip.icon)
+    + `<div class="read"><span class="label">${chip.label}</span>`
+    + `<span class="value">${chip.value}</span></div>`
+    + (chip.key ? `<span class="key">${chip.key}</span>` : '')
+    + (chip.swap ? `<span class="swap">${chip.swap}</span>` : '')
+    + '</div>'
+  )).join('');
+  // Reescrever o HTML a cada quadro descarta a transicao e pesa; so troca
+  // quando o conteudo muda mesmo.
+  if (stockDiv.dataset.markup !== markup) {
+    stockDiv.dataset.markup = markup;
+    stockDiv.innerHTML = markup;
+  }
+}
+
+function renderAlerts(alerts) {
+  if (!alertsDiv) return;
+  const markup = alerts
+    .map(alert => `<div class="hud-alert${alert.grave ? ' grave' : ''}">${alert.text}</div>`)
+    .join('');
+  if (alertsDiv.dataset.markup !== markup) {
+    alertsDiv.dataset.markup = markup;
+    alertsDiv.innerHTML = markup;
+  }
+}
 const dashTouchButton = document.querySelector('[data-key="ShiftLeft"]');
 const selectionTouchButton = document.querySelector('[data-key="ArrowDown"]');
 
@@ -112,7 +158,11 @@ let seed = '';
 let levelData = null;
 let renderer = null;
 let platformVisuals = null;
-let showDebug = true;
+// O console de telemetria e ferramenta de desenvolvimento, nao HUD de jogo:
+// nasce ligado so dentro do Phase Lab. Fora dele continua acessivel pelo Tab
+// (e pelo botao (i) no celular) para quando eu precisar dele numa partida real.
+let showDebug = phaseLab.enabled;
+debugDiv.classList.toggle('hidden', !showDebug);
 let lastTime = performance.now();
 let lastToast = '';
 let loopErrorCount = 0;
@@ -440,45 +490,46 @@ function loop(now) {
     // O seletor manda: o HUD mostra o item escolhido, nao uma ordem de prioridade.
     const selected = sim.inoculumSelection.current;
     const totalCarregado = sim.inoculumSelection.options().length;
-    const inoculationAction = selected
-      ? `${selected.kind === 'exudate' ? '🟢' : '🧪'} E ${selected.label} (${selected.count})`
-        + (totalCarregado > 1 ? ` ↓ trocar (${totalCarregado})` : '')
-      : null;
-    const abilities = [
-      inoculationAction,
-      player.canDoubleJump ? '⬆⬆ Salto' : null,
-      player.canDash ? '💨 Dash' : null,
-      player.canPhosphateSolubilization ? `P ${Math.round((player.phosphateCharge || 0) * 100)}%` : null,
-    ].filter(Boolean).join(' | ');
-    const infection = player.infection > .01 ? ` | Infecção: ${(player.infection * 100).toFixed(0)}%` : '';
-    const fungalContamination = player.fungalContamination > .01
-      ? ` | Contaminação fúngica: ${(player.fungalContamination * 100).toFixed(0)}%`
-      : '';
-    const bacillusDefense = (player.bacillusResistance || 0) > .04
-      ? ` | Defesa Bacillus: ${Math.round(player.bacillusResistance * 100)}%`
-      : '';
-    const nematodePressure = sim.meloidogyneLifecycle.infestationPercent > 2
-      ? ` | Meloidogyne: ${sim.meloidogyneLifecycle.infestationPercent.toFixed(0)}%`
-      : '';
-    const rhizoctonia = rhizoctoniaControl.activeCount
-      ? ` | Rhizoctonia: ${rhizoctoniaControl.controlledCount}/${rhizoctoniaControl.activeCount} contida${rhizoctoniaControl.activeCount > 1 ? 's' : ''}`
-      : '';
-    const ralstonia = ralstoniaControl.focusCount
-      ? ` | Ralstonia: ${ralstoniaControl.focusCount} · transporte ${Math.round(ralstoniaControl.averageTransport * 100)}%`
-      : '';
-    const trichoRhizo = trichodermaRhizoctoniaControl.activeAttackCount
-      ? ` | Trichoderma→Rhizoctonia: ${trichodermaRhizoctoniaControl.activeAttackCount}`
-      : '';
-    const trichoNematode = trichodermaMeloidogyneControl.activeAttackCount
-      ? ` | Trichoderma→Meloidogyne: ${trichodermaMeloidogyneControl.activeAttackCount}`
-      : '';
-    hudBar.textContent = `F${campaign.phase} · ${campaign.totalScore} pts | Solo: ${player.soil.toFixed(0)} | Esperança: ${player.hope.toFixed(0)} | Exsudatos: ${player.exudates}${infection}${fungalContamination}${bacillusDefense}${nematodePressure}${rhizoctonia}${ralstonia}${trichoRhizo}${trichoNematode}${abilities ? ' | ' + abilities : ''}`;
-
+    // Salto duplo e Dash eram texto permanente no HUD. Sao poderes que o
+    // jogador ja tem para sempre: uma vez aprendidos, o lembrete vira ruido.
+    // Estoque: o que eu tenho. Numero grande, rotulo pequeno, um chip por coisa.
     const availablePhosphate = (sim.state.level.availablePhosphatePools || [])
       .reduce((sum, pool) => sum + (pool.amount || 0), 0);
-    if (campaign.phase === 7 && (availablePhosphate > .001 || sim.phosphateSolubilization.transportedPhosphate > .001)) {
-      hudBar.textContent += ` | P disponivel: ${availablePhosphate.toFixed(2)} | P transportado: ${sim.phosphateSolubilization.transportedPhosphate.toFixed(2)} | P raiz: ${sim.phosphateSolubilization.rootPhosphateStock.toFixed(2)}`;
+    const chips = [];
+    if (selected) {
+      chips.push({
+        kind: 'hand', icon: selected.kind === 'exudate' ? 'exudate' : 'microbe',
+        label: selected.label, value: selected.count,
+        key: 'E', swap: totalCarregado > 1 ? `↓ ${totalCarregado}` : '',
+      });
     }
+    chips.push({ icon: 'soil', label: 'Solo', value: Math.round(player.soil) });
+    chips.push({ icon: 'hope', label: 'Esperança', value: Math.round(player.hope) });
+    chips.push({ icon: 'exudate', label: 'Exsudatos', value: player.exudates });
+    if (player.canPhosphateSolubilization) {
+      chips.push({ icon: 'phosphate', label: 'Carga P', value: `${Math.round((player.phosphateCharge || 0) * 100)}%` });
+    }
+    renderStockChips(chips);
+
+    // Alertas: so nascem quando ha problema, e ai tem cor propria. Antes eram
+    // mais um trecho igual aos outros no meio da mesma frase.
+    const alerts = [];
+    if (player.fungalContamination > .01) {
+      alerts.push({ text: `Contaminação fúngica ${Math.round(player.fungalContamination * 100)}%`, grave: player.fungalContamination > .4 });
+    }
+    if (player.infection > .01) {
+      alerts.push({ text: `Infecção ${Math.round(player.infection * 100)}%`, grave: player.infection > .5 });
+    }
+    if (sim.meloidogyneLifecycle.infestationPercent > 2) {
+      alerts.push({ text: `Meloidogyne ${sim.meloidogyneLifecycle.infestationPercent.toFixed(0)}%`, grave: sim.meloidogyneLifecycle.infestationPercent > 45 });
+    }
+    if (rhizoctoniaControl.activeCount) {
+      alerts.push({ text: `Rhizoctonia ${rhizoctoniaControl.controlledCount}/${rhizoctoniaControl.activeCount} contida${rhizoctoniaControl.activeCount > 1 ? 's' : ''}` });
+    }
+    if (ralstoniaControl.focusCount) {
+      alerts.push({ text: `Ralstonia ${ralstoniaControl.focusCount} · transporte ${Math.round(ralstoniaControl.averageTransport * 100)}%` });
+    }
+    renderAlerts(alerts);
 
     if (showDebug) {
       const logicIndex = currentLogicIndex();
