@@ -93,7 +93,12 @@ export function createPlayerSprite(skin) {
     return null;
   }
 
-  function stateFor(player) {
+  function stateFor(player, gameState) {
+    // Chegar a raiz final congela o jogador e abre uma janela de 3,4s antes da
+    // proxima fase. Antes ela nao dizia nada — parado, com a tela tremendo, a
+    // vitoria parecia dano. E o momento da comemoracao, e vem antes de tudo:
+    // um golpe recebido nos ultimos passos nao pode roubar a chegada.
+    if (gameState === 'transition' || gameState === 'end') return 'celebrate';
     if (!player.alive) return 'hurt';
     if (player.invuln > 0) return 'hurt';
     if (player.dashTime > 0) return 'dash';
@@ -133,8 +138,8 @@ export function createPlayerSprite(skin) {
     return sheet.loop === false ? Math.min(frames - 1, raw) : ((raw % frames) + frames) % frames;
   }
 
-  function draw(ctx, player, time) {
-    const sheet = resolve(stateFor(player));
+  function draw(ctx, player, time, gameState = null) {
+    const sheet = resolve(stateFor(player, gameState));
     if (!sheet) { lastTime = time; return false; }
 
     // Trocar de animacao recomeca o ciclo dela. Sem isto uma folha que nao
@@ -182,6 +187,9 @@ export function createPlayerSprite(skin) {
 
   return {
     draw,
+    // Exposto para teste: a escolha de estado e regra de jogo (a chegada ganha
+    // do dano) e merece ser verificada sem depender de canvas.
+    stateFor,
     // Enquanto nenhuma folha estiver pronta o astronauta continua no comando.
     // Isso cobre tanto a falha permanente quanto os primeiros quadros, antes de
     // a imagem terminar de carregar.

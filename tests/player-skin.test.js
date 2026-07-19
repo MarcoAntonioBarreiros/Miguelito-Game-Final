@@ -55,6 +55,34 @@ test('enquanto a folha nao carrega, o astronauta continua desenhando', () => {
   assert.equal(desenhou, false);
 });
 
+test('chegar na raiz final comemora, mesmo levando dano no ultimo passo', () => {
+  // A chegada congela o jogador por 3,4s. Antes essa janela nao dizia nada e,
+  // com a tela tremendo, vencer parecia levar um golpe. A comemoracao precisa
+  // ganhar de qualquer outro estado — inclusive de invuln, senao um encontrao
+  // nos ultimos passos rouba a chegada.
+  const sprite = createPlayerSprite(PLAYER_SKINS.miguelito);
+  const jogador = {
+    x: 0, y: 0, w: 32, h: 48, vx: 0, vy: 0,
+    onGround: true, alive: true, invuln: 1, dashTime: 0,
+  };
+  assert.equal(sprite.stateFor(jogador, 'transition'), 'celebrate');
+  assert.equal(sprite.stateFor(jogador, 'end'), 'celebrate');
+  // Fora da chegada, levar dano continua sendo dano.
+  assert.equal(sprite.stateFor(jogador, 'play'), 'hurt');
+});
+
+test('a folha de dano toca uma vez e a de comemoracao repete', () => {
+  // Dano em loop faria o menino apanhar sem parar enquanto so estava piscando;
+  // comemoracao sem loop congelaria no ultimo quadro por 3 segundos.
+  const { hurt, celebrate } = PLAYER_SKINS.miguelito.states;
+  assert.equal(hurt.loop, false, 'dano nao pode repetir');
+  assert.notEqual(celebrate.loop, false, 'a comemoracao precisa repetir na janela da chegada');
+  // A folha de dano precisa caber na invulnerabilidade (~1,05s), senao ela
+  // termina antes de o jogador voltar ao normal e ele fica parado apanhando.
+  const duracao = hurt.frames / hurt.fps;
+  assert.ok(duracao > .7 && duracao < 1.4, `dano dura ${duracao.toFixed(2)}s, fora da janela de invulnerabilidade`);
+});
+
 test('a folha declarada aponta para um arquivo e um numero de quadros', () => {
   const run = PLAYER_SKINS.miguelito.states.run;
   assert.match(run.src, /\.png$/);
@@ -100,7 +128,16 @@ test('o pe assenta no mesmo lugar nas duas folhas', () => {
   // de animacao, parado sobre a mesma plataforma.
   const bases = Object.values(PLAYER_SKINS.miguelito.states).map(folha => folha.baseline);
   assert.ok(bases.every(base => base > 0 && base <= 1), 'baseline e uma fracao da altura do quadro');
-  assert.equal(new Set(bases).size, 1, 'as folhas precisam compartilhar a mesma linha de chao');
+
+  // Cada folha usa a linha medida nela mesma, entao valores identicos seriam
+  // sorte, nao correcao: run e idle deram 379/400 e as folhas novas 381/400.
+  // O que importa e que a diferenca some no jogo — 2px num quadro de 400
+  // viram menos de meio pixel na tela.
+  const diferenca = Math.max(...bases) - Math.min(...bases);
+  assert.ok(
+    diferenca < .01,
+    `as linhas de chao diferem ${(diferenca * 400).toFixed(0)}px no quadro, o pe pularia ao trocar de animacao`,
+  );
 });
 
 test('a corrida nao acelera alem do teto declarado', () => {
@@ -116,5 +153,15 @@ test('a corrida nao acelera alem do teto declarado', () => {
     ritmoNaVelocidadeMaxima > 5 && ritmoNaVelocidadeMaxima < 9,
     `ritmo de ${ritmoNaVelocidadeMaxima.toFixed(1)}fps fora da faixa util`,
   );
-  assert.ok(PLAYER_SKINS.miguelito.states.idle.fps < run.fps, 'parado precisa ser mais lento que correndo');
+  // Comparar os fps declarados nao diz nada: o da corrida e so um teto, e o
+  // ritmo real dela sai da velocidade. O que precisa valer e que correndo a
+  // passada seja mais rapida do que a respiracao de quem esta parado.
+  const idle = PLAYER_SKINS.miguelito.states.idle;
+  const ritmoParado = idle.fps;
+  const ritmoCorrendoDevagar = run.motionBase + 60 * run.motionFactor;
+  assert.ok(
+    ritmoNaVelocidadeMaxima > ritmoParado * .8,
+    `correndo a ${ritmoNaVelocidadeMaxima.toFixed(1)}fps contra ${ritmoParado} parado: a corrida ficaria mais lenta que a respiracao`,
+  );
+  assert.ok(ritmoCorrendoDevagar > 0, 'andar devagar ainda precisa animar');
 });

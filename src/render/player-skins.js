@@ -36,14 +36,14 @@ export const PLAYER_SKINS = Object.freeze({
         src: 'assets/miguelito/run.png',
         // Medido na folha: 2560x400, oito quadros de exatamente 320px.
         frames: 8,
-        // Teto do ritmo. A primeira versao chegava a 17,5 quadros por segundo
-        // na velocidade maxima (245) e depois a 10,8 — as duas ainda pareciam
-        // adiantadas jogando. Agora 2 + 245*0,022 da ~7,4, e o slider do Phase
-        // Lab multiplica isso ao vivo para achar o ponto no olho.
-        fps: 8,
+        // Teto do ritmo. O ponto foi caindo a cada teste jogando: 17,5 quadros
+        // por segundo na velocidade maxima (245), depois 10,8, depois 7,4 — e
+        // ainda parecia adiantado. Agora 1,5 + 245*0,016 da ~5,4. O slider do
+        // Phase Lab multiplica isso ao vivo para o ajuste fino.
+        fps: 6,
         speedFromMotion: true,
-        motionBase: 2,
-        motionFactor: .022,
+        motionBase: 1.5,
+        motionFactor: .016,
         // O pe mais baixo da folha esta na linha 379 de 400: sobra 20px de
         // vazio embaixo. Sem isto o personagem flutua essa sobra inteira.
         baseline: 379 / 400,
@@ -61,6 +61,27 @@ export const PLAYER_SKINS = Object.freeze({
         // Nesta folha o menino foi desenhado bem menor: 224 dos 400px, contra
         // 347 na corrida. Sem normalizar, ele encolheria ao parar de andar.
         contentHeight: 224,
+      }),
+      // Toca uma vez e para no ultimo quadro: a invulnerabilidade dura ~1,05s,
+      // entao 8 quadros a 8fps cobrem a janela quase exatamente. Repetir faria
+      // o menino apanhar em loop enquanto so estava piscando.
+      hurt: Object.freeze({
+        src: 'assets/miguelito/hurt.png',
+        frames: 8,
+        fps: 8,
+        loop: false,
+        // Aqui a base varia 53px porque o personagem sai do chao no empurrao.
+        // A referencia e o quadro mais baixo, onde ele esta apoiado.
+        baseline: 381 / 400,
+        contentHeight: 329,
+      }),
+      // Repete durante os 3,4s entre chegar na raiz final e a proxima fase.
+      celebrate: Object.freeze({
+        src: 'assets/miguelito/celebrate.png',
+        frames: 8,
+        fps: 6,
+        baseline: 381 / 400,
+        contentHeight: 337,
       }),
       // Quando as outras folhas chegarem, e so descomentar e ajustar frames:
       // idle:      { src: 'assets/miguelito/idle.png', frames: 4, fps: 6 },
