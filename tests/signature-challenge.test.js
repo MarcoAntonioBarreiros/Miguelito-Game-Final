@@ -1,7 +1,9 @@
-import assert from 'node:assert/strict';
+﻿import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { generateLevel } from '../src/procgen/generator.js';
+import { validateChunk } from '../src/procgen/agents.js';
+import { applyPhaseFourMycorrhizaIntro } from '../src/procgen/phase-four-mycorrhiza-intro.js';
 import { applySignatureChallenge } from '../src/procgen/signature-challenge.js';
 import { getPhaseManifest, setPhaseManifestOverride, clearPhaseManifestOverride } from '../src/procgen/campaign-manifest.js';
 import {
@@ -28,6 +30,7 @@ function gera(phase, seedName, totalChunks = null) {
   campaign.phase = phase;
   const profile = prepareCampaignGeneration(campaign);
   let level = generateLevel(campaignPhaseSeed(campaign));
+  applyPhaseFourMycorrhizaIntro(level, phase, getPhaseManifest(phase).mycorrhizaBridge);
   level = decorateCampaignLevel(level, campaign, profile);
   const challenge = applySignatureChallenge(level, phase);
   return { level, challenge };
@@ -92,6 +95,48 @@ test('o desafio permanece solucionavel com a escada mais fraca', () => {
         `subida de ${Math.round(subida)}px passa do que a escada minima mais o salto duplo alcancam`,
       );
     }
+  }
+  clearPhaseManifestOverride();
+});
+
+// A ponte micorrizica so vale entre 325 e 340px: abaixo o salto duplo vence,
+// acima ela nao alcanca. E o dash vence essa faixa, entao o desafio precisa
+// cair antes do desbloqueio dele.
+test('o desafio da ponte derrota o salto duplo e cabe no alcance da ponte', () => {
+  const DUPLO = { id: 'running-double-jump-late', requires: ['doubleJump'] };
+  for (const total of [20, 30, 40]) {
+    for (let s = 0; s < 4; s++) {
+      const { level, challenge } = gera(4, `ponte-${total}-${s}`, total);
+      assert.ok(challenge, `fase de ${total} chunks, seed ${s}: nenhum desafio criado`);
+      assert.equal(challenge.mechanic, 'mycorrhizaStructures');
+      assert.ok(
+        challenge.gap <= 340,
+        `vao de ${challenge.gap}px passa do alcance da ponte`,
+      );
+
+      const rota = level.platforms
+        .filter(p => !p.recovery && !p.final && Number.isInteger(p.logicIndex))
+        .sort((a, b) => a.logicIndex - b.logicIndex);
+      const alvo = rota.find(p => p.logicIndex === challenge.chunk);
+      const anterior = rota.find(p => p.logicIndex === challenge.chunk - 1);
+      assert.ok(
+        alvo && anterior && !validateChunk(anterior, alvo, DUPLO, 'normal'),
+        `o salto duplo vence o vao de ${challenge.gap}px e o desafio nao exige a ponte`,
+      );
+    }
+  }
+  clearPhaseManifestOverride();
+});
+
+test('o desafio da ponte fica antes do Dash, que venceria o vao sozinho', () => {
+  for (const total of [20, 40]) {
+    const { challenge } = gera(4, `antes-do-dash-${total}`, total);
+    const dash = getPhaseManifest(4).unlockEvents.find(e => e.feature === 'dash')?.eventChunk;
+    assert.ok(challenge, 'desafio criado');
+    assert.ok(
+      !Number.isInteger(dash) || challenge.chunk < dash,
+      `desafio no chunk ${challenge.chunk} cai depois do Dash (chunk ${dash})`,
+    );
   }
   clearPhaseManifestOverride();
 });
