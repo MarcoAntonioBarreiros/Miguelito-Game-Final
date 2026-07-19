@@ -11,8 +11,7 @@ function spriteDeTeste() {
     characterHeight: 72,
     states: { run: { src: 'x.png', frames: 8, fps: 8, speedFromMotion: true, motionBase: 2, motionFactor: .022, contentHeight: 347 } },
   });
-  const folhas = sprite.debug();
-  assert.equal(folhas.length, 1);
+  assert.equal(sprite.debug().folhas.length, 1);
   return sprite;
 }
 

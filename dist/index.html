@@ -1132,6 +1132,25 @@ const HUD_ICONS = Object.freeze({
   phosphate: '<path d="m12 3 7 4.5v9L12 21l-7-4.5v-9z" fill="#c9a5ff"/><path d="m12 3 7 4.5v9L12 21l-7-4.5v-9z" stroke="#e6d4ff" stroke-width="1.2" fill="none"/><text x="12" y="15" font-size="8" font-weight="800" text-anchor="middle" fill="#3a1f63">P</text>',
 });
 
+// Diagnostico do sprite no painel de debug (Tab). Existe porque "a animacao nao
+// apareceu" tem duas causas muito diferentes — a regra de estado nao disparou,
+// ou disparou e a folha nao estava pronta e caiu no fallback — e olhando a tela
+// as duas sao identicas. Esta linha separa as duas sem precisar de tentativa e
+// erro.
+function spriteDiagnostico() {
+  const skin = renderer?.playerSkin;
+  if (!skin) return 'Sprite: —';
+  if (skin.id === 'astronaut') return 'Sprite: astronauta (desenhado)';
+  const info = skin.debug();
+  if (!info) return `Sprite: ${skin.id} (sem folhas)`;
+  const prontas = info.folhas.filter(folha => folha.ready).map(folha => folha.name);
+  const falharam = info.folhas.filter(folha => folha.failed).map(folha => folha.name);
+  return `Sprite: ${skin.id} | pedido ${info.pedido || '—'} → desenhado ${info.desenhado || '—'}`
+    + `${info.caiuNoFallback ? ' [FALLBACK]' : ''}`
+    + `\nFolhas prontas: ${prontas.join(',') || 'nenhuma'}`
+    + `${falharam.length ? ` | FALHARAM: ${falharam.join(',')}` : ''}`;
+}
+
 function hudIcon(name) {
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${HUD_ICONS[name] || ''}</svg>`;
 }
@@ -1659,6 +1678,7 @@ function loop(now) {
         + (info ? ` | ${info.primitive} | ${info.logic.difficultyTarget} | vão ${info.gap}px` : '')
         + `\nPoderes: salto ${campaign.unlocks.doubleJump ? '✓' : '—'} / dash ${campaign.unlocks.dash ? '✓' : '—'} / solubilizacao P ${campaign.unlocks.phosphateSolubilization ? '✓' : '—'} / pontes AM ${campaign.unlocks.mycorrhizaStructures ? '✓' : '—'} / raízes Azo ${campaign.unlocks.azospirillumRoots ? '✓' : '—'}`
         + `\nCâmera: ${cameraView.zoom.toFixed(2)}× [roda ou +/− | 0=restaurar]`
+        + `\n${spriteDiagnostico()}`
         + `\nEcologia: ${sim.ecology.agents.length} organismos / ${sim.ecology.nicheCount} nichos`
         + `\nRhizoctonia: ${rhizoctoniaControl.activeCount} focos / ${rhizoctoniaControl.controlledCount} contidos por biocontrole`
         + `\nTrichoderma anti-Rhizoctonia: ${trichodermaRhizoctoniaControl.activeAttackCount} ataques · ${trichodermaRhizoctoniaControl.eliminatedCount} focos lisados · ${trichodermaRhizoctoniaControl.abortedCount} ataques interrompidos`
@@ -16063,26 +16083,35 @@ const PLAYER_SKINS = Object.freeze({
         // 347 na corrida. Sem normalizar, ele encolheria ao parar de andar.
         contentHeight: 224,
       }),
-      // Entra rapido no golpe e CONGELA na pose de susto, em vez de correr a
-      // folha inteira.
+      // Levar dano e morrer sao duas leituras diferentes da MESMA folha, e
+      // tratar as duas como uma so foi o erro das rodadas anteriores.
       //
-      // Medido quadro a quadro: o quadro 2 e o mais largo (307px, bracos
-      // abertos) e o 3 e o mais alto (pe a 53px do chao, pernas no ar). Do 4 em
-      // diante e recuperacao — o menino volta ao normal enquanto ainda esta
-      // invulneravel, e ai o golpe perde o peso e a animacao rapida so parece
-      // defeito, ainda mais junto com o tremor e o pisca-pisca.
-      //
-      // Parando no 3, a pose de bracos e pernas no ar fica na tela o tempo todo
-      // da invulnerabilidade, que e o que se le como "levei um susto".
+      // hurt: o menino apanhou e continua de pe. A folha corre inteira, com os
+      // quadros de recuperacao (4 a 7), no ritmo original. Ele apanha, cambaleia
+      // e se recompoe — que e o que de fato aconteceu.
       hurt: Object.freeze({
         src: 'assets/miguelito/hurt.png',
         frames: 8,
-        // Rapido so ate chegar la: 3 quadros a 24fps sao 125ms de entrada.
-        fps: 24,
+        // 8 quadros a 8fps dao 1s, dentro da invulnerabilidade de 1,05s: a
+        // recuperacao termina junto com a protecao.
+        fps: 8,
         loop: false,
-        holdFrame: 3,
         // Aqui a base varia 53px porque o personagem sai do chao no empurrao.
         // A referencia e o quadro mais baixo, onde ele esta apoiado.
+        baseline: 381 / 400,
+        contentHeight: 329,
+      }),
+      // defeat: acabaram os coracoes, ou caiu nos espinhos. Nao ha recuperacao
+      // para mostrar — ele nao se recompoe, ele volta do checkpoint. Entra
+      // rapido e congela no quadro 4, que fica na tela ate o respawn.
+      defeat: Object.freeze({
+        src: 'assets/miguelito/hurt.png',
+        frames: 8,
+        // Rapido so ate chegar la: 5 quadros a 24fps sao ~208ms de entrada, e o
+        // respawn leva 720ms — sobra meio segundo de pose congelada.
+        fps: 24,
+        loop: false,
+        holdFrame: 4,
         baseline: 381 / 400,
         contentHeight: 329,
       }),
@@ -17160,6 +17189,7 @@ const STATE_FALLBACK = Object.freeze({
   fall: ['fall', 'jump', 'run', 'idle'],
   dash: ['dash', 'run', 'idle'],
   hurt: ['hurt', 'idle', 'run'],
+  defeat: ['defeat', 'hurt', 'idle', 'run'],
   celebrate: ['celebrate', 'idle', 'run'],
   pulse: ['pulse', 'idle', 'run'],
 });
@@ -17193,7 +17223,7 @@ function createPlayerSprite(skin) {
 
   const sheets = new Map();
   for (const [name, definition] of Object.entries(skin.states)) {
-    sheets.set(name, loadSheet({ frames: 1, fps: 12, loop: true, ...definition }));
+    sheets.set(name, loadSheet({ name, frames: 1, fps: 12, loop: true, ...definition }));
   }
 
   // Escala: a arte se ajusta ao jogo, nunca o contrario. A fisica esta medida e
@@ -17209,6 +17239,8 @@ function createPlayerSprite(skin) {
   // converter o tempo de jogo em dt.
   let lastTime = null;
   let lastSheet = null;
+  let lastRequested = null;
+  let lastDrawn = null;
 
   // Um dt negativo (fase reiniciou, tempo voltou a zero) ou enorme (aba ficou
   // em segundo plano) nao pode empurrar o ciclo. Nos dois casos o certo e nao
@@ -17239,7 +17271,10 @@ function createPlayerSprite(skin) {
     // vitoria parecia dano. E o momento da comemoracao, e vem antes de tudo:
     // um golpe recebido nos ultimos passos nao pode roubar a chegada.
     if (gameState === 'transition' || gameState === 'end') return 'celebrate';
-    if (!player.alive) return 'hurt';
+    // Morrer e apanhar sao coisas diferentes: quem morreu nao se recompoe, volta
+    // do checkpoint. 'respawning' entra aqui porque o jogador continua morto
+    // enquanto a tela treme e ele e devolvido ao ultimo biofilme.
+    if (!player.alive || gameState === 'respawning') return 'defeat';
     if (player.invuln > 0) return 'hurt';
     if (player.dashTime > 0) return 'dash';
     if (!player.onGround) return player.vy < 0 ? 'jump' : 'fall';
@@ -17290,7 +17325,13 @@ function createPlayerSprite(skin) {
   }
 
   function draw(ctx, player, time, gameState = null) {
-    const sheet = resolve(stateFor(player, gameState));
+    // Guardado para o diagnostico: saber QUAL estado foi pedido e QUAL folha
+    // acabou desenhando e a unica forma de distinguir "a regra nao disparou" de
+    // "a folha nao carregou e caiu no fallback". Sem isso so sobra teorizar em
+    // cima de print.
+    lastRequested = stateFor(player, gameState);
+    const sheet = resolve(lastRequested);
+    lastDrawn = sheet?.name || null;
     if (!sheet) { lastTime = time; return false; }
 
     // Trocar de animacao recomeca o ciclo dela. Sem isto uma folha que nao
@@ -17350,9 +17391,16 @@ function createPlayerSprite(skin) {
     // Isso cobre tanto a falha permanente quanto os primeiros quadros, antes de
     // a imagem terminar de carregar.
     isFallback: () => ![...sheets.values()].some(sheet => sheet.ready),
-    debug: () => [...sheets.entries()].map(([name, sheet]) => ({
-      name, src: sheet.src, ready: sheet.ready, failed: sheet.failed, frames: sheet.frames,
-    })),
+    debug: () => ({
+      pedido: lastRequested,
+      desenhado: lastDrawn,
+      // Pedido e desenhado diferentes significam fallback: a regra disparou mas
+      // a folha nao estava pronta.
+      caiuNoFallback: Boolean(lastRequested && lastDrawn && lastRequested !== lastDrawn),
+      folhas: [...sheets.entries()].map(([name, sheet]) => ({
+        name, src: sheet.src, ready: sheet.ready, failed: sheet.failed, frames: sheet.frames,
+      })),
+    }),
   };
 }
 Object.assign(__exports, { createPlayerSprite });

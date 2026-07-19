@@ -71,26 +71,53 @@ test('chegar na raiz final comemora, mesmo levando dano no ultimo passo', () => 
   assert.equal(sprite.stateFor(jogador, 'play'), 'hurt');
 });
 
+test('apanhar e morrer escolhem animacoes diferentes', () => {
+  const sprite = createPlayerSprite(PLAYER_SKINS.miguelito);
+  const base = { x: 0, y: 0, w: 32, h: 48, vx: 0, vy: 0, onGround: true, dashTime: 0 };
+
+  // Sobreviveu ao golpe: ve a folha inteira, com recuperacao.
+  assert.equal(sprite.stateFor({ ...base, alive: true, invuln: 1 }, 'play'), 'hurt');
+
+  // Morreu: congela. Vale tanto pelo alive quanto pelo estado de respawn — a
+  // queda nos espinhos zera a invulnerabilidade, entao so alive segura essa.
+  assert.equal(sprite.stateFor({ ...base, alive: false, invuln: 0 }, 'play'), 'defeat');
+  assert.equal(sprite.stateFor({ ...base, alive: false, invuln: 0 }, 'respawning'), 'defeat');
+  assert.equal(sprite.stateFor({ ...base, alive: true, invuln: 0 }, 'respawning'), 'defeat');
+});
+
 test('a folha de dano toca uma vez e a de comemoracao repete', () => {
   // Dano em loop faria o menino apanhar sem parar enquanto so estava piscando;
   // comemoracao sem loop congelaria no ultimo quadro por 3 segundos.
   const { hurt, celebrate } = PLAYER_SKINS.miguelito.states;
   assert.equal(hurt.loop, false, 'dano nao pode repetir');
   assert.notEqual(celebrate.loop, false, 'a comemoracao precisa repetir na janela da chegada');
-  // O dano entra rapido no golpe e congela na pose de susto. Correr a folha
-  // inteira devolve o menino ao normal enquanto ele ainda esta invulneravel: o
-  // golpe perde o peso e a animacao rapida so parece defeito.
-  assert.ok(Number.isInteger(hurt.holdFrame), 'o dano precisa parar num quadro, nao correr ate o fim');
+  // Apanhar e sobreviver mostra a folha inteira, recuperacao inclusa: ele
+  // cambaleia e se recompoe, que e o que aconteceu de fato.
+  assert.equal(hurt.holdFrame, undefined, 'quem sobrevive precisa ver a recuperacao');
+  const duracaoDoDano = hurt.frames / hurt.fps;
   assert.ok(
-    hurt.holdFrame > 0 && hurt.holdFrame < hurt.frames - 1,
-    `holdFrame ${hurt.holdFrame}: precisa ser um quadro do meio, nao o primeiro nem o ultimo`,
+    duracaoDoDano > .8 && duracaoDoDano <= 1.1,
+    `dano dura ${duracaoDoDano.toFixed(2)}s: precisa caber na invulnerabilidade de 1,05s sem sobrar`,
   );
-  // Medido na folha: o quadro 3 e o que levanta o menino mais alto (pe a 53px
-  // do chao) e o 2 e o mais largo. A pose de susto esta nesses dois.
-  assert.ok(hurt.holdFrame >= 2 && hurt.holdFrame <= 3, 'a pose de bracos e pernas no ar esta nos quadros 2 e 3');
 
-  const entrada = (hurt.holdFrame + 1) / hurt.fps;
-  assert.ok(entrada < .25, `entrada de ${entrada.toFixed(2)}s: lenta demais para ler como impacto`);
+  // Morrer nao tem recuperacao para mostrar: congela e o respawn assume.
+  const defeat = PLAYER_SKINS.miguelito.states.defeat;
+  assert.equal(defeat.loop, false, 'a derrota nao pode repetir');
+  assert.ok(Number.isInteger(defeat.holdFrame), 'a derrota precisa congelar num quadro');
+  assert.ok(
+    defeat.holdFrame >= 2 && defeat.holdFrame <= 4,
+    'a pose de bracos e pernas no ar esta entre os quadros 2 e 4',
+  );
+  // A entrada precisa caber no respawn de 720ms, senao ele volta ao checkpoint
+  // antes de a pose aparecer.
+  const entrada = (defeat.holdFrame + 1) / defeat.fps;
+  assert.ok(entrada < .45, `entrada de ${entrada.toFixed(2)}s: o respawn chega antes da pose`);
+
+  // As duas leituras saem da mesma folha; medidas diferentes seriam erro de
+  // copia e o menino mudaria de tamanho entre apanhar e morrer.
+  assert.equal(defeat.src, hurt.src);
+  assert.equal(defeat.contentHeight, hurt.contentHeight);
+  assert.equal(defeat.baseline, hurt.baseline);
 });
 
 test('a folha declarada aponta para um arquivo e um numero de quadros', () => {
