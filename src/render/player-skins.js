@@ -62,14 +62,20 @@ export const PLAYER_SKINS = Object.freeze({
         // 347 na corrida. Sem normalizar, ele encolheria ao parar de andar.
         contentHeight: 224,
       }),
-      // Toca uma vez e para no ultimo quadro: a invulnerabilidade dura ~1,05s,
-      // entao 8 quadros a 8fps cobrem a janela quase exatamente. Repetir faria
-      // o menino apanhar em loop enquanto so estava piscando.
+      // Toca uma vez e para no ultimo quadro. Repetir faria o menino apanhar em
+      // loop enquanto so estava piscando.
+      //
+      // A 8fps a folha ocupava 1s inteiro e o golpe ficava arrastado, sem
+      // impacto. A 18fps ela resolve em ~0,44s: sobra invulnerabilidade
+      // piscando depois, que e o certo — o susto acaba antes da protecao.
       hurt: Object.freeze({
         src: 'assets/miguelito/hurt.png',
         frames: 8,
-        fps: 8,
+        fps: 18,
         loop: false,
+        // O deslocamento e o que faz o golpe se sentir. Sobe e recua de
+        // imediato e volta rapido, sem virar arco de pulo.
+        jolt: { up: 13, back: 9 },
         // Aqui a base varia 53px porque o personagem sai do chao no empurrao.
         // A referencia e o quadro mais baixo, onde ele esta apoiado.
         baseline: 381 / 400,

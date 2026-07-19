@@ -176,11 +176,26 @@ export function createPlayerSprite(skin) {
     // fracao da altura do quadro esta o chao.
     const footY = player.h / 2;
     const baseline = Number.isFinite(sheet.baseline) ? sheet.baseline : 1;
-    const top = footY - drawHeight * baseline + offsetY;
+
+    // Solavanco: desloca o desenho para cima e para tras no comeco da animacao
+    // e devolve rapido. E o susto — sem ele a folha de dano toca no lugar e o
+    // golpe nao se sente. So visual: o ctx ja esta espelhado pelo facing, entao
+    // x negativo e sempre "para tras", em qualquer direcao que ele olhe.
+    let joltX = 0;
+    let joltY = 0;
+    if (sheet.jolt) {
+      const progresso = Math.min(1, (sheet.phase || 0) / Math.max(1, frames));
+      // Sobe de imediato e cai rapido: e um susto, nao um arco de pulo.
+      const queda = (1 - progresso) ** 2;
+      joltX = -(sheet.jolt.back || 0) * queda;
+      joltY = -(sheet.jolt.up || 0) * queda;
+    }
+
+    const top = footY - drawHeight * baseline + offsetY + joltY;
     ctx.drawImage(
       sheet.image,
       index * frameWidth, 0, frameWidth, frameHeight,
-      -drawWidth / 2 + offsetX, top, drawWidth, drawHeight,
+      -drawWidth / 2 + offsetX + joltX, top, drawWidth, drawHeight,
     );
     return true;
   }
