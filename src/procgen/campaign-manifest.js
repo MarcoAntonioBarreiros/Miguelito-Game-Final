@@ -310,6 +310,19 @@ const phases = [
   {
     id: 'phase-4', phase: 4, totalChunks: 40,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    // Medido com a fisica real: ate 300px o salto duplo vence; a partir de 325px
+    // ele falha; acima de 340px a propria ponte nao alcanca. Sobra a faixa
+    // 325-340. E como o dash vence esse vao, o desafio precisa cair antes do
+    // desbloqueio dele, no chunk 20.
+    signatureChallenge: {
+      enabled: true,
+      kind: 'gap',
+      mechanic: 'mycorrhizaStructures',
+      gap: 330,
+      minimumChunks: 12,
+      afterPresentation: 'presentation-mycorrhiza',
+      beforeUnlock: 'dash',
+    },
     mycorrhizaBridge: {
       ...MYCORRHIZA_BRIDGE_DEFAULTS,
       introSourceChunk: 3,
