@@ -36,13 +36,14 @@ export const PLAYER_SKINS = Object.freeze({
         src: 'assets/miguelito/run.png',
         // Medido na folha: 2560x400, oito quadros de exatamente 320px.
         frames: 8,
-        // Teto do ritmo. Antes a corrida chegava a 17,5 quadros por segundo na
-        // velocidade maxima (245) e parecia acelerada demais; parado ficava em
-        // 4. Este e o meio termo: 3 + 245*0,032 da ~10,8.
-        fps: 11,
+        // Teto do ritmo. A primeira versao chegava a 17,5 quadros por segundo
+        // na velocidade maxima (245) e depois a 10,8 — as duas ainda pareciam
+        // adiantadas jogando. Agora 2 + 245*0,022 da ~7,4, e o slider do Phase
+        // Lab multiplica isso ao vivo para achar o ponto no olho.
+        fps: 8,
         speedFromMotion: true,
-        motionBase: 3,
-        motionFactor: .032,
+        motionBase: 2,
+        motionFactor: .022,
         // O pe mais baixo da folha esta na linha 379 de 400: sobra 20px de
         // vazio embaixo. Sem isto o personagem flutua essa sobra inteira.
         baseline: 379 / 400,

@@ -15,6 +15,7 @@ import {
 } from './campaign-manifest.js';
 import { applyPhaseLabResources } from './phase-lab-config.js';
 import { createPhaseLabSession } from './phase-lab.js';
+import { initPlayerTuning } from '../render/player-skin-tuning.js';
 import { createSimulator } from './simulator.js';
 import { createRenderer } from '../render/renderer.js';
 import { createPlatformVisuals } from './platform-visuals.js';
@@ -91,6 +92,10 @@ const selectionTouchButton = document.querySelector('[data-key="ArrowDown"]');
 
 let campaignStorage = null;
 try { campaignStorage = window.sessionStorage; } catch (_) {}
+// O ajuste do sprite vale em qualquer partida, nao so dentro do Phase Lab:
+// precisa ser carregado antes de o renderizador desenhar o primeiro quadro.
+initPlayerTuning((() => { try { return window.localStorage; } catch (_) { return null; } })());
+
 const phaseLab = createPhaseLabSession({ windowObject: window });
 if (phaseLab.enabled) campaignStorage = null;
 

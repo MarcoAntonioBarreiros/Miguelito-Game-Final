@@ -1,3 +1,5 @@
+import { getPlayerTuning } from './player-skin-tuning.js';
+
 // Skin de sprite para o jogador.
 //
 // O astronauta e desenhado a mao no canvas e funciona. Esta camada nao o
@@ -63,7 +65,7 @@ export function createPlayerSprite(skin) {
   // o Miguelito encolhia ao parar: na folha de corrida ele ocupa 347 dos 400px
   // do quadro e na de parado so 224, entao a mesma escala aplicada as duas
   // daria dois personagens de tamanhos diferentes.
-  const characterHeight = Number(skin.characterHeight) || 0;
+  const declaredHeight = Number(skin.characterHeight) || 0;
   const heightScale = Number(skin.heightScale) || 1;
   const offsetX = Number(skin.offsetX) || 0;
   const offsetY = Number(skin.offsetY) || 0;
@@ -94,9 +96,10 @@ export function createPlayerSprite(skin) {
     // personagem em vez de patinar num compasso fixo. O ritmo sai da folha —
     // constante escondida aqui vira animacao rapida demais sem nada para
     // ajustar. O fps declarado e o teto.
-    const rate = sheet.speedFromMotion
+    const escala = sheet.speedFromMotion ? (getPlayerTuning().runSpeedScale || 1) : 1;
+    const rate = escala * (sheet.speedFromMotion
       ? Math.min(sheet.fps, (sheet.motionBase ?? 3) + Math.abs(player.vx) * (sheet.motionFactor ?? .032))
-      : sheet.fps;
+      : sheet.fps);
     const raw = Math.floor(time * rate);
     return sheet.loop === false ? Math.min(frames - 1, raw) : ((raw % frames) + frames) % frames;
   }
@@ -114,6 +117,8 @@ export function createPlayerSprite(skin) {
     // dimensionado para que a altura VISIVEL bata com characterHeight — assim
     // trocar de folha nao muda o tamanho do Miguelito. Sem contentHeight, cai
     // no modo antigo de escalar pela caixa.
+    // O slider do Phase Lab manda; a folha so define o padrao.
+    const characterHeight = getPlayerTuning().characterHeight || declaredHeight;
     const drawHeight = characterHeight && sheet.contentHeight
       ? characterHeight * (frameHeight / sheet.contentHeight)
       : player.h * heightScale;

@@ -9,6 +9,9 @@ import {
 } from './campaign-manifest.js';
 import { PLAYER_SKINS, PLAYER_SKIN_STORAGE_KEY, resolvePlayerSkin } from '../render/player-skins.js';
 import {
+  PLAYER_TUNING_LIMITS, getPlayerTuning, resetPlayerTuning, setPlayerTuning,
+} from '../render/player-skin-tuning.js';
+import {
   PHASE_LAB_STORAGE_KEY,
   buildPhaseLabManifest,
   createDefaultPhaseLabConfig,
@@ -155,6 +158,17 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
       <label>Personagem <select data-field="playerSkin">${
         Object.values(PLAYER_SKINS).map(entry => `<option value="${entry.id}">${entry.label}</option>`).join('')
       }</select></label>
+      <fieldset data-player-tuning><legend>Ajuste do sprite (ao vivo)</legend>
+        <label>Altura <span data-tuning-readout="characterHeight"></span>
+          <input type="range" data-tuning="characterHeight"
+            min="${PLAYER_TUNING_LIMITS.characterHeight.min}" max="${PLAYER_TUNING_LIMITS.characterHeight.max}"
+            step="${PLAYER_TUNING_LIMITS.characterHeight.step}"></label>
+        <label>Ritmo da corrida <span data-tuning-readout="runSpeedScale"></span>
+          <input type="range" data-tuning="runSpeedScale"
+            min="${PLAYER_TUNING_LIMITS.runSpeedScale.min}" max="${PLAYER_TUNING_LIMITS.runSpeedScale.max}"
+            step="${PLAYER_TUNING_LIMITS.runSpeedScale.step}"></label>
+        <button data-action="tuning-reset">Restaurar ajuste</button>
+      </fieldset>
       <label>Quantidade de chunks <input data-field="totalChunks" type="number" min="3" max="120"></label>
       <label>Titulo <input data-field="title"></label>
       <label>Tema <input data-field="theme"></label>
@@ -364,6 +378,34 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
       url.searchParams.delete('player');
       windowObject.location.replace(url.toString());
     });
+
+    // Sliders do sprite: mudam o desenho no proximo quadro, sem reiniciar a
+    // fase. E ajuste de olho — reiniciar a cada meio pixel tornaria impossivel
+    // comparar.
+    function pintarAjuste() {
+      const tuning = getPlayerTuning();
+      for (const input of panel.querySelectorAll('[data-tuning]')) {
+        const chave = input.dataset.tuning;
+        input.value = tuning[chave];
+        const leitura = panel.querySelector(`[data-tuning-readout="${chave}"]`);
+        if (leitura) {
+          leitura.textContent = chave === 'runSpeedScale'
+            ? `${Number(tuning[chave]).toFixed(2)}x`
+            : `${Math.round(tuning[chave])}px`;
+        }
+      }
+    }
+    for (const input of panel.querySelectorAll('[data-tuning]')) {
+      input.addEventListener('input', event => {
+        setPlayerTuning({ [event.target.dataset.tuning]: Number(event.target.value) });
+        pintarAjuste();
+      });
+    }
+    panel.querySelector('[data-action="tuning-reset"]').addEventListener('click', () => {
+      resetPlayerTuning();
+      pintarAjuste();
+    });
+    pintarAjuste();
 
     panel.querySelector('[data-action="apply"]').addEventListener('click', () => runApply());
     panel.querySelector('[data-action="seed"]').addEventListener('click', () => {

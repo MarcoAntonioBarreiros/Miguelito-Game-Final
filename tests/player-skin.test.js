@@ -109,9 +109,12 @@ test('a corrida nao acelera alem do teto declarado', () => {
   const run = PLAYER_SKINS.miguelito.states.run;
   const ritmoNaVelocidadeMaxima = run.motionBase + 245 * run.motionFactor;
   assert.ok(ritmoNaVelocidadeMaxima <= run.fps, 'o ritmo maximo nao pode passar do fps declarado');
+  // A faixa util foi encontrada jogando, nao calculada: 17,5 e 10,8 pareceram
+  // adiantados, e abaixo de 5 a passada arrasta. O slider do Phase Lab
+  // multiplica isto ao vivo para o ajuste fino.
   assert.ok(
-    ritmoNaVelocidadeMaxima > 8 && ritmoNaVelocidadeMaxima < 13,
-    `ritmo de ${ritmoNaVelocidadeMaxima.toFixed(1)}fps fora do meio termo pedido`,
+    ritmoNaVelocidadeMaxima > 5 && ritmoNaVelocidadeMaxima < 9,
+    `ritmo de ${ritmoNaVelocidadeMaxima.toFixed(1)}fps fora da faixa util`,
   );
   assert.ok(PLAYER_SKINS.miguelito.states.idle.fps < run.fps, 'parado precisa ser mais lento que correndo');
 });
