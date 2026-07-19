@@ -107,12 +107,10 @@ export function createTutorialManager({ state }) {
 
           <div class="tutorial-content">
             <aside class="tutorial-visual" aria-hidden="true">
-              <div class="tutorial-hologram-ring ring-one"></div>
-              <div class="tutorial-hologram-ring ring-two"></div>
-              <div class="tutorial-glyph"></div>
-              <div class="tutorial-cycle-block">
-                <span class="tutorial-cycle-label"></span>
-                <div class="tutorial-cycle"></div>
+              <div class="tutorial-symbol">
+                <div class="tutorial-hologram-ring ring-one"></div>
+                <div class="tutorial-hologram-ring ring-two"></div>
+                <div class="tutorial-glyph"></div>
               </div>
             </aside>
 
@@ -122,6 +120,14 @@ export function createTutorialManager({ state }) {
               <p class="tutorial-page-body"></p>
               <ul class="tutorial-page-points"></ul>
             </main>
+          </div>
+
+          <!-- A sequencia saiu de dentro da coluna do simbolo e virou uma faixa
+               propria: ela e dado sequencial e quer largura, nao altura. Numa
+               coluna de 250px cada etapa quebrava em duas linhas. -->
+          <div class="tutorial-cycle-block">
+            <span class="tutorial-cycle-label"></span>
+            <div class="tutorial-cycle"></div>
           </div>
 
           <footer class="tutorial-footer">

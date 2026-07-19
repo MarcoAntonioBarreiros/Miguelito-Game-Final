@@ -295,15 +295,14 @@
       top: calc(52px + var(--safe-top));
       padding: 16px 30px;
       width: auto;
-      max-width: min(82vw, 560px);
+      max-width: min(88vw, 620px);
       /* Continua sendo o texto mais importante: encolhe menos que o resto. */
-      font-size: clamp(15px, 3.4vw, 20px);
-      line-height: 1.26;
-      max-height: 3.9em;
-      overflow: hidden;
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 3;
+      font-size: clamp(14px, 3.1vw, 19px);
+      line-height: 1.28;
+      /* Sem corte. O limite de 3 linhas com max-height cortava a frase no meio
+         — "pressione E novamente para inocular" virava "pressione E novamen".
+         Uma instrucao pela metade e pior do que ocupar mais duas linhas: o
+         jogador fica sem saber o que fazer. Quem manda no tamanho e a frase. */
     }
     .touch-device #mission {
       left: calc(7px + var(--safe-left));
