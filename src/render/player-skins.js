@@ -62,20 +62,24 @@ export const PLAYER_SKINS = Object.freeze({
         // 347 na corrida. Sem normalizar, ele encolheria ao parar de andar.
         contentHeight: 224,
       }),
-      // Toca uma vez e para no ultimo quadro. Repetir faria o menino apanhar em
-      // loop enquanto so estava piscando.
+      // Entra rapido no golpe e CONGELA na pose de susto, em vez de correr a
+      // folha inteira.
       //
-      // A 8fps a folha ocupava 1s inteiro e o golpe ficava arrastado, sem
-      // impacto. A 18fps ela resolve em ~0,44s: sobra invulnerabilidade
-      // piscando depois, que e o certo — o susto acaba antes da protecao.
+      // Medido quadro a quadro: o quadro 2 e o mais largo (307px, bracos
+      // abertos) e o 3 e o mais alto (pe a 53px do chao, pernas no ar). Do 4 em
+      // diante e recuperacao — o menino volta ao normal enquanto ainda esta
+      // invulneravel, e ai o golpe perde o peso e a animacao rapida so parece
+      // defeito, ainda mais junto com o tremor e o pisca-pisca.
+      //
+      // Parando no 3, a pose de bracos e pernas no ar fica na tela o tempo todo
+      // da invulnerabilidade, que e o que se le como "levei um susto".
       hurt: Object.freeze({
         src: 'assets/miguelito/hurt.png',
         frames: 8,
-        fps: 18,
+        // Rapido so ate chegar la: 3 quadros a 24fps sao 125ms de entrada.
+        fps: 24,
         loop: false,
-        // O deslocamento e o que faz o golpe se sentir. Sobe e recua de
-        // imediato e volta rapido, sem virar arco de pulo.
-        jolt: { up: 13, back: 9 },
+        holdFrame: 3,
         // Aqui a base varia 53px porque o personagem sai do chao no empurrao.
         // A referencia e o quadro mais baixo, onde ele esta apoiado.
         baseline: 381 / 400,

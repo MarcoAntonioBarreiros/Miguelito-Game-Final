@@ -135,7 +135,18 @@ export function createPlayerSprite(skin) {
     sheet.phase = (sheet.phase || 0) + rate * dt;
 
     const raw = Math.floor(sheet.phase);
-    return sheet.loop === false ? Math.min(frames - 1, raw) : ((raw % frames) + frames) % frames;
+    if (sheet.loop === false) {
+      // holdFrame trava num quadro do meio em vez de correr ate o fim. Numa
+      // folha de dano os ultimos quadros sao a recuperacao: passar por eles
+      // devolve o personagem ao normal enquanto ele ainda esta invulneravel, e
+      // o golpe perde o peso. Parar no quadro do impacto deixa a pose de susto
+      // na tela pelo tempo todo.
+      const ultimo = Number.isInteger(sheet.holdFrame)
+        ? Math.min(frames - 1, sheet.holdFrame)
+        : frames - 1;
+      return Math.min(ultimo, raw);
+    }
+    return ((raw % frames) + frames) % frames;
   }
 
   function draw(ctx, player, time, gameState = null) {
@@ -177,25 +188,15 @@ export function createPlayerSprite(skin) {
     const footY = player.h / 2;
     const baseline = Number.isFinite(sheet.baseline) ? sheet.baseline : 1;
 
-    // Solavanco: desloca o desenho para cima e para tras no comeco da animacao
-    // e devolve rapido. E o susto — sem ele a folha de dano toca no lugar e o
-    // golpe nao se sente. So visual: o ctx ja esta espelhado pelo facing, entao
-    // x negativo e sempre "para tras", em qualquer direcao que ele olhe.
-    let joltX = 0;
-    let joltY = 0;
-    if (sheet.jolt) {
-      const progresso = Math.min(1, (sheet.phase || 0) / Math.max(1, frames));
-      // Sobe de imediato e cai rapido: e um susto, nao um arco de pulo.
-      const queda = (1 - progresso) ** 2;
-      joltX = -(sheet.jolt.back || 0) * queda;
-      joltY = -(sheet.jolt.up || 0) * queda;
-    }
-
-    const top = footY - drawHeight * baseline + offsetY + joltY;
+    // Tentei somar aqui um solavanco de 13px para cima e 9px para tras no
+    // impacto, e nao dava para ver. Medindo a folha entendi por que: o proprio
+    // desenho ja levanta o menino 53px do chao no quadro 3, de 400 de quadro.
+    // O deslocamento sempre esteve na arte; o que faltava era ficar nele.
+    const top = footY - drawHeight * baseline + offsetY;
     ctx.drawImage(
       sheet.image,
       index * frameWidth, 0, frameWidth, frameHeight,
-      -drawWidth / 2 + offsetX + joltX, top, drawWidth, drawHeight,
+      -drawWidth / 2 + offsetX, top, drawWidth, drawHeight,
     );
     return true;
   }

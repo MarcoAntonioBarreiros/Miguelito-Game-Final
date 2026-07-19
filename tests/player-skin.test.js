@@ -77,15 +77,20 @@ test('a folha de dano toca uma vez e a de comemoracao repete', () => {
   const { hurt, celebrate } = PLAYER_SKINS.miguelito.states;
   assert.equal(hurt.loop, false, 'dano nao pode repetir');
   assert.notEqual(celebrate.loop, false, 'a comemoracao precisa repetir na janela da chegada');
-  // O susto precisa acabar bem antes da invulnerabilidade (~1,05s): a 8fps a
-  // folha ocupava a janela inteira e o golpe ficava arrastado. Curta, sobra
-  // tempo de pisca-pisca depois, que e como impacto se le.
-  const duracao = hurt.frames / hurt.fps;
-  assert.ok(duracao < .6, `dano dura ${duracao.toFixed(2)}s: arrastado demais para um susto`);
-  assert.ok(duracao > .25, `dano dura ${duracao.toFixed(2)}s: rapido demais para ser visto`);
+  // O dano entra rapido no golpe e congela na pose de susto. Correr a folha
+  // inteira devolve o menino ao normal enquanto ele ainda esta invulneravel: o
+  // golpe perde o peso e a animacao rapida so parece defeito.
+  assert.ok(Number.isInteger(hurt.holdFrame), 'o dano precisa parar num quadro, nao correr ate o fim');
+  assert.ok(
+    hurt.holdFrame > 0 && hurt.holdFrame < hurt.frames - 1,
+    `holdFrame ${hurt.holdFrame}: precisa ser um quadro do meio, nao o primeiro nem o ultimo`,
+  );
+  // Medido na folha: o quadro 3 e o que levanta o menino mais alto (pe a 53px
+  // do chao) e o 2 e o mais largo. A pose de susto esta nesses dois.
+  assert.ok(hurt.holdFrame >= 2 && hurt.holdFrame <= 3, 'a pose de bracos e pernas no ar esta nos quadros 2 e 3');
 
-  // Sem deslocamento a folha toca no lugar e o golpe nao se sente.
-  assert.ok(hurt.jolt?.up > 0 && hurt.jolt?.back > 0, 'o dano precisa deslocar para cima e para tras');
+  const entrada = (hurt.holdFrame + 1) / hurt.fps;
+  assert.ok(entrada < .25, `entrada de ${entrada.toFixed(2)}s: lenta demais para ler como impacto`);
 });
 
 test('a folha declarada aponta para um arquivo e um numero de quadros', () => {
