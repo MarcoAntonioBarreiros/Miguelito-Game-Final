@@ -10064,7 +10064,16 @@ function routePlatforms(level) {
     .sort((left, right) => left.logicIndex - right.logicIndex || left.x - right.x);
 }
 
-function colonizableRoot(platform) {
+// O gerador sorteia o tipo da plataforma: 75% raiz, 25% solo. Numa fase curta
+// esse sorteio sozinho apaga o desafio-assinatura da fase — o portao da FBN
+// simplesmente nao acha onde nascer. Promover uma plataforma de solo a raiz e
+// gratuito (o tipo e visual) e e exatamente o assunto da fase.
+function promotableToRoot(platform) {
+  return Boolean(platform && platform.type === 'soil' && !platform.recovery);
+}
+
+function colonizableRoot(platform, allowPromotion = false) {
+  if (allowPromotion && promotableToRoot(platform)) return colonizableRoot({ ...platform, type: 'root' });
   return Boolean(
     platform
     && platform.type === 'root'
@@ -10091,30 +10100,45 @@ function occupiesPlatform(entity, platform) {
   return Number.isFinite(entity?.x) && entity.x >= platform.x && entity.x <= platform.x + platform.w;
 }
 
-function hasCriticalContent(level, encounters, platform) {
+function hasCriticalContent(level, encounters, platform, encountersAreMovable = false) {
   const collections = [
     level.exudates,
     level.crystals,
     level.enemies,
     level.allies,
     level.checkpoints,
-    encounters,
   ];
+  // Um encontro sobre o alvo normalmente descarta o lugar: apagar a plataforma
+  // deixaria o microbio sem casa. Mas no ultimo recurso ele pode se mudar para a
+  // raiz hospedeira — que e justamente onde o jogador precisa dele para nodular.
+  if (!encountersAreMovable) collections.push(encounters);
   return collections.some(collection => (collection || []).some(entity => occupiesPlatform(entity, platform)));
 }
 
-function routeGapCandidates(level, encounters, route, firstExudate) {
+function relocateEncounters(encounters, target, host) {
+  for (const encounter of encounters || []) {
+    if (!occupiesPlatform(encounter, target)) continue;
+    encounter.logicIndex = host.logicIndex;
+    if (Number.isFinite(encounter.x)) encounter.x = host.x + host.w / 2;
+    if (Number.isFinite(encounter.y)) encounter.y = host.y - 26;
+  }
+}
+
+function routeGapCandidates(level, encounters, route, firstExudate, allowPromotion = false) {
   const candidates = [];
   for (let routeIndex = 2; routeIndex < route.length - 1; routeIndex++) {
     const targetPlatform = route[routeIndex];
-    if (!colonizableRoot(targetPlatform) || hasCriticalContent(level, encounters, targetPlatform)) continue;
+    if (
+      !colonizableRoot(targetPlatform, allowPromotion)
+      || hasCriticalContent(level, encounters, targetPlatform, allowPromotion)
+    ) continue;
 
     const leftPlatform = route[routeIndex - 1];
     const rightPlatform = route[routeIndex + 1];
     // The source of the FBN must be visually unambiguous: the colonizable root
     // immediately before the missing route platform is always its host.
     const hostPlatform = leftPlatform;
-    if (!colonizableRoot(hostPlatform) || hostPlatform.logicIndex <= firstExudate) continue;
+    if (!colonizableRoot(hostPlatform, allowPromotion) || hostPlatform.logicIndex <= firstExudate) continue;
 
     const blockedGapWidth = rightPlatform.x - (leftPlatform.x + leftPlatform.w);
     const leftLandingGap = targetPlatform.x - (leftPlatform.x + leftPlatform.w);
@@ -10173,7 +10197,15 @@ function generateUnderdevelopedNitrogenRoots({
 
   const firstExudate = exudateIndexes[0];
   const route = routePlatforms(level);
-  const candidates = routeGapCandidates(level, encounters, route, firstExudate);
+  // Primeiro tenta so onde o sorteio ja pos raiz. So promove solo a raiz se a
+  // fase inteira nao oferecer nenhum lugar — assim a variacao entre seeds
+  // continua existindo, mas o portao da FBN nunca some.
+  let promoted = false;
+  let candidates = routeGapCandidates(level, encounters, route, firstExudate);
+  if (!candidates.length) {
+    promoted = true;
+    candidates = routeGapCandidates(level, encounters, route, firstExudate, true);
+  }
   if (!candidates.length) return level.nitrogenRoots;
 
   const random = createRandom(`${seedValue}:nitrogen-root:p${phase}`);
@@ -10195,6 +10227,12 @@ function generateUnderdevelopedNitrogenRoots({
   }
   level.nitrogenRoots = selected.map((slot, index) => {
     const { hostPlatform, targetPlatform, leftPlatform, rightPlatform } = slot;
+    // Só o par escolhido vira raiz, e só quando não havia alternativa sorteada.
+    if (promoted) {
+      if (promotableToRoot(hostPlatform)) hostPlatform.type = 'root';
+      if (promotableToRoot(targetPlatform)) targetPlatform.type = 'root';
+      relocateEncounters(encounters, targetPlatform, hostPlatform);
+    }
     const startWidth = clamp(Math.round(targetPlatform.w * .45), 64, 92);
     const startHeight = 12;
     removeGapPlatforms(level, slot);
@@ -14256,8 +14294,7 @@ function createFixedBlockRuntime({ state, evaluator, entities, ecology = null })
 Object.assign(__exports, { applyPhaseOneVerticalSlice, createFixedBlockRuntime });
 },
 "src/procgen/signature-challenge.js": (__exports, __require) => {
-const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
-const { validateChunk } = __require("src/procgen/agents.js");
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { validateChunk } = __require("src/procgen/agents.js");
 const DOUBLE_JUMP = Object.freeze({ id: 'running-double-jump-late', requires: ['doubleJump'] });
 
 // Estimar pelo numero do vao nao basta: uma queda de poucos pixels alonga o
