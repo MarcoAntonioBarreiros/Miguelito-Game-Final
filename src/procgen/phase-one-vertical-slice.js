@@ -264,19 +264,29 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
       || (state.level.biofilms || []).some(film => film.platform?.objectiveTarget === 'p1-intro-root');
   }
 
+  // Sem caixa e sem contorno: a moldura transformava a orientacao num widget
+  // colado por cima da cena. Legibilidade vem de sombra e de um escurecimento
+  // suave sem borda, entao o texto pertence ao mundo em vez de flutuar sobre ele.
   function drawGuidance(ctx, x, y, label, color = '#ffd56f') {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = '900 13px Inter,system-ui';
-    const width = ctx.measureText(label).width + 30;
-    ctx.fillStyle = 'rgba(3,18,24,.9)';
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(x - width / 2, y - 16, width, 32, 16);
-    ctx.fill();
-    ctx.stroke();
+    const width = ctx.measureText(label).width;
+
+    const shade = ctx.createRadialGradient(x, y, 0, x, y, width * .62);
+    shade.addColorStop(0, 'rgba(3,16,22,.82)');
+    shade.addColorStop(.6, 'rgba(3,16,22,.5)');
+    shade.addColorStop(1, 'rgba(3,16,22,0)');
+    ctx.fillStyle = shade;
+    ctx.fillRect(x - width * .7, y - 22, width * 1.4, 44);
+
+    ctx.shadowColor = 'rgba(0,0,0,.95)';
+    ctx.shadowBlur = 7;
+    ctx.fillStyle = 'rgba(0,0,0,.7)';
+    ctx.fillText(label, x, y + 1.5);
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = color === '#ffd56f' ? 'rgba(255,190,90,.5)' : 'rgba(0,0,0,.8)';
     ctx.fillStyle = color === '#ffd56f' ? '#ffe58f' : color;
     ctx.fillText(label, x, y + .5);
     ctx.restore();

@@ -317,25 +317,30 @@ export function createPlatformVisuals({ state }) {
     if (nearby.platform.fixedObjective) return;
     const { text, color } = labelFor(nearby.platform);
     const alpha = clamp(1 - nearby.score / 82, .25, 1);
-    const player = state.player;
-    const screenX = clamp(player.x + player.w / 2 - state.cameraX, 82, W - 82);
-    const screenY = clamp(player.y - 38, 54, H - 70);
+    const platform = nearby.platform;
+
+    // O rotulo mora no bloco a que ele se refere, nao acima do jogador. Preso
+    // ao jogador ele cobria o que estivesse por perto — a orientacao da fase,
+    // outro rotulo — e ainda obrigava a adivinhar de qual bloco ele falava.
+    // Sem capsula: o proprio bloco ja e o fundo que da legibilidade.
+    const screenX = clamp(
+      platform.x + platform.w / 2 - state.cameraX,
+      64, W - 64,
+    );
+    const screenY = clamp(platform.y + 17, 54, H - 24);
 
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.font = '700 11px Inter,system-ui';
+    ctx.font = '800 11px Inter,system-ui';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const width = ctx.measureText(text).width + 26;
-    ctx.fillStyle = 'rgba(3,18,24,.78)';
-    ctx.strokeStyle = `${color}aa`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(screenX - width / 2, screenY - 12, width, 24, 12);
-    ctx.fill();
-    ctx.stroke();
+    ctx.shadowColor = 'rgba(0,0,0,.9)';
+    ctx.shadowBlur = 5;
+    ctx.fillStyle = 'rgba(0,0,0,.62)';
+    ctx.fillText(text, screenX, screenY + 1);
+    ctx.shadowBlur = 3;
     ctx.fillStyle = color;
-    ctx.fillText(text, screenX, screenY + .5);
+    ctx.fillText(text, screenX, screenY);
     ctx.restore();
   }
 

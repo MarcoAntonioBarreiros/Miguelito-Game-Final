@@ -462,37 +462,64 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
     ctx.restore();
   }
 
+  // Duas barras rotuladas por colonia empilhavam retangulo, texto e fundo preto
+  // sobre a cena inteira — e uma colonia madura nunca esta sozinha. Aqui a
+  // reserva vira o que ela e de fato: substancia difundindo no solo. A
+  // quantidade se le pela densidade e pelo alcance da difusao, nao por um
+  // numero, e a colonia continua parecendo uma colonia.
+  function drawDiffusion(ctx, entry, amount, palette, seed) {
+    const spread = 16 + amount * 26;
+    const halo = ctx.createRadialGradient(0, 0, 2, 0, 0, spread);
+    halo.addColorStop(0, palette.core);
+    halo.addColorStop(.55, palette.mid);
+    halo.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = .15 + amount * .4;
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.ellipse(0, 6, spread, spread * .62, 0, 0, TAU);
+    ctx.fill();
+
+    // As particulas sobem e se dispersam como difusao real, e nascem em numero
+    // proporcional a reserva: pouca reserva, poucas particulas.
+    const count = Math.round(amount * 9);
+    ctx.globalAlpha = 1;
+    for (let index = 0; index < count; index++) {
+      const phase = (state.time * .34 + seed + index / Math.max(1, count)) % 1;
+      const angle = seed * TAU + index * 2.399;
+      const distance = spread * (.25 + phase * .8);
+      const x = Math.cos(angle) * distance;
+      const y = 6 + Math.sin(angle) * distance * .5 - phase * 13;
+      ctx.globalAlpha = (1 - phase) * (.32 + amount * .5);
+      ctx.fillStyle = palette.dot;
+      ctx.beginPath();
+      ctx.arc(x, y, 1.5 + (index % 3) * .5, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
   function drawReserve(ctx, entry) {
     if (entry.mode === 'spores') return;
     const colony = entry.colony;
-    const width = 46;
-    const reserve = clamp(entry.antibioticReserve / 1.25, 0, 1);
-    ctx.save();
-    ctx.translate(colony.x, colony.y);
-    ctx.fillStyle = 'rgba(3,18,24,.76)';
-    ctx.fillRect(-width / 2 - 2, 25, width + 4, 7);
-    ctx.fillStyle = '#ffd77e';
-    ctx.fillRect(-width / 2, 27, width * reserve, 3);
-    ctx.font = '700 8px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(255,227,164,.9)';
-    ctx.fillText('antibiose', 0, 41);
-    ctx.restore();
+    const seed = (colony.x % 97) / 97;
 
-    // A barra de fosfato so aparece quando ha reserva: qualquer Bacillus pode
-    // te-la, mas ela nao polui a tela das colonias que ainda nao produziram.
-    if (entry.mode !== 'spores' && (entry.phosphateMetaboliteReserve || 0) > .01) {
-      const phosphate = clamp(entry.phosphateMetaboliteReserve || 0, 0, 1);
+    const antibiotic = clamp(entry.antibioticReserve / 1.25, 0, 1);
+    if (antibiotic > .01) {
       ctx.save();
       ctx.translate(colony.x, colony.y);
-      ctx.fillStyle = 'rgba(3,18,24,.76)';
-      ctx.fillRect(-width / 2 - 2, 45, width + 4, 7);
-      ctx.fillStyle = '#dc8cff';
-      ctx.fillRect(-width / 2, 47, width * phosphate, 3);
-      ctx.font = '700 8px Inter,system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#f2c7ff';
-      ctx.fillText('metabolitos P', 0, 61);
+      drawDiffusion(ctx, entry, antibiotic, {
+        core: 'rgba(255,205,120,.5)', mid: 'rgba(255,180,80,.16)', dot: '#ffd77e',
+      }, seed);
+      ctx.restore();
+    }
+
+    const phosphate = clamp(entry.phosphateMetaboliteReserve || 0, 0, 1);
+    if (phosphate > .01) {
+      ctx.save();
+      ctx.translate(colony.x, colony.y);
+      drawDiffusion(ctx, entry, phosphate, {
+        core: 'rgba(214,140,255,.44)', mid: 'rgba(190,110,255,.14)', dot: '#dc8cff',
+      }, seed + .37);
       ctx.restore();
     }
   }
