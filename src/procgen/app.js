@@ -37,6 +37,7 @@ const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
 const missionDiv = document.getElementById('mission');
+const phaseCardDiv = document.getElementById('phase-card');
 const hudBar = document.getElementById('hud-bar');
 const stockDiv = document.getElementById('hud-stock');
 const alertsDiv = document.getElementById('hud-alerts');
@@ -310,10 +311,29 @@ function initGame({ announce = false } = {}) {
   // o sistema de tutoriais e o diagnóstico exposto no navegador.
   window.miguelitoSim = sim;
 
-  if (announce) {
-    sim.state.toast = `Fase ${campaign.phase} — ${profile.title}: ${phaseIntroText()}`;
-    sim.state.toastTime = 6;
-  }
+  // A abertura da fase nao e narracao: e um cartao de titulo. Ela era anunciada
+  // como toast e ao mesmo tempo ficava fixa no canto esquerdo — a mesma frase
+  // duas vezes, uma delas para sempre. Agora aparece grande no centro, uma vez,
+  // e sai.
+  if (announce) showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText());
+}
+
+let phaseCardTimer = null;
+
+function showPhaseCard(eyebrow, title, subtitle) {
+  if (!phaseCardDiv) return;
+  phaseCardDiv.innerHTML = `<span class="eyebrow">${eyebrow}</span>`
+    + `<span class="title">${title}</span>`
+    + `<span class="subtitle">${subtitle}</span>`;
+  phaseCardDiv.classList.remove('show', 'leaving');
+  // Forca o reinicio da animacao quando duas fases se sucedem rapido.
+  void phaseCardDiv.offsetWidth;
+  phaseCardDiv.classList.add('show');
+  clearTimeout(phaseCardTimer);
+  phaseCardTimer = setTimeout(() => {
+    phaseCardDiv.classList.add('leaving');
+    phaseCardTimer = setTimeout(() => phaseCardDiv.classList.remove('show', 'leaving'), 1100);
+  }, 3400);
 }
 
 function startNewCampaign() {
@@ -474,7 +494,16 @@ function loop(now) {
     renderWorld();
     updateTouchAbilityVisibility();
 
-    if (sim.state.mission) missionDiv.textContent = `🌱 Fase ${campaign.phase}: ${sim.state.mission}`;
+    // O objetivo da fase agora e dito pelo cartao de abertura. Manter a mesma
+    // frase presa no canto o tempo todo so gastava atencao — quem esquecer tem
+    // o GUIA. Fica so o numero da fase, curto.
+    // No fim da fase mission deixa de ser objetivo e passa a ser a mensagem de
+    // conclusao; encurtar ali apagaria justamente o que precisa ser lido.
+    if (sim.state.mission) {
+      missionDiv.textContent = sim.state.gameState === 'end'
+        ? sim.state.mission
+        : `Fase ${campaign.phase}`;
+    }
 
     if (sim.state.toastTime > 0 && sim.state.toast && sim.state.toast !== lastToast) {
       toastDiv.textContent = sim.state.toast;

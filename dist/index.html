@@ -55,37 +55,96 @@
       border: 1px solid rgba(140,230,220,.2);
     }
     #debug.hidden { opacity: 0; }
-    /* Narracao: e o texto que conta o que acabou de acontecer, ou seja o mais
-       importante da tela — e era o menor e o mais apagado de todos. Ganhou
-       corpo, peso e uma barra de acento a esquerda em vez de contorno fechado,
-       que era o que dava aparencia de widget colado sobre a cena. Desceu para
-       nao encostar nos chips de recurso. */
+    /* Narracao. A versao anterior tinha barra de acento, fundo em degrade e
+       cantos: parecia slide de apresentacao, nao jogo. Aqui e so texto com
+       glow — o mesmo tratamento do nome das colonias — sobre um vinco escuro
+       eliptico que desaparece antes de virar aresta. Nenhuma borda para
+       aparecer, e legivel mesmo sobre as hifas roxas.
+       Maior tambem: e o texto que conta o que acabou de acontecer. */
     #toast {
       position: absolute;
       z-index: 30;
-      top: calc(60px + var(--safe-top));
+      top: calc(64px + var(--safe-top));
       left: 50%;
-      transform: translateX(-50%) translateY(-6px);
-      padding: 11px 18px 11px 16px;
-      border-left: 3px solid #6ce7df;
-      border-radius: 4px 12px 12px 4px;
-      background: linear-gradient(90deg, rgba(6,32,38,.96), rgba(3,18,24,.92));
-      font-size: 16px;
-      font-weight: 600;
-      line-height: 1.35;
-      letter-spacing: -.005em;
-      color: #eafffb;
+      transform: translateX(-50%) translateY(-8px);
+      padding: 26px 54px;
+      background: radial-gradient(ellipse 62% 58% at 50% 50%,
+        rgba(1,10,14,.9) 0%, rgba(1,10,14,.72) 46%, rgba(1,10,14,0) 76%);
+      font-size: 23px;
+      font-weight: 800;
+      line-height: 1.28;
+      letter-spacing: -.02em;
+      color: #f2fffc;
+      text-shadow:
+        0 0 3px rgba(0,0,0,.95), 0 2px 10px rgba(0,0,0,.9),
+        0 0 22px rgba(108,231,223,.5), 0 0 44px rgba(108,231,223,.22);
       pointer-events: none;
-      text-align: left;
+      text-align: center;
       text-wrap: balance;
       width: max-content;
-      max-width: min(660px, calc(100vw - 32px));
+      max-width: min(720px, calc(100vw - 32px));
       opacity: 0;
-      transition: opacity .25s ease, transform .25s ease;
-      box-shadow: 0 12px 34px rgba(0,0,0,.5);
-      backdrop-filter: blur(3px);
+      transition: opacity .3s ease, transform .3s ease;
     }
     #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* Cartao de abertura da fase: aparece grande no centro, uma vez, e sai.
+       Antes a mesma frase era narrada como toast E ficava presa no canto
+       esquerdo para sempre — dita duas vezes, e uma delas nunca calava. */
+    #phase-card {
+      position: absolute;
+      z-index: 35;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 0 6vw;
+      text-align: center;
+      pointer-events: none;
+      background: radial-gradient(ellipse 58% 42% at 50% 48%,
+        rgba(1,10,14,.78) 0%, rgba(1,10,14,.44) 52%, rgba(1,10,14,0) 78%);
+    }
+    #phase-card.show { display: flex; animation: phase-card-in .85s cubic-bezier(.16,1,.3,1) both; }
+    #phase-card.leaving { animation: phase-card-out 1s ease forwards; }
+    #phase-card .eyebrow {
+      font-size: clamp(11px, 1.5vw, 14px);
+      font-weight: 900;
+      letter-spacing: .42em;
+      text-indent: .42em;
+      text-transform: uppercase;
+      color: #6ce7df;
+      text-shadow: 0 0 18px rgba(108,231,223,.65), 0 2px 8px rgba(0,0,0,.9);
+    }
+    #phase-card .title {
+      font-size: clamp(30px, 5.6vw, 62px);
+      font-weight: 900;
+      line-height: 1.04;
+      letter-spacing: -.035em;
+      color: #f4fffd;
+      text-shadow:
+        0 3px 16px rgba(0,0,0,.92),
+        0 0 32px rgba(108,231,223,.5), 0 0 76px rgba(108,231,223,.26);
+    }
+    #phase-card .subtitle {
+      margin-top: 8px;
+      max-width: 30ch;
+      font-size: clamp(13px, 1.9vw, 19px);
+      font-weight: 600;
+      line-height: 1.36;
+      text-wrap: balance;
+      color: rgba(222,250,245,.9);
+      text-shadow: 0 2px 12px rgba(0,0,0,.95), 0 0 24px rgba(0,0,0,.7);
+    }
+    @keyframes phase-card-in {
+      from { opacity: 0; transform: scale(.94) translateY(14px); filter: blur(7px); }
+      to { opacity: 1; transform: none; filter: none; }
+    }
+    @keyframes phase-card-out {
+      from { opacity: 1; }
+      to { opacity: 0; transform: scale(1.05); filter: blur(5px); }
+    }
     #mission {
       position: absolute;
       z-index: 25;
@@ -219,18 +278,18 @@
     }
     .touch-device #debug.mobile-visible { display: block; opacity: 1; }
     .touch-device #toast {
-      top: calc(50px + var(--safe-top));
-      padding: 7px 12px 7px 10px;
+      top: calc(52px + var(--safe-top));
+      padding: 16px 30px;
       width: auto;
-      max-width: min(78vw, 540px);
-      max-height: 3.6em;
+      max-width: min(82vw, 560px);
       /* Continua sendo o texto mais importante: encolhe menos que o resto. */
-      font-size: clamp(12px, 2.7vw, 15px);
-      line-height: 1.3;
+      font-size: clamp(15px, 3.4vw, 20px);
+      line-height: 1.26;
+      max-height: 3.9em;
       overflow: hidden;
       display: -webkit-box;
       -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
+      -webkit-line-clamp: 3;
     }
     .touch-device #mission {
       left: calc(7px + var(--safe-left));
@@ -886,6 +945,7 @@
 }
 
 html.tutorial-open #toast,
+html.tutorial-open #phase-card,
 html.tutorial-open #mission,
 html.tutorial-open #hud-bar,
 html.tutorial-open #hud-stock,
@@ -1000,6 +1060,7 @@ html.tutorial-open .phase-lab {
 </head>
 <body>
   <div id="mission"></div>
+  <div id="phase-card" aria-live="polite"></div>
   <div id="hud-stock"></div>
   <div id="hud-alerts" aria-live="polite"></div>
   <div id="hud-bar" hidden></div>
@@ -1041,6 +1102,7 @@ const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
 const missionDiv = document.getElementById('mission');
+const phaseCardDiv = document.getElementById('phase-card');
 const hudBar = document.getElementById('hud-bar');
 const stockDiv = document.getElementById('hud-stock');
 const alertsDiv = document.getElementById('hud-alerts');
@@ -1314,10 +1376,29 @@ function initGame({ announce = false } = {}) {
   // o sistema de tutoriais e o diagnóstico exposto no navegador.
   window.miguelitoSim = sim;
 
-  if (announce) {
-    sim.state.toast = `Fase ${campaign.phase} — ${profile.title}: ${phaseIntroText()}`;
-    sim.state.toastTime = 6;
-  }
+  // A abertura da fase nao e narracao: e um cartao de titulo. Ela era anunciada
+  // como toast e ao mesmo tempo ficava fixa no canto esquerdo — a mesma frase
+  // duas vezes, uma delas para sempre. Agora aparece grande no centro, uma vez,
+  // e sai.
+  if (announce) showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText());
+}
+
+let phaseCardTimer = null;
+
+function showPhaseCard(eyebrow, title, subtitle) {
+  if (!phaseCardDiv) return;
+  phaseCardDiv.innerHTML = `<span class="eyebrow">${eyebrow}</span>`
+    + `<span class="title">${title}</span>`
+    + `<span class="subtitle">${subtitle}</span>`;
+  phaseCardDiv.classList.remove('show', 'leaving');
+  // Forca o reinicio da animacao quando duas fases se sucedem rapido.
+  void phaseCardDiv.offsetWidth;
+  phaseCardDiv.classList.add('show');
+  clearTimeout(phaseCardTimer);
+  phaseCardTimer = setTimeout(() => {
+    phaseCardDiv.classList.add('leaving');
+    phaseCardTimer = setTimeout(() => phaseCardDiv.classList.remove('show', 'leaving'), 1100);
+  }, 3400);
 }
 
 function startNewCampaign() {
@@ -1478,7 +1559,16 @@ function loop(now) {
     renderWorld();
     updateTouchAbilityVisibility();
 
-    if (sim.state.mission) missionDiv.textContent = `🌱 Fase ${campaign.phase}: ${sim.state.mission}`;
+    // O objetivo da fase agora e dito pelo cartao de abertura. Manter a mesma
+    // frase presa no canto o tempo todo so gastava atencao — quem esquecer tem
+    // o GUIA. Fica so o numero da fase, curto.
+    // No fim da fase mission deixa de ser objetivo e passa a ser a mensagem de
+    // conclusao; encurtar ali apagaria justamente o que precisa ser lido.
+    if (sim.state.mission) {
+      missionDiv.textContent = sim.state.gameState === 'end'
+        ? sim.state.mission
+        : `Fase ${campaign.phase}`;
+    }
 
     if (sim.state.toastTime > 0 && sim.state.toast && sim.state.toast !== lastToast) {
       toastDiv.textContent = sim.state.toast;
@@ -10306,7 +10396,9 @@ function createRhizobiumNodulation({ state, entities, inoculants }) {
 Object.assign(__exports, { createRhizobiumNodulation });
 },
 "src/procgen/nitrogen-root.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { createRandom } = __require("src/procgen/random.js");
+const { W } = __require("src/core/constants.js");
+const { createRandom } = __require("src/procgen/random.js");
+const { drawWorldLabel } = __require("src/procgen/world-label.js");
 const NITROGEN_ROOT_BLOCK_TYPE = 'underdeveloped-nitrogen-root';
 
 const TAU = Math.PI * 2;
@@ -10725,21 +10817,11 @@ function createNitrogenRootDevelopment({ state, entities = null } = {}) {
       const label = progress > 0
         ? `Raiz recebendo N · ${percent}%`
         : 'Raiz subdesenvolvida · forme o nódulo na raiz anterior';
-      ctx.font = '700 10px Inter, system-ui, sans-serif';
-      const labelWidth = Math.min(286, ctx.measureText(label).width + 20);
-      const labelX = root.x + root.targetWidth / 2 - labelWidth / 2;
-      const labelY = root.y - 27;
-      ctx.fillStyle = 'rgba(5, 24, 31, .9)';
-      ctx.strokeStyle = progress > 0 ? 'rgba(137, 224, 218, .92)' : 'rgba(255, 211, 111, .92)';
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.roundRect(labelX, labelY, labelWidth, 20, 10);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = progress > 0 ? '#a8f0ea' : '#ffd36f';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, root.x + root.targetWidth / 2, labelY + 10, labelWidth - 14);
+      drawWorldLabel(ctx, root.x + root.targetWidth / 2, root.y - 20, label, {
+        color: progress > 0 ? '#a8f0ea' : '#ffd36f',
+        font: '800 12px Inter,system-ui',
+        glow: 12,
+      });
     }
     ctx.restore();
   }
@@ -10767,6 +10849,60 @@ function createNitrogenRootDevelopment({ state, entities = null } = {}) {
   };
 }
 Object.assign(__exports, { NITROGEN_ROOT_BLOCK_TYPE, generateUnderdevelopedNitrogenRoots, createNitrogenRootDevelopment });
+},
+"src/procgen/world-label.js": (__exports, __require) => {
+// Rotulo do mundo: so texto com glow, sem caixa.
+//
+// Toda caixa desenhada atras de um texto no canvas vira widget colado sobre a
+// cena — moldura, canto arredondado e fundo opaco pertencem a interface, nao ao
+// solo. O nome das colonias (\"Bacillus\") sempre foi so texto e sempre foi o que
+// menos incomodou, entao e ele o modelo.
+//
+// A legibilidade vem de tres camadas empilhadas no mesmo lugar: um halo escuro
+// largo que apaga o fundo, um contorno escuro fino que segura a forma da letra
+// contra qualquer cor, e o texto colorido com brilho proprio. Nenhuma delas tem
+// aresta, entao nao existe borda para aparecer.
+
+function drawWorldLabel(ctx, x, y, text, options = {}) {
+  const {
+    color = '#effff6',
+    font = '800 12px Inter,system-ui',
+    align = 'center',
+    baseline = 'middle',
+    glow = 10,
+    alpha = 1,
+    maxWidth,
+  } = options;
+
+  ctx.save();
+  ctx.font = font;
+  ctx.textAlign = align;
+  ctx.textBaseline = baseline;
+  ctx.globalAlpha = alpha;
+
+  // Camada 1: halo escuro largo. Apaga o fundo sem desenhar nenhuma aresta.
+  ctx.shadowColor = 'rgba(0,0,0,.92)';
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = 'rgba(0,0,0,.85)';
+  ctx.fillText(text, x, y, maxWidth);
+  ctx.fillText(text, x, y, maxWidth);
+
+  // Camada 2: contorno fino. Segura a letra contra fundo claro (a madeira do
+  // bloco) sem virar borda de caixa.
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(2,12,16,.9)';
+  ctx.strokeText(text, x, y, maxWidth);
+
+  // Camada 3: o texto, com brilho da propria cor.
+  ctx.shadowColor = color;
+  ctx.shadowBlur = glow;
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y, maxWidth);
+  ctx.restore();
+}
+Object.assign(__exports, { drawWorldLabel });
 },
 "src/procgen/azospirillum-root-growth.js": (__exports, __require) => {
 const { W } = __require("src/core/constants.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
@@ -14278,6 +14414,7 @@ Object.assign(__exports, { createCampaignObjectiveEvaluator });
 },
 "src/procgen/phase-one-vertical-slice.js": (__exports, __require) => {
 const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { drawWorldLabel } = __require("src/procgen/world-label.js");
 const BLOCK_LAYOUTS = Object.freeze({
   'phase1-intro-v1': Object.freeze({
     roles: ['coleta', 'gradiente', 'encontro', 'inoculacao', 'observacao'],
@@ -14542,32 +14679,17 @@ function createFixedBlockRuntime({ state, evaluator, entities, ecology = null })
       || (state.level.biofilms || []).some(film => film.platform?.objectiveTarget === 'p1-intro-root');
   }
 
-  // Sem caixa e sem contorno: a moldura transformava a orientacao num widget
-  // colado por cima da cena. Legibilidade vem de sombra e de um escurecimento
-  // suave sem borda, entao o texto pertence ao mundo em vez de flutuar sobre ele.
+  // A tentativa anterior usava um gradiente radial pintado num fillRect: como o
+  // raio era calculado pela largura do texto, o topo e a base do retangulo eram
+  // cortados no meio do gradiente e apareciam como uma faixa escura de aresta
+  // dura — a mesma caixa quadrada de antes, so que pior. Agora e so texto com
+  // glow, igual ao nome das colonias.
   function drawGuidance(ctx, x, y, label, color = '#ffd56f') {
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '900 13px Inter,system-ui';
-    const width = ctx.measureText(label).width;
-
-    const shade = ctx.createRadialGradient(x, y, 0, x, y, width * .62);
-    shade.addColorStop(0, 'rgba(3,16,22,.82)');
-    shade.addColorStop(.6, 'rgba(3,16,22,.5)');
-    shade.addColorStop(1, 'rgba(3,16,22,0)');
-    ctx.fillStyle = shade;
-    ctx.fillRect(x - width * .7, y - 22, width * 1.4, 44);
-
-    ctx.shadowColor = 'rgba(0,0,0,.95)';
-    ctx.shadowBlur = 7;
-    ctx.fillStyle = 'rgba(0,0,0,.7)';
-    ctx.fillText(label, x, y + 1.5);
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = color === '#ffd56f' ? 'rgba(255,190,90,.5)' : 'rgba(0,0,0,.8)';
-    ctx.fillStyle = color === '#ffd56f' ? '#ffe58f' : color;
-    ctx.fillText(label, x, y + .5);
-    ctx.restore();
+    drawWorldLabel(ctx, x, y, label, {
+      color: color === '#ffd56f' ? '#ffe58f' : color,
+      font: '900 15px Inter,system-ui',
+      glow: 14,
+    });
   }
 
   function render(ctx) {
@@ -16340,7 +16462,10 @@ function createRenderer({ canvas, state, entities }) {
 Object.assign(__exports, { createRenderer });
 },
 "src/render/microbes.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { lerp } = __require("src/core/math.js");const { microbeCatalog, microbeEncounters } = __require("src/data/microbes.js");
+const { W } = __require("src/core/constants.js");
+const { drawWorldLabel } = __require("src/procgen/world-label.js");
+const { lerp } = __require("src/core/math.js");
+const { microbeCatalog, microbeEncounters } = __require("src/data/microbes.js");
 const PROCEDURAL_SCENERY_IDS = new Set(['rhizobium', 'myco']);
 const proceduralSceneryEncounters = microbeEncounters
   .filter(encounter => PROCEDURAL_SCENERY_IDS.has(encounter.id))
@@ -16491,20 +16616,12 @@ function createMicrobeRenderer({ ctx, state, entities }) {
     if (Math.hypot(z.x - px, z.y - py) > 220) return;
     const m = microbeCatalog[z.id];
     const known = state.discoveredMicrobes.has(z.id);
-    ctx.save();
-    ctx.font = '700 12px Inter,system-ui';
     const label = known ? m.name : 'Sinal biológico';
-    const w = ctx.measureText(label).width + 22;
-    ctx.fillStyle = 'rgba(4,16,20,.78)';
-    ctx.strokeStyle = known ? m.color : 'rgba(255,255,255,.18)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(z.x - w / 2, z.y - 105, w, 27, 12);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = known ? '#effff6' : '#c0d3cb';
-    ctx.fillText(label, z.x - w / 2 + 11, z.y - 87);
-    ctx.restore();
+    drawWorldLabel(ctx, z.x, z.y - 91, label, {
+      color: known ? '#effff6' : '#c0d3cb',
+      font: '800 13px Inter,system-ui',
+      glow: known ? 12 : 7,
+    });
   }
 
   function drawRhizobiumScene(z) {
@@ -16730,6 +16847,7 @@ Object.assign(__exports, { getMicrobeSceneEncounters, createMicrobeRenderer });
 },
 "src/procgen/platform-visuals.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");
+const { drawWorldLabel } = __require("src/procgen/world-label.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -17059,19 +17177,9 @@ function createPlatformVisuals({ state }) {
     );
     const screenY = clamp(platform.y + 17, 54, H - 24);
 
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.font = '800 11px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0,0,0,.9)';
-    ctx.shadowBlur = 5;
-    ctx.fillStyle = 'rgba(0,0,0,.62)';
-    ctx.fillText(text, screenX, screenY + 1);
-    ctx.shadowBlur = 3;
-    ctx.fillStyle = color;
-    ctx.fillText(text, screenX, screenY);
-    ctx.restore();
+    drawWorldLabel(ctx, screenX, screenY, text, {
+      color, font: '800 12px Inter,system-ui', glow: 9, alpha,
+    });
   }
 
   return { drawWorld, renderLabel };
