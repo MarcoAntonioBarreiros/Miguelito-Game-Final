@@ -151,6 +151,11 @@ test('portão do módulo abre apenas após ação real e preserva o progresso lo
     measureText: text => ({ width: text.length * 7 }),
     translate: (x, y) => translations.push([x, y]),
     fillText: text => renderedLabels.push(text),
+    // O Proxy devolve () => {} para o que nao conhece, entao um gradiente viria
+    // undefined e quebraria no addColorStop. Aqui ele devolve algo com a forma
+    // de CanvasGradient, como o canvas real devolve.
+    createRadialGradient: () => ({ addColorStop: () => {} }),
+    createLinearGradient: () => ({ addColorStop: () => {} }),
   }, { get: (target, key) => target[key] || (() => {}) });
   runtime.render(ctx);
   assert.deepEqual(translations, [[-480, 0]], 'portão e marcador usam a câmera horizontal');
