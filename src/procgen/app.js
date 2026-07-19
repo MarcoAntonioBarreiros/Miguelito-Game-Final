@@ -161,7 +161,11 @@ function prepareLevel() {
   // Garante que a mecanica-tema da fase seja necessaria ao menos uma vez.
   applySignatureChallenge(levelData, campaign.phase);
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
-  applyPhaseSevenPhosphateGeometry(levelData, campaign.phase);
+  applyPhaseSevenPhosphateGeometry(
+    levelData,
+    campaign.phase,
+    getPhaseManifest(campaign.phase)?.phosphateSolubilization,
+  );
   levelData.microbeEncounters = generateCampaignEncounters({
     platforms: levelData.platforms,
     phase: campaign.phase,

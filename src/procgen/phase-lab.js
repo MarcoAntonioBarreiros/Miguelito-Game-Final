@@ -2,6 +2,7 @@ import {
   campaignManifest,
   ECOLOGY_ROAMING_TYPES,
   PATHOGEN_SYSTEMS,
+  PHOSPHATE_SOLUBILIZATION_DEFAULTS,
   clearPhaseManifestOverride,
   getPersistentUnlocksBeforePhase,
   setPhaseManifestOverride,
@@ -22,6 +23,33 @@ const MELOIDOGYNE_FIELDS = Object.freeze([
   'focusSpacingChunks', 'maxFoci', 'maxGenerations',
   'maxSimultaneousEggMasses', 'senescenceSeconds', 'completedCycleScar',
 ]);
+
+// A lista sai dos proprios defaults. Quando ela era escrita a mao, uma chave
+// nova (mycorrhizalReach) ficava sem campo no painel, o valor lido virava NaN e
+// a fase 7 inteira parava de abrir no Phase Lab com "parametro invalido".
+const PHOSPHATE_FIELDS = Object.freeze(Object.keys(PHOSPHATE_SOLUBILIZATION_DEFAULTS));
+const PHOSPHATE_LABELS = Object.freeze({
+  absorptionRadius: 'Raio de carga',
+  chargeTimeSeconds: 'Tempo de carga (s)',
+  minimumCharge: 'Carga minima',
+  maximumCharge: 'Carga maxima',
+  shotRange: 'Alcance',
+  shotSpeed: 'Velocidade do disparo',
+  amountSolubilizedPerCharge: 'Solubilizacao/carga',
+  metaboliteProductionRate: 'Producao metabolitos',
+  exudateProductionMultiplier: 'Multiplicador exsudato',
+  localPoolCaptureRadius: 'Raio de captacao',
+  mycorrhizalTransportRate: 'Transporte micorrizico',
+  mycorrhizalReach: 'Alcance da micorriza',
+  minimumTransportedPhosphate: 'P minimo transportado',
+  depositHeight: 'Altura do deposito (min 190)',
+});
+const PHOSPHATE_STEPS = Object.freeze({
+  chargeTimeSeconds: '0.1', minimumCharge: '0.01', maximumCharge: '0.01',
+  amountSolubilizedPerCharge: '0.05', metaboliteProductionRate: '0.01',
+  exudateProductionMultiplier: '0.1', mycorrhizalTransportRate: '0.01',
+  minimumTransportedPhosphate: '0.05', depositHeight: '10',
+});
 
 function readConfig(storage) {
   try {
@@ -176,18 +204,7 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
         <label>Supressão aderência<input data-iron-control="adhesionSuppression" type="number" min="0" max="1" step="0.05"></label>
       </div></fieldset>
       <fieldset><legend>Solubilizacao e transporte de fosfato</legend><div class="resources">
-        <label>Raio de carga<input data-phosphate="absorptionRadius" type="number" min="40" step="5"></label>
-        <label>Tempo de carga (s)<input data-phosphate="chargeTimeSeconds" type="number" min="0.1" step="0.1"></label>
-        <label>Carga minima<input data-phosphate="minimumCharge" type="number" min="0.01" max="1" step="0.01"></label>
-        <label>Carga maxima<input data-phosphate="maximumCharge" type="number" min="0.01" max="2" step="0.01"></label>
-        <label>Alcance<input data-phosphate="shotRange" type="number" min="80" step="10"></label>
-        <label>Velocidade do disparo<input data-phosphate="shotSpeed" type="number" min="50" step="10"></label>
-        <label>Solubilizacao/carga<input data-phosphate="amountSolubilizedPerCharge" type="number" min="0.01" step="0.05"></label>
-        <label>Producao metabolitos<input data-phosphate="metaboliteProductionRate" type="number" min="0" step="0.01"></label>
-        <label>Multiplicador exsudato<input data-phosphate="exudateProductionMultiplier" type="number" min="1" step="0.1"></label>
-        <label>Raio de captacao<input data-phosphate="localPoolCaptureRadius" type="number" min="20" step="5"></label>
-        <label>Transporte micorrizico<input data-phosphate="mycorrhizalTransportRate" type="number" min="0" step="0.01"></label>
-        <label>P minimo transportado<input data-phosphate="minimumTransportedPhosphate" type="number" min="0" step="0.05"></label>
+        ${PHOSPHATE_FIELDS.map(key => `<label>${PHOSPHATE_LABELS[key] || key}<input data-phosphate="${key}" type="number" min="0" step="${PHOSPHATE_STEPS[key] || '1'}"></label>`).join('')}
       </div></fieldset>
       <fieldset><legend>Meloidogyne</legend><div class="resources">
         <label>Focos: 1 a cada N chunks<input data-meloidogyne="focusSpacingChunks" type="number" min="2" max="40"></label>
@@ -243,7 +260,7 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
       for (const key of MELOIDOGYNE_FIELDS) {
         panel.querySelector(`[data-meloidogyne="${key}"]`).value = next.meloidogyne?.[key] ?? '';
       }
-      for (const key of ['absorptionRadius', 'chargeTimeSeconds', 'minimumCharge', 'maximumCharge', 'shotRange', 'shotSpeed', 'amountSolubilizedPerCharge', 'metaboliteProductionRate', 'exudateProductionMultiplier', 'localPoolCaptureRadius', 'mycorrhizalTransportRate', 'minimumTransportedPhosphate']) {
+      for (const key of PHOSPHATE_FIELDS) {
         panel.querySelector(`[data-phosphate="${key}"]`).value = next.phosphateSolubilization?.[key] ?? '';
       }
     }
@@ -297,7 +314,7 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
         phosphateSolubilization: {
           ...config.phosphateSolubilization,
           ...Object.fromEntries(
-            ['absorptionRadius', 'chargeTimeSeconds', 'minimumCharge', 'maximumCharge', 'shotRange', 'shotSpeed', 'amountSolubilizedPerCharge', 'metaboliteProductionRate', 'exudateProductionMultiplier', 'localPoolCaptureRadius', 'mycorrhizalTransportRate', 'minimumTransportedPhosphate']
+            PHOSPHATE_FIELDS
               .map(key => [key, Number(panel.querySelector(`[data-phosphate="${key}"]`).value)]),
           ),
         },
