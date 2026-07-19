@@ -1111,30 +1111,7 @@ html.tutorial-open .phase-lab {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel } = __require("src/procgen/generator.js");
-const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");
-const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");
-const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");
-const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");
-const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");
-const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");
-const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");
-const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");
-const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");
-const { applyPhaseSevenPhosphateGeometry } = __require("src/procgen/phosphate-solubilization.js");
-const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
-const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");
-const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");
-const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");
-const { createSimulator } = __require("src/procgen/simulator.js");
-const { createRenderer } = __require("src/render/renderer.js");
-const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");
-const { createCameraView } = __require("src/procgen/camera-view.js");
-const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");
-const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");
-const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");
-const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");
-const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
+const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry } = __require("src/procgen/phosphate-solubilization.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
@@ -15639,6 +15616,7 @@ function labStyles(documentObject) {
     .phase-lab .resources { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; } .phase-lab .actions { display:flex; flex-wrap:wrap; gap:7px; position:sticky; bottom:-14px; padding:10px 0 2px; background:#061c20f2; }
     .phase-lab button { border:1px solid #64cfc5; border-radius:8px; padding:8px 10px; color:#eafffc; background:#124348; font-weight:700; cursor:pointer; } .phase-lab button.primary { color:#052122; background:#79e1d6; }
     .phase-lab-status { white-space:pre-wrap; color:#9df2b8; } .phase-lab-status.error { color:#ff9e9e; }
+    .phase-lab-snippet { margin-top:8px; padding:8px; border:1px solid #3d6f72; border-radius:7px; background:#04191d; color:#bdf5ec; font:11px/1.45 ui-monospace,monospace; white-space:pre; overflow-x:auto; user-select:all; }
     @media (pointer:coarse) { .phase-lab { width:min(440px,calc(100vw - 16px)); right:8px; top:8px; } }
   `;
   documentObject.head.appendChild(style);
@@ -15725,6 +15703,8 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
             min="${PLAYER_TUNING_LIMITS.runSpeedScale.min}" max="${PLAYER_TUNING_LIMITS.runSpeedScale.max}"
             step="${PLAYER_TUNING_LIMITS.runSpeedScale.step}"></label>
         <button data-action="tuning-reset">Restaurar ajuste</button>
+        <button data-action="tuning-copy">Copiar para fixar no jogo</button>
+        <div data-tuning-snippet class="phase-lab-snippet" hidden></div>
       </fieldset>
       <label>Quantidade de chunks <input data-field="totalChunks" type="number" min="3" max="120"></label>
       <label>Titulo <input data-field="title"></label>
@@ -15962,6 +15942,23 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
       resetPlayerTuning();
       pintarAjuste();
     });
+
+    // O ajuste vive no localStorage: vale nesta maquina, neste navegador. Para
+    // virar o padrao do jogo ele precisa entrar no codigo. Em vez de descrever
+    // o numero e alguem redigitar, o Lab entrega o trecho pronto para colar.
+    panel.querySelector('[data-action="tuning-copy"]').addEventListener('click', () => {
+      const tuning = getPlayerTuning();
+      const trecho = `// src/render/player-skin-tuning.js\n`
+        + `export const PLAYER_TUNING_DEFAULTS = Object.freeze({\n`
+        + `  characterHeight: ${Math.round(tuning.characterHeight)},\n`
+        + `  runSpeedScale: ${Number(tuning.runSpeedScale.toFixed(2))},\n`
+        + `});`;
+      const alvo = panel.querySelector('[data-tuning-snippet]');
+      alvo.textContent = trecho;
+      alvo.hidden = false;
+      try { windowObject.navigator?.clipboard?.writeText(trecho); } catch (_) {}
+    });
+
     pintarAjuste();
 
     panel.querySelector('[data-action="apply"]').addEventListener('click', () => runApply());
@@ -17173,6 +17170,19 @@ function createPlayerSprite(skin) {
   // o Miguelito encolhia ao parar: na folha de corrida ele ocupa 347 dos 400px
   // do quadro e na de parado so 224, entao a mesma escala aplicada as duas
   // daria dois personagens de tamanhos diferentes.
+  // Relogio proprio da animacao. Guarda o instante do ultimo desenho para
+  // converter o tempo de jogo em dt.
+  let lastTime = null;
+  let lastSheet = null;
+
+  // Um dt negativo (fase reiniciou, tempo voltou a zero) ou enorme (aba ficou
+  // em segundo plano) nao pode empurrar o ciclo. Nos dois casos o certo e nao
+  // avancar nada neste quadro.
+  function clampDelta(delta) {
+    if (!Number.isFinite(delta) || delta <= 0) return 0;
+    return Math.min(delta, .1);
+  }
+
   const declaredHeight = Number(skin.characterHeight) || 0;
   const heightScale = Number(skin.heightScale) || 1;
   const offsetX = Number(skin.offsetX) || 0;
@@ -17200,6 +17210,7 @@ function createPlayerSprite(skin) {
   function frameIndex(sheet, player, time) {
     const frames = Math.max(1, Math.floor(sheet.frames));
     if (frames === 1) return 0;
+
     // A corrida acompanha a velocidade: a passada acelera junto com o
     // personagem em vez de patinar num compasso fixo. O ritmo sai da folha —
     // constante escondida aqui vira animacao rapida demais sem nada para
@@ -17208,13 +17219,35 @@ function createPlayerSprite(skin) {
     const rate = escala * (sheet.speedFromMotion
       ? Math.min(sheet.fps, (sheet.motionBase ?? 3) + Math.abs(player.vx) * (sheet.motionFactor ?? .032))
       : sheet.fps);
-    const raw = Math.floor(time * rate);
+
+    // O quadro sai de uma fase acumulada, nao de time * rate.
+    //
+    // Multiplicar o tempo absoluto por um ritmo que muda faz o produto saltar:
+    // aos 30 segundos de jogo, o ritmo indo de 2 para 7,4 empurra o indice de
+    // 60 para 222 de um quadro para o outro. Enquanto o jogador acelera, o
+    // ritmo muda a cada quadro e a animacao embaralha — era a "aceleracao no
+    // inicio do movimento lateral". Com velocidade constante o ritmo para de
+    // mudar e por isso a caminhada continua sempre pareceu correta.
+    //
+    // Somando rate * dt, mudar o ritmo muda a velocidade daqui para a frente e
+    // nunca a posicao atual do ciclo.
+    const dt = clampDelta(time - lastTime);
+    sheet.phase = (sheet.phase || 0) + rate * dt;
+
+    const raw = Math.floor(sheet.phase);
     return sheet.loop === false ? Math.min(frames - 1, raw) : ((raw % frames) + frames) % frames;
   }
 
   function draw(ctx, player, time) {
     const sheet = resolve(stateFor(player));
-    if (!sheet) return false;
+    if (!sheet) { lastTime = time; return false; }
+
+    // Trocar de animacao recomeca o ciclo dela. Sem isto uma folha que nao
+    // repete — dash, dano — voltaria congelada no ultimo quadro da vez passada.
+    if (sheet !== lastSheet) {
+      sheet.phase = 0;
+      lastSheet = sheet;
+    }
 
     const frames = Math.max(1, Math.floor(sheet.frames));
     const frameWidth = sheet.image.naturalWidth / frames;
@@ -17232,6 +17265,7 @@ function createPlayerSprite(skin) {
       : player.h * heightScale;
     const drawWidth = frameWidth * (drawHeight / frameHeight);
     const index = frameIndex(sheet, player, time);
+    lastTime = time;
 
     // O renderer ja aplicou translate para o centro do jogador e o scale do
     // facing, entao aqui basta desenhar em torno da origem.
