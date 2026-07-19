@@ -20,6 +20,7 @@ const STATE_FALLBACK = Object.freeze({
   fall: ['fall', 'jump', 'run', 'idle'],
   dash: ['dash', 'run', 'idle'],
   hurt: ['hurt', 'idle', 'run'],
+  defeat: ['defeat', 'hurt', 'idle', 'run'],
   celebrate: ['celebrate', 'idle', 'run'],
   pulse: ['pulse', 'idle', 'run'],
 });
@@ -53,7 +54,7 @@ export function createPlayerSprite(skin) {
 
   const sheets = new Map();
   for (const [name, definition] of Object.entries(skin.states)) {
-    sheets.set(name, loadSheet({ frames: 1, fps: 12, loop: true, ...definition }));
+    sheets.set(name, loadSheet({ name, frames: 1, fps: 12, loop: true, ...definition }));
   }
 
   // Escala: a arte se ajusta ao jogo, nunca o contrario. A fisica esta medida e
@@ -69,6 +70,8 @@ export function createPlayerSprite(skin) {
   // converter o tempo de jogo em dt.
   let lastTime = null;
   let lastSheet = null;
+  let lastRequested = null;
+  let lastDrawn = null;
 
   // Um dt negativo (fase reiniciou, tempo voltou a zero) ou enorme (aba ficou
   // em segundo plano) nao pode empurrar o ciclo. Nos dois casos o certo e nao
@@ -99,7 +102,10 @@ export function createPlayerSprite(skin) {
     // vitoria parecia dano. E o momento da comemoracao, e vem antes de tudo:
     // um golpe recebido nos ultimos passos nao pode roubar a chegada.
     if (gameState === 'transition' || gameState === 'end') return 'celebrate';
-    if (!player.alive) return 'hurt';
+    // Morrer e apanhar sao coisas diferentes: quem morreu nao se recompoe, volta
+    // do checkpoint. 'respawning' entra aqui porque o jogador continua morto
+    // enquanto a tela treme e ele e devolvido ao ultimo biofilme.
+    if (!player.alive || gameState === 'respawning') return 'defeat';
     if (player.invuln > 0) return 'hurt';
     if (player.dashTime > 0) return 'dash';
     if (!player.onGround) return player.vy < 0 ? 'jump' : 'fall';
@@ -150,7 +156,13 @@ export function createPlayerSprite(skin) {
   }
 
   function draw(ctx, player, time, gameState = null) {
-    const sheet = resolve(stateFor(player, gameState));
+    // Guardado para o diagnostico: saber QUAL estado foi pedido e QUAL folha
+    // acabou desenhando e a unica forma de distinguir "a regra nao disparou" de
+    // "a folha nao carregou e caiu no fallback". Sem isso so sobra teorizar em
+    // cima de print.
+    lastRequested = stateFor(player, gameState);
+    const sheet = resolve(lastRequested);
+    lastDrawn = sheet?.name || null;
     if (!sheet) { lastTime = time; return false; }
 
     // Trocar de animacao recomeca o ciclo dela. Sem isto uma folha que nao
@@ -210,8 +222,15 @@ export function createPlayerSprite(skin) {
     // Isso cobre tanto a falha permanente quanto os primeiros quadros, antes de
     // a imagem terminar de carregar.
     isFallback: () => ![...sheets.values()].some(sheet => sheet.ready),
-    debug: () => [...sheets.entries()].map(([name, sheet]) => ({
-      name, src: sheet.src, ready: sheet.ready, failed: sheet.failed, frames: sheet.frames,
-    })),
+    debug: () => ({
+      pedido: lastRequested,
+      desenhado: lastDrawn,
+      // Pedido e desenhado diferentes significam fallback: a regra disparou mas
+      // a folha nao estava pronta.
+      caiuNoFallback: Boolean(lastRequested && lastDrawn && lastRequested !== lastDrawn),
+      folhas: [...sheets.entries()].map(([name, sheet]) => ({
+        name, src: sheet.src, ready: sheet.ready, failed: sheet.failed, frames: sheet.frames,
+      })),
+    }),
   };
 }

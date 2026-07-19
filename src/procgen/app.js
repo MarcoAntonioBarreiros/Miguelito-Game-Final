@@ -54,6 +54,25 @@ const HUD_ICONS = Object.freeze({
   phosphate: '<path d="m12 3 7 4.5v9L12 21l-7-4.5v-9z" fill="#c9a5ff"/><path d="m12 3 7 4.5v9L12 21l-7-4.5v-9z" stroke="#e6d4ff" stroke-width="1.2" fill="none"/><text x="12" y="15" font-size="8" font-weight="800" text-anchor="middle" fill="#3a1f63">P</text>',
 });
 
+// Diagnostico do sprite no painel de debug (Tab). Existe porque "a animacao nao
+// apareceu" tem duas causas muito diferentes — a regra de estado nao disparou,
+// ou disparou e a folha nao estava pronta e caiu no fallback — e olhando a tela
+// as duas sao identicas. Esta linha separa as duas sem precisar de tentativa e
+// erro.
+function spriteDiagnostico() {
+  const skin = renderer?.playerSkin;
+  if (!skin) return 'Sprite: —';
+  if (skin.id === 'astronaut') return 'Sprite: astronauta (desenhado)';
+  const info = skin.debug();
+  if (!info) return `Sprite: ${skin.id} (sem folhas)`;
+  const prontas = info.folhas.filter(folha => folha.ready).map(folha => folha.name);
+  const falharam = info.folhas.filter(folha => folha.failed).map(folha => folha.name);
+  return `Sprite: ${skin.id} | pedido ${info.pedido || '—'} → desenhado ${info.desenhado || '—'}`
+    + `${info.caiuNoFallback ? ' [FALLBACK]' : ''}`
+    + `\nFolhas prontas: ${prontas.join(',') || 'nenhuma'}`
+    + `${falharam.length ? ` | FALHARAM: ${falharam.join(',')}` : ''}`;
+}
+
 function hudIcon(name) {
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${HUD_ICONS[name] || ''}</svg>`;
 }
@@ -581,6 +600,7 @@ function loop(now) {
         + (info ? ` | ${info.primitive} | ${info.logic.difficultyTarget} | vão ${info.gap}px` : '')
         + `\nPoderes: salto ${campaign.unlocks.doubleJump ? '✓' : '—'} / dash ${campaign.unlocks.dash ? '✓' : '—'} / solubilizacao P ${campaign.unlocks.phosphateSolubilization ? '✓' : '—'} / pontes AM ${campaign.unlocks.mycorrhizaStructures ? '✓' : '—'} / raízes Azo ${campaign.unlocks.azospirillumRoots ? '✓' : '—'}`
         + `\nCâmera: ${cameraView.zoom.toFixed(2)}× [roda ou +/− | 0=restaurar]`
+        + `\n${spriteDiagnostico()}`
         + `\nEcologia: ${sim.ecology.agents.length} organismos / ${sim.ecology.nicheCount} nichos`
         + `\nRhizoctonia: ${rhizoctoniaControl.activeCount} focos / ${rhizoctoniaControl.controlledCount} contidos por biocontrole`
         + `\nTrichoderma anti-Rhizoctonia: ${trichodermaRhizoctoniaControl.activeAttackCount} ataques · ${trichodermaRhizoctoniaControl.eliminatedCount} focos lisados · ${trichodermaRhizoctoniaControl.abortedCount} ataques interrompidos`

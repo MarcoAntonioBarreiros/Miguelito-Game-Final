@@ -62,26 +62,35 @@ export const PLAYER_SKINS = Object.freeze({
         // 347 na corrida. Sem normalizar, ele encolheria ao parar de andar.
         contentHeight: 224,
       }),
-      // Entra rapido no golpe e CONGELA na pose de susto, em vez de correr a
-      // folha inteira.
+      // Levar dano e morrer sao duas leituras diferentes da MESMA folha, e
+      // tratar as duas como uma so foi o erro das rodadas anteriores.
       //
-      // Medido quadro a quadro: o quadro 2 e o mais largo (307px, bracos
-      // abertos) e o 3 e o mais alto (pe a 53px do chao, pernas no ar). Do 4 em
-      // diante e recuperacao — o menino volta ao normal enquanto ainda esta
-      // invulneravel, e ai o golpe perde o peso e a animacao rapida so parece
-      // defeito, ainda mais junto com o tremor e o pisca-pisca.
-      //
-      // Parando no 3, a pose de bracos e pernas no ar fica na tela o tempo todo
-      // da invulnerabilidade, que e o que se le como "levei um susto".
+      // hurt: o menino apanhou e continua de pe. A folha corre inteira, com os
+      // quadros de recuperacao (4 a 7), no ritmo original. Ele apanha, cambaleia
+      // e se recompoe — que e o que de fato aconteceu.
       hurt: Object.freeze({
         src: 'assets/miguelito/hurt.png',
         frames: 8,
-        // Rapido so ate chegar la: 3 quadros a 24fps sao 125ms de entrada.
-        fps: 24,
+        // 8 quadros a 8fps dao 1s, dentro da invulnerabilidade de 1,05s: a
+        // recuperacao termina junto com a protecao.
+        fps: 8,
         loop: false,
-        holdFrame: 3,
         // Aqui a base varia 53px porque o personagem sai do chao no empurrao.
         // A referencia e o quadro mais baixo, onde ele esta apoiado.
+        baseline: 381 / 400,
+        contentHeight: 329,
+      }),
+      // defeat: acabaram os coracoes, ou caiu nos espinhos. Nao ha recuperacao
+      // para mostrar — ele nao se recompoe, ele volta do checkpoint. Entra
+      // rapido e congela no quadro 4, que fica na tela ate o respawn.
+      defeat: Object.freeze({
+        src: 'assets/miguelito/hurt.png',
+        frames: 8,
+        // Rapido so ate chegar la: 5 quadros a 24fps sao ~208ms de entrada, e o
+        // respawn leva 720ms — sobra meio segundo de pose congelada.
+        fps: 24,
+        loop: false,
+        holdFrame: 4,
         baseline: 381 / 400,
         contentHeight: 329,
       }),
