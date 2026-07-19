@@ -54,9 +54,16 @@ export function createPlayerSprite(skin) {
     sheets.set(name, loadSheet({ frames: 1, fps: 12, loop: true, ...definition }));
   }
 
-  // Escala: a arte se ajusta pela altura da caixa de colisao, nunca o
-  // contrario. A fisica ja esta medida e calibrada em 32x48 — mudar a caixa
-  // para caber num desenho invalidaria todas as travessias validadas.
+  // Escala: a arte se ajusta ao jogo, nunca o contrario. A fisica esta medida e
+  // calibrada em 32x48 — mudar a caixa para caber num desenho invalidaria todas
+  // as travessias validadas.
+  //
+  // O tamanho e declarado como altura do personagem em pixels de jogo, e cada
+  // folha diz quanto do seu quadro o personagem ocupa (contentHeight). Sem isso
+  // o Miguelito encolhia ao parar: na folha de corrida ele ocupa 347 dos 400px
+  // do quadro e na de parado so 224, entao a mesma escala aplicada as duas
+  // daria dois personagens de tamanhos diferentes.
+  const characterHeight = Number(skin.characterHeight) || 0;
   const heightScale = Number(skin.heightScale) || 1;
   const offsetX = Number(skin.offsetX) || 0;
   const offsetY = Number(skin.offsetY) || 0;
@@ -84,9 +91,11 @@ export function createPlayerSprite(skin) {
     const frames = Math.max(1, Math.floor(sheet.frames));
     if (frames === 1) return 0;
     // A corrida acompanha a velocidade: a passada acelera junto com o
-    // personagem em vez de patinar num compasso fixo.
+    // personagem em vez de patinar num compasso fixo. O ritmo sai da folha —
+    // constante escondida aqui vira animacao rapida demais sem nada para
+    // ajustar. O fps declarado e o teto.
     const rate = sheet.speedFromMotion
-      ? Math.min(sheet.fps * 1.6, 4 + Math.abs(player.vx) * .055)
+      ? Math.min(sheet.fps, (sheet.motionBase ?? 3) + Math.abs(player.vx) * (sheet.motionFactor ?? .032))
       : sheet.fps;
     const raw = Math.floor(time * rate);
     return sheet.loop === false ? Math.min(frames - 1, raw) : ((raw % frames) + frames) % frames;
@@ -101,7 +110,13 @@ export function createPlayerSprite(skin) {
     const frameHeight = sheet.image.naturalHeight;
     if (!(frameWidth > 0) || !(frameHeight > 0)) return false;
 
-    const drawHeight = player.h * heightScale;
+    // Quando a folha declara quanto do quadro o personagem ocupa, o desenho e
+    // dimensionado para que a altura VISIVEL bata com characterHeight — assim
+    // trocar de folha nao muda o tamanho do Miguelito. Sem contentHeight, cai
+    // no modo antigo de escalar pela caixa.
+    const drawHeight = characterHeight && sheet.contentHeight
+      ? characterHeight * (frameHeight / sheet.contentHeight)
+      : player.h * heightScale;
     const drawWidth = frameWidth * (drawHeight / frameHeight);
     const index = frameIndex(sheet, player, time);
 

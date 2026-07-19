@@ -28,9 +28,23 @@ altura em todos os quadros, senão a corrida sobe e desce.
 
 ## Arquivos
 
-| arquivo | estado | quadros | medida |
-|---|---|---|---|
-| `run.png` | corrida | 8 | 2560x400 (320x400 por quadro) |
+| arquivo | estado | quadros | medida | corpo no quadro |
+|---|---|---|---|---|
+| `run.png` | corrida | 8 | 2560x400 | 347 de 400px |
+| `idle.png` | parado | 8 | 2560x400 | 224 de 400px |
+
+## Escala: por que cada folha declara `contentHeight`
+
+As duas folhas tem o mesmo quadro (320x400), mas o menino foi **desenhado em
+tamanhos diferentes**: ocupa 347px na corrida e so 224px no parado. Sem
+compensar, ele encolheria 35% ao parar de andar.
+
+Por isso o tamanho e declarado uma vez, como `characterHeight` (altura visivel
+em pixels de jogo), e cada folha informa quanto do quadro o corpo ocupa. O
+modulo faz a conta para que todas rendam do mesmo tamanho.
+
+**Se as proximas folhas vierem na mesma escala da corrida, e so copiar
+`contentHeight: 347`.** Se vierem em outra, e medir uma vez.
 
 ## Medidas da folha de corrida (para as proximas baterem)
 
