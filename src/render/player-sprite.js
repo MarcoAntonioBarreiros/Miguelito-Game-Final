@@ -65,6 +65,19 @@ export function createPlayerSprite(skin) {
   // o Miguelito encolhia ao parar: na folha de corrida ele ocupa 347 dos 400px
   // do quadro e na de parado so 224, entao a mesma escala aplicada as duas
   // daria dois personagens de tamanhos diferentes.
+  // Relogio proprio da animacao. Guarda o instante do ultimo desenho para
+  // converter o tempo de jogo em dt.
+  let lastTime = null;
+  let lastSheet = null;
+
+  // Um dt negativo (fase reiniciou, tempo voltou a zero) ou enorme (aba ficou
+  // em segundo plano) nao pode empurrar o ciclo. Nos dois casos o certo e nao
+  // avancar nada neste quadro.
+  function clampDelta(delta) {
+    if (!Number.isFinite(delta) || delta <= 0) return 0;
+    return Math.min(delta, .1);
+  }
+
   const declaredHeight = Number(skin.characterHeight) || 0;
   const heightScale = Number(skin.heightScale) || 1;
   const offsetX = Number(skin.offsetX) || 0;
@@ -92,6 +105,7 @@ export function createPlayerSprite(skin) {
   function frameIndex(sheet, player, time) {
     const frames = Math.max(1, Math.floor(sheet.frames));
     if (frames === 1) return 0;
+
     // A corrida acompanha a velocidade: a passada acelera junto com o
     // personagem em vez de patinar num compasso fixo. O ritmo sai da folha —
     // constante escondida aqui vira animacao rapida demais sem nada para
@@ -100,13 +114,35 @@ export function createPlayerSprite(skin) {
     const rate = escala * (sheet.speedFromMotion
       ? Math.min(sheet.fps, (sheet.motionBase ?? 3) + Math.abs(player.vx) * (sheet.motionFactor ?? .032))
       : sheet.fps);
-    const raw = Math.floor(time * rate);
+
+    // O quadro sai de uma fase acumulada, nao de time * rate.
+    //
+    // Multiplicar o tempo absoluto por um ritmo que muda faz o produto saltar:
+    // aos 30 segundos de jogo, o ritmo indo de 2 para 7,4 empurra o indice de
+    // 60 para 222 de um quadro para o outro. Enquanto o jogador acelera, o
+    // ritmo muda a cada quadro e a animacao embaralha — era a "aceleracao no
+    // inicio do movimento lateral". Com velocidade constante o ritmo para de
+    // mudar e por isso a caminhada continua sempre pareceu correta.
+    //
+    // Somando rate * dt, mudar o ritmo muda a velocidade daqui para a frente e
+    // nunca a posicao atual do ciclo.
+    const dt = clampDelta(time - lastTime);
+    sheet.phase = (sheet.phase || 0) + rate * dt;
+
+    const raw = Math.floor(sheet.phase);
     return sheet.loop === false ? Math.min(frames - 1, raw) : ((raw % frames) + frames) % frames;
   }
 
   function draw(ctx, player, time) {
     const sheet = resolve(stateFor(player));
-    if (!sheet) return false;
+    if (!sheet) { lastTime = time; return false; }
+
+    // Trocar de animacao recomeca o ciclo dela. Sem isto uma folha que nao
+    // repete — dash, dano — voltaria congelada no ultimo quadro da vez passada.
+    if (sheet !== lastSheet) {
+      sheet.phase = 0;
+      lastSheet = sheet;
+    }
 
     const frames = Math.max(1, Math.floor(sheet.frames));
     const frameWidth = sheet.image.naturalWidth / frames;
@@ -124,6 +160,7 @@ export function createPlayerSprite(skin) {
       : player.h * heightScale;
     const drawWidth = frameWidth * (drawHeight / frameHeight);
     const index = frameIndex(sheet, player, time);
+    lastTime = time;
 
     // O renderer ja aplicou translate para o centro do jogador e o scale do
     // facing, entao aqui basta desenhar em torno da origem.

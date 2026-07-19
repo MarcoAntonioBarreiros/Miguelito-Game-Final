@@ -82,6 +82,7 @@ function labStyles(documentObject) {
     .phase-lab .resources { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; } .phase-lab .actions { display:flex; flex-wrap:wrap; gap:7px; position:sticky; bottom:-14px; padding:10px 0 2px; background:#061c20f2; }
     .phase-lab button { border:1px solid #64cfc5; border-radius:8px; padding:8px 10px; color:#eafffc; background:#124348; font-weight:700; cursor:pointer; } .phase-lab button.primary { color:#052122; background:#79e1d6; }
     .phase-lab-status { white-space:pre-wrap; color:#9df2b8; } .phase-lab-status.error { color:#ff9e9e; }
+    .phase-lab-snippet { margin-top:8px; padding:8px; border:1px solid #3d6f72; border-radius:7px; background:#04191d; color:#bdf5ec; font:11px/1.45 ui-monospace,monospace; white-space:pre; overflow-x:auto; user-select:all; }
     @media (pointer:coarse) { .phase-lab { width:min(440px,calc(100vw - 16px)); right:8px; top:8px; } }
   `;
   documentObject.head.appendChild(style);
@@ -168,6 +169,8 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
             min="${PLAYER_TUNING_LIMITS.runSpeedScale.min}" max="${PLAYER_TUNING_LIMITS.runSpeedScale.max}"
             step="${PLAYER_TUNING_LIMITS.runSpeedScale.step}"></label>
         <button data-action="tuning-reset">Restaurar ajuste</button>
+        <button data-action="tuning-copy">Copiar para fixar no jogo</button>
+        <div data-tuning-snippet class="phase-lab-snippet" hidden></div>
       </fieldset>
       <label>Quantidade de chunks <input data-field="totalChunks" type="number" min="3" max="120"></label>
       <label>Titulo <input data-field="title"></label>
@@ -405,6 +408,23 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
       resetPlayerTuning();
       pintarAjuste();
     });
+
+    // O ajuste vive no localStorage: vale nesta maquina, neste navegador. Para
+    // virar o padrao do jogo ele precisa entrar no codigo. Em vez de descrever
+    // o numero e alguem redigitar, o Lab entrega o trecho pronto para colar.
+    panel.querySelector('[data-action="tuning-copy"]').addEventListener('click', () => {
+      const tuning = getPlayerTuning();
+      const trecho = `// src/render/player-skin-tuning.js\n`
+        + `export const PLAYER_TUNING_DEFAULTS = Object.freeze({\n`
+        + `  characterHeight: ${Math.round(tuning.characterHeight)},\n`
+        + `  runSpeedScale: ${Number(tuning.runSpeedScale.toFixed(2))},\n`
+        + `});`;
+      const alvo = panel.querySelector('[data-tuning-snippet]');
+      alvo.textContent = trecho;
+      alvo.hidden = false;
+      try { windowObject.navigator?.clipboard?.writeText(trecho); } catch (_) {}
+    });
+
     pintarAjuste();
 
     panel.querySelector('[data-action="apply"]').addEventListener('click', () => runApply());
