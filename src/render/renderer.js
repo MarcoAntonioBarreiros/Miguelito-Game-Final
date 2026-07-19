@@ -2,6 +2,8 @@ import { H, W } from '../core/constants.js';
 import { clamp } from '../core/math.js';
 import { drawArbuscule } from '../procgen/hyphal-growth.js';
 import { createMicrobeRenderer } from './microbes.js';
+import { createPlayerSprite } from './player-sprite.js';
+import { resolvePlayerSkin } from './player-skins.js';
 
 function mixHex(a, b, t) {
   const value = clamp(t, 0, 1);
@@ -16,9 +18,14 @@ function mixHex(a, b, t) {
   return `#${channel(ar, br)}${channel(ag, bg)}${channel(ab, bb)}`;
 }
 
-export function createRenderer({ canvas, state, entities }) {
+export function createRenderer({ canvas, state, entities, playerSkin = null }) {
   const ctx = canvas.getContext('2d');
   const microbes = createMicrobeRenderer({ ctx, state, entities });
+  const skin = playerSkin || resolvePlayerSkin({
+    locationLike: typeof window === 'undefined' ? null : window.location,
+    storage: (() => { try { return window.localStorage; } catch (_) { return null; } })(),
+  });
+  const sprite = skin?.states ? createPlayerSprite(skin) : null;
 
   function roundedRect(x, y, w, h, r) {
     ctx.beginPath();
@@ -459,7 +466,7 @@ export function createRenderer({ canvas, state, entities }) {
     const player = state.player;
     const time = state.time;
     ctx.save();
-    ctx.translate(player.x + 16, player.y + 24);
+    ctx.translate(player.x + player.w / 2, player.y + player.h / 2);
     ctx.scale(player.facing, 1);
     if (!player.alive) {
       ctx.rotate(-.28);
@@ -467,6 +474,34 @@ export function createRenderer({ canvas, state, entities }) {
     }
     const blink = player.invuln > 0 && Math.floor(time * 14) % 2 === 0;
     if (blink) ctx.globalAlpha = .35;
+
+    // A skin troca so o corpo. Tudo que vem depois — hifa aderida, carga de
+    // fosfato, aviso de dash bloqueado — e informacao de jogo, nao enfeite do
+    // astronauta, e precisa aparecer em qualquer personagem.
+    if (!sprite?.draw(ctx, player, time)) drawAstronautBody(player);
+
+    drawFungalAttachment(player, time);
+
+    if (player.canPhosphateSolubilization) {
+      ctx.shadowBlur = 16;
+      ctx.shadowColor = '#df91ff';
+      ctx.fillStyle = '#df91ff';
+      ctx.beginPath();
+      ctx.arc(15, -2, 3 + (player.phosphateCharge || 0) * 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    if ((player.nematodeLoad || 0) >= 2) {
+      ctx.fillStyle = '#ffd7a0';
+      ctx.font = '800 8px Inter,system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('DASH BLOQUEADO', 0, -36);
+    }
+    ctx.restore();
+  }
+
+  function drawAstronautBody(player) {
     ctx.strokeStyle = '#ff6f91';
     ctx.lineWidth = 5;
     ctx.lineCap = 'round';
@@ -502,26 +537,6 @@ export function createRenderer({ canvas, state, entities }) {
     ctx.moveTo(7, 16);
     ctx.lineTo(9, 24);
     ctx.stroke();
-
-    drawFungalAttachment(player, time);
-
-    if (player.canPhosphateSolubilization) {
-      ctx.shadowBlur = 16;
-      ctx.shadowColor = '#df91ff';
-      ctx.fillStyle = '#df91ff';
-      ctx.beginPath();
-      ctx.arc(15, -2, 3 + (player.phosphateCharge || 0) * 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    }
-
-    if ((player.nematodeLoad || 0) >= 2) {
-      ctx.fillStyle = '#ffd7a0';
-      ctx.font = '800 8px Inter,system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText('DASH BLOQUEADO', 0, -36);
-    }
-    ctx.restore();
   }
 
   function drawIntroBackdrop() {
@@ -555,5 +570,8 @@ export function createRenderer({ canvas, state, entities }) {
     ctx.restore();
   }
 
-  return { render, drawBackground, drawWorld, drawPlayer };
+  return {
+    render, drawBackground, drawWorld, drawPlayer,
+    playerSkin: { id: skin?.id || 'astronaut', usingSprite: () => Boolean(sprite && !sprite.isFallback()), debug: () => sprite?.debug() || null },
+  };
 }
