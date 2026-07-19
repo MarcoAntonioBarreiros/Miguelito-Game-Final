@@ -16063,14 +16063,20 @@ const PLAYER_SKINS = Object.freeze({
         // 347 na corrida. Sem normalizar, ele encolheria ao parar de andar.
         contentHeight: 224,
       }),
-      // Toca uma vez e para no ultimo quadro: a invulnerabilidade dura ~1,05s,
-      // entao 8 quadros a 8fps cobrem a janela quase exatamente. Repetir faria
-      // o menino apanhar em loop enquanto so estava piscando.
+      // Toca uma vez e para no ultimo quadro. Repetir faria o menino apanhar em
+      // loop enquanto so estava piscando.
+      //
+      // A 8fps a folha ocupava 1s inteiro e o golpe ficava arrastado, sem
+      // impacto. A 18fps ela resolve em ~0,44s: sobra invulnerabilidade
+      // piscando depois, que e o certo — o susto acaba antes da protecao.
       hurt: Object.freeze({
         src: 'assets/miguelito/hurt.png',
         frames: 8,
-        fps: 8,
+        fps: 18,
         loop: false,
+        // O deslocamento e o que faz o golpe se sentir. Sobe e recua de
+        // imediato e volta rapido, sem virar arco de pulo.
+        jolt: { up: 13, back: 9 },
         // Aqui a base varia 53px porque o personagem sai do chao no empurrao.
         // A referencia e o quadro mais baixo, onde ele esta apoiado.
         baseline: 381 / 400,
@@ -17306,11 +17312,26 @@ function createPlayerSprite(skin) {
     // fracao da altura do quadro esta o chao.
     const footY = player.h / 2;
     const baseline = Number.isFinite(sheet.baseline) ? sheet.baseline : 1;
-    const top = footY - drawHeight * baseline + offsetY;
+
+    // Solavanco: desloca o desenho para cima e para tras no comeco da animacao
+    // e devolve rapido. E o susto — sem ele a folha de dano toca no lugar e o
+    // golpe nao se sente. So visual: o ctx ja esta espelhado pelo facing, entao
+    // x negativo e sempre "para tras", em qualquer direcao que ele olhe.
+    let joltX = 0;
+    let joltY = 0;
+    if (sheet.jolt) {
+      const progresso = Math.min(1, (sheet.phase || 0) / Math.max(1, frames));
+      // Sobe de imediato e cai rapido: e um susto, nao um arco de pulo.
+      const queda = (1 - progresso) ** 2;
+      joltX = -(sheet.jolt.back || 0) * queda;
+      joltY = -(sheet.jolt.up || 0) * queda;
+    }
+
+    const top = footY - drawHeight * baseline + offsetY + joltY;
     ctx.drawImage(
       sheet.image,
       index * frameWidth, 0, frameWidth, frameHeight,
-      -drawWidth / 2 + offsetX, top, drawWidth, drawHeight,
+      -drawWidth / 2 + offsetX + joltX, top, drawWidth, drawHeight,
     );
     return true;
   }

@@ -77,10 +77,15 @@ test('a folha de dano toca uma vez e a de comemoracao repete', () => {
   const { hurt, celebrate } = PLAYER_SKINS.miguelito.states;
   assert.equal(hurt.loop, false, 'dano nao pode repetir');
   assert.notEqual(celebrate.loop, false, 'a comemoracao precisa repetir na janela da chegada');
-  // A folha de dano precisa caber na invulnerabilidade (~1,05s), senao ela
-  // termina antes de o jogador voltar ao normal e ele fica parado apanhando.
+  // O susto precisa acabar bem antes da invulnerabilidade (~1,05s): a 8fps a
+  // folha ocupava a janela inteira e o golpe ficava arrastado. Curta, sobra
+  // tempo de pisca-pisca depois, que e como impacto se le.
   const duracao = hurt.frames / hurt.fps;
-  assert.ok(duracao > .7 && duracao < 1.4, `dano dura ${duracao.toFixed(2)}s, fora da janela de invulnerabilidade`);
+  assert.ok(duracao < .6, `dano dura ${duracao.toFixed(2)}s: arrastado demais para um susto`);
+  assert.ok(duracao > .25, `dano dura ${duracao.toFixed(2)}s: rapido demais para ser visto`);
+
+  // Sem deslocamento a folha toca no lugar e o golpe nao se sente.
+  assert.ok(hurt.jolt?.up > 0 && hurt.jolt?.back > 0, 'o dano precisa deslocar para cima e para tras');
 });
 
 test('a folha declarada aponta para um arquivo e um numero de quadros', () => {
