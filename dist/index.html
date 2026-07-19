@@ -1111,7 +1111,30 @@ html.tutorial-open .phase-lab {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry } = __require("src/procgen/phosphate-solubilization.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
+const { generateLevel } = __require("src/procgen/generator.js");
+const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");
+const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");
+const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");
+const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");
+const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");
+const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");
+const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");
+const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");
+const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");
+const { applyPhaseSevenPhosphateGeometry } = __require("src/procgen/phosphate-solubilization.js");
+const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");
+const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");
+const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");
+const { createSimulator } = __require("src/procgen/simulator.js");
+const { createRenderer } = __require("src/render/renderer.js");
+const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");
+const { createCameraView } = __require("src/procgen/camera-view.js");
+const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");
+const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");
+const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");
+const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");
+const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
@@ -1170,6 +1193,10 @@ const selectionTouchButton = document.querySelector('[data-key="ArrowDown"]');
 
 let campaignStorage = null;
 try { campaignStorage = window.sessionStorage; } catch (_) {}
+// O ajuste do sprite vale em qualquer partida, nao so dentro do Phase Lab:
+// precisa ser carregado antes de o renderizador desenhar o primeiro quadro.
+initPlayerTuning((() => { try { return window.localStorage; } catch (_) { return null; } })());
+
 const phaseLab = createPhaseLabSession({ windowObject: window });
 if (phaseLab.enabled) campaignStorage = null;
 
@@ -15550,7 +15577,7 @@ function applyPhaseLabResources(level, phaseManifest, seedValue) {
 Object.assign(__exports, { PHASE_LAB_STORAGE_KEY, PHASE_LAB_MAX_RESOURCES, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, createDefaultPhaseLabConfig, buildPhaseLabManifest, validatePhaseLabConfig, applyPhaseLabResources });
 },
 "src/procgen/phase-lab.js": (__exports, __require) => {
-const { campaignManifest, ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");const { PLAYER_SKINS, PLAYER_SKIN_STORAGE_KEY, resolvePlayerSkin } = __require("src/render/player-skins.js");const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
+const { campaignManifest, ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");const { PLAYER_SKINS, PLAYER_SKIN_STORAGE_KEY, resolvePlayerSkin } = __require("src/render/player-skins.js");const { PLAYER_TUNING_LIMITS, getPlayerTuning, resetPlayerTuning, setPlayerTuning } = __require("src/render/player-skin-tuning.js");const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 
 const MELOIDOGYNE_FIELDS = Object.freeze([
@@ -15688,6 +15715,17 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
       <label>Personagem <select data-field="playerSkin">${
         Object.values(PLAYER_SKINS).map(entry => `<option value="${entry.id}">${entry.label}</option>`).join('')
       }</select></label>
+      <fieldset data-player-tuning><legend>Ajuste do sprite (ao vivo)</legend>
+        <label>Altura <span data-tuning-readout="characterHeight"></span>
+          <input type="range" data-tuning="characterHeight"
+            min="${PLAYER_TUNING_LIMITS.characterHeight.min}" max="${PLAYER_TUNING_LIMITS.characterHeight.max}"
+            step="${PLAYER_TUNING_LIMITS.characterHeight.step}"></label>
+        <label>Ritmo da corrida <span data-tuning-readout="runSpeedScale"></span>
+          <input type="range" data-tuning="runSpeedScale"
+            min="${PLAYER_TUNING_LIMITS.runSpeedScale.min}" max="${PLAYER_TUNING_LIMITS.runSpeedScale.max}"
+            step="${PLAYER_TUNING_LIMITS.runSpeedScale.step}"></label>
+        <button data-action="tuning-reset">Restaurar ajuste</button>
+      </fieldset>
       <label>Quantidade de chunks <input data-field="totalChunks" type="number" min="3" max="120"></label>
       <label>Titulo <input data-field="title"></label>
       <label>Tema <input data-field="theme"></label>
@@ -15898,6 +15936,34 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
       windowObject.location.replace(url.toString());
     });
 
+    // Sliders do sprite: mudam o desenho no proximo quadro, sem reiniciar a
+    // fase. E ajuste de olho — reiniciar a cada meio pixel tornaria impossivel
+    // comparar.
+    function pintarAjuste() {
+      const tuning = getPlayerTuning();
+      for (const input of panel.querySelectorAll('[data-tuning]')) {
+        const chave = input.dataset.tuning;
+        input.value = tuning[chave];
+        const leitura = panel.querySelector(`[data-tuning-readout="${chave}"]`);
+        if (leitura) {
+          leitura.textContent = chave === 'runSpeedScale'
+            ? `${Number(tuning[chave]).toFixed(2)}x`
+            : `${Math.round(tuning[chave])}px`;
+        }
+      }
+    }
+    for (const input of panel.querySelectorAll('[data-tuning]')) {
+      input.addEventListener('input', event => {
+        setPlayerTuning({ [event.target.dataset.tuning]: Number(event.target.value) });
+        pintarAjuste();
+      });
+    }
+    panel.querySelector('[data-action="tuning-reset"]').addEventListener('click', () => {
+      resetPlayerTuning();
+      pintarAjuste();
+    });
+    pintarAjuste();
+
     panel.querySelector('[data-action="apply"]').addEventListener('click', () => runApply());
     panel.querySelector('[data-action="seed"]').addEventListener('click', () => {
       panel.querySelector('[data-field="seed"]').value = `phase-lab-${Date.now().toString(36)}`;
@@ -15970,13 +16036,14 @@ const PLAYER_SKINS = Object.freeze({
         src: 'assets/miguelito/run.png',
         // Medido na folha: 2560x400, oito quadros de exatamente 320px.
         frames: 8,
-        // Teto do ritmo. Antes a corrida chegava a 17,5 quadros por segundo na
-        // velocidade maxima (245) e parecia acelerada demais; parado ficava em
-        // 4. Este e o meio termo: 3 + 245*0,032 da ~10,8.
-        fps: 11,
+        // Teto do ritmo. A primeira versao chegava a 17,5 quadros por segundo
+        // na velocidade maxima (245) e depois a 10,8 — as duas ainda pareciam
+        // adiantadas jogando. Agora 2 + 245*0,022 da ~7,4, e o slider do Phase
+        // Lab multiplica isso ao vivo para achar o ponto no olho.
+        fps: 8,
         speedFromMotion: true,
-        motionBase: 3,
-        motionFactor: .032,
+        motionBase: 2,
+        motionFactor: .022,
         // O pe mais baixo da folha esta na linha 379 de 400: sobra 20px de
         // vazio embaixo. Sem isto o personagem flutua essa sobra inteira.
         baseline: 379 / 400,
@@ -16019,6 +16086,70 @@ function resolvePlayerSkin({ locationLike = null, storage = null } = {}) {
   return PLAYER_SKINS[saved] || PLAYER_SKINS.astronaut;
 }
 Object.assign(__exports, { PLAYER_SKIN_STORAGE_KEY, PLAYER_SKINS, resolvePlayerSkin });
+},
+"src/render/player-skin-tuning.js": (__exports, __require) => {
+// Ajuste fino da skin, mexivel em tempo de execucao.
+//
+// Tamanho do personagem e ritmo da corrida sao decisoes de olho, nao de
+// medicao: o numero certo e o que parece certo enquanto se joga. Ficarem
+// congelados no modulo obriga a editar codigo, publicar e olhar de novo a cada
+// tentativa. Aqui eles ficam num objeto vivo que o Phase Lab move com sliders e
+// o desenho le a cada quadro.
+//
+// Sao so multiplicadores e valores visuais: nada aqui toca a fisica.
+
+const PLAYER_TUNING_STORAGE_KEY = 'miguelito:player-tuning:v1';
+
+const PLAYER_TUNING_DEFAULTS = Object.freeze({
+  // Altura visivel do personagem, em pixels de jogo.
+  characterHeight: 72,
+  // Multiplicador do ritmo da animacao de corrida.
+  runSpeedScale: 1,
+});
+
+const PLAYER_TUNING_LIMITS = Object.freeze({
+  characterHeight: { min: 40, max: 120, step: 2 },
+  runSpeedScale: { min: .3, max: 2, step: .05 },
+});
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function sanitize(raw) {
+  const out = { ...PLAYER_TUNING_DEFAULTS };
+  for (const [key, limit] of Object.entries(PLAYER_TUNING_LIMITS)) {
+    const value = Number(raw?.[key]);
+    // Valor invalido ou fora da faixa nunca pode virar personagem gigante ou de
+    // altura zero: cai no padrao.
+    if (Number.isFinite(value)) out[key] = clamp(value, limit.min, limit.max);
+  }
+  return out;
+}
+
+let current = { ...PLAYER_TUNING_DEFAULTS };
+let storageRef = null;
+
+function initPlayerTuning(storage = null) {
+  storageRef = storage;
+  try { current = sanitize(JSON.parse(storage?.getItem(PLAYER_TUNING_STORAGE_KEY))); } catch (_) {
+    current = { ...PLAYER_TUNING_DEFAULTS };
+  }
+  return current;
+}
+
+function getPlayerTuning() {
+  return current;
+}
+
+function setPlayerTuning(patch) {
+  current = sanitize({ ...current, ...patch });
+  try { storageRef?.setItem(PLAYER_TUNING_STORAGE_KEY, JSON.stringify(current)); } catch (_) {}
+  return current;
+}
+
+function resetPlayerTuning() {
+  return setPlayerTuning(PLAYER_TUNING_DEFAULTS);
+}
+Object.assign(__exports, { PLAYER_TUNING_STORAGE_KEY, PLAYER_TUNING_DEFAULTS, PLAYER_TUNING_LIMITS, initPlayerTuning, getPlayerTuning, setPlayerTuning, resetPlayerTuning });
 },
 "src/render/renderer.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");const { createPlayerSprite } = __require("src/render/player-sprite.js");const { resolvePlayerSkin } = __require("src/render/player-skins.js");
@@ -16976,6 +17107,7 @@ function createMicrobeRenderer({ ctx, state, entities }) {
 Object.assign(__exports, { getMicrobeSceneEncounters, createMicrobeRenderer });
 },
 "src/render/player-sprite.js": (__exports, __require) => {
+const { getPlayerTuning } = __require("src/render/player-skin-tuning.js");
 // Skin de sprite para o jogador.
 //
 // O astronauta e desenhado a mao no canvas e funciona. Esta camada nao o
@@ -17041,7 +17173,7 @@ function createPlayerSprite(skin) {
   // o Miguelito encolhia ao parar: na folha de corrida ele ocupa 347 dos 400px
   // do quadro e na de parado so 224, entao a mesma escala aplicada as duas
   // daria dois personagens de tamanhos diferentes.
-  const characterHeight = Number(skin.characterHeight) || 0;
+  const declaredHeight = Number(skin.characterHeight) || 0;
   const heightScale = Number(skin.heightScale) || 1;
   const offsetX = Number(skin.offsetX) || 0;
   const offsetY = Number(skin.offsetY) || 0;
@@ -17072,9 +17204,10 @@ function createPlayerSprite(skin) {
     // personagem em vez de patinar num compasso fixo. O ritmo sai da folha —
     // constante escondida aqui vira animacao rapida demais sem nada para
     // ajustar. O fps declarado e o teto.
-    const rate = sheet.speedFromMotion
+    const escala = sheet.speedFromMotion ? (getPlayerTuning().runSpeedScale || 1) : 1;
+    const rate = escala * (sheet.speedFromMotion
       ? Math.min(sheet.fps, (sheet.motionBase ?? 3) + Math.abs(player.vx) * (sheet.motionFactor ?? .032))
-      : sheet.fps;
+      : sheet.fps);
     const raw = Math.floor(time * rate);
     return sheet.loop === false ? Math.min(frames - 1, raw) : ((raw % frames) + frames) % frames;
   }
@@ -17092,6 +17225,8 @@ function createPlayerSprite(skin) {
     // dimensionado para que a altura VISIVEL bata com characterHeight — assim
     // trocar de folha nao muda o tamanho do Miguelito. Sem contentHeight, cai
     // no modo antigo de escalar pela caixa.
+    // O slider do Phase Lab manda; a folha so define o padrao.
+    const characterHeight = getPlayerTuning().characterHeight || declaredHeight;
     const drawHeight = characterHeight && sheet.contentHeight
       ? characterHeight * (frameHeight / sheet.contentHeight)
       : player.h * heightScale;
