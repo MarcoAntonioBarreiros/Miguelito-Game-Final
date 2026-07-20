@@ -2370,7 +2370,12 @@ const phases = [
   },
 
   {
-    id: 'phase-2', phase: 2, totalChunks: 40,
+    // Encurtada de 40 para 15. A fase estava arrastada e o desafio dela — o
+    // portao da FBN — nao precisa de 40 trechos para ser ensinado.
+    // Os numeros abaixo sao exatamente os que o Phase Lab produz para 15 chunks,
+    // testados ali antes de virem para ca. Nao foram ajustados a mao: mudar
+    // qualquer um deles seria publicar algo que ninguem jogou.
+    id: 'phase-2', phase: 2, totalChunks: 15,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     title: 'Rhizobium, nódulo e FBN', theme: 'simbiose',
     mission: 'Estabeleça um nódulo maduro e mantenha a fixação de nitrogênio ativa.',
@@ -2379,7 +2384,7 @@ const phases = [
       id: 'presentation-rhizobium', cardId: 'organism-rhizobium',
       triggerIds: ['organism-rhizobium', 'structure-nodule', 'process-fbn'],
       autoOpenTrigger: 'organism-rhizobium', policy: 'mandatory-first-appearance',
-      suppressIndividualCards: true, roamingType: 'rhizobium', debutChunk: 4, poolFromChunk: 9,
+      suppressIndividualCards: true, roamingType: 'rhizobium', debutChunk: 1, poolFromChunk: 3,
       moduleId: 'p2-intro', debutZoneId: 'p2-rhizobium-debut', tetherUntilSeen: true,
       derivedTriggerBehavior: 'guide-only',
       pageUnlocks: [
@@ -2391,11 +2396,11 @@ const phases = [
     }],
     unlockEvents: [], pathogenDebuts: [],
     segments: [
-      { id: 'p2-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['exudate', 'inoculation'] },
-      { id: 'p2-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided',
+      { id: 'p2-warmup', kind: 'procedural', from: 0, to: 0, tutorialMode: 'silent', mechanicsRequired: ['exudate', 'inoculation'] },
+      { id: 'p2-intro', kind: 'fixed', from: 1, to: 2, tutorialMode: 'guided',
         debutPresentationIds: ['presentation-rhizobium'], mechanicsRequired: ['exudate', 'inoculation'] },
-      { id: 'p2-challenge', kind: 'procedural', from: 9, to: 34, tutorialMode: 'silent', mechanicsRequired: ['exudate', 'inoculation'] },
-      { id: 'p2-final', kind: 'final', from: 35, to: 39, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
+      { id: 'p2-challenge', kind: 'procedural', from: 3, to: 12, tutorialMode: 'silent', mechanicsRequired: ['exudate', 'inoculation'] },
+      { id: 'p2-final', kind: 'final', from: 13, to: 14, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
     ],
     finalTest: { id: 'p2-test', goal: 'Chegar à raiz final com nódulo maduro fixando N₂.', requires: [
       { type: 'worldState', key: 'activeMatureNoduleCount', operator: '>=', value: 1 },

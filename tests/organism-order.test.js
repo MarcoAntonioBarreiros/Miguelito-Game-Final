@@ -22,7 +22,9 @@ import { getMicrobeSceneEncounters } from '../src/render/microbes.js';
 const SEEDS = Array.from({ length: 12 }, (_, index) => `curriculum-seed-${index + 1}`);
 const ROAMING_DEBUTS = [
   { phase: 1, chunk: 6, type: 'bacillus', cardId: 'organism-bacillus' },
-  { phase: 2, chunk: 4, type: 'rhizobium', cardId: 'organism-rhizobium' },
+  // A fase 2 foi encurtada de 40 para 15 chunks e a estreia acompanhou o
+  // reescalonamento, de 4 para 1. O currículo nao mudou de ordem — so de escala.
+  { phase: 2, chunk: 1, type: 'rhizobium', cardId: 'organism-rhizobium' },
   { phase: 3, chunk: 4, type: 'azospirillum', cardId: 'organism-azospirillum' },
   { phase: 5, chunk: 2, type: 'oportunista', cardId: 'organism-opportunistic-fungus' },
   { phase: 5, chunk: 8, type: 'pseudomonas', cardId: 'organism-pseudomonas' },
