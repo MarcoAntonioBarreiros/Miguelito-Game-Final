@@ -265,7 +265,7 @@ const phases = [
   },
 
   {
-    id: 'phase-3', phase: 3, totalChunks: 40,
+    id: 'phase-3', phase: 3, totalChunks: 25,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS },
     azospirillumNitrogen: { ...AZOSPIRILLUM_NITROGEN_DEFAULTS },
@@ -297,20 +297,20 @@ const phases = [
       { id: 'presentation-double-jump', cardId: 'power-double-jump',
         triggerIds: ['power-double-jump'], autoOpenTrigger: 'power-double-jump',
         policy: 'event-immediate', suppressIndividualCards: false,
-        debutChunk: 18, moduleId: 'p3-power-intro',
+        debutChunk: 14, moduleId: 'p3-power-intro',
         pages: ['mecânica de gameplay', 'segundo impulso no ar'] },
     ],
     unlockEvents: [
       { feature: 'azospirillumRoots', eventChunk: 8, afterModule: 'p3-azo-intro', practiceWindowChunks: 3, mandatory: true },
-      { feature: 'doubleJump', eventChunk: 20, afterModule: 'p3-power-intro', practiceWindowChunks: 3, mandatory: true },
+      { feature: 'doubleJump', eventChunk: 16, afterModule: 'p3-power-intro', practiceWindowChunks: 3, mandatory: true },
     ], pathogenDebuts: [],
     segments: [
       { id: 'p3-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
       { id: 'p3-azo-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided', debutPresentationIds: ['presentation-azospirillum'], mechanicsRequired: ['inoculation'] },
-      { id: 'p3-azo-practice', kind: 'procedural', from: 9, to: 17, tutorialMode: 'silent', mechanicsRequired: ['azospirillumRoots'] },
-      { id: 'p3-power-intro', kind: 'fixed', from: 18, to: 20, tutorialMode: 'guided', debutPresentationIds: ['presentation-double-jump'], mechanicsRequired: [] },
-      { id: 'p3-challenge', kind: 'procedural', from: 21, to: 35, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
-      { id: 'p3-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
+      { id: 'p3-azo-practice', kind: 'procedural', from: 9, to: 13, tutorialMode: 'silent', mechanicsRequired: ['azospirillumRoots'] },
+      { id: 'p3-power-intro', kind: 'fixed', from: 14, to: 16, tutorialMode: 'guided', debutPresentationIds: ['presentation-double-jump'], mechanicsRequired: [] },
+      { id: 'p3-challenge', kind: 'procedural', from: 17, to: 21, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
+      { id: 'p3-final', kind: 'final', from: 22, to: 24, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
     ],
     finalTest: { id: 'p3-test', goal: 'Induzir raiz lateral e usar salto duplo.', requires: [
       { type: 'playerUnlock', key: 'doubleJump', operator: '===', value: true },
@@ -348,7 +348,8 @@ const phases = [
       { id: 'presentation-mycorrhiza', cardId: 'organism-mycorrhiza',
         triggerIds: ['organism-mycorrhiza', 'structure-arbuscule', 'structure-mycorrhiza-path'],
         autoOpenTrigger: 'organism-mycorrhiza', policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        debutChunk: 3, moduleId: 'p4-myco-intro', debutZoneId: 'p4-mycorrhiza-debut',
+        roamingType: 'myco', debutChunk: 3, poolFromChunk: 9,
+        moduleId: 'p4-myco-intro', debutZoneId: 'p4-mycorrhiza-debut',
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
           { triggerId: 'organism-mycorrhiza', pages: [0] },

@@ -671,7 +671,7 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     get maximumIronLimitation() { return maximumIronLimitation; },
     get controlledFungalVigor() {
       const values = [...networks.values()].map(network => network.response?.vigor ?? 1);
-      return values.length ? Math.min(...values) : 1;
+      return values.length ? Math.min(...values) : 0;
     },
   };
 }
