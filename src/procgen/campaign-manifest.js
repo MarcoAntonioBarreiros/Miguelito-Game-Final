@@ -427,7 +427,17 @@ const phases = [
       { id: 'p5-final', kind: 'final', from: 18, to: 19, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
     ],
     finalTest: { id: 'p5-test', goal: 'Controle o vigor do fungo com a reserva de ferro e alcance a raiz final.', requires: [
-      { type: 'worldState', key: 'pseudomonasIronReserve', operator: '>=', value: 1 },
+      // MEDIDO: uma colonia madura de Pseudomonas, com ferro a vontade, chega a
+      // 0,968 em vinte segundos e para ali para sempre — ela deixa de lancar
+      // sideroforos quando a reserva passa de 0,92 (pseudomonas-siderophores),
+      // e a ultima entrega a leva a ~0,97. Exigir 1 tornava o objetivo
+      // inalcancavel com uma colonia, e a fase 5 gera de zero a uma.
+      //
+      // O teto de 0,92 e comportamento ecologico deliberado: a colonia para de
+      // forragear quando esta quase cheia. Quem estava errado era o numero do
+      // objetivo. 0,8 continua exigindo forrageamento real e cabe embaixo do
+      // teto natural.
+      { type: 'worldState', key: 'pseudomonasIronReserve', operator: '>=', value: .8 },
       { type: 'worldState', key: 'opportunisticFungusVigor', operator: '<=', value: .25 },
       { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
     ]}, notes: [],
