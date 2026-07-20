@@ -470,10 +470,9 @@ test('Fase 4 usa a propria estreia da micorriza para desbloquear a primeira pont
   // ecologia, nao um item de coleta a parte. Enquanto o poder morava num ally,
   // o jogador podia ver e capturar a micorriza sem nunca ligar a mecanica da
   // ponte, e ai nenhuma ponte se formava na fase inteira.
-  const mycorrhiza = (level.authoredEncounters || []).filter(zone => zone.id === 'myco');
+  const mycorrhiza = encounters.filter(zone => zone.id === 'myco' && zone.source === 'debut');
   assert.equal(mycorrhiza.length, 1, 'cartao e poder devem pertencer a mesma micorriza');
   assert.equal(mycorrhiza[0].logicIndex, 3);
-  assert.equal(mycorrhiza[0].source, 'debut');
   assert.equal(mycorrhiza[0].cardId, 'organism-mycorrhiza');
   assert.equal(mycorrhiza[0].unlockFeature, 'mycorrhizaStructures');
   assert.equal(

@@ -315,12 +315,15 @@ export function decorateCampaignLevel(level, campaign, profile = getPhaseProfile
     const encounter = (level.authoredEncounters || []).find(entry => (
       entry.id === ally.id && entry.logicIndex === ally.logicIndex
     ));
-    if (!encounter) continue;
-    if (ally.unlockFeature) {
+    if (encounter && ally.unlockFeature) {
       encounter.unlockFeature = ally.unlockFeature;
       encounter.unlockName = ally.name;
       encounter.unlockDesc = ally.desc;
     }
+    // Some mesmo sem encontro autoral: quando o organismo e vagante, quem
+    // carrega o cartao e o desbloqueio e a estreia criada por
+    // generateCampaignEncounters. O ally sobrando so voltaria a desenhar a
+    // morfologia antiga por cima do organismo.
     level.allies = level.allies.filter(entry => entry !== ally);
   }
   return level;

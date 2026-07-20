@@ -24,24 +24,33 @@ function faseQuatro(seedName) {
   return { level, encontros };
 }
 
-test('a estreia da micorriza e um organismo de verdade, com propagulo', () => {
+test('a micorriza e um organismo de verdade, com propagulo, e aparece mais de uma vez', () => {
   // Como ally ela vinha sem propagulo nenhum: dava para ler o cartao e nao havia
   // o que capturar. A ponte lateral que a prova final exige ficava impossivel de
   // construir, e a fase podia ser atravessada inteira sem poder ser concluida.
+  //
+  // Ela tambem aparecia num ponto so — estranho para o organismo-tema da fase.
+  // Agora entra no pool depois da estreia, como os outros.
   for (const seed of SEEDS) {
     const { encontros } = faseQuatro(seed);
     const myco = encontros.filter(encontro => encontro.id === 'myco');
-    assert.equal(myco.length, 1, `${seed}: precisa existir exatamente um organismo de micorriza`);
-    assert.equal(myco[0].logicIndex, 3, `${seed}: a estreia continua no chunk declarado`);
-    assert.equal(myco[0].source, 'debut');
+    assert.ok(myco.length > 1, `${seed}: o organismo-tema da fase nao pode aparecer uma vez so`);
+    const estreia = myco.filter(zone => zone.source === 'debut');
+    assert.equal(estreia.length, 1, `${seed}: mas a estreia e uma so`);
+    assert.equal(estreia[0].logicIndex, 3, `${seed}: no chunk declarado`);
   }
 });
 
-test('a estreia continua fixa: nao entra no pool procedural', () => {
-  // O organismo e autoral, num ponto so. Poe-lo no pool vagante mudaria a
-  // ordem de ensino da campanha inteira, e existe teste dedicado a isso.
-  for (let phase = 0; phase <= 9; phase++) {
-    assert.equal(getProceduralPoolAt(phase, 39).includes('myco'), false, `fase ${phase}`);
+test('so a estreia ensina: uma zona carrega o cartao e o desbloqueio', () => {
+  // Se mais de uma carregasse, o cartao reabriria e a mecanica seria
+  // desbloqueada de novo em qualquer encontro do pool.
+  for (const seed of SEEDS) {
+    const { encontros } = faseQuatro(seed);
+    const myco = encontros.filter(encontro => encontro.id === 'myco');
+    assert.equal(
+      myco.filter(zone => zone.unlockFeature === 'mycorrhizaStructures').length, 1,
+      `${seed}: exatamente uma zona pode desbloquear a ponte`,
+    );
   }
 });
 
@@ -64,22 +73,23 @@ test('o desbloqueio da ponte mora no organismo', () => {
   // desbloqueio, NENHUMA ponte se formava — com inoculo ou sem.
   for (const seed of SEEDS) {
     const { encontros } = faseQuatro(seed);
-    const myco = encontros.find(encontro => encontro.id === 'myco');
+    const estreia = encontros.find(encontro => encontro.id === 'myco' && encontro.source === 'debut');
     assert.equal(
-      myco?.unlockFeature, 'mycorrhizaStructures',
+      estreia?.unlockFeature, 'mycorrhizaStructures',
       `${seed}: o organismo precisa carregar o desbloqueio da mecanica`,
     );
-    assert.equal(myco.cardId, 'organism-mycorrhiza', 'e tambem o cartao');
-    assert.ok(myco.r >= 120, 'a area do desbloqueio e a do organismo, nao a de um item de 54px');
+    assert.equal(estreia.cardId, 'organism-mycorrhiza', 'e tambem o cartao');
+    assert.ok(estreia.r >= 120, 'a area do desbloqueio e a do organismo, nao a de um item de 54px');
   }
 });
 
-test('a estreia nao e duplicada mesmo se a autoria rodar duas vezes', () => {
+test('rodar a decoracao duas vezes nao duplica nada', () => {
   const { level } = faseQuatro(SEEDS[0]);
-  const antes = level.authoredEncounters.filter(e => e.id === 'myco').length;
+  const antes = (level.authoredEncounters || []).filter(e => e.id === 'myco').length;
   const campaign = createCampaign(SEEDS[0], { storage: null });
   campaign.phase = 4;
   decorateCampaignLevel(level, campaign, prepareCampaignGeneration(campaign));
-  const depois = level.authoredEncounters.filter(e => e.id === 'myco').length;
+  const depois = (level.authoredEncounters || []).filter(e => e.id === 'myco').length;
   assert.equal(depois, antes, 'rodar a decoracao de novo nao pode duplicar o organismo');
+  assert.equal((level.allies || []).filter(a => a.id === 'myco').length, 0, 'nem ressuscitar o ally');
 });

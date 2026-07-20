@@ -2409,7 +2409,7 @@ const phases = [
   },
 
   {
-    id: 'phase-3', phase: 3, totalChunks: 40,
+    id: 'phase-3', phase: 3, totalChunks: 25,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS },
     azospirillumNitrogen: { ...AZOSPIRILLUM_NITROGEN_DEFAULTS },
@@ -2441,20 +2441,20 @@ const phases = [
       { id: 'presentation-double-jump', cardId: 'power-double-jump',
         triggerIds: ['power-double-jump'], autoOpenTrigger: 'power-double-jump',
         policy: 'event-immediate', suppressIndividualCards: false,
-        debutChunk: 18, moduleId: 'p3-power-intro',
+        debutChunk: 14, moduleId: 'p3-power-intro',
         pages: ['mecânica de gameplay', 'segundo impulso no ar'] },
     ],
     unlockEvents: [
       { feature: 'azospirillumRoots', eventChunk: 8, afterModule: 'p3-azo-intro', practiceWindowChunks: 3, mandatory: true },
-      { feature: 'doubleJump', eventChunk: 20, afterModule: 'p3-power-intro', practiceWindowChunks: 3, mandatory: true },
+      { feature: 'doubleJump', eventChunk: 16, afterModule: 'p3-power-intro', practiceWindowChunks: 3, mandatory: true },
     ], pathogenDebuts: [],
     segments: [
       { id: 'p3-warmup', kind: 'procedural', from: 0, to: 3, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
       { id: 'p3-azo-intro', kind: 'fixed', from: 4, to: 8, tutorialMode: 'guided', debutPresentationIds: ['presentation-azospirillum'], mechanicsRequired: ['inoculation'] },
-      { id: 'p3-azo-practice', kind: 'procedural', from: 9, to: 17, tutorialMode: 'silent', mechanicsRequired: ['azospirillumRoots'] },
-      { id: 'p3-power-intro', kind: 'fixed', from: 18, to: 20, tutorialMode: 'guided', debutPresentationIds: ['presentation-double-jump'], mechanicsRequired: [] },
-      { id: 'p3-challenge', kind: 'procedural', from: 21, to: 35, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
-      { id: 'p3-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
+      { id: 'p3-azo-practice', kind: 'procedural', from: 9, to: 13, tutorialMode: 'silent', mechanicsRequired: ['azospirillumRoots'] },
+      { id: 'p3-power-intro', kind: 'fixed', from: 14, to: 16, tutorialMode: 'guided', debutPresentationIds: ['presentation-double-jump'], mechanicsRequired: [] },
+      { id: 'p3-challenge', kind: 'procedural', from: 17, to: 21, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
+      { id: 'p3-final', kind: 'final', from: 22, to: 24, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
     ],
     finalTest: { id: 'p3-test', goal: 'Induzir raiz lateral e usar salto duplo.', requires: [
       { type: 'playerUnlock', key: 'doubleJump', operator: '===', value: true },
@@ -2492,7 +2492,11 @@ const phases = [
       { id: 'presentation-mycorrhiza', cardId: 'organism-mycorrhiza',
         triggerIds: ['organism-mycorrhiza', 'structure-arbuscule', 'structure-mycorrhiza-path'],
         autoOpenTrigger: 'organism-mycorrhiza', policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        debutChunk: 3, moduleId: 'p4-myco-intro', debutZoneId: 'p4-mycorrhiza-debut',
+        // tetherUntilSeen vem junto com roamingType: um organismo que agora
+        // pode vaguear nao pode sair andando antes de o cartao explicar o que
+        // ele e. Sem esta linha o manifesto nao valida.
+        roamingType: 'myco', debutChunk: 3, poolFromChunk: 9, tetherUntilSeen: true,
+        moduleId: 'p4-myco-intro', debutZoneId: 'p4-mycorrhiza-debut',
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
           { triggerId: 'organism-mycorrhiza', pages: [0] },
@@ -2816,6 +2820,16 @@ function getRoamingDebutsAt(phase, chunkIndex) {
       presentationId: presentation.id,
       debutZoneId: presentation.debutZoneId || `${presentation.id}-debut`,
       tetherUntilSeen: presentation.tetherUntilSeen === true,
+      // O organismo carrega o desbloqueio da mecanica que ele ensina.
+      //
+      // O vinculo ja existia nos dados: o unlockEvent aponta afterModule, e a
+      // apresentacao declara moduleId. Antes o desbloqueio so chegava ao jogo
+      // por um item de coleta separado; quando a micorriza virou organismo
+      // vagante esse item deixou de ser criado e a habilidade da ponte ficou
+      // sem dono — nenhuma ponte se formava na fase inteira.
+      unlockFeature: (entry.unlockEvents || []).find(event => (
+        presentation.moduleId && event.afterModule === presentation.moduleId
+      ))?.feature || null,
     })));
 }
 
@@ -4549,12 +4563,15 @@ function decorateCampaignLevel(level, campaign, profile = getPhaseProfile(campai
     const encounter = (level.authoredEncounters || []).find(entry => (
       entry.id === ally.id && entry.logicIndex === ally.logicIndex
     ));
-    if (!encounter) continue;
-    if (ally.unlockFeature) {
+    if (encounter && ally.unlockFeature) {
       encounter.unlockFeature = ally.unlockFeature;
       encounter.unlockName = ally.name;
       encounter.unlockDesc = ally.desc;
     }
+    // Some mesmo sem encontro autoral: quando o organismo e vagante, quem
+    // carrega o cartao e o desbloqueio e a estreia criada por
+    // generateCampaignEncounters. O ally sobrando so voltaria a desenhar a
+    // morfologia antiga por cima do organismo.
     level.allies = level.allies.filter(entry => entry !== ally);
   }
   return level;
@@ -9481,7 +9498,7 @@ function createOpportunisticFungus({ state, entities, ecology }) {
     get maximumIronLimitation() { return maximumIronLimitation; },
     get controlledFungalVigor() {
       const values = [...networks.values()].map(network => network.response?.vigor ?? 1);
-      return values.length ? Math.min(...values) : 1;
+      return values.length ? Math.min(...values) : 0;
     },
   };
 }
@@ -14405,6 +14422,8 @@ function generateCampaignEncounters({ platforms, phase, seedValue }) {
         debutZoneId: debut.debutZoneId,
         tetherUntilSeen: debut.tetherUntilSeen,
         tetherRadius: 165,
+        // Quem ensina a mecanica e o organismo. Ver getRoamingDebutsAt.
+        unlockFeature: debut.unlockFeature || null,
       };
       const overlappingDebut = debutZones.find(existing => (
         Math.hypot(existing.x - zone.x, existing.y - zone.y) <= MIN_NEWCOMER_SEPARATION

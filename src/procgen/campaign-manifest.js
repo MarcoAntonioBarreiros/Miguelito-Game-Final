@@ -348,7 +348,10 @@ const phases = [
       { id: 'presentation-mycorrhiza', cardId: 'organism-mycorrhiza',
         triggerIds: ['organism-mycorrhiza', 'structure-arbuscule', 'structure-mycorrhiza-path'],
         autoOpenTrigger: 'organism-mycorrhiza', policy: 'mandatory-first-appearance', suppressIndividualCards: true,
-        roamingType: 'myco', debutChunk: 3, poolFromChunk: 9,
+        // tetherUntilSeen vem junto com roamingType: um organismo que agora
+        // pode vaguear nao pode sair andando antes de o cartao explicar o que
+        // ele e. Sem esta linha o manifesto nao valida.
+        roamingType: 'myco', debutChunk: 3, poolFromChunk: 9, tetherUntilSeen: true,
         moduleId: 'p4-myco-intro', debutZoneId: 'p4-mycorrhiza-debut',
         derivedTriggerBehavior: 'guide-only',
         pageUnlocks: [
@@ -673,6 +676,16 @@ export function getRoamingDebutsAt(phase, chunkIndex) {
       presentationId: presentation.id,
       debutZoneId: presentation.debutZoneId || `${presentation.id}-debut`,
       tetherUntilSeen: presentation.tetherUntilSeen === true,
+      // O organismo carrega o desbloqueio da mecanica que ele ensina.
+      //
+      // O vinculo ja existia nos dados: o unlockEvent aponta afterModule, e a
+      // apresentacao declara moduleId. Antes o desbloqueio so chegava ao jogo
+      // por um item de coleta separado; quando a micorriza virou organismo
+      // vagante esse item deixou de ser criado e a habilidade da ponte ficou
+      // sem dono — nenhuma ponte se formava na fase inteira.
+      unlockFeature: (entry.unlockEvents || []).find(event => (
+        presentation.moduleId && event.afterModule === presentation.moduleId
+      ))?.feature || null,
     })));
 }
 

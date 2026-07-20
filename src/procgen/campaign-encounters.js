@@ -75,6 +75,8 @@ export function generateCampaignEncounters({ platforms, phase, seedValue }) {
         debutZoneId: debut.debutZoneId,
         tetherUntilSeen: debut.tetherUntilSeen,
         tetherRadius: 165,
+        // Quem ensina a mecanica e o organismo. Ver getRoamingDebutsAt.
+        unlockFeature: debut.unlockFeature || null,
       };
       const overlappingDebut = debutZones.find(existing => (
         Math.hypot(existing.x - zone.x, existing.y - zone.y) <= MIN_NEWCOMER_SEPARATION

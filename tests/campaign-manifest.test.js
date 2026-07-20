@@ -44,9 +44,11 @@ test('pool procedural respeita estreia e poolFromChunk', () => {
 });
 
 test('unlock do chunk N só fica disponível a partir do chunk N+1', () => {
-  assert.equal(getAvailableUnlocksAt(3, 20).doubleJump, false);
-  assert.equal(getAvailableUnlocksAt(3, 21).doubleJump, true);
-  assert.equal(getRequiredPracticeAbilityAt(3, 21), 'doubleJump');
+  // A fase 3 foi encurtada de 40 para 25 chunks e o desbloqueio do salto duplo
+  // acompanhou o reescalonamento, do chunk 20 para o 16.
+  assert.equal(getAvailableUnlocksAt(3, 16).doubleJump, false);
+  assert.equal(getAvailableUnlocksAt(3, 17).doubleJump, true);
+  assert.equal(getRequiredPracticeAbilityAt(3, 17), 'doubleJump');
   assert.equal(getAvailableUnlocksAt(7, 3).phosphateSolubilization, false);
   assert.equal(getAvailableUnlocksAt(7, 4).phosphateSolubilization, true);
 });

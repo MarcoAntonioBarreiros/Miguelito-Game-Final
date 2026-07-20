@@ -73,12 +73,17 @@ test('múltiplas seeds nunca exigem salto duplo antes do chunk seguinte ao desbl
   for (const seed of SEEDS) {
     const { level } = generatePhase(3, seed);
     assertFeatureStartsAfterEvent(level, 3, 'doubleJump');
-    for (const info of level.debugInfo.filter(entry => entry.index <= 20)) {
+    // O chunk do desbloqueio sai do manifesto, nao de um numero escrito aqui.
+    // Estava fixo em 20 e a fase 3 foi encurtada de 40 para 25 chunks — o teste
+    // passou a reprovar a fase por um valor que so existia no proprio teste.
+    const unlockChunk = getPhaseManifest(3).unlockEvents
+      .find(event => event.feature === 'doubleJump').eventChunk;
+    for (const info of level.debugInfo.filter(entry => entry.index <= unlockChunk)) {
       assert.doesNotMatch(info.primitive, /double/);
     }
     assert.equal(
       level.debugInfo.filter(info => info.logic.requires.includes('doubleJump'))
-        .every(info => info.index > 20 && info.logic.availableUnlocks.doubleJump),
+        .every(info => info.index > unlockChunk && info.logic.availableUnlocks.doubleJump),
       true,
     );
   }
