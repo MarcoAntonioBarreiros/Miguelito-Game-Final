@@ -15870,11 +15870,31 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
     return campaign;
   }
 
+  // Por que o fallback tambem precisa de rede:
+  //
+  // validatePhaseLabConfig valida o MANIFESTO INTEIRO, nao so a fase editada.
+  // Basta uma fase qualquer estar invalida para applyConfig lancar em todas —
+  // inclusive na fase 1 do fallback. Como esta chamada rodava desprotegida, a
+  // excecao subia no carregamento do modulo e o Phase Lab simplesmente nao
+  // aparecia. Foi o que aconteceu quando o manifesto foi publicado com a
+  // apresentacao da micorriza sem tetherUntilSeen: nenhuma mensagem, nenhum
+  // painel, so um Lab ausente.
+  //
+  // Agora o pior caso e um Lab que abre dizendo o que esta errado. Uma
+  // ferramenta de diagnostico que some justamente quando ha algo para
+  // diagnosticar e a pior forma possivel de falhar.
+  let bootError = null;
   try {
     applyConfig(config, { persist: false });
-  } catch (_) {
-    config = createDefaultPhaseLabConfig(1);
-    applyConfig(config);
+  } catch (firstError) {
+    try {
+      config = createDefaultPhaseLabConfig(1);
+      applyConfig(config);
+      bootError = `Configuracao salva invalida, voltando para a fase 1:\n${firstError.message}`;
+    } catch (fallbackError) {
+      // Nem o padrao valida: o manifesto do jogo esta quebrado.
+      bootError = `MANIFESTO INVALIDO — nenhuma fase pode ser montada:\n${fallbackError.message}`;
+    }
   }
 
   function mount({ onRestart }) {
@@ -15978,6 +15998,12 @@ function createPhaseLabSession({ windowObject = globalThis.window } = {}) {
     `;
     documentObject.body.append(panel, toggle);
     const status = panel.querySelector('.phase-lab-status');
+    // Se o Lab so conseguiu abrir porque caiu no fallback, o painel diz por que
+    // — em vez de o jogador achar que perdeu a propria configuracao.
+    if (bootError) {
+      status.textContent = bootError;
+      status.className = 'phase-lab-status error';
+    }
 
     function checkboxMarkup(types, selected) {
       return types.map(type => `<label><input type="checkbox" value="${type}" ${selected.includes(type) ? 'checked' : ''}>${type}</label>`).join('');
