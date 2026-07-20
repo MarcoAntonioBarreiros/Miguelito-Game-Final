@@ -37,6 +37,31 @@ function createEmptyLevel() {
   };
 }
 
+// Exsudato so podia ser ganho pegando os que a fase colocou — cada um uma vez,
+// para sempre — e morrer apagava metade do estoque. Nao havia nenhum caminho de
+// volta: o recurso so diminuia. Uma fase que exige mais inoculacoes do que o
+// estoque restante virava matematicamente impossivel, sem nenhum aviso, e o
+// jogador ficava procurando um recurso que nao existia mais. A fase 3 com duas
+// secoes de nitrogenio mais escada e o pior caso disso.
+//
+// Ao renascer, os exsudatos DALI PARA A FRENTE voltam a existir. A penalidade da
+// morte continua: metade do que estava carregado some e e preciso refazer o
+// caminho. O que deixa de acontecer e o mundo destruir o recurso em definitivo.
+// Os que ficaram para tras nao voltam, entao o trecho ja vencido nao vira fonte
+// infinita.
+//
+// O jogo nao procedural sempre fez isso (src/data/level.js). Perdeu-se na
+// migracao para o procedural, e nao foi decisao de design.
+export function restoreExudatesAhead(level, fromX) {
+  let restored = 0;
+  for (const exudate of level?.exudates || []) {
+    if (!exudate.taken || !Number.isFinite(exudate.x) || exudate.x < fromX) continue;
+    exudate.taken = false;
+    restored++;
+  }
+  return restored;
+}
+
 export function createSimulator() {
   const state = {
     time: 0,
@@ -94,6 +119,7 @@ export function createSimulator() {
       player.alive = true;
       player.vitality = player.maxVitality || 5;
       player.exudates = Math.floor((player.exudates || 0) / 2);
+      restoreExudatesAhead(state.level, player.x);
       player.infectionExposure = 0;
       player.infection = Math.min(.12, Math.max(0, (player.infection || 0) * .2));
       player.fungalContamination = Math.min(.08, Math.max(0, (player.fungalContamination || 0) * .15));
