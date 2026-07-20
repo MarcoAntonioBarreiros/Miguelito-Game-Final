@@ -141,6 +141,41 @@ test('o desafio da ponte fica antes do Dash, que venceria o vao sozinho', () => 
   clearPhaseManifestOverride();
 });
 
+// Este teste existe por causa de um furo no metodo dos outros: validateChunk
+// monta um nivel com APENAS as duas plataformas da travessia, entao ele mede o
+// vao isolado e nao enxerga o que existe no meio dele. O gerador espalha
+// plataformas de recuperacao dentro dos vaos para perdoar pulos errados, e uma
+// delas caia dentro do desafio em 12 de 12 seeds da fase 4: o vao de 330px
+// virava dois pulinhos, o salto duplo passava, a ponte nunca era necessaria e a
+// prova final nunca registrava. Aqui a verificacao e feita no nivel inteiro.
+test('nada sobra dentro do vao do desafio, em nenhuma fase', () => {
+  for (const phase of [3, 4]) {
+    for (let s = 0; s < 8; s++) {
+      const { level, challenge } = gera(phase, `vao-limpo-${phase}-${s}`);
+      assert.ok(challenge, `fase ${phase}, seed ${s}: nenhum desafio criado`);
+
+      const rota = level.platforms
+        .filter(p => !p.recovery && !p.final && Number.isInteger(p.logicIndex))
+        .sort((a, b) => a.logicIndex - b.logicIndex);
+      const alvo = rota.find(p => p.logicIndex === challenge.chunk);
+      const anterior = rota.find(p => p.logicIndex === challenge.chunk - 1);
+      assert.ok(alvo && anterior);
+
+      const inicio = anterior.x + anterior.w;
+      const fim = alvo.x;
+      const dentro = level.platforms.filter(p => {
+        const centro = p.x + p.w / 2;
+        return centro > inicio + 2 && centro < fim - 2;
+      });
+      assert.deepEqual(
+        dentro.map(p => ({ x: Math.round(p.x), recovery: Boolean(p.recovery) })), [],
+        `fase ${phase}, seed ${s}: sobrou plataforma dentro do vao do desafio`,
+      );
+    }
+  }
+  clearPhaseManifestOverride();
+});
+
 test('fase curta demais nao recebe o desafio, em vez de gerar geometria impossivel', () => {
   const base = getPhaseManifest(3);
   const curta = { ...JSON.parse(JSON.stringify(base)), totalChunks: 6 };

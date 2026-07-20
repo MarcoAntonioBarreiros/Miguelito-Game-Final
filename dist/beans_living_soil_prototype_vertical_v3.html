@@ -14985,7 +14985,31 @@ function applySignatureChallenge(level, phase) {
   return null;
 }
 
+// O gerador espalha plataformas de recuperacao dentro dos vaos comuns, para
+// perdoar um pulo errado. Num vao criado de proposito para exigir a mecanica da
+// fase, essa gentileza desmonta o desafio: uma plataformazinha de 82px no meio
+// transforma o vao de 330px em dois pulinhos que o salto duplo vence sem
+// pensar. Era o caso em 12 de 12 seeds da fase 4 — o jogador atravessava a fase
+// inteira sem nunca precisar da ponte, e por isso a prova final nunca
+// registrava.
+//
+// A validacao por fisica nao pegava isso porque validateChunk monta um nivel com
+// apenas as duas plataformas da travessia: o vao era medido isolado, sem o que
+// havia no meio dele.
+function clearRecoveryInside(level, fromX, toX) {
+  let removed = 0;
+  level.platforms = (level.platforms || []).filter(platform => {
+    if (!platform.recovery) return true;
+    const center = platform.x + platform.w / 2;
+    if (center <= fromX || center >= toX) return true;
+    removed++;
+    return false;
+  });
+  return removed;
+}
+
 function record(level, config, target, previous, alreadyPresent) {
+  clearRecoveryInside(level, previous.x + previous.w, target.x);
   target.signatureChallenge = config.mechanic || true;
   level.signatureChallenge = {
     mechanic: config.mechanic || null,
