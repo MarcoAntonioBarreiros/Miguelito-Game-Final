@@ -346,6 +346,11 @@ export function createRenderer({ canvas, state, entities, playerSkin = null }) {
     microbes.drawMicrobeEcosystems();
     level.allies.forEach((a, i) => {
       if (a.taken) return;
+      // Estreia representada por um organismo real da ecologia: o ally continua
+      // existindo como gatilho do cartao e zona, mas nao desenha. Sem isto a
+      // micorriza aparecia duas vezes no mesmo ponto — o organismo novo e, por
+      // cima dele, o icone antigo deste laco.
+      if (a.artDrawnByEcology) return;
       ctx.save();
       ctx.translate(a.x, a.y + Math.sin(time * 2 + i) * 7);
       if (a.id === 'azo') {

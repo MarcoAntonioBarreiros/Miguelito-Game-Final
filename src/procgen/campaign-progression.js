@@ -1,5 +1,6 @@
 import {
   CAMPAIGN_UNLOCKS,
+  ECOLOGY_ROAMING_TYPES,
   campaignManifest,
   getPathogenStartChunk,
   getPhaseManifest,
@@ -201,6 +202,38 @@ export function decorateCampaignLevel(level, campaign, profile = getPhaseProfile
     meloidogyne: getPathogenStartChunk(campaign.phase, 'meloidogyne'),
   };
 
+  // A estreia precisa ser o organismo de verdade, nao um icone de coleta.
+  // Como ally ela vinha com a morfologia antiga do renderer e, principalmente,
+  // SEM propagulo: dava para ler o cartao e nao havia o que capturar, entao a
+  // ponte lateral que a prova final exige ficava impossivel de construir. Dava
+  // para atravessar a fase toda com salto duplo e mesmo assim nao concluir.
+  //
+  // Nao entra no pool procedural — a estreia continua fixa, como o teste de
+  // ordem exige. E um encontro autoral, num ponto so. O perfil de movimento do
+  // myco e de micelio ancorado, entao ele fica onde estreia.
+  function authorDebutEncounter(target, presentation, fixed, x, y) {
+    if (!ECOLOGY_ROAMING_TYPES.includes(fixed.id)) return;
+    target.authoredEncounters = target.authoredEncounters || [];
+    // Uma segunda chamada para a mesma estreia duplicaria o organismo.
+    if (target.authoredEncounters.some(entry => (
+      entry.id === fixed.id && entry.logicIndex === presentation.debutChunk
+    ))) return;
+    target.authoredEncounters.push({
+      id: fixed.id,
+      x, y,
+      r: 155,
+      territory: 620,
+      collect: false,
+      logicIndex: presentation.debutChunk,
+      source: 'debut',
+      cardId: presentation.cardId,
+      presentationId: presentation.id,
+      debutZoneId: presentation.debutZoneId,
+      tetherUntilSeen: true,
+      tetherRadius: 165,
+    });
+  }
+
   const fixedDebutTypes = {
     'organism-mycorrhiza': {
       id: 'myco', name: 'Micorriza arbuscular',
@@ -225,17 +258,21 @@ export function decorateCampaignLevel(level, campaign, profile = getPhaseProfile
         presentationId: presentation.id,
         debutZoneId: presentation.debutZoneId,
         mycorrhizaArbusculeDebut: presentation.cardId === 'organism-mycorrhiza',
+        artDrawnByEcology: ECOLOGY_ROAMING_TYPES.includes(fixed.id),
       });
+      authorDebutEncounter(level, presentation, fixed, functionalDebut.x, functionalDebut.y);
       continue;
     }
     const platform = (level.platforms || []).find(candidate => (
       !candidate.recovery && !candidate.final && candidate.logicIndex === presentation.debutChunk
     ));
     if (!platform) continue;
+    const debutX = platform.x + platform.w / 2;
+    const debutY = platform.y - 44;
     level.allies.push({
       ...fixed,
-      x: platform.x + platform.w / 2,
-      y: platform.y - 44,
+      x: debutX,
+      y: debutY,
       r: 32,
       taken: false,
       presentationOnly: true,
@@ -243,7 +280,13 @@ export function decorateCampaignLevel(level, campaign, profile = getPhaseProfile
       presentationId: presentation.id,
       debutZoneId: presentation.debutZoneId,
       logicIndex: presentation.debutChunk,
+      // O ally e o gatilho do cartao e a zona de estreia. Quando existe um
+      // organismo de verdade no mesmo ponto, ele nao desenha nada: dois
+      // desenhos sobrepostos, um com a morfologia velha, era o que aparecia.
+      artDrawnByEcology: ECOLOGY_ROAMING_TYPES.includes(fixed.id),
     });
+
+    authorDebutEncounter(level, presentation, fixed, debutX, debutY);
   }
 
   const queues = new Map();
