@@ -1,6 +1,6 @@
 import { createPhysicsSystem } from '../physics.js';
 import { createPlayer, resetPlayer } from '../player.js';
-import { applyPersistentUnlocks } from './campaign-progression.js';
+import { applyPersistentUnlocks, unlockCampaignFeature } from './campaign-progression.js';
 import { createMicrobeArt } from '../data/microbes.js';
 import { createRoamingMicrobeEcology } from './microbe-roaming.js';
 import { createMycorrhizaGrowth } from './mycorrhiza-growth.js';
@@ -107,6 +107,13 @@ export function createSimulator() {
       }
     },
     discoverMicrobe: id => { state.discoveredMicrobes.add(id); },
+    // Desbloqueio disparado pelo proprio organismo, ao inves de por um item de
+    // coleta a parte. Ver o comentario em microbe-ecology.js.
+    unlockCampaignFeature: (feature, zone) => {
+      if (!unlockCampaignFeature(state, feature)) return;
+      state.toast = zone?.unlockDesc || 'Uma nova função do solo vivo foi liberada.';
+      state.toastTime = 5.2;
+    },
     respawn: reason => {
       const player = state.player;
       for (const juvenile of state.level.nematodeJuveniles || []) {

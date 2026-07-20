@@ -3433,7 +3433,7 @@ function generatePrimitives() {
 Object.assign(__exports, { generatePrimitives });
 },
 "src/procgen/simulator.js": (__exports, __require) => {
-const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");const { createInoculumSelection } = __require("src/procgen/inoculum-selection.js");const { createPhosphateSolubilization } = __require("src/procgen/phosphate-solubilization.js");
+const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks, unlockCampaignFeature } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");const { createInoculumSelection } = __require("src/procgen/inoculum-selection.js");const { createPhosphateSolubilization } = __require("src/procgen/phosphate-solubilization.js");
 function createEmptyLevel() {
   return {
     platforms: [], hazards: [], crystals: [], enemies: [], exudates: [],
@@ -3516,6 +3516,13 @@ function createSimulator() {
       }
     },
     discoverMicrobe: id => { state.discoveredMicrobes.add(id); },
+    // Desbloqueio disparado pelo proprio organismo, ao inves de por um item de
+    // coleta a parte. Ver o comentario em microbe-ecology.js.
+    unlockCampaignFeature: (feature, zone) => {
+      if (!unlockCampaignFeature(state, feature)) return;
+      state.toast = zone?.unlockDesc || 'Uma nova função do solo vivo foi liberada.';
+      state.toastTime = 5.2;
+    },
     respawn: reason => {
       const player = state.player;
       for (const juvenile of state.level.nematodeJuveniles || []) {
@@ -4485,7 +4492,6 @@ function decorateCampaignLevel(level, campaign, profile = getPhaseProfile(campai
         presentationId: presentation.id,
         debutZoneId: presentation.debutZoneId,
         mycorrhizaArbusculeDebut: presentation.cardId === 'organism-mycorrhiza',
-        artDrawnByEcology: ECOLOGY_ROAMING_TYPES.includes(fixed.id),
       });
       authorDebutEncounter(level, presentation, fixed, functionalDebut.x, functionalDebut.y);
       continue;
@@ -4507,10 +4513,6 @@ function decorateCampaignLevel(level, campaign, profile = getPhaseProfile(campai
       presentationId: presentation.id,
       debutZoneId: presentation.debutZoneId,
       logicIndex: presentation.debutChunk,
-      // O ally e o gatilho do cartao e a zona de estreia. Quando existe um
-      // organismo de verdade no mesmo ponto, ele nao desenha nada: dois
-      // desenhos sobrepostos, um com a morfologia velha, era o que aparecia.
-      artDrawnByEcology: ECOLOGY_ROAMING_TYPES.includes(fixed.id),
     });
 
     authorDebutEncounter(level, presentation, fixed, debutX, debutY);
@@ -4530,6 +4532,30 @@ function decorateCampaignLevel(level, campaign, profile = getPhaseProfile(campai
     const presentation = featurePresentation(event.feature);
     ally.name = presentation.name;
     ally.desc = presentation.desc;
+  }
+
+  // Onde existe o organismo de verdade, o ally e removido — nao escondido.
+  //
+  // Ele era um item de coleta com arte propria, e sobreviveu a refatoracao da
+  // micorriza como um resto: desenhava a morfologia velha por cima do organismo
+  // novo e, pior, era o UNICO gatilho do desbloqueio da habilidade. Esconder o
+  // desenho e manter o gatilho, como cheguei a fazer, transformou a chave da
+  // mecanica num objeto invisivel — pior do que estava.
+  //
+  // Agora o organismo carrega o desbloqueio, que e onde ele sempre devia estar:
+  // quem ensina a micorriza e a micorriza.
+  for (const ally of [...(level.allies || [])]) {
+    if (!ECOLOGY_ROAMING_TYPES.includes(ally.id)) continue;
+    const encounter = (level.authoredEncounters || []).find(entry => (
+      entry.id === ally.id && entry.logicIndex === ally.logicIndex
+    ));
+    if (!encounter) continue;
+    if (ally.unlockFeature) {
+      encounter.unlockFeature = ally.unlockFeature;
+      encounter.unlockName = ally.name;
+      encounter.unlockDesc = ally.desc;
+    }
+    level.allies = level.allies.filter(entry => entry !== ally);
   }
   return level;
 }
@@ -5615,6 +5641,22 @@ function createMicrobeEcology({ state, entities }) {
     for (const zone of ecology.encounters) {
       if (!state.discoveredMicrobes.has(zone.id) && Math.hypot(zone.x - playerX, zone.y - playerY) < (zone.r || 135)) {
         entities.discoverMicrobe(zone.id, true);
+      }
+      // O organismo carrega o desbloqueio da propria mecanica.
+      //
+      // Antes isso vinha de um item de coleta separado — o ally — com arte
+      // propria e raio de 54px, resto da versao anterior da micorriza. Ele
+      // desenhava a morfologia velha por cima do organismo novo e era o UNICO
+      // gatilho da habilidade: sem encostar nele, mycorrhizaStructures nunca
+      // ligava e NENHUMA ponte se formava, com inoculo ou sem.
+      //
+      // Quem ensina a micorriza tem que ser a micorriza. O desbloqueio agora
+      // mora no encontro, e a area e a que o jogador enxerga como o organismo.
+      if (zone.unlockFeature && !zone.unlockApplied) {
+        if (Math.hypot(zone.x - playerX, zone.y - playerY) < (zone.r || 135)) {
+          zone.unlockApplied = true;
+          entities.unlockCampaignFeature?.(zone.unlockFeature, zone);
+        }
       }
     }
 
@@ -16638,11 +16680,6 @@ function createRenderer({ canvas, state, entities, playerSkin = null }) {
     microbes.drawMicrobeEcosystems();
     level.allies.forEach((a, i) => {
       if (a.taken) return;
-      // Estreia representada por um organismo real da ecologia: o ally continua
-      // existindo como gatilho do cartao e zona, mas nao desenha. Sem isto a
-      // micorriza aparecia duas vezes no mesmo ponto — o organismo novo e, por
-      // cima dele, o icone antigo deste laco.
-      if (a.artDrawnByEcology) return;
       ctx.save();
       ctx.translate(a.x, a.y + Math.sin(time * 2 + i) * 7);
       if (a.id === 'azo') {

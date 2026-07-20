@@ -466,14 +466,20 @@ test('Fase 4 usa a propria estreia da micorriza para desbloquear a primeira pont
     'a raiz que ancora a estreia da micorriza nao vira hospedeira de escada',
   );
 
-  const mycorrhiza = level.allies.filter(ally => ally.id === 'myco');
+  // Cartao e poder pertencem a MESMA micorriza — e ela e o organismo da
+  // ecologia, nao um item de coleta a parte. Enquanto o poder morava num ally,
+  // o jogador podia ver e capturar a micorriza sem nunca ligar a mecanica da
+  // ponte, e ai nenhuma ponte se formava na fase inteira.
+  const mycorrhiza = (level.authoredEncounters || []).filter(zone => zone.id === 'myco');
   assert.equal(mycorrhiza.length, 1, 'cartao e poder devem pertencer a mesma micorriza');
   assert.equal(mycorrhiza[0].logicIndex, 3);
-  assert.equal(mycorrhiza[0].fixedDebut, true);
-  assert.equal(mycorrhiza[0].presentationOnly, undefined);
+  assert.equal(mycorrhiza[0].source, 'debut');
   assert.equal(mycorrhiza[0].cardId, 'organism-mycorrhiza');
   assert.equal(mycorrhiza[0].unlockFeature, 'mycorrhizaStructures');
-  assert.equal(mycorrhiza[0].mycorrhizaArbusculeDebut, true);
+  assert.equal(
+    level.allies.filter(ally => ally.id === 'myco').length, 0,
+    'o item de coleta da micorriza nao pode voltar',
+  );
 });
 
 test('Azo fornece N associativo pequeno, nao cria nodulo e so potencializa Rhizobium no mesmo sistema', () => {

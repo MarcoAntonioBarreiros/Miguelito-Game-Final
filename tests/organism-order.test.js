@@ -49,11 +49,14 @@ function generatePhase(phase, seed) {
   const profile = prepareCampaignGeneration(campaign);
   const phaseSeed = campaignPhaseSeed(campaign);
   const level = decorateCampaignLevel(generateLevel(phaseSeed), campaign, profile);
+  // Espelha o pipeline real: app.js concatena os encontros autorais aos
+  // procedurais. Sem isso o helper nao enxerga estreias fixas como a da
+  // micorriza, e o teste passaria a validar um jogo diferente do que roda.
   const encounters = generateCampaignEncounters({
     platforms: level.platforms,
     phase,
     seedValue: phaseSeed,
-  });
+  }).concat(level.authoredEncounters || []);
   return { campaign, level, encounters };
 }
 
@@ -160,12 +163,19 @@ test('organismos conhecidos reaparecem e os vagantes apresentados integram a sí
 
 test('micorriza e solubilizador têm estreias fixas, sem entrar no pool vagante', () => {
   for (const seed of SEEDS) {
+    // A micorriza deixou de ser um item de coleta (ally) e passou a ser o
+    // organismo da ecologia. As garantias sao as mesmas — estreia fixa no chunk
+    // 3, com o cartao e o desbloqueio da mecanica — so que agora vivem no
+    // encontro, que e o que o jogador enxerga como sendo a micorriza.
     const mycorrhiza = generatePhase(4, `${seed}:myco`);
-    const mycoDebut = mycorrhiza.level.allies.find(ally => ally.fixedDebut && ally.id === 'myco');
+    const mycoDebut = mycorrhiza.encounters.find(zone => zone.id === 'myco');
     assert.equal(mycoDebut?.logicIndex, 3);
     assert.equal(mycoDebut?.cardId, 'organism-mycorrhiza');
     assert.equal(mycoDebut?.unlockFeature, 'mycorrhizaStructures');
-    assert.equal(mycorrhiza.level.allies.filter(ally => ally.id === 'myco').length, 1);
+    assert.equal(mycorrhiza.encounters.filter(zone => zone.id === 'myco').length, 1);
+    // O ally nao pode voltar: enquanto ele existia, era ele — e nao o organismo
+    // — que liberava a habilidade da ponte.
+    assert.equal(mycorrhiza.level.allies.filter(ally => ally.id === 'myco').length, 0);
 
     const phosphate = generatePhase(7, `${seed}:phos`);
     const phosDebut = phosphate.level.allies.find(ally => ally.presentationOnly && ally.id === 'phos');

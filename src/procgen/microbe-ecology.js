@@ -505,6 +505,22 @@ export function createMicrobeEcology({ state, entities }) {
       if (!state.discoveredMicrobes.has(zone.id) && Math.hypot(zone.x - playerX, zone.y - playerY) < (zone.r || 135)) {
         entities.discoverMicrobe(zone.id, true);
       }
+      // O organismo carrega o desbloqueio da propria mecanica.
+      //
+      // Antes isso vinha de um item de coleta separado — o ally — com arte
+      // propria e raio de 54px, resto da versao anterior da micorriza. Ele
+      // desenhava a morfologia velha por cima do organismo novo e era o UNICO
+      // gatilho da habilidade: sem encostar nele, mycorrhizaStructures nunca
+      // ligava e NENHUMA ponte se formava, com inoculo ou sem.
+      //
+      // Quem ensina a micorriza tem que ser a micorriza. O desbloqueio agora
+      // mora no encontro, e a area e a que o jogador enxerga como o organismo.
+      if (zone.unlockFeature && !zone.unlockApplied) {
+        if (Math.hypot(zone.x - playerX, zone.y - playerY) < (zone.r || 135)) {
+          zone.unlockApplied = true;
+          entities.unlockCampaignFeature?.(zone.unlockFeature, zone);
+        }
+      }
     }
 
     for (const agent of ecology.agents) {

@@ -258,7 +258,6 @@ export function decorateCampaignLevel(level, campaign, profile = getPhaseProfile
         presentationId: presentation.id,
         debutZoneId: presentation.debutZoneId,
         mycorrhizaArbusculeDebut: presentation.cardId === 'organism-mycorrhiza',
-        artDrawnByEcology: ECOLOGY_ROAMING_TYPES.includes(fixed.id),
       });
       authorDebutEncounter(level, presentation, fixed, functionalDebut.x, functionalDebut.y);
       continue;
@@ -280,10 +279,6 @@ export function decorateCampaignLevel(level, campaign, profile = getPhaseProfile
       presentationId: presentation.id,
       debutZoneId: presentation.debutZoneId,
       logicIndex: presentation.debutChunk,
-      // O ally e o gatilho do cartao e a zona de estreia. Quando existe um
-      // organismo de verdade no mesmo ponto, ele nao desenha nada: dois
-      // desenhos sobrepostos, um com a morfologia velha, era o que aparecia.
-      artDrawnByEcology: ECOLOGY_ROAMING_TYPES.includes(fixed.id),
     });
 
     authorDebutEncounter(level, presentation, fixed, debutX, debutY);
@@ -303,6 +298,30 @@ export function decorateCampaignLevel(level, campaign, profile = getPhaseProfile
     const presentation = featurePresentation(event.feature);
     ally.name = presentation.name;
     ally.desc = presentation.desc;
+  }
+
+  // Onde existe o organismo de verdade, o ally e removido — nao escondido.
+  //
+  // Ele era um item de coleta com arte propria, e sobreviveu a refatoracao da
+  // micorriza como um resto: desenhava a morfologia velha por cima do organismo
+  // novo e, pior, era o UNICO gatilho do desbloqueio da habilidade. Esconder o
+  // desenho e manter o gatilho, como cheguei a fazer, transformou a chave da
+  // mecanica num objeto invisivel — pior do que estava.
+  //
+  // Agora o organismo carrega o desbloqueio, que e onde ele sempre devia estar:
+  // quem ensina a micorriza e a micorriza.
+  for (const ally of [...(level.allies || [])]) {
+    if (!ECOLOGY_ROAMING_TYPES.includes(ally.id)) continue;
+    const encounter = (level.authoredEncounters || []).find(entry => (
+      entry.id === ally.id && entry.logicIndex === ally.logicIndex
+    ));
+    if (!encounter) continue;
+    if (ally.unlockFeature) {
+      encounter.unlockFeature = ally.unlockFeature;
+      encounter.unlockName = ally.name;
+      encounter.unlockDesc = ally.desc;
+    }
+    level.allies = level.allies.filter(entry => entry !== ally);
   }
   return level;
 }

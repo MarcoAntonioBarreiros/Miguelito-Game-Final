@@ -45,16 +45,32 @@ test('a estreia continua fixa: nao entra no pool procedural', () => {
   }
 });
 
-test('a micorriza nao aparece duas vezes no mesmo ponto', () => {
-  // O ally sobrevive como gatilho do cartao e zona de estreia, mas para de
-  // desenhar. Sem isso ficavam dois desenhos sobrepostos, e o de cima era a
-  // morfologia antiga.
+test('o item de coleta da micorriza foi removido, nao escondido', () => {
+  // O ally era resto da versao anterior da micorriza. Escondi-lo e manter o
+  // gatilho, como cheguei a fazer, transformou a chave da mecanica num objeto
+  // invisivel — pior do que estava. Ele nao pode voltar em nenhuma forma.
   for (const seed of SEEDS) {
     const { level } = faseQuatro(seed);
-    const allies = (level.allies || []).filter(ally => ally.id === 'myco');
-    assert.equal(allies.length, 1, `${seed}: o gatilho do cartao continua existindo`);
-    assert.equal(allies[0].artDrawnByEcology, true, `${seed}: o ally nao pode desenhar a arte antiga`);
-    assert.equal(allies[0].cardId, 'organism-mycorrhiza', 'o cartao continua ligado ao ally');
+    assert.equal(
+      (level.allies || []).filter(ally => ally.id === 'myco').length, 0,
+      `${seed}: o ally da micorriza precisa ter sido removido`,
+    );
+  }
+});
+
+test('o desbloqueio da ponte mora no organismo', () => {
+  // Este era o bug: mycorrhizaStructures so ligava ao encostar no ally, e o
+  // simulador so roda o sistema de pontes se essa flag estiver ligada. Sem o
+  // desbloqueio, NENHUMA ponte se formava — com inoculo ou sem.
+  for (const seed of SEEDS) {
+    const { encontros } = faseQuatro(seed);
+    const myco = encontros.find(encontro => encontro.id === 'myco');
+    assert.equal(
+      myco?.unlockFeature, 'mycorrhizaStructures',
+      `${seed}: o organismo precisa carregar o desbloqueio da mecanica`,
+    );
+    assert.equal(myco.cardId, 'organism-mycorrhiza', 'e tambem o cartao');
+    assert.ok(myco.r >= 120, 'a area do desbloqueio e a do organismo, nao a de um item de 54px');
   }
 });
 
