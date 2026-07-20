@@ -410,12 +410,22 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     step.progress = Math.max(step.progress, localProgress);
     step.currentWidth = lerp(step.startWidth, step.targetWidth, step.progress);
     step.currentHeight = lerp(step.startHeight, step.targetHeight, step.progress);
-    step.mature = step.progress >= 1;
+    step.mature = step.progress >= 0.35;
     if (step.mature) activateStepCollider(ladder, step);
     else removeStepCollider(step);
   }
 
   function updateLadder(ladder, dt) {
+    const oldStartY = ladder.startY;
+    ladder.startY = ladder.host.y - 6;
+    if (ladder.destination) ladder.endY = ladder.destination.y - 6;
+    else ladder.endY += (ladder.startY - oldStartY);
+    for (const step of ladder.steps) {
+      const t = (step.index + 1) / (ladder.steps.length + 1);
+      step.y = lerp(ladder.startY, ladder.endY, t);
+      if (step.collider) step.collider.y = step.y;
+    }
+
     if (ladder.developed) {
       ladder.progress = 1;
       ladder.visibleProgress = 1;
@@ -594,11 +604,8 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
       ...ladder.steps.map(step => ({ x: step.centerX, y: step.y + step.currentHeight / 2 })),
       { x: ladder.endX, y: ladder.endY },
     ];
-    const visibleSegments = clamp(
-      Math.ceil(ladder.visibleProgress * (points.length - 1)),
-      0,
-      points.length - 1,
-    );
+    const stepsGrowing = ladder.steps.filter(s => s.progress > 0).length;
+    const visibleSegments = ladder.developed ? points.length - 1 : (ladder.progress > 0 ? Math.max(1, stepsGrowing) : 0);
 
     // Mesma topologia da antiga ponte vertical da micorriza: a estrutura
     // detecta a raiz superior e cresce do bloco inferior até ela. Aqui o

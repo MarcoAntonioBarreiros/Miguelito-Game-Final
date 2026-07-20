@@ -237,6 +237,28 @@ export function createMycorrhizaStructures({ state, entities, inoculants = null 
 
     let collisionDirty = false;
     for (const structure of structures) {
+      if (structure.structureType === 'bridge') {
+        const expectedStartY = structure.source.y;
+        const expectedEndY = structure.target.y;
+        if (structure.start.y !== expectedStartY || structure.end.y !== expectedEndY) {
+          structure.start.y = expectedStartY;
+          structure.end.y = expectedEndY;
+          const sag = Math.min(28, structure.length * .08);
+          const segments = structure.colliders.length;
+          for (let i = 0; i <= segments; i++) {
+            const t = i / segments;
+            const y = lerp(structure.start.y, structure.end.y, t) + Math.sin(t * Math.PI) * sag;
+            structure.points[i].y = y;
+            if (i < segments) {
+              const nextT = (i + 1) / segments;
+              const nextY = lerp(structure.start.y, structure.end.y, nextT) + Math.sin(nextT * Math.PI) * sag;
+              structure.colliders[i].y = Math.min(y, nextY) - 5;
+              structure.colliders[i].h = 12 + Math.abs(nextY - y);
+            }
+          }
+        }
+      }
+
       if (structure.mature) continue;
       structure.progress = clamp(structure.progress + dt / structure.growthDuration, 0, 1);
       if (structure.progress > .72) {
