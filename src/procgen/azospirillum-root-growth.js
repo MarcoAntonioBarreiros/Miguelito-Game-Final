@@ -410,7 +410,12 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     step.progress = Math.max(step.progress, localProgress);
     step.currentWidth = lerp(step.startWidth, step.targetWidth, step.progress);
     step.currentHeight = lerp(step.startHeight, step.targetHeight, step.progress);
-    step.mature = step.progress >= 0.35;
+    // O degrau so colide em 100%. Colidir a 35% deixa o jogador pisar num
+    // degrau que ainda esta crescendo, e a regra existe justamente para a
+    // escada ser consequencia da colonia madura e nao um atalho. Isto veio
+    // junto de uma correcao de colisao, mas e mudanca de regra de jogo — se for
+    // para afrouxar, que seja uma decisao deliberada e com o teste atualizado.
+    step.mature = step.progress >= 1;
     if (step.mature) activateStepCollider(ladder, step);
     else removeStepCollider(step);
   }
