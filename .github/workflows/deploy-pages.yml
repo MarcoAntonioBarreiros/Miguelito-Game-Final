@@ -22,10 +22,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # enablement: true so serve para criar o site do Pages no primeiro deploy,
+      # e ele ja existe ha muito tempo. O custo de deixar ligado apareceu numa
+      # instabilidade do GitHub: o "Get Pages site" falhou com 503, a action
+      # concluiu que o site nao existia e tentou CRIAR — o que o token do
+      # workflow nao pode fazer. Uma leitura que falhou virou "Resource not
+      # accessible by integration" e derrubou o deploy de um commit sadio.
+      # Sem a flag, uma falha transitoria de leitura volta a ser transitoria.
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Configure Node.js
         uses: actions/setup-node@v4
