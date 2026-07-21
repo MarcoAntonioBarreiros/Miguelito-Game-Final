@@ -4182,16 +4182,16 @@ const { unlockCampaignFeature } = __require("src/procgen/campaign-progression.js
 function createPhysicsSystem({ state, input, entities, hud, audio }) {
   function collectCampaignUnlock(ally, player) {
     const feature = ally.unlockFeature
-      || (ally.id === 'azo' ? 'doubleJump' : ally.id === 'myco' ? 'mycorrhizaStructures' : ally.id === 'phos-power' ? 'phosphateSolubilization' : ally.id === 'dash' ? 'dash' : null);
+      || (ally.id === 'power-jump' ? 'doubleJump' : ally.id === 'power-dash' ? 'dash' : ally.id === 'power-pulse' ? 'phosphateSolubilization' : ally.id === 'myco' ? 'mycorrhizaStructures' : ally.id === 'azo' ? 'azospirillumRoots' : null);
     unlockCampaignFeature(state, feature);
 
     let color = '#72e8dd';
     if (feature === 'doubleJump') {
+      // Poder da raiz (fitohormonio), nao organismo: sem discoverMicrobe aqui.
       player.airJumpAvailable = true;
       player.soil += 6;
       player.hope += 5;
-      hud.setMission('Pratique o salto duplo e continue restaurando o solo');
-      entities.discoverMicrobe('azospirillum', false);
+      hud.setMission('A raiz liberou o salto duplo: pratique o segundo impulso no ar');
     } else if (feature === 'dash') {
       color = '#70e5d6';
       player.soil += 7;
@@ -4654,12 +4654,20 @@ const campaignStorage = new WeakMap();
 const CAMPAIGN_STORAGE_KEY = 'miguelito:campaign:v2';
 
 const FEATURE_ALLIES = Object.freeze({
-  doubleJump: 'azo',
-  dash: 'dash',
-  phosphateSolubilization: 'phos-power',
+  // Salto duplo, dash e pulso sao PODERES da raiz saudavel (fitohormonios), nao
+  // organismos — cada um com id proprio. azospirillumRoots segue com o organismo
+  // Azospirillum ('azo'); mycorrhizaStructures com a micorriza ('myco').
+  doubleJump: 'power-jump',
+  dash: 'power-dash',
+  phosphateSolubilization: 'power-pulse',
   mycorrhizaStructures: 'myco',
   azospirillumRoots: 'azo',
 });
+
+// O item de coleta de um poder que na verdade e carregado por um organismo
+// vagante deve sumir (como a micorriza). O id do ally nem sempre e igual ao tipo
+// roaming: 'azo' corresponde ao organismo 'azospirillum'.
+const ALLY_ROAMING_TYPE = Object.freeze({ azo: 'azospirillum', myco: 'myco' });
 
 function blankUnlocks(source = {}) {
   return Object.fromEntries(CAMPAIGN_UNLOCKS.map(feature => [feature, source[feature] === true]));
@@ -4809,8 +4817,8 @@ function campaignPhaseSeed(campaign) {
 function featurePresentation(feature) {
   if (feature === 'doubleJump') {
     return {
-      name: 'Ari, o Azospirillum',
-      desc: 'O impulso radicular libera o salto duplo. Pressione salto novamente enquanto estiver no ar.',
+      name: 'Fitohormônio de crescimento',
+      desc: 'A raiz saudável libera um fitohormônio que impulsiona o salto duplo. Pressione salto novamente enquanto estiver no ar.',
     };
   }
   if (feature === 'dash') {
@@ -4827,8 +4835,8 @@ function featurePresentation(feature) {
   }
   if (feature === 'phosphateSolubilization') {
     return {
-      name: 'Pulso de solubilização',
-      desc: 'Selecione Solubilização P, carregue metabólitos perto da cepa de Bacillus e solte E para disparar no depósito.',
+      name: 'Enzima de solubilização',
+      desc: 'A raiz saudável libera a enzima do pulso: selecione Solubilização P, carregue perto da cepa de Bacillus e solte E para disparar no depósito.',
     };
   }
   return {
@@ -4956,9 +4964,10 @@ function decorateCampaignLevel(level, campaign, profile = getPhaseProfile(campai
   // Agora o organismo carrega o desbloqueio, que e onde ele sempre devia estar:
   // quem ensina a micorriza e a micorriza.
   for (const ally of [...(level.allies || [])]) {
-    if (!ECOLOGY_ROAMING_TYPES.includes(ally.id)) continue;
+    const roamingType = ALLY_ROAMING_TYPE[ally.id];
+    if (!roamingType || !ECOLOGY_ROAMING_TYPES.includes(roamingType)) continue;
     const encounter = (level.authoredEncounters || []).find(entry => (
-      entry.id === ally.id && entry.logicIndex === ally.logicIndex
+      entry.id === roamingType && entry.logicIndex === ally.logicIndex
     ));
     if (encounter && ally.unlockFeature) {
       encounter.unlockFeature = ally.unlockFeature;
@@ -14254,7 +14263,10 @@ function applyPhaseSevenPhosphateGeometry(level, phase, config = null) {
   const depositPlatform = platforms[depositIndex];
   const rootPlatform = platforms[rootIndex];
   colonyPlatform.type = 'root';
-  depositPlatform.type = 'root';
+  // O fosfato mineral fica no SOLO (mais lógico que raiz). A micorriza continua
+  // absorvendo a partir de uma RAIZ vizinha dentro do alcance (regra em
+  // transportingColony), não do depósito diretamente.
+  depositPlatform.type = 'soil';
   depositPlatform.phosphateStock = 0;
   rootPlatform.type = 'root';
   rootPlatform.phosphateTarget = true;
@@ -14524,22 +14536,46 @@ function createPhosphateSolubilization({
     for (const deposit of state.level.phosphateDeposits || []) {
       if (deposit.broken) continue;
       const ratio = deposit.remainingPhosphate / deposit.initialPhosphate;
+      // Prismas de fosfato que BROTAM da rocha: colunas facetadas ancoradas na
+      // superficie do bloco, de alturas variadas (estaveis por deposito) que
+      // encolhem conforme o fosfato e solubilizado. Antes era um unico poligono
+      // flutuando no ar.
+      const baseY = deposit.y + deposit.h;
+      const count = 5;
+      const columnWidth = deposit.w / count;
       ctx.save();
-      ctx.translate(deposit.x + deposit.w / 2, deposit.y + deposit.h / 2);
-      ctx.globalAlpha = .48 + ratio * .52;
-      ctx.shadowBlur = 18;
+      ctx.globalAlpha = .5 + ratio * .5;
+      ctx.shadowBlur = 16;
       ctx.shadowColor = '#db83ff';
-      ctx.fillStyle = '#67447b';
-      ctx.strokeStyle = '#efb4ff';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(-deposit.w * .42, deposit.h * .45);
-      ctx.lineTo(-deposit.w * .5, -deposit.h * .18);
-      ctx.lineTo(-deposit.w * .16, -deposit.h * .5);
-      ctx.lineTo(deposit.w * .42, -deposit.h * .3);
-      ctx.lineTo(deposit.w * .5, deposit.h * .42);
-      ctx.closePath();
-      ctx.fill(); ctx.stroke();
+      for (let k = 0; k < count; k++) {
+        const seed = Math.sin(deposit.x * .13 + k * 12.9898) * .5 + .5;
+        const cx = deposit.x + columnWidth * (k + .5);
+        const half = columnWidth * (.34 + seed * .12);
+        const height = deposit.h * (.55 + seed * .45) * (.4 + ratio * .6);
+        const tipY = baseY - height;
+        const shoulderY = tipY + height * .2;
+        const body = ctx.createLinearGradient(cx, baseY, cx, tipY);
+        body.addColorStop(0, '#4a2d63');
+        body.addColorStop(1, '#c98cff');
+        ctx.fillStyle = body;
+        ctx.strokeStyle = '#efb4ff';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(cx - half, baseY);
+        ctx.lineTo(cx - half, shoulderY);
+        ctx.lineTo(cx, tipY);
+        ctx.lineTo(cx + half, shoulderY);
+        ctx.lineTo(cx + half, baseY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,236,255,.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, tipY);
+        ctx.lineTo(cx, baseY);
+        ctx.stroke();
+      }
       ctx.restore();
     }
     for (const pool of state.level.availablePhosphatePools || []) {
@@ -17386,44 +17422,52 @@ function createRenderer({ canvas, state, entities, playerSkin = null }) {
           ctx.arc(0, 0, 11, 0, Math.PI * 2);
           ctx.fill();
         }
-      } else if (a.id === 'dash') {
-        ctx.shadowBlur = 24;
-        ctx.shadowColor = '#70e5d6';
-        ctx.fillStyle = '#1e3835';
-        ctx.strokeStyle = '#70e5d6';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(0, 0, 18 + Math.sin(time * 3) * 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.moveTo(-8, -6);
-        ctx.lineTo(4, 0);
-        ctx.lineTo(-8, 6);
-        ctx.moveTo(2, -6);
-        ctx.lineTo(14, 0);
-        ctx.lineTo(2, 6);
-        ctx.stroke();
       } else {
-        ctx.shadowBlur = 24;
-        ctx.shadowColor = '#8db8ff';
-        ctx.fillStyle = '#65768b';
-        ctx.strokeStyle = '#ffd176';
-        ctx.lineWidth = 2;
+        // Fitohormônio: poder liberado pela RAIZ saudável (não um organismo).
+        // Uma gota luminosa na linguagem do exsudato, com um ícone por poder.
+        const pulse = 1 + Math.sin(time * 3 + i) * .08;
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#ffd783';
+        const halo = ctx.createRadialGradient(0, 0, 2, 0, 0, 21 * pulse);
+        halo.addColorStop(0, 'rgba(255,233,160,.9)');
+        halo.addColorStop(.55, 'rgba(183,243,107,.4)');
+        halo.addColorStop(1, 'rgba(183,243,107,0)');
+        ctx.fillStyle = halo;
         ctx.beginPath();
-        ctx.moveTo(-22, 15);
-        ctx.lineTo(-15, -18);
-        ctx.lineTo(3, -28);
-        ctx.lineTo(24, -8);
-        ctx.lineTo(20, 17);
+        ctx.arc(0, 0, 21 * pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#eaffc4';
+        ctx.strokeStyle = 'rgba(120,90,40,.5)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(0, -13);
+        ctx.bezierCurveTo(9, -4, 9, 9, 0, 13);
+        ctx.bezierCurveTo(-9, 9, -9, -4, 0, -13);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-        for (let k = 0; k < 5; k++) {
-          const ang = k / 5 * Math.PI * 2 + time * .15;
-          microbes.drawOrganicBacterium(Math.cos(ang) * 33, Math.sin(ang) * 22, ang + 1.5, .62, '#8db8ff', k, 'short');
+
+        ctx.strokeStyle = '#2f5a1e';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        if (a.id === 'power-jump') {
+          ctx.moveTo(-5, 4); ctx.lineTo(0, -2); ctx.lineTo(5, 4);
+          ctx.moveTo(-5, 9); ctx.lineTo(0, 3); ctx.lineTo(5, 9);
+        } else if (a.id === 'power-dash') {
+          ctx.moveTo(-6, -3); ctx.lineTo(1, 3); ctx.lineTo(-6, 9);
+          ctx.moveTo(1, -3); ctx.lineTo(8, 3); ctx.lineTo(1, 9);
+        } else {
+          for (let k = 0; k < 6; k++) {
+            const ang = k / 6 * Math.PI * 2;
+            ctx.moveTo(Math.cos(ang) * 3, Math.sin(ang) * 3 + 2);
+            ctx.lineTo(Math.cos(ang) * 8, Math.sin(ang) * 8 + 2);
+          }
         }
+        ctx.stroke();
+        ctx.lineCap = 'butt';
       }
       ctx.shadowBlur = 0;
       ctx.restore();

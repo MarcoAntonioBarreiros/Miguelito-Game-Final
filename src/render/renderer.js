@@ -386,44 +386,52 @@ export function createRenderer({ canvas, state, entities, playerSkin = null }) {
           ctx.arc(0, 0, 11, 0, Math.PI * 2);
           ctx.fill();
         }
-      } else if (a.id === 'dash') {
-        ctx.shadowBlur = 24;
-        ctx.shadowColor = '#70e5d6';
-        ctx.fillStyle = '#1e3835';
-        ctx.strokeStyle = '#70e5d6';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(0, 0, 18 + Math.sin(time * 3) * 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        
-        ctx.beginPath();
-        ctx.moveTo(-8, -6);
-        ctx.lineTo(4, 0);
-        ctx.lineTo(-8, 6);
-        ctx.moveTo(2, -6);
-        ctx.lineTo(14, 0);
-        ctx.lineTo(2, 6);
-        ctx.stroke();
       } else {
-        ctx.shadowBlur = 24;
-        ctx.shadowColor = '#8db8ff';
-        ctx.fillStyle = '#65768b';
-        ctx.strokeStyle = '#ffd176';
-        ctx.lineWidth = 2;
+        // Fitohormônio: poder liberado pela RAIZ saudável (não um organismo).
+        // Uma gota luminosa na linguagem do exsudato, com um ícone por poder.
+        const pulse = 1 + Math.sin(time * 3 + i) * .08;
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#ffd783';
+        const halo = ctx.createRadialGradient(0, 0, 2, 0, 0, 21 * pulse);
+        halo.addColorStop(0, 'rgba(255,233,160,.9)');
+        halo.addColorStop(.55, 'rgba(183,243,107,.4)');
+        halo.addColorStop(1, 'rgba(183,243,107,0)');
+        ctx.fillStyle = halo;
         ctx.beginPath();
-        ctx.moveTo(-22, 15);
-        ctx.lineTo(-15, -18);
-        ctx.lineTo(3, -28);
-        ctx.lineTo(24, -8);
-        ctx.lineTo(20, 17);
+        ctx.arc(0, 0, 21 * pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#eaffc4';
+        ctx.strokeStyle = 'rgba(120,90,40,.5)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(0, -13);
+        ctx.bezierCurveTo(9, -4, 9, 9, 0, 13);
+        ctx.bezierCurveTo(-9, 9, -9, -4, 0, -13);
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-        for (let k = 0; k < 5; k++) {
-          const ang = k / 5 * Math.PI * 2 + time * .15;
-          microbes.drawOrganicBacterium(Math.cos(ang) * 33, Math.sin(ang) * 22, ang + 1.5, .62, '#8db8ff', k, 'short');
+
+        ctx.strokeStyle = '#2f5a1e';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        if (a.id === 'power-jump') {
+          ctx.moveTo(-5, 4); ctx.lineTo(0, -2); ctx.lineTo(5, 4);
+          ctx.moveTo(-5, 9); ctx.lineTo(0, 3); ctx.lineTo(5, 9);
+        } else if (a.id === 'power-dash') {
+          ctx.moveTo(-6, -3); ctx.lineTo(1, 3); ctx.lineTo(-6, 9);
+          ctx.moveTo(1, -3); ctx.lineTo(8, 3); ctx.lineTo(1, 9);
+        } else {
+          for (let k = 0; k < 6; k++) {
+            const ang = k / 6 * Math.PI * 2;
+            ctx.moveTo(Math.cos(ang) * 3, Math.sin(ang) * 3 + 2);
+            ctx.lineTo(Math.cos(ang) * 8, Math.sin(ang) * 8 + 2);
+          }
         }
+        ctx.stroke();
+        ctx.lineCap = 'butt';
       }
       ctx.shadowBlur = 0;
       ctx.restore();

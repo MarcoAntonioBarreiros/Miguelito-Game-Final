@@ -14,12 +14,20 @@ const campaignStorage = new WeakMap();
 export const CAMPAIGN_STORAGE_KEY = 'miguelito:campaign:v2';
 
 const FEATURE_ALLIES = Object.freeze({
-  doubleJump: 'azo',
-  dash: 'dash',
-  phosphateSolubilization: 'phos-power',
+  // Salto duplo, dash e pulso sao PODERES da raiz saudavel (fitohormonios), nao
+  // organismos — cada um com id proprio. azospirillumRoots segue com o organismo
+  // Azospirillum ('azo'); mycorrhizaStructures com a micorriza ('myco').
+  doubleJump: 'power-jump',
+  dash: 'power-dash',
+  phosphateSolubilization: 'power-pulse',
   mycorrhizaStructures: 'myco',
   azospirillumRoots: 'azo',
 });
+
+// O item de coleta de um poder que na verdade e carregado por um organismo
+// vagante deve sumir (como a micorriza). O id do ally nem sempre e igual ao tipo
+// roaming: 'azo' corresponde ao organismo 'azospirillum'.
+const ALLY_ROAMING_TYPE = Object.freeze({ azo: 'azospirillum', myco: 'myco' });
 
 function blankUnlocks(source = {}) {
   return Object.fromEntries(CAMPAIGN_UNLOCKS.map(feature => [feature, source[feature] === true]));
@@ -169,8 +177,8 @@ export function campaignPhaseSeed(campaign) {
 function featurePresentation(feature) {
   if (feature === 'doubleJump') {
     return {
-      name: 'Ari, o Azospirillum',
-      desc: 'O impulso radicular libera o salto duplo. Pressione salto novamente enquanto estiver no ar.',
+      name: 'Fitohormônio de crescimento',
+      desc: 'A raiz saudável libera um fitohormônio que impulsiona o salto duplo. Pressione salto novamente enquanto estiver no ar.',
     };
   }
   if (feature === 'dash') {
@@ -187,8 +195,8 @@ function featurePresentation(feature) {
   }
   if (feature === 'phosphateSolubilization') {
     return {
-      name: 'Pulso de solubilização',
-      desc: 'Selecione Solubilização P, carregue metabólitos perto da cepa de Bacillus e solte E para disparar no depósito.',
+      name: 'Enzima de solubilização',
+      desc: 'A raiz saudável libera a enzima do pulso: selecione Solubilização P, carregue perto da cepa de Bacillus e solte E para disparar no depósito.',
     };
   }
   return {
@@ -316,9 +324,10 @@ export function decorateCampaignLevel(level, campaign, profile = getPhaseProfile
   // Agora o organismo carrega o desbloqueio, que e onde ele sempre devia estar:
   // quem ensina a micorriza e a micorriza.
   for (const ally of [...(level.allies || [])]) {
-    if (!ECOLOGY_ROAMING_TYPES.includes(ally.id)) continue;
+    const roamingType = ALLY_ROAMING_TYPE[ally.id];
+    if (!roamingType || !ECOLOGY_ROAMING_TYPES.includes(roamingType)) continue;
     const encounter = (level.authoredEncounters || []).find(entry => (
-      entry.id === ally.id && entry.logicIndex === ally.logicIndex
+      entry.id === roamingType && entry.logicIndex === ally.logicIndex
     ));
     if (encounter && ally.unlockFeature) {
       encounter.unlockFeature = ally.unlockFeature;

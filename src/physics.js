@@ -6,16 +6,16 @@ import { unlockCampaignFeature } from './procgen/campaign-progression.js';
 export function createPhysicsSystem({ state, input, entities, hud, audio }) {
   function collectCampaignUnlock(ally, player) {
     const feature = ally.unlockFeature
-      || (ally.id === 'azo' ? 'doubleJump' : ally.id === 'myco' ? 'mycorrhizaStructures' : ally.id === 'phos-power' ? 'phosphateSolubilization' : ally.id === 'dash' ? 'dash' : null);
+      || (ally.id === 'power-jump' ? 'doubleJump' : ally.id === 'power-dash' ? 'dash' : ally.id === 'power-pulse' ? 'phosphateSolubilization' : ally.id === 'myco' ? 'mycorrhizaStructures' : ally.id === 'azo' ? 'azospirillumRoots' : null);
     unlockCampaignFeature(state, feature);
 
     let color = '#72e8dd';
     if (feature === 'doubleJump') {
+      // Poder da raiz (fitohormonio), nao organismo: sem discoverMicrobe aqui.
       player.airJumpAvailable = true;
       player.soil += 6;
       player.hope += 5;
-      hud.setMission('Pratique o salto duplo e continue restaurando o solo');
-      entities.discoverMicrobe('azospirillum', false);
+      hud.setMission('A raiz liberou o salto duplo: pratique o segundo impulso no ar');
     } else if (feature === 'dash') {
       color = '#70e5d6';
       player.soil += 7;

@@ -34,7 +34,10 @@ export function applyPhaseSevenPhosphateGeometry(level, phase, config = null) {
   const depositPlatform = platforms[depositIndex];
   const rootPlatform = platforms[rootIndex];
   colonyPlatform.type = 'root';
-  depositPlatform.type = 'root';
+  // O fosfato mineral fica no SOLO (mais lógico que raiz). A micorriza continua
+  // absorvendo a partir de uma RAIZ vizinha dentro do alcance (regra em
+  // transportingColony), não do depósito diretamente.
+  depositPlatform.type = 'soil';
   depositPlatform.phosphateStock = 0;
   rootPlatform.type = 'root';
   rootPlatform.phosphateTarget = true;
@@ -304,22 +307,46 @@ export function createPhosphateSolubilization({
     for (const deposit of state.level.phosphateDeposits || []) {
       if (deposit.broken) continue;
       const ratio = deposit.remainingPhosphate / deposit.initialPhosphate;
+      // Prismas de fosfato que BROTAM da rocha: colunas facetadas ancoradas na
+      // superficie do bloco, de alturas variadas (estaveis por deposito) que
+      // encolhem conforme o fosfato e solubilizado. Antes era um unico poligono
+      // flutuando no ar.
+      const baseY = deposit.y + deposit.h;
+      const count = 5;
+      const columnWidth = deposit.w / count;
       ctx.save();
-      ctx.translate(deposit.x + deposit.w / 2, deposit.y + deposit.h / 2);
-      ctx.globalAlpha = .48 + ratio * .52;
-      ctx.shadowBlur = 18;
+      ctx.globalAlpha = .5 + ratio * .5;
+      ctx.shadowBlur = 16;
       ctx.shadowColor = '#db83ff';
-      ctx.fillStyle = '#67447b';
-      ctx.strokeStyle = '#efb4ff';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(-deposit.w * .42, deposit.h * .45);
-      ctx.lineTo(-deposit.w * .5, -deposit.h * .18);
-      ctx.lineTo(-deposit.w * .16, -deposit.h * .5);
-      ctx.lineTo(deposit.w * .42, -deposit.h * .3);
-      ctx.lineTo(deposit.w * .5, deposit.h * .42);
-      ctx.closePath();
-      ctx.fill(); ctx.stroke();
+      for (let k = 0; k < count; k++) {
+        const seed = Math.sin(deposit.x * .13 + k * 12.9898) * .5 + .5;
+        const cx = deposit.x + columnWidth * (k + .5);
+        const half = columnWidth * (.34 + seed * .12);
+        const height = deposit.h * (.55 + seed * .45) * (.4 + ratio * .6);
+        const tipY = baseY - height;
+        const shoulderY = tipY + height * .2;
+        const body = ctx.createLinearGradient(cx, baseY, cx, tipY);
+        body.addColorStop(0, '#4a2d63');
+        body.addColorStop(1, '#c98cff');
+        ctx.fillStyle = body;
+        ctx.strokeStyle = '#efb4ff';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(cx - half, baseY);
+        ctx.lineTo(cx - half, shoulderY);
+        ctx.lineTo(cx, tipY);
+        ctx.lineTo(cx + half, shoulderY);
+        ctx.lineTo(cx + half, baseY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,236,255,.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, tipY);
+        ctx.lineTo(cx, baseY);
+        ctx.stroke();
+      }
       ctx.restore();
     }
     for (const pool of state.level.availablePhosphatePools || []) {
