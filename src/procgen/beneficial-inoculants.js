@@ -481,10 +481,18 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     ctx.save();
     ctx.translate(colony.x, colony.y);
 
+    // O vigor/evolucao da colonia agora e lido pela COR e intensidade do halo,
+    // no lugar da barra: cor do organismo quando vigorosa, ambar e vermelho
+    // conforme enfraquece; halo mais forte = mais vigor.
+    const vigorColor = colony.vigor > .55 ? profile.color : colony.vigor > .24 ? '#ffd36f' : '#ff8297';
+    const vigorAlpha = colony.dormant
+      ? '22'
+      : Math.round(clamp(34 + colony.vigor * 94, 34, 128)).toString(16).padStart(2, '0');
     const haloRadius = colony.radius * (.55 + growth * .45);
     const halo = ctx.createRadialGradient(0, 0, 2, 0, 0, haloRadius);
-    halo.addColorStop(0, `${profile.color}${colony.dormant ? '22' : '44'}`);
-    halo.addColorStop(1, `${profile.color}00`);
+    halo.addColorStop(0, `${vigorColor}${vigorAlpha}`);
+    halo.addColorStop(.6, `${vigorColor}${colony.dormant ? '11' : '2a'}`);
+    halo.addColorStop(1, `${vigorColor}00`);
     ctx.fillStyle = halo;
     ctx.beginPath();
     ctx.arc(0, 0, haloRadius, 0, TAU);
@@ -510,24 +518,17 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     }
     ctx.globalAlpha = 1;
 
-    const width = 52;
-    const barY = -radius - 19;
-    ctx.fillStyle = 'rgba(3,18,24,.82)';
-    ctx.fillRect(-width / 2 - 2, barY - 2, width + 4, 8);
-    ctx.fillStyle = colony.vigor > .55 ? profile.color : colony.vigor > .24 ? '#ffd36f' : '#ff8297';
-    ctx.fillRect(-width / 2, barY, width * colony.vigor, 4);
-    if (colony.rechargeIntensity > .05) {
-      ctx.strokeStyle = '#d6ff94';
-      ctx.strokeRect(-width / 2 - 1, barY - 1, width + 2, 6);
-    }
+    // A barra de vigor foi removida (poluicao): o estado agora vive no halo.
+    // Mantemos so o rotulo de identidade do organismo.
+    const labelY = -radius - 19;
     ctx.font = '700 9px Inter,system-ui';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#effff5';
-    ctx.fillText(`${profile.short} — ${colony.stage}`, 0, barY - 5);
+    ctx.fillText(`${profile.short} — ${colony.stage}`, 0, labelY - 5);
     if (colony.type === 'azospirillum' && colony.associativeNitrogenActive) {
       ctx.font = '650 8px Inter,system-ui';
       ctx.fillStyle = 'rgba(255,215,131,.9)';
-      ctx.fillText('Fixação associativa de N', 0, barY - 16);
+      ctx.fillText('Fixação associativa de N', 0, labelY - 16);
     }
     ctx.restore();
   }

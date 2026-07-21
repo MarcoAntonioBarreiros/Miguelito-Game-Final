@@ -261,6 +261,9 @@ export function createPlatformVisuals({ state }) {
     ctx.translate(-state.cameraX, 0);
     for (const platform of state.level.platforms || []) {
       if (platform.mycorrhizaStructure || platform.azospirillumStructure || platform.nitrogenRootCollider) continue;
+      // Toggle das plataformas de seguranca: some com o bloco inteiro, nao so
+      // com o colisor, para nao enganar o jogador com um degrau decorativo.
+      if (platform.recovery && state.recoveryPlatformsDisabled) continue;
       if (platform.x + platform.w < state.cameraX - 80 || platform.x > state.cameraX + W + 80) continue;
       if (platform.type === 'root') drawRoot(ctx, platform);
       else drawSoil(ctx, platform);
