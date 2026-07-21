@@ -49,7 +49,7 @@ function findBridgeTarget(state, sourceInfo, cloud, config) {
     const targetCenter = target.x + target.w / 2;
     if ((targetCenter - sourceCenter) * direction <= 0) continue;
     const gap = horizontalGap(source, target);
-    if (gap < 58 || gap > 340) continue;
+    if (gap < 58) continue;
     const dy = Math.abs(target.y - source.y);
     const maximumVerticalOffset = config.horizontalOnly ? 68 : 105;
     if (dy > maximumVerticalOffset) continue;

@@ -330,9 +330,9 @@ export function createPlatformVisuals({ state }) {
     );
     const screenY = clamp(platform.y + 17, 54, H - 24);
 
-    drawWorldLabel(ctx, screenX, screenY, text, {
-      color, font: '800 12px Inter,system-ui', glow: 9, alpha,
-    });
+    // drawWorldLabel(ctx, screenX, screenY, text, {
+    //   color, font: '800 12px Inter,system-ui', glow: 9, alpha,
+    // });
   }
 
   return { drawWorld, renderLabel };

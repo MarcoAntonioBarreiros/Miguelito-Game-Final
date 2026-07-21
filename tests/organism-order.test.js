@@ -34,11 +34,12 @@ const ROAMING_DEBUTS = [
   { phase: 6, chunk: 3, type: 'trichoderma', cardId: 'organism-trichoderma' },
 ];
 
-test('campanha mantém somente os sinais cenográficos antigos, sem função didática', () => {
+test('campanha não usa mais a cena cenográfica fixa do início', () => {
+  // A colonia decorativa de rhizobium (bacterias + arco marrom) e a micorriza
+  // (halo) que apareciam iguais no comeco de toda fase foram removidas: nao tem
+  // funcao de gameplay. Os encontros funcionais vem de campaign-encounters.js.
   const campaignScenes = getMicrobeSceneEncounters({ proceduralCampaign: true });
-  assert.deepEqual(campaignScenes.map(scene => scene.id), ['rhizobium', 'myco']);
-  assert.equal(campaignScenes.every(scene => scene.decorative === true), true);
-  assert.equal(campaignScenes.some(scene => scene.id === 'phos'), false);
+  assert.deepEqual(campaignScenes, []);
 
   const legacyScenes = getMicrobeSceneEncounters({ proceduralCampaign: false });
   assert.ok(legacyScenes.some(scene => scene.id === 'phos'));

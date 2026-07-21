@@ -222,6 +222,8 @@ export function createRenderer({ canvas, state, entities, playerSkin = null }) {
 
     level.platforms.forEach(p => {
       if (p.nitrogenRootCollider) return;
+      // Nao desenha as plataformas de seguranca quando o jogador as desliga.
+      if (p.recovery && state.recoveryPlatformsDisabled) return;
       const health = p.type === 'root' ? clamp(p.rootHealth ?? 1, .06, 1) : 1;
       const damage = 1 - health;
       const grad = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
@@ -384,6 +386,25 @@ export function createRenderer({ canvas, state, entities, playerSkin = null }) {
           ctx.arc(0, 0, 11, 0, Math.PI * 2);
           ctx.fill();
         }
+      } else if (a.id === 'dash') {
+        ctx.shadowBlur = 24;
+        ctx.shadowColor = '#70e5d6';
+        ctx.fillStyle = '#1e3835';
+        ctx.strokeStyle = '#70e5d6';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, 18 + Math.sin(time * 3) * 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.moveTo(-8, -6);
+        ctx.lineTo(4, 0);
+        ctx.lineTo(-8, 6);
+        ctx.moveTo(2, -6);
+        ctx.lineTo(14, 0);
+        ctx.lineTo(2, 6);
+        ctx.stroke();
       } else {
         ctx.shadowBlur = 24;
         ctx.shadowColor = '#8db8ff';

@@ -135,6 +135,13 @@ function build() {
   fs.writeFileSync(outNamed, standalone, 'utf8');
   console.log(`Built ${path.relative(root, outIndex)} and ${path.relative(root, outNamed)}`);
   console.log(`Bundled ${modules.size} modules from ${entries.map(moduleId).join(', ')}`);
+  
+  const assetsDir = path.join(root, 'assets');
+  const distAssetsDir = path.join(dist, 'assets');
+  if (fs.existsSync(assetsDir)) {
+    fs.cpSync(assetsDir, distAssetsDir, { recursive: true });
+    console.log(`Copied assets to dist/assets`);
+  }
 }
 
 build();

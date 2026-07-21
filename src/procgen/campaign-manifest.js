@@ -385,6 +385,8 @@ const phases = [
   {
     id: 'phase-5', phase: 5, totalChunks: 20,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS },
+    azospirillumNitrogen: { ...AZOSPIRILLUM_NITROGEN_DEFAULTS },
     opportunisticFungus: { ...OPPORTUNISTIC_FUNGUS_DEFAULTS },
     pseudomonasIronControl: { ...PSEUDOMONAS_IRON_CONTROL_DEFAULTS },
     title: 'Ferro e biocontrole fúngico', theme: 'equilíbrio',
@@ -423,22 +425,15 @@ const phases = [
         debutPresentationIds: ['presentation-pseudomonas'], mechanicsRequired: ['inoculation'] },
       { id: 'p5-interaction', kind: 'fixed', from: 12, to: 14, tutorialMode: 'guided',
         debutPresentationIds: ['presentation-iron-competition'], mechanicsRequired: ['inoculation'] },
-      { id: 'p5-challenge', kind: 'procedural', from: 15, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
+      { id: 'p5-challenge', kind: 'procedural', from: 15, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash', 'azospirillumRoots'] },
       { id: 'p5-final', kind: 'final', from: 18, to: 19, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
     ],
-    finalTest: { id: 'p5-test', goal: 'Controle o vigor do fungo com a reserva de ferro e alcance a raiz final.', requires: [
-      // MEDIDO: uma colonia madura de Pseudomonas, com ferro a vontade, chega a
-      // 0,968 em vinte segundos e para ali para sempre — ela deixa de lancar
-      // sideroforos quando a reserva passa de 0,92 (pseudomonas-siderophores),
-      // e a ultima entrega a leva a ~0,97. Exigir 1 tornava o objetivo
-      // inalcancavel com uma colonia, e a fase 5 gera de zero a uma.
-      //
-      // O teto de 0,92 e comportamento ecologico deliberado: a colonia para de
-      // forragear quando esta quase cheia. Quem estava errado era o numero do
-      // objetivo. 0,8 continua exigindo forrageamento real e cabe embaixo do
-      // teto natural.
-      { type: 'worldState', key: 'pseudomonasIronReserve', operator: '>=', value: .8 },
-      { type: 'worldState', key: 'opportunisticFungusVigor', operator: '<=', value: .25 },
+    finalTest: { id: 'p5-test', goal: 'Acumule a reserva de ferro, controle o vigor do fungo oportunista e alcance a raiz final.', requires: [
+      // A Pseudomonas continua sendo objetivo da fase, mas exigir 0,8 de reserva
+      // era dificil demais na pratica. 0,45 mantem o forrageamento de ferro como
+      // meta real e alcancavel — a colonia madura passa bem desse ponto.
+      { type: 'worldState', key: 'pseudomonasIronReserve', operator: '>=', value: .45 },
+      { type: 'worldState', key: 'opportunisticFungusVigor', operator: '<=', value: .45 },
       { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
     ]}, notes: [],
   },

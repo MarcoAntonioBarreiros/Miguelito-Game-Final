@@ -384,18 +384,6 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
     const target = targetPosition(attack.target, attack.type);
     const width = attack.type === 'egg' ? 82 : 62;
     const y = target.y - (attack.type === 'egg' ? 31 : 25);
-    ctx.save();
-    ctx.fillStyle = 'rgba(4,20,16,.82)';
-    ctx.fillRect(target.x - width / 2 - 2, y - 2, width + 4, 15);
-    ctx.fillStyle = '#8df0a8';
-    ctx.fillRect(target.x - width / 2, y, width * clamp(attack.lysis || attack.contact * .25, 0, 1), 3);
-    ctx.font = '700 8px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#eaffef';
-    const label = attack.type === 'egg'
-      ? `ovos ${attack.target.eggs} · lise ${Math.round(attack.lysis * 100)}%`
-      : `J2 · lise ${Math.round(attack.lysis * 100)}%`;
-    ctx.fillText(label, target.x, y + 11);
     ctx.restore();
   }
 

@@ -436,21 +436,6 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     const vascular = clamp(focus.vascularLoad, 0, 1);
     const control = clamp(focus.bacillusControl * .68 + focus.pseudomonasControl * .42, 0, 1);
 
-    ctx.save();
-    ctx.fillStyle = 'rgba(16,12,10,.86)';
-    ctx.fillRect(x - width / 2 - 3, y - 3, width + 6, 27);
-    ctx.fillStyle = '#a76b45';
-    ctx.fillRect(x - width / 2, y, width * vascular, 4);
-    ctx.fillStyle = '#86d8c3';
-    ctx.fillRect(x - width / 2, y + 6, width * focus.vascularEfficiency, 3);
-    ctx.font = '700 8px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = focus.neutralized ? '#a8ffe6' : vascular >= .82 ? '#ff9b83' : '#f5ddb0';
-    ctx.fillText(`${stageLabel(focus)} · ${Math.round(vascular * 100)}%`, x, y + 18);
-    if (control > .04) {
-      ctx.fillStyle = '#d6ffb0';
-      ctx.fillText(`controle ${Math.round(control * 100)}%`, x, y + 28);
-    }
     ctx.restore();
   }
 

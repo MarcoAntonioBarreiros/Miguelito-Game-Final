@@ -425,15 +425,6 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
     const target = targetPosition(attack.enemy);
     const width = 106;
     const y = target.y - 42;
-    ctx.save();
-    ctx.fillStyle = 'rgba(4,20,16,.86)';
-    ctx.fillRect(target.x - width / 2 - 2, y - 2, width + 4, 17);
-    ctx.fillStyle = '#8df0a8';
-    ctx.fillRect(target.x - width / 2, y, width * clamp(attack.lysis || attack.contact * .2, 0, 1), 4);
-    ctx.font = '700 8px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#eaffef';
-    ctx.fillText(`Rhizoctonia · lise ${Math.round(attack.lysis * 100)}%`, target.x, y + 13);
     ctx.restore();
   }
 

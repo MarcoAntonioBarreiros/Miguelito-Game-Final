@@ -3,10 +3,11 @@ import { drawWorldLabel } from '../procgen/world-label.js';
 import { lerp } from '../core/math.js';
 import { microbeCatalog, microbeEncounters } from '../data/microbes.js';
 
-const PROCEDURAL_SCENERY_IDS = new Set(['rhizobium', 'myco']);
-const proceduralSceneryEncounters = microbeEncounters
-  .filter(encounter => PROCEDURAL_SCENERY_IDS.has(encounter.id))
-  .map(encounter => Object.freeze({ ...encounter, decorative: true }));
+// A campanha procedural nao usa mais a cena decorativa fixa do inicio: ela
+// colocava, em toda fase, uma colonia de rhizobium (bacterias + arco marrom cor
+// de plataforma) e uma micorriza (halo) sem funcao de gameplay, no mesmo lugar.
+// Os encontros funcionais vem de campaign-encounters.js, nao desta lista.
+const proceduralSceneryEncounters = [];
 
 export function getMicrobeSceneEncounters(state = {}) {
   return state.proceduralCampaign === true ? proceduralSceneryEncounters : microbeEncounters;

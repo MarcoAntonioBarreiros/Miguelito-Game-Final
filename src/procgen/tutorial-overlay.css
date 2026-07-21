@@ -1,8 +1,9 @@
 #tutorial-library-button {
   position: fixed;
   z-index: 82;
-  top: calc(44px + var(--safe-top));
-  right: calc(10px + var(--safe-right));
+  top: calc(16px + var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
   gap: 7px;

@@ -305,31 +305,7 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
   }
 
   function drawStatus(ctx, enemy) {
-    const host = enemy.hostPlatform;
-    if (!host) return;
-    const colonization = clamp(enemy.colonization || 0, 0, 1);
-    const x = enemy.infectionX;
-    const y = host.y + Math.min(33, host.h * .48);
-    const width = Math.min(118, Math.max(78, host.w * .55));
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(19,10,16,.82)';
-    ctx.fillRect(x - width / 2 - 3, y - 3, width + 6, 19);
-    ctx.fillStyle = '#ff5d82';
-    ctx.fillRect(x - width / 2, y, width * colonization, 4);
-    ctx.font = '700 8px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = enemy.contained ? '#9effdf' : '#ffd5df';
-    ctx.fillText(`${stageLabel(enemy)} · ${Math.round(colonization * 100)}%`, x, y + 13);
-
-    const labels = [];
-    if ((enemy.bacillusControl || 0) > .04) labels.push(`Bacillus ${Math.round(enemy.bacillusControl * 100)}%`);
-    if ((enemy.ironLimitation || 0) > .04) labels.push(`Fe limitado ${Math.round(enemy.ironLimitation * 100)}%`);
-    if (labels.length) {
-      ctx.fillStyle = '#d6ffb0';
-      ctx.fillText(labels.join(' · '), x, y + 23);
-    }
-    ctx.restore();
+    // Barras de status removidas a pedido do usuário
   }
 
   function drawAttack(ctx, enemy) {

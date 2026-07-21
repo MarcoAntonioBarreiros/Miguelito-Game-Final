@@ -31,7 +31,10 @@ function traversalLimits(chunk, primitive, index) {
     return {
       minGap: 78,
       maxGap: chunk.difficultyTarget === 'hard' ? 238 : 205,
-      maxRise: 112,
+      // O salto duplo alcanca ~175px na teoria, mas o vao horizontal consome
+      // tempo de subida e o agente nao otimiza o timing do segundo salto. 92px
+      // cabe no alcance pratico e elimina as subidas que travavam a rota.
+      maxRise: 92,
       maxDrop: 142,
       minWidth: 118,
     };
@@ -55,7 +58,9 @@ function stabilizeGeometry(candidate, previous, chunk, primitive, index) {
   candidate.y = previous.y + clamp(rawDeltaY, -limits.maxRise, limits.maxDrop);
   candidate.y = clamp(candidate.y, 235, 565);
   candidate.w = Math.max(candidate.w, limits.minWidth);
-  candidate.h = clamp(candidate.h, 42, 88);
+  // Espessura uniforme: a faixa antiga (42-88) fazia blocos grossos parecerem
+  // muito mais altos do que o topo (onde os pes pousam) realmente esta.
+  candidate.h = clamp(candidate.h, 48, 62);
   candidate.logicIndex = index;
   return candidate;
 }
@@ -82,7 +87,7 @@ function createSafeFallback(previous, chunk, primitives, rnd, index) {
       x: previous.x + previous.w + gap,
       y: clamp(previous.y + baseDelta * (1 - attempt / 10), 250, 555),
       w: 185 + rnd() * 55,
-      h: 48 + rnd() * 28,
+      h: 48 + rnd() * 14,
       type: rnd() > .25 ? 'root' : 'soil',
       logicIndex: index,
       repaired: true,
@@ -298,4 +303,86 @@ export function generateLevel(seedString) {
     endX,
     cameraMaxX: Math.max(0, endX - 1000),
   };
+}
+
+// Rede de seguranca global contra softlock. Roda DEPOIS de toda a geometria
+// (inclusive desafios-tema) e garante que nenhuma travessia da rota fique
+// impossivel com as habilidades que o jogador realmente tem na fase. Respeita
+// os desafios que exigem a mecanica-tema de proposito (signature challenge,
+// escada de Azospirillum, ponte de micorriza) e so repara vaos genuinamente
+// intransponiveis, inserindo um degrau de recuperacao validado pela fisica.
+function safetyPrimitive(abilities = {}) {
+  const requires = [];
+  let id = 'safety-jump';
+  if (abilities.doubleJump) { requires.push('doubleJump'); id += '-double'; }
+  if (abilities.dash) { requires.push('dash'); id += '-dash'; }
+  return { id, requires };
+}
+
+function isThemedCrossing(prev, next) {
+  return Boolean(
+    next.signatureChallenge
+    || next.azospirillumLadderDestination || next.azospirillumLadderHost
+    || prev.azospirillumLadderHost || prev.azospirillumLadderDestination
+    || next.mycorrhizaStructure || prev.mycorrhizaStructure
+    || next.mycorrhizaIntroDestination || prev.mycorrhizaIntroDestination,
+  );
+}
+
+function buildSafetyStep(prev, next, prim, logicIndex) {
+  const previousEnd = prev.x + prev.w;
+  const gap = next.x - previousEnd;
+  const width = clamp(gap * .5, 96, 150);
+  const midX = previousEnd + gap / 2;
+  const highY = Math.min(prev.y, next.y);
+  const lowY = Math.max(prev.y, next.y);
+  // Varre alturas intermediarias: o degrau precisa ser alcancavel de prev e, a
+  // partir dele, permitir alcancar next. A fisica confirma cada tentativa.
+  for (let t = 0; t <= 6; t++) {
+    const y = clamp(lowY - (lowY - highY) * (t / 6) - 8, 235, 610);
+    const step = {
+      x: clamp(midX - width / 2, previousEnd + 6, next.x - width - 6),
+      y,
+      w: width,
+      h: 54,
+      type: 'root',
+      recovery: true,
+      safetyStep: true,
+      logicIndex,
+    };
+    if (validateChunk(prev, step, prim, 'normal') && validateChunk(step, next, prim, 'normal')) {
+      return step;
+    }
+  }
+  return null;
+}
+
+export function enforceTraversableRoute(level, abilities = {}) {
+  const prim = safetyPrimitive(abilities);
+  const route = (level.platforms || [])
+    .filter(p => !p.recovery && !p.final && Number.isInteger(p.logicIndex) && p.logicIndex >= 0)
+    .sort((a, b) => a.logicIndex - b.logicIndex || a.x - b.x);
+  const inserted = [];
+  for (let i = 1; i < route.length; i++) {
+    const prev = route[i - 1];
+    const next = route[i];
+    if (next.x <= prev.x + prev.w) continue;
+    if (isThemedCrossing(prev, next)) continue;
+    const alreadyStepped = (level.platforms || []).some(p => (
+      p.recovery
+      && p.x + p.w / 2 > prev.x + prev.w
+      && p.x + p.w / 2 < next.x
+    ));
+    if (alreadyStepped) continue;
+    if (validateChunk(prev, next, prim, 'normal')) continue;
+    const step = buildSafetyStep(prev, next, prim, next.logicIndex);
+    if (step) {
+      level.platforms.push(step);
+      inserted.push(step);
+    }
+  }
+  if (inserted.length) {
+    level.safetySteps = [...(level.safetySteps || []), ...inserted];
+  }
+  return inserted;
 }

@@ -235,6 +235,9 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
     player.onGround = false;
     player.y += player.vy * dt;
     for (const p of level.platforms) {
+      // Toggle das plataformas de seguranca: quando desligadas, deixam de ser
+      // solidas (o jogador passa direto por elas) sem regenerar a fase.
+      if (p.recovery && state.recoveryPlatformsDisabled) continue;
       if (p.mycorrhizaStructure || p.oneWay) {
         const previousFeet = prevY + player.h;
         const currentFeet = player.y + player.h;

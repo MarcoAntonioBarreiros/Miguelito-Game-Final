@@ -24,7 +24,7 @@ function ensureDom() {
         position: fixed;
         z-index: 45;
         left: max(12px, env(safe-area-inset-left));
-        top: max(52px, calc(env(safe-area-inset-top) + 44px));
+        top: max(80px, calc(env(safe-area-inset-top) + 80px));
         display: flex;
         gap: 10px;
         align-items: center;
@@ -35,8 +35,8 @@ function ensureDom() {
       }
       #survival-hud .hearts { display: flex; gap: 4px; align-items: center; }
       #survival-hud .heart {
-        width: 21px;
-        height: 21px;
+        width: 34px;
+        height: 34px;
         filter: drop-shadow(0 2px 5px rgba(0,0,0,.55));
         transition: transform .16s ease, opacity .16s ease;
       }
@@ -66,21 +66,21 @@ function ensureDom() {
       }
       @media (pointer: coarse), (max-width: 760px) {
         #survival-hud {
-          top: max(44px, calc(env(safe-area-inset-top) + 38px));
+          top: max(74px, calc(env(safe-area-inset-top) + 74px));
           font-size: 10px;
           gap: 7px;
           max-width: 72vw;
         }
-        #survival-hud .heart { width: 17px; height: 17px; }
+        #survival-hud .heart { width: 26px; height: 26px; }
         #survival-hud .hearts { gap: 3px; }
       }
       /* Em paisagem de celular a altura e o recurso escasso. */
       @media (max-height: 560px) and (orientation: landscape) {
         #survival-hud {
-          top: max(38px, calc(env(safe-area-inset-top) + 32px));
+          top: max(68px, calc(env(safe-area-inset-top) + 68px));
           gap: 6px;
         }
-        #survival-hud .heart { width: 15px; height: 15px; }
+        #survival-hud .heart { width: 22px; height: 22px; }
       }
     `;
     document.head.appendChild(style);

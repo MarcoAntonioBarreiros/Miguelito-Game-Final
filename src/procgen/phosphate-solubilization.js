@@ -33,21 +33,37 @@ export function applyPhaseSevenPhosphateGeometry(level, phase, config = null) {
   const colonyPlatform = platforms[colonyIndex];
   const depositPlatform = platforms[depositIndex];
   const rootPlatform = platforms[rootIndex];
+  colonyPlatform.type = 'root';
+  depositPlatform.type = 'root';
+  depositPlatform.phosphateStock = 0;
   rootPlatform.type = 'root';
   rootPlatform.phosphateTarget = true;
   rootPlatform.phosphateStock = 0;
 
-  level.authoredBeneficialColonies = [{
-    id: 'phase-7-solubilizer-colony',
-    type: 'bacillus',
-    platform: colonyPlatform,
-    x: colonyPlatform.x + colonyPlatform.w * .58,
-    y: colonyPlatform.y - 8,
-    sourceCount: 5,
-    vigor: 1,
-    growth: 1,
-    rechargeIntensity: .35,
-  }];
+  level.authoredBeneficialColonies = [
+    {
+      id: 'phase-7-solubilizer-colony',
+      type: 'bacillus',
+      platform: colonyPlatform,
+      x: colonyPlatform.x + colonyPlatform.w * .58,
+      y: colonyPlatform.y - 8,
+      sourceCount: 5,
+      vigor: 1,
+      growth: 1,
+      rechargeIntensity: .35,
+    },
+    {
+      id: 'phase-7-bridge-mycorrhiza',
+      type: 'myco',
+      platform: colonyPlatform,
+      x: colonyPlatform.x + colonyPlatform.w * .25,
+      y: colonyPlatform.y - 8,
+      sourceCount: 5,
+      vigor: 1,
+      growth: 1,
+      rechargeIntensity: .35,
+    },
+  ];
 
   // O deposito e o desafio-assinatura da fase: ele fecha a rota e so a
   // solubilizacao abre. A altura precisa derrotar salto duplo mais dash, senao

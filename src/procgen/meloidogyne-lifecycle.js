@@ -420,14 +420,7 @@ export function createMeloidogyneLifecycle({ state, entities }) {
   }
   function render(ctx) {
     ctx.save(); ctx.translate(-state.cameraX, 0);
-    for (const p of roots()) if ((p.rootDamage || 0) >= .025) {
-      const x = p.x + p.w / 2, y = p.y + Math.min(p.h - 10, 34), w = Math.min(82, p.w - 34);
-      const maxHealth = clamp(p.rootMaxHealth ?? 1, .01, 1);
-      ctx.fillStyle = 'rgba(31,17,22,.76)'; ctx.fillRect(x - w / 2 - 2, y - 2, w + 4, 12);
-      ctx.fillStyle = '#614256'; ctx.fillRect(x - w / 2, y, w * maxHealth, 3);
-      ctx.fillStyle = p.rootHealth > .75 ? '#9bea8f' : p.rootHealth > .5 ? '#ffd36f' : p.rootHealth > .25 ? '#ff9c70' : '#ff657f';
-      ctx.fillRect(x - w / 2, y + 5, w * p.rootHealth, 3);
-    }
+      // Health bars removed per user request
     for (const g of galls) if (g.x > state.cameraX - 100 && g.x < state.cameraX + W + 100) drawGall(ctx, g);
     for (const m of eggs) if (m.x > state.cameraX - 80 && m.x < state.cameraX + W + 80) drawEgg(ctx, m);
     for (const j of juveniles) if (j.x > state.cameraX - 100 && j.x < state.cameraX + W + 100) drawJ2(ctx, j);

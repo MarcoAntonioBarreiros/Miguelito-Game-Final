@@ -135,7 +135,11 @@ test('a fase 7 monta colonia, deposito e raiz-alvo em todo tamanho', () => {
       const [deposito] = level.phosphateDeposits || [];
       assert.ok(deposito, `fase de ${total} chunks, seed ${s}: sem deposito de fosfato`);
       assert.equal(deposito.h, PHOSPHATE_SOLUBILIZATION_DEFAULTS.depositHeight);
-      assert.equal((level.authoredBeneficialColonies || []).length, 1, `fase de ${total} chunks: sem colonia solubilizadora`);
+      assert.equal(
+        (level.authoredBeneficialColonies || []).filter(colony => colony.type === 'bacillus').length,
+        1,
+        `fase de ${total} chunks: sem colonia solubilizadora`,
+      );
       const alvo = level.platforms.filter(platform => platform.phosphateTarget);
       assert.equal(alvo.length, 1, `fase de ${total} chunks: sem raiz-alvo do fosforo`);
     }

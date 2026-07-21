@@ -1,4 +1,4 @@
-import { generateLevel } from './generator.js';
+import { generateLevel, enforceTraversableRoute } from './generator.js';
 import { generateCampaignEncounters } from './campaign-encounters.js';
 import { generateUnderdevelopedNitrogenRoots } from './nitrogen-root.js';
 import { generateAzospirillumRootLadders } from './azospirillum-root-growth.js';
@@ -15,6 +15,8 @@ import {
 } from './campaign-manifest.js';
 import { applyPhaseLabResources } from './phase-lab-config.js';
 import { createPhaseLabSession } from './phase-lab.js';
+import { updateContextPanel } from './hud-context.js';
+import { computeEcologicalScore } from './ecological-score.js';
 import { initPlayerTuning } from '../render/player-skin-tuning.js';
 import { createSimulator } from './simulator.js';
 import { createRenderer } from '../render/renderer.js';
@@ -104,6 +106,66 @@ function renderAlerts(alerts) {
   if (alertsDiv.dataset.markup !== markup) {
     alertsDiv.dataset.markup = markup;
     alertsDiv.innerHTML = markup;
+  }
+}
+
+// Rotulos legiveis para o painel de objetivos: as condicoes do manifesto usam
+// chaves tecnicas (ex.: opportunisticFungusVigor) que nao servem ao jogador.
+const OBJECTIVE_LABELS = {
+  activeMatureNoduleCount: 'Forme nódulos maduros fixando N₂',
+  deployedExudateCount: 'Libere exsudatos na rizosfera',
+  doubleJump: 'Domine o salto duplo (Azospirillum)',
+  dash: 'Domine o impulso (dash)',
+  ecologicalScore: 'Deixe o solo saudável e equilibrado',
+  functionalBiofilmCount: 'Forme um biofilme funcional',
+  functionalMycorrhizaPathCount: 'Estabeleça uma ponte micorrízica',
+  mycorrhizalPhosphateTransported: 'Transporte fósforo pela micorriza',
+  neutralizedEggMassCount: 'Neutralize uma massa de ovos de Meloidogyne',
+  opportunisticFungusVigor: 'Reduza o vigor do fungo oportunista',
+  preservedRootCount: 'Preserve uma raiz saudável',
+  pseudomonasIronReserve: 'Acumule reserva de ferro (Pseudomonas)',
+  reachedFinalRoot: 'Alcance a raiz final',
+  recoveredRootCount: 'Recupere uma raiz danificada',
+  rootPhosphateStock: 'Entregue fósforo à raiz-alvo',
+  solubilizedPhosphateDepositCount: 'Solubilize o depósito de fosfato',
+  totalFixationRate: 'Ative a fixação de nitrogênio',
+  visibleLateralRootCount: 'Induza raízes laterais (Azospirillum)',
+};
+
+function objectiveLabel(req) {
+  return OBJECTIVE_LABELS[req.key] || req.description || req.key;
+}
+
+function renderObjectives(campaign, evaluator) {
+  const listDiv = document.getElementById('objective-list');
+  const finalTest = getPhaseManifest(campaign.phase)?.finalTest;
+  
+  if (!listDiv || !finalTest?.requires) {
+    if (listDiv && listDiv.innerHTML !== '') listDiv.innerHTML = '';
+    return;
+  }
+
+  const evaluation = evaluator.evaluate(finalTest.requires);
+  const doneSet = new Set(
+    evaluation.results
+      .filter(r => r.passed)
+      .map(r => r.condition.key)
+  );
+
+  let html = '';
+  for (const req of finalTest.requires) {
+    const isCompleted = doneSet.has(req.key);
+    html += `
+      <div class="objective-item ${isCompleted ? 'completed' : ''}">
+        <div class="circle"></div>
+        <div class="text">${objectiveLabel(req)}</div>
+      </div>
+    `;
+  }
+  
+  if (listDiv.dataset.markup !== html) {
+    listDiv.dataset.markup = html;
+    listDiv.innerHTML = html;
   }
 }
 const dashTouchButton = document.querySelector('[data-key="ShiftLeft"]');
@@ -283,6 +345,13 @@ function prepareLevel() {
     encounters: levelData.microbeEncounters,
     config: getPhaseManifest(campaign.phase)?.nitrogenRoot,
   });
+  // Rede de seguranca global anti-softlock: repara qualquer vao que fique
+  // intransponivel com as habilidades ja desbloqueadas, sem tocar nos desafios
+  // que exigem a mecanica-tema de proposito.
+  enforceTraversableRoute(levelData, {
+    doubleJump: Boolean(campaign.unlocks?.doubleJump),
+    dash: Boolean(campaign.unlocks?.dash),
+  });
   installFinalGoal(levelData);
 }
 
@@ -441,11 +510,27 @@ prepareLevel();
 initGame({ announce: true });
 if (phaseLab.enabled) phaseLab.mount({ onRestart: startNewCampaign });
 
+const recoveryToggleButton = document.querySelector('[data-mobile-action="toggle-recovery"]');
+function toggleRecoveryPlatforms() {
+  const disabled = !sim.state.recoveryPlatformsDisabled;
+  sim.state.recoveryPlatformsDisabled = disabled;
+  recoveryToggleButton?.setAttribute('aria-pressed', String(disabled));
+  sim.state.toast = disabled
+    ? 'Plataformas de segurança desligadas: sem os degraus de recuperação.'
+    : 'Plataformas de segurança religadas.';
+  sim.state.toastTime = 3.2;
+}
+recoveryToggleButton?.addEventListener('click', event => {
+  event.preventDefault();
+  toggleRecoveryPlatforms();
+});
+
 const keys = {};
 window.addEventListener('keydown', event => {
   if (phaseLab.enabled && event.target instanceof Element && event.target.closest('.phase-lab')) return;
   keys[event.code] = true;
   if (event.code === 'KeyR' && !event.repeat) startNewCampaign();
+  if (event.code === 'KeyT' && !event.repeat) toggleRecoveryPlatforms();
   if (event.code === 'Tab') {
     event.preventDefault();
     showDebug = !showDebug;
@@ -583,6 +668,12 @@ function loop(now) {
       alerts.push({ text: `Ralstonia ${ralstoniaControl.focusCount} · transporte ${Math.round(ralstoniaControl.averageTransport * 100)}%` });
     }
     renderAlerts(alerts);
+
+    sim.state.level.ecologicalScore = computeEcologicalScore(objectiveEvaluator);
+    renderObjectives(campaign, objectiveEvaluator);
+    const center = { x: player.x + player.w/2, y: player.y + player.h };
+    const nearbyRoot = (sim.state.level.platforms || []).find(p => p.type === 'root' && center.x >= p.x && center.x <= p.x + p.w && Math.abs(center.y - p.y) < 20) || null;
+    updateContextPanel(sim.state, nearbyRoot, document.getElementById('hud-context'), sim);
 
     if (showDebug) {
       const logicIndex = currentLogicIndex();

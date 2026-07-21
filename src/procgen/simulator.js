@@ -125,7 +125,6 @@ export function createSimulator() {
       player.vy = 0;
       player.alive = true;
       player.vitality = player.maxVitality || 5;
-      player.exudates = Math.floor((player.exudates || 0) / 2);
       restoreExudatesAhead(state.level, player.x);
       player.infectionExposure = 0;
       player.infection = Math.min(.12, Math.max(0, (player.infection || 0) * .2));
@@ -142,7 +141,7 @@ export function createSimulator() {
       state.respawnTimer = 0;
       state.gameState = 'play';
       state.toast = reason === 'death'
-        ? 'Respawn no último biofilme: Vitalidade restaurada; metade dos exsudatos foi perdida.'
+        ? 'Respawn no último biofilme: Vitalidade restaurada.'
         : 'Retorno ao último ponto seguro.';
       state.toastTime = 4.2;
     },

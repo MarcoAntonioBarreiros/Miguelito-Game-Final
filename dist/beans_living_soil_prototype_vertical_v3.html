@@ -275,8 +275,60 @@
       background: rgba(60,10,22,.88);
       color: #ffcdd6;
     }
+    #objective-list {
+      position: absolute;
+      z-index: 25;
+      top: calc(130px + var(--safe-top));
+      left: calc(10px + var(--safe-left));
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      pointer-events: none;
+      max-width: 320px;
+    }
+    .objective-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 7px;
+      background: rgba(6, 26, 32, 0.7);
+      border: 1px solid rgba(126, 214, 205, 0.15);
+      backdrop-filter: blur(4px);
+    }
+    .objective-item .circle {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid rgba(126, 214, 205, 0.4);
+      background: rgba(0, 0, 0, 0.4);
+      margin-top: 2px;
+      flex-shrink: 0;
+      transition: all 0.3s ease;
+    }
+    .objective-item.completed .circle {
+      border-color: #82ffbd;
+      background: #82ffbd;
+      box-shadow: 0 0 8px rgba(130, 255, 189, 0.6);
+    }
+    .objective-item .text {
+      color: rgba(222, 250, 245, 0.9);
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.3;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    }
 
-    #touch-controls, #mobile-tools { display: none; }
+    #touch-controls { display: none; }
+
+    #mobile-tools {
+      position: absolute;
+      z-index: 55;
+      top: calc(38px + var(--safe-top));
+      left: calc(10px + var(--safe-left));
+      display: flex;
+      gap: 6px;
+    }
 
     .touch-device #debug {
       display: none;
@@ -394,10 +446,11 @@
     .touch-device #mobile-tools {
       position: fixed;
       z-index: 70;
-      top: calc(42px + var(--safe-top));
-      right: calc(7px + var(--safe-right));
+      top: calc(10px + var(--safe-top));
+      right: calc(10px + var(--safe-right));
+      left: auto;
       display: flex;
-      gap: 5px;
+      gap: 6px;
     }
     .mobile-tool {
       width: 34px;
@@ -449,13 +502,64 @@
       .touch-cluster { bottom: calc(5px + var(--safe-bottom)); }
       .touch-device #toast { top: calc(38px + var(--safe-top)); }
     }
+    #hud-context {
+      position: absolute;
+      z-index: 50;
+      top: 100px;
+      right: 10px;
+      width: 240px;
+      background: rgba(6, 26, 32, 0.85);
+      border: 1px solid rgba(126, 214, 205, 0.4);
+      border-radius: 8px;
+      padding: 10px;
+      color: #ecfff7;
+      font: 600 11px/1.2 Inter,system-ui,sans-serif;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    #hud-context.visible {
+      opacity: 1;
+    }
+    .context-header {
+      font-size: 12px;
+      font-weight: 800;
+      color: #7ed6cd;
+      border-bottom: 1px solid rgba(126, 214, 205, 0.3);
+      padding-bottom: 4px;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .context-item {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .context-bar {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .context-bar-fill {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+    @media (max-width: 600px) {
+      #hud-context { top: auto; bottom: calc(80px + var(--safe-bottom)); }
+    }
   </style>
 <style data-tutorial-styles>
 #tutorial-library-button {
   position: fixed;
   z-index: 82;
-  top: calc(44px + var(--safe-top));
-  right: calc(10px + var(--safe-right));
+  top: calc(16px + var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -1062,16 +1166,19 @@ html.tutorial-open .phase-lab {
   <div id="mission"></div>
   <div id="phase-card" aria-live="polite"></div>
   <div id="hud-stock"></div>
+  <div id="hud-context"></div>
   <div id="hud-alerts" aria-live="polite"></div>
-  <div id="hud-bar" hidden></div>
   <div id="toast"></div>
   <div id="debug"></div>
   <canvas width="1280" height="720" aria-label="Jogo Miguelito e o solo vivo"></canvas>
+
+  <div id="objective-list" aria-live="polite"></div>
 
   <div id="mobile-tools" aria-label="Ferramentas do jogo">
     <button class="mobile-tool" data-mobile-action="reset" aria-label="Gerar nova fase">↻</button>
     <button class="mobile-tool" data-mobile-action="debug" aria-label="Mostrar informações técnicas" aria-pressed="false">ⓘ</button>
     <button class="mobile-tool" data-mobile-action="fullscreen" aria-label="Tela cheia">⛶</button>
+    <button class="mobile-tool" data-mobile-action="toggle-recovery" aria-label="Ligar/desligar plataformas de segurança (tecla T)" aria-pressed="false">⛨</button>
     <button class="mobile-tool zoom-step" data-camera-action="out" aria-label="Afastar câmera">−</button>
     <button class="mobile-tool zoom-value" data-camera-action="reset" data-camera-readout aria-label="Restaurar zoom padrão">1.45×</button>
     <button class="mobile-tool zoom-step" data-camera-action="in" aria-label="Aproximar câmera">+</button>
@@ -1097,7 +1204,32 @@ html.tutorial-open .phase-lab {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry } = __require("src/procgen/phosphate-solubilization.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");const { createSimulator } = __require("src/procgen/simulator.js");const { createRenderer } = __require("src/render/renderer.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
+const { generateLevel, enforceTraversableRoute } = __require("src/procgen/generator.js");
+const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");
+const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");
+const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");
+const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");
+const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");
+const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");
+const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");
+const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");
+const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");
+const { applyPhaseSevenPhosphateGeometry } = __require("src/procgen/phosphate-solubilization.js");
+const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");
+const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");
+const { updateContextPanel } = __require("src/procgen/hud-context.js");
+const { computeEcologicalScore } = __require("src/procgen/ecological-score.js");
+const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");
+const { createSimulator } = __require("src/procgen/simulator.js");
+const { createRenderer } = __require("src/render/renderer.js");
+const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");
+const { createCameraView } = __require("src/procgen/camera-view.js");
+const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");
+const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");
+const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");
+const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");
+const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
@@ -1168,6 +1300,66 @@ function renderAlerts(alerts) {
   if (alertsDiv.dataset.markup !== markup) {
     alertsDiv.dataset.markup = markup;
     alertsDiv.innerHTML = markup;
+  }
+}
+
+// Rotulos legiveis para o painel de objetivos: as condicoes do manifesto usam
+// chaves tecnicas (ex.: opportunisticFungusVigor) que nao servem ao jogador.
+const OBJECTIVE_LABELS = {
+  activeMatureNoduleCount: 'Forme nódulos maduros fixando N₂',
+  deployedExudateCount: 'Libere exsudatos na rizosfera',
+  doubleJump: 'Domine o salto duplo (Azospirillum)',
+  dash: 'Domine o impulso (dash)',
+  ecologicalScore: 'Deixe o solo saudável e equilibrado',
+  functionalBiofilmCount: 'Forme um biofilme funcional',
+  functionalMycorrhizaPathCount: 'Estabeleça uma ponte micorrízica',
+  mycorrhizalPhosphateTransported: 'Transporte fósforo pela micorriza',
+  neutralizedEggMassCount: 'Neutralize uma massa de ovos de Meloidogyne',
+  opportunisticFungusVigor: 'Reduza o vigor do fungo oportunista',
+  preservedRootCount: 'Preserve uma raiz saudável',
+  pseudomonasIronReserve: 'Acumule reserva de ferro (Pseudomonas)',
+  reachedFinalRoot: 'Alcance a raiz final',
+  recoveredRootCount: 'Recupere uma raiz danificada',
+  rootPhosphateStock: 'Entregue fósforo à raiz-alvo',
+  solubilizedPhosphateDepositCount: 'Solubilize o depósito de fosfato',
+  totalFixationRate: 'Ative a fixação de nitrogênio',
+  visibleLateralRootCount: 'Induza raízes laterais (Azospirillum)',
+};
+
+function objectiveLabel(req) {
+  return OBJECTIVE_LABELS[req.key] || req.description || req.key;
+}
+
+function renderObjectives(campaign, evaluator) {
+  const listDiv = document.getElementById('objective-list');
+  const finalTest = getPhaseManifest(campaign.phase)?.finalTest;
+
+  if (!listDiv || !finalTest?.requires) {
+    if (listDiv && listDiv.innerHTML !== '') listDiv.innerHTML = '';
+    return;
+  }
+
+  const evaluation = evaluator.evaluate(finalTest.requires);
+  const doneSet = new Set(
+    evaluation.results
+      .filter(r => r.passed)
+      .map(r => r.condition.key)
+  );
+
+  let html = '';
+  for (const req of finalTest.requires) {
+    const isCompleted = doneSet.has(req.key);
+    html += `
+      <div class="objective-item ${isCompleted ? 'completed' : ''}">
+        <div class="circle"></div>
+        <div class="text">${objectiveLabel(req)}</div>
+      </div>
+    `;
+  }
+
+  if (listDiv.dataset.markup !== html) {
+    listDiv.dataset.markup = html;
+    listDiv.innerHTML = html;
   }
 }
 const dashTouchButton = document.querySelector('[data-key="ShiftLeft"]');
@@ -1347,6 +1539,13 @@ function prepareLevel() {
     encounters: levelData.microbeEncounters,
     config: getPhaseManifest(campaign.phase)?.nitrogenRoot,
   });
+  // Rede de seguranca global anti-softlock: repara qualquer vao que fique
+  // intransponivel com as habilidades ja desbloqueadas, sem tocar nos desafios
+  // que exigem a mecanica-tema de proposito.
+  enforceTraversableRoute(levelData, {
+    doubleJump: Boolean(campaign.unlocks?.doubleJump),
+    dash: Boolean(campaign.unlocks?.dash),
+  });
   installFinalGoal(levelData);
 }
 
@@ -1505,11 +1704,27 @@ prepareLevel();
 initGame({ announce: true });
 if (phaseLab.enabled) phaseLab.mount({ onRestart: startNewCampaign });
 
+const recoveryToggleButton = document.querySelector('[data-mobile-action="toggle-recovery"]');
+function toggleRecoveryPlatforms() {
+  const disabled = !sim.state.recoveryPlatformsDisabled;
+  sim.state.recoveryPlatformsDisabled = disabled;
+  recoveryToggleButton?.setAttribute('aria-pressed', String(disabled));
+  sim.state.toast = disabled
+    ? 'Plataformas de segurança desligadas: sem os degraus de recuperação.'
+    : 'Plataformas de segurança religadas.';
+  sim.state.toastTime = 3.2;
+}
+recoveryToggleButton?.addEventListener('click', event => {
+  event.preventDefault();
+  toggleRecoveryPlatforms();
+});
+
 const keys = {};
 window.addEventListener('keydown', event => {
   if (phaseLab.enabled && event.target instanceof Element && event.target.closest('.phase-lab')) return;
   keys[event.code] = true;
   if (event.code === 'KeyR' && !event.repeat) startNewCampaign();
+  if (event.code === 'KeyT' && !event.repeat) toggleRecoveryPlatforms();
   if (event.code === 'Tab') {
     event.preventDefault();
     showDebug = !showDebug;
@@ -1648,6 +1863,12 @@ function loop(now) {
     }
     renderAlerts(alerts);
 
+    sim.state.level.ecologicalScore = computeEcologicalScore(objectiveEvaluator);
+    renderObjectives(campaign, objectiveEvaluator);
+    const center = { x: player.x + player.w/2, y: player.y + player.h };
+    const nearbyRoot = (sim.state.level.platforms || []).find(p => p.type === 'root' && center.x >= p.x && center.x <= p.x + p.w && Math.abs(center.y - p.y) < 20) || null;
+    updateContextPanel(sim.state, nearbyRoot, document.getElementById('hud-context'), sim);
+
     if (showDebug) {
       const logicIndex = currentLogicIndex();
       const info = levelData.debugInfo[logicIndex];
@@ -1715,7 +1936,11 @@ function loop(now) {
 requestAnimationFrame(loop);
 },
 "src/procgen/generator.js": (__exports, __require) => {
-const { createRandom } = __require("src/procgen/random.js");const { generateLogicGraph } = __require("src/procgen/logic.js");const { generatePrimitives } = __require("src/procgen/primitives.js");const { generateGeometry } = __require("src/procgen/geometry.js");const { validateChunk } = __require("src/procgen/agents.js");
+const { createRandom } = __require("src/procgen/random.js");
+const { generateLogicGraph } = __require("src/procgen/logic.js");
+const { generatePrimitives } = __require("src/procgen/primitives.js");
+const { generateGeometry } = __require("src/procgen/geometry.js");
+const { validateChunk } = __require("src/procgen/agents.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -1743,7 +1968,10 @@ function traversalLimits(chunk, primitive, index) {
     return {
       minGap: 78,
       maxGap: chunk.difficultyTarget === 'hard' ? 238 : 205,
-      maxRise: 112,
+      // O salto duplo alcanca ~175px na teoria, mas o vao horizontal consome
+      // tempo de subida e o agente nao otimiza o timing do segundo salto. 92px
+      // cabe no alcance pratico e elimina as subidas que travavam a rota.
+      maxRise: 92,
       maxDrop: 142,
       minWidth: 118,
     };
@@ -1767,7 +1995,9 @@ function stabilizeGeometry(candidate, previous, chunk, primitive, index) {
   candidate.y = previous.y + clamp(rawDeltaY, -limits.maxRise, limits.maxDrop);
   candidate.y = clamp(candidate.y, 235, 565);
   candidate.w = Math.max(candidate.w, limits.minWidth);
-  candidate.h = clamp(candidate.h, 42, 88);
+  // Espessura uniforme: a faixa antiga (42-88) fazia blocos grossos parecerem
+  // muito mais altos do que o topo (onde os pes pousam) realmente esta.
+  candidate.h = clamp(candidate.h, 48, 62);
   candidate.logicIndex = index;
   return candidate;
 }
@@ -1794,7 +2024,7 @@ function createSafeFallback(previous, chunk, primitives, rnd, index) {
       x: previous.x + previous.w + gap,
       y: clamp(previous.y + baseDelta * (1 - attempt / 10), 250, 555),
       w: 185 + rnd() * 55,
-      h: 48 + rnd() * 28,
+      h: 48 + rnd() * 14,
       type: rnd() > .25 ? 'root' : 'soil',
       logicIndex: index,
       repaired: true,
@@ -2011,7 +2241,89 @@ function generateLevel(seedString) {
     cameraMaxX: Math.max(0, endX - 1000),
   };
 }
-Object.assign(__exports, { generateLevel });
+
+// Rede de seguranca global contra softlock. Roda DEPOIS de toda a geometria
+// (inclusive desafios-tema) e garante que nenhuma travessia da rota fique
+// impossivel com as habilidades que o jogador realmente tem na fase. Respeita
+// os desafios que exigem a mecanica-tema de proposito (signature challenge,
+// escada de Azospirillum, ponte de micorriza) e so repara vaos genuinamente
+// intransponiveis, inserindo um degrau de recuperacao validado pela fisica.
+function safetyPrimitive(abilities = {}) {
+  const requires = [];
+  let id = 'safety-jump';
+  if (abilities.doubleJump) { requires.push('doubleJump'); id += '-double'; }
+  if (abilities.dash) { requires.push('dash'); id += '-dash'; }
+  return { id, requires };
+}
+
+function isThemedCrossing(prev, next) {
+  return Boolean(
+    next.signatureChallenge
+    || next.azospirillumLadderDestination || next.azospirillumLadderHost
+    || prev.azospirillumLadderHost || prev.azospirillumLadderDestination
+    || next.mycorrhizaStructure || prev.mycorrhizaStructure
+    || next.mycorrhizaIntroDestination || prev.mycorrhizaIntroDestination,
+  );
+}
+
+function buildSafetyStep(prev, next, prim, logicIndex) {
+  const previousEnd = prev.x + prev.w;
+  const gap = next.x - previousEnd;
+  const width = clamp(gap * .5, 96, 150);
+  const midX = previousEnd + gap / 2;
+  const highY = Math.min(prev.y, next.y);
+  const lowY = Math.max(prev.y, next.y);
+  // Varre alturas intermediarias: o degrau precisa ser alcancavel de prev e, a
+  // partir dele, permitir alcancar next. A fisica confirma cada tentativa.
+  for (let t = 0; t <= 6; t++) {
+    const y = clamp(lowY - (lowY - highY) * (t / 6) - 8, 235, 610);
+    const step = {
+      x: clamp(midX - width / 2, previousEnd + 6, next.x - width - 6),
+      y,
+      w: width,
+      h: 54,
+      type: 'root',
+      recovery: true,
+      safetyStep: true,
+      logicIndex,
+    };
+    if (validateChunk(prev, step, prim, 'normal') && validateChunk(step, next, prim, 'normal')) {
+      return step;
+    }
+  }
+  return null;
+}
+
+function enforceTraversableRoute(level, abilities = {}) {
+  const prim = safetyPrimitive(abilities);
+  const route = (level.platforms || [])
+    .filter(p => !p.recovery && !p.final && Number.isInteger(p.logicIndex) && p.logicIndex >= 0)
+    .sort((a, b) => a.logicIndex - b.logicIndex || a.x - b.x);
+  const inserted = [];
+  for (let i = 1; i < route.length; i++) {
+    const prev = route[i - 1];
+    const next = route[i];
+    if (next.x <= prev.x + prev.w) continue;
+    if (isThemedCrossing(prev, next)) continue;
+    const alreadyStepped = (level.platforms || []).some(p => (
+      p.recovery
+      && p.x + p.w / 2 > prev.x + prev.w
+      && p.x + p.w / 2 < next.x
+    ));
+    if (alreadyStepped) continue;
+    if (validateChunk(prev, next, prim, 'normal')) continue;
+    const step = buildSafetyStep(prev, next, prim, next.logicIndex);
+    if (step) {
+      level.platforms.push(step);
+      inserted.push(step);
+    }
+  }
+  if (inserted.length) {
+    level.safetySteps = [...(level.safetySteps || []), ...inserted];
+  }
+  return inserted;
+}
+Object.assign(__exports, { generateLevel, enforceTraversableRoute });
 },
 "src/procgen/random.js": (__exports, __require) => {
 function createRandom(seedString) {
@@ -2529,6 +2841,8 @@ const phases = [
   {
     id: 'phase-5', phase: 5, totalChunks: 20,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS },
+    azospirillumNitrogen: { ...AZOSPIRILLUM_NITROGEN_DEFAULTS },
     opportunisticFungus: { ...OPPORTUNISTIC_FUNGUS_DEFAULTS },
     pseudomonasIronControl: { ...PSEUDOMONAS_IRON_CONTROL_DEFAULTS },
     title: 'Ferro e biocontrole fúngico', theme: 'equilíbrio',
@@ -2567,22 +2881,15 @@ const phases = [
         debutPresentationIds: ['presentation-pseudomonas'], mechanicsRequired: ['inoculation'] },
       { id: 'p5-interaction', kind: 'fixed', from: 12, to: 14, tutorialMode: 'guided',
         debutPresentationIds: ['presentation-iron-competition'], mechanicsRequired: ['inoculation'] },
-      { id: 'p5-challenge', kind: 'procedural', from: 15, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
+      { id: 'p5-challenge', kind: 'procedural', from: 15, to: 17, tutorialMode: 'silent', mechanicsRequired: ['inoculation', 'doubleJump', 'dash', 'azospirillumRoots'] },
       { id: 'p5-final', kind: 'final', from: 18, to: 19, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
     ],
-    finalTest: { id: 'p5-test', goal: 'Controle o vigor do fungo com a reserva de ferro e alcance a raiz final.', requires: [
-      // MEDIDO: uma colonia madura de Pseudomonas, com ferro a vontade, chega a
-      // 0,968 em vinte segundos e para ali para sempre — ela deixa de lancar
-      // sideroforos quando a reserva passa de 0,92 (pseudomonas-siderophores),
-      // e a ultima entrega a leva a ~0,97. Exigir 1 tornava o objetivo
-      // inalcancavel com uma colonia, e a fase 5 gera de zero a uma.
-      //
-      // O teto de 0,92 e comportamento ecologico deliberado: a colonia para de
-      // forragear quando esta quase cheia. Quem estava errado era o numero do
-      // objetivo. 0,8 continua exigindo forrageamento real e cabe embaixo do
-      // teto natural.
-      { type: 'worldState', key: 'pseudomonasIronReserve', operator: '>=', value: .8 },
-      { type: 'worldState', key: 'opportunisticFungusVigor', operator: '<=', value: .25 },
+    finalTest: { id: 'p5-test', goal: 'Acumule a reserva de ferro, controle o vigor do fungo oportunista e alcance a raiz final.', requires: [
+      // A Pseudomonas continua sendo objetivo da fase, mas exigir 0,8 de reserva
+      // era dificil demais na pratica. 0,45 mantem o forrageamento de ferro como
+      // meta real e alcancavel — a colonia madura passa bem desse ponto.
+      { type: 'worldState', key: 'pseudomonasIronReserve', operator: '>=', value: .45 },
+      { type: 'worldState', key: 'opportunisticFungusVigor', operator: '<=', value: .45 },
       { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
     ]}, notes: [],
   },
@@ -3457,7 +3764,32 @@ function generatePrimitives() {
 Object.assign(__exports, { generatePrimitives });
 },
 "src/procgen/simulator.js": (__exports, __require) => {
-const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks, unlockCampaignFeature } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");const { createInoculumSelection } = __require("src/procgen/inoculum-selection.js");const { createPhosphateSolubilization } = __require("src/procgen/phosphate-solubilization.js");
+const { createPhysicsSystem } = __require("src/physics.js");
+const { createPlayer, resetPlayer } = __require("src/player.js");
+const { applyPersistentUnlocks, unlockCampaignFeature } = __require("src/procgen/campaign-progression.js");
+const { createMicrobeArt } = __require("src/data/microbes.js");
+const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");
+const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");
+const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");
+const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");
+const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");
+const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");
+const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");
+const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");
+const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");
+const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");
+const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");
+const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");
+const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");
+const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");
+const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");
+const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");
+const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");
+const { createGoalSystem } = __require("src/procgen/goal-system.js");
+const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");
+const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");
+const { createInoculumSelection } = __require("src/procgen/inoculum-selection.js");
+const { createPhosphateSolubilization } = __require("src/procgen/phosphate-solubilization.js");
 function createEmptyLevel() {
   return {
     platforms: [], hazards: [], crystals: [], enemies: [], exudates: [],
@@ -3558,7 +3890,6 @@ function createSimulator() {
       player.vy = 0;
       player.alive = true;
       player.vitality = player.maxVitality || 5;
-      player.exudates = Math.floor((player.exudates || 0) / 2);
       restoreExudatesAhead(state.level, player.x);
       player.infectionExposure = 0;
       player.infection = Math.min(.12, Math.max(0, (player.infection || 0) * .2));
@@ -3575,7 +3906,7 @@ function createSimulator() {
       state.respawnTimer = 0;
       state.gameState = 'play';
       state.toast = reason === 'death'
-        ? 'Respawn no último biofilme: Vitalidade restaurada; metade dos exsudatos foi perdida.'
+        ? 'Respawn no último biofilme: Vitalidade restaurada.'
         : 'Retorno ao último ponto seguro.';
       state.toastTime = 4.2;
     },
@@ -3800,7 +4131,10 @@ function createSimulator() {
 Object.assign(__exports, { restoreExudatesAhead, createSimulator });
 },
 "src/physics.js": (__exports, __require) => {
-const { PLAYER_MAX_X, W } = __require("src/core/constants.js");const { clamp, lerp, rects } = __require("src/core/math.js");const { microbeEncounters } = __require("src/data/microbes.js");const { unlockCampaignFeature } = __require("src/procgen/campaign-progression.js");
+const { PLAYER_MAX_X, W } = __require("src/core/constants.js");
+const { clamp, lerp, rects } = __require("src/core/math.js");
+const { microbeEncounters } = __require("src/data/microbes.js");
+const { unlockCampaignFeature } = __require("src/procgen/campaign-progression.js");
 function createPhysicsSystem({ state, input, entities, hud, audio }) {
   function collectCampaignUnlock(ally, player) {
     const feature = ally.unlockFeature
@@ -4033,6 +4367,9 @@ function createPhysicsSystem({ state, input, entities, hud, audio }) {
     player.onGround = false;
     player.y += player.vy * dt;
     for (const p of level.platforms) {
+      // Toggle das plataformas de seguranca: quando desligadas, deixam de ser
+      // solidas (o jogador passa direto por elas) sem regenerar a fase.
+      if (p.recovery && state.recoveryPlatformsDisabled) continue;
       if (p.mycorrhizaStructure || p.oneWay) {
         const previousFeet = prevY + player.h;
         const currentFeet = player.y + player.h;
@@ -4264,7 +4601,8 @@ function createMicrobeArt() {
 Object.assign(__exports, { microbeCatalog, microbeEncounters, createMicrobeArt });
 },
 "src/procgen/campaign-progression.js": (__exports, __require) => {
-const { CAMPAIGN_UNLOCKS, ECOLOGY_ROAMING_TYPES, campaignManifest, getPathogenStartChunk, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { setLogicCampaignProfile } = __require("src/procgen/logic.js");
+const { CAMPAIGN_UNLOCKS, ECOLOGY_ROAMING_TYPES, campaignManifest, getPathogenStartChunk, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { setLogicCampaignProfile } = __require("src/procgen/logic.js");
 const MOVEMENT_FEATURES = new Set(['doubleJump', 'dash']);
 const DEFAULT_START_PHASE = 1;
 const campaignStorage = new WeakMap();
@@ -4690,7 +5028,8 @@ function resetPlayer(player, unlocks = null) {
 Object.assign(__exports, { createPlayer, resetPlayer });
 },
 "src/procgen/microbe-roaming.js": (__exports, __require) => {
-const { H } = __require("src/core/constants.js");const { createMicrobeEcology, MICROBE_MOTION_PROFILES } = __require("src/procgen/microbe-ecology.js");
+const { H } = __require("src/core/constants.js");
+const { createMicrobeEcology, MICROBE_MOTION_PROFILES } = __require("src/procgen/microbe-ecology.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -5164,7 +5503,8 @@ function createRoamingMicrobeEcology({ state, entities }) {
 Object.assign(__exports, { createRoamingMicrobeEcology });
 },
 "src/procgen/microbe-ecology.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { microbeCatalog } = __require("src/data/microbes.js");
+const { H, W } = __require("src/core/constants.js");
+const { microbeCatalog } = __require("src/data/microbes.js");
 const TAU = Math.PI * 2;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -5923,7 +6263,8 @@ function createMicrobeEcology({ state, entities }) {
 Object.assign(__exports, { MICROBE_MOTION_PROFILES, createMicrobeEcology });
 },
 "src/procgen/mycorrhiza-growth.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { clamp, createHyphalNetwork, drawArbuscule, renderHyphalNetwork, TAU, updateHyphalNetwork } = __require("src/procgen/hyphal-growth.js");
+const { H, W } = __require("src/core/constants.js");
+const { clamp, createHyphalNetwork, drawArbuscule, renderHyphalNetwork, TAU, updateHyphalNetwork } = __require("src/procgen/hyphal-growth.js");
 function nearestRootTarget(state, x, y, minDistance = 0) {
   let best = null;
   let bestDistance = Infinity;
@@ -6541,7 +6882,8 @@ function colorWithAlpha(color, alpha) {
 Object.assign(__exports, { TAU, clamp, angleDelta, smoothHyphalNoise, HYPHAL_PROFILES, createHyphalTip, createHyphalNetwork, updateHyphalNetwork, renderHyphalNetwork, drawArbuscule });
 },
 "src/procgen/mycorrhiza-structures.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { getPhaseManifest, MYCORRHIZA_BRIDGE_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
+const { W } = __require("src/core/constants.js");
+const { getPhaseManifest, MYCORRHIZA_BRIDGE_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -6590,7 +6932,7 @@ function findBridgeTarget(state, sourceInfo, cloud, config) {
     const targetCenter = target.x + target.w / 2;
     if ((targetCenter - sourceCenter) * direction <= 0) continue;
     const gap = horizontalGap(source, target);
-    if (gap < 58 || gap > 340) continue;
+    if (gap < 58) continue;
     const dy = Math.abs(target.y - source.y);
     const maximumVerticalOffset = config.horizontalOnly ? 68 : 105;
     if (dy > maximumVerticalOffset) continue;
@@ -6908,7 +7250,8 @@ function createMycorrhizaStructures({ state, entities, inoculants = null }) {
 Object.assign(__exports, { createMycorrhizaStructures });
 },
 "src/procgen/trichoderma-growth.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { clamp, createHyphalNetwork, renderHyphalNetwork, TAU, updateHyphalNetwork } = __require("src/procgen/hyphal-growth.js");
+const { H, W } = __require("src/core/constants.js");
+const { clamp, createHyphalNetwork, renderHyphalNetwork, TAU, updateHyphalNetwork } = __require("src/procgen/hyphal-growth.js");
 function nearestPointOnRect(x, y, rect) {
   return { x: clamp(x, rect.x, rect.x + rect.w), y: clamp(y, rect.y, rect.y + rect.h) };
 }
@@ -8329,7 +8672,8 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
 Object.assign(__exports, { createBeneficialInoculants });
 },
 "src/procgen/pseudomonas-siderophores.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { createRandom } = __require("src/procgen/random.js");
+const { W } = __require("src/core/constants.js");
+const { createRandom } = __require("src/procgen/random.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -8859,7 +9203,8 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
 Object.assign(__exports, { createPseudomonasSiderophores });
 },
 "src/procgen/opportunistic-fungus.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { H, W } = __require("src/core/constants.js");
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -10584,7 +10929,9 @@ function createRhizobiumNodulation({ state, entities, inoculants }) {
 Object.assign(__exports, { createRhizobiumNodulation });
 },
 "src/procgen/nitrogen-root.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { createRandom } = __require("src/procgen/random.js");const { drawWorldLabel } = __require("src/procgen/world-label.js");
+const { W } = __require("src/core/constants.js");
+const { createRandom } = __require("src/procgen/random.js");
+const { drawWorldLabel } = __require("src/procgen/world-label.js");
 const NITROGEN_ROOT_BLOCK_TYPE = 'underdeveloped-nitrogen-root';
 
 const TAU = Math.PI * 2;
@@ -11091,7 +11438,9 @@ function drawWorldLabel(ctx, x, y, text, options = {}) {
 Object.assign(__exports, { drawWorldLabel });
 },
 "src/procgen/azospirillum-root-growth.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
+const { W } = __require("src/core/constants.js");
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { createRandom } = __require("src/procgen/random.js");
 const AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE = 'azospirillum-root-ladder';
 
 const TAU = Math.PI * 2;
@@ -11960,7 +12309,9 @@ function createAzospirillumNitrogen({ state, inoculants }) {
 Object.assign(__exports, { sameRootSystem, createAzospirillumNitrogen });
 },
 "src/procgen/meloidogyne-lifecycle.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { createRootHealthGameplay } = __require("src/procgen/root-health-gameplay.js");const { MELOIDOGYNE_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
+const { W } = __require("src/core/constants.js");
+const { createRootHealthGameplay } = __require("src/procgen/root-health-gameplay.js");
+const { MELOIDOGYNE_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const hash = (p, s = 0) => {
@@ -12379,14 +12730,7 @@ function createMeloidogyneLifecycle({ state, entities }) {
   }
   function render(ctx) {
     ctx.save(); ctx.translate(-state.cameraX, 0);
-    for (const p of roots()) if ((p.rootDamage || 0) >= .025) {
-      const x = p.x + p.w / 2, y = p.y + Math.min(p.h - 10, 34), w = Math.min(82, p.w - 34);
-      const maxHealth = clamp(p.rootMaxHealth ?? 1, .01, 1);
-      ctx.fillStyle = 'rgba(31,17,22,.76)'; ctx.fillRect(x - w / 2 - 2, y - 2, w + 4, 12);
-      ctx.fillStyle = '#614256'; ctx.fillRect(x - w / 2, y, w * maxHealth, 3);
-      ctx.fillStyle = p.rootHealth > .75 ? '#9bea8f' : p.rootHealth > .5 ? '#ffd36f' : p.rootHealth > .25 ? '#ff9c70' : '#ff657f';
-      ctx.fillRect(x - w / 2, y + 5, w * p.rootHealth, 3);
-    }
+      // Health bars removed per user request
     for (const g of galls) if (g.x > state.cameraX - 100 && g.x < state.cameraX + W + 100) drawGall(ctx, g);
     for (const m of eggs) if (m.x > state.cameraX - 80 && m.x < state.cameraX + W + 80) drawEgg(ctx, m);
     for (const j of juveniles) if (j.x > state.cameraX - 100 && j.x < state.cameraX + W + 100) drawJ2(ctx, j);
@@ -13277,7 +13621,7 @@ function ensureDom() {
         position: fixed;
         z-index: 45;
         left: max(12px, env(safe-area-inset-left));
-        top: max(52px, calc(env(safe-area-inset-top) + 44px));
+        top: max(80px, calc(env(safe-area-inset-top) + 80px));
         display: flex;
         gap: 10px;
         align-items: center;
@@ -13288,8 +13632,8 @@ function ensureDom() {
       }
       #survival-hud .hearts { display: flex; gap: 4px; align-items: center; }
       #survival-hud .heart {
-        width: 21px;
-        height: 21px;
+        width: 34px;
+        height: 34px;
         filter: drop-shadow(0 2px 5px rgba(0,0,0,.55));
         transition: transform .16s ease, opacity .16s ease;
       }
@@ -13319,21 +13663,21 @@ function ensureDom() {
       }
       @media (pointer: coarse), (max-width: 760px) {
         #survival-hud {
-          top: max(44px, calc(env(safe-area-inset-top) + 38px));
+          top: max(74px, calc(env(safe-area-inset-top) + 74px));
           font-size: 10px;
           gap: 7px;
           max-width: 72vw;
         }
-        #survival-hud .heart { width: 17px; height: 17px; }
+        #survival-hud .heart { width: 26px; height: 26px; }
         #survival-hud .hearts { gap: 3px; }
       }
       /* Em paisagem de celular a altura e o recurso escasso. */
       @media (max-height: 560px) and (orientation: landscape) {
         #survival-hud {
-          top: max(38px, calc(env(safe-area-inset-top) + 32px));
+          top: max(68px, calc(env(safe-area-inset-top) + 68px));
           gap: 6px;
         }
-        #survival-hud .heart { width: 15px; height: 15px; }
+        #survival-hud .heart { width: 22px; height: 22px; }
       }
     `;
     document.head.appendChild(style);
@@ -13825,7 +14169,8 @@ function createInoculumSelection({ state, input, inoculants, trichodermaColonies
 Object.assign(__exports, { createInoculumSelection });
 },
 "src/procgen/phosphate-solubilization.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { PHOSPHATE_SOLUBILIZATION_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
+const { W } = __require("src/core/constants.js");
+const { PHOSPHATE_SOLUBILIZATION_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -13858,21 +14203,37 @@ function applyPhaseSevenPhosphateGeometry(level, phase, config = null) {
   const colonyPlatform = platforms[colonyIndex];
   const depositPlatform = platforms[depositIndex];
   const rootPlatform = platforms[rootIndex];
+  colonyPlatform.type = 'root';
+  depositPlatform.type = 'root';
+  depositPlatform.phosphateStock = 0;
   rootPlatform.type = 'root';
   rootPlatform.phosphateTarget = true;
   rootPlatform.phosphateStock = 0;
 
-  level.authoredBeneficialColonies = [{
-    id: 'phase-7-solubilizer-colony',
-    type: 'bacillus',
-    platform: colonyPlatform,
-    x: colonyPlatform.x + colonyPlatform.w * .58,
-    y: colonyPlatform.y - 8,
-    sourceCount: 5,
-    vigor: 1,
-    growth: 1,
-    rechargeIntensity: .35,
-  }];
+  level.authoredBeneficialColonies = [
+    {
+      id: 'phase-7-solubilizer-colony',
+      type: 'bacillus',
+      platform: colonyPlatform,
+      x: colonyPlatform.x + colonyPlatform.w * .58,
+      y: colonyPlatform.y - 8,
+      sourceCount: 5,
+      vigor: 1,
+      growth: 1,
+      rechargeIntensity: .35,
+    },
+    {
+      id: 'phase-7-bridge-mycorrhiza',
+      type: 'myco',
+      platform: colonyPlatform,
+      x: colonyPlatform.x + colonyPlatform.w * .25,
+      y: colonyPlatform.y - 8,
+      sourceCount: 5,
+      vigor: 1,
+      growth: 1,
+      rechargeIntensity: .35,
+    },
+  ];
 
   // O deposito e o desafio-assinatura da fase: ele fecha a rota e so a
   // solubilizacao abre. A altura precisa derrotar salto duplo mais dash, senao
@@ -14395,7 +14756,8 @@ function validateChunk(fromPlatform, toPlatform, primitive, agentType = 'normal'
 Object.assign(__exports, { validateChunk });
 },
 "src/procgen/campaign-encounters.js": (__exports, __require) => {
-const { createRandom } = __require("src/procgen/random.js");const { getPhaseManifest, getProceduralPoolAt, getRoamingDebutsAt } = __require("src/procgen/campaign-manifest.js");
+const { createRandom } = __require("src/procgen/random.js");
+const { getPhaseManifest, getProceduralPoolAt, getRoamingDebutsAt } = __require("src/procgen/campaign-manifest.js");
 const MIN_ZONE_SPACING = 390;
 const MIN_DEBUT_CLEARANCE = 430;
 const MIN_NEWCOMER_SEPARATION = 440;
@@ -14597,13 +14959,26 @@ function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     const conditions = Array.isArray(testOrConditions)
       ? testOrConditions
       : testOrConditions?.requires || [];
+
+    if (state.campaign && !state.campaign.latchedObjectives) {
+      state.campaign.latchedObjectives = new Set();
+    }
+
     const results = conditions.map(condition => {
       const actual = conditionValue(condition);
       const compare = OPERATORS[condition.operator];
+      const currentPassed = Boolean(compare && compare(actual, condition.value));
+
+      if (currentPassed && state.campaign) {
+        state.campaign.latchedObjectives.add(condition.key);
+      }
+
+      const passed = state.campaign?.latchedObjectives?.has(condition.key) || currentPassed;
+
       return {
         condition,
         actual,
-        passed: Boolean(compare && compare(actual, condition.value)),
+        passed,
       };
     });
     return {
@@ -14617,7 +14992,8 @@ function createCampaignObjectiveEvaluator({ state, systems = {} }) {
 Object.assign(__exports, { createCampaignObjectiveEvaluator });
 },
 "src/procgen/phase-one-vertical-slice.js": (__exports, __require) => {
-const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { drawWorldLabel } = __require("src/procgen/world-label.js");
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { drawWorldLabel } = __require("src/procgen/world-label.js");
 const BLOCK_LAYOUTS = Object.freeze({
   'phase1-intro-v1': Object.freeze({
     roles: ['coleta', 'gradiente', 'encontro', 'inoculacao', 'observacao'],
@@ -14941,7 +15317,8 @@ function createFixedBlockRuntime({ state, evaluator, entities, ecology = null })
 Object.assign(__exports, { applyPhaseOneVerticalSlice, createFixedBlockRuntime });
 },
 "src/procgen/signature-challenge.js": (__exports, __require) => {
-const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { validateChunk } = __require("src/procgen/agents.js");
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { validateChunk } = __require("src/procgen/agents.js");
 const DOUBLE_JUMP = Object.freeze({ id: 'running-double-jump-late', requires: ['doubleJump'] });
 
 // Estimar pelo numero do vao nao basta: uma queda de poucos pixels alonga o
@@ -15428,7 +15805,8 @@ function applyPhaseSixTutorialEncounters(level, encounters, phase = level.campai
 Object.assign(__exports, { applyPhaseSixTutorialGeometry, applyPhaseSixTutorialEncounters });
 },
 "src/procgen/phase-lab-config.js": (__exports, __require) => {
-const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, MELOIDOGYNE_DEFAULTS, campaignManifest, getProceduralPoolAt, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");const { createRandom } = __require("src/procgen/random.js");
+const { ECOLOGY_ROAMING_TYPES, MVP_EXCLUDED_PATHOGENS, PATHOGEN_SYSTEMS, NITROGEN_ROOT_DEFAULTS, AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, AZOSPIRILLUM_NITROGEN_DEFAULTS, MYCORRHIZA_BRIDGE_DEFAULTS, OPPORTUNISTIC_FUNGUS_DEFAULTS, PSEUDOMONAS_IRON_CONTROL_DEFAULTS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, MELOIDOGYNE_DEFAULTS, campaignManifest, getProceduralPoolAt, validateCampaignManifest } = __require("src/procgen/campaign-manifest.js");
+const { createRandom } = __require("src/procgen/random.js");
 const PHASE_LAB_STORAGE_KEY = 'miguelito:phase-lab:v4';
 const PHASE_LAB_MAX_RESOURCES = 100;
 
@@ -15766,7 +16144,10 @@ function applyPhaseLabResources(level, phaseManifest, seedValue) {
 Object.assign(__exports, { PHASE_LAB_STORAGE_KEY, PHASE_LAB_MAX_RESOURCES, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, createDefaultPhaseLabConfig, buildPhaseLabManifest, validatePhaseLabConfig, applyPhaseLabResources });
 },
 "src/procgen/phase-lab.js": (__exports, __require) => {
-const { campaignManifest, ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");const { PLAYER_SKINS, PLAYER_SKIN_STORAGE_KEY, resolvePlayerSkin } = __require("src/render/player-skins.js");const { PLAYER_TUNING_LIMITS, getPlayerTuning, resetPlayerTuning, setPlayerTuning } = __require("src/render/player-skin-tuning.js");const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
+const { campaignManifest, ECOLOGY_ROAMING_TYPES, PATHOGEN_SYSTEMS, PHOSPHATE_SOLUBILIZATION_DEFAULTS, clearPhaseManifestOverride, getPersistentUnlocksBeforePhase, setPhaseManifestOverride } = __require("src/procgen/campaign-manifest.js");
+const { PLAYER_SKINS, PLAYER_SKIN_STORAGE_KEY, resolvePlayerSkin } = __require("src/render/player-skins.js");
+const { PLAYER_TUNING_LIMITS, getPlayerTuning, resetPlayerTuning, setPlayerTuning } = __require("src/render/player-skin-tuning.js");
+const { PHASE_LAB_STORAGE_KEY, buildPhaseLabManifest, createDefaultPhaseLabConfig, isPhaseLabEnabled, productionPhaseManifest, scalePhaseLabSegments, validatePhaseLabConfig } = __require("src/procgen/phase-lab-config.js");
 const clone = value => JSON.parse(JSON.stringify(value));
 
 const MELOIDOGYNE_FIELDS = Object.freeze([
@@ -16426,8 +16807,147 @@ function resetPlayerTuning() {
 }
 Object.assign(__exports, { PLAYER_TUNING_STORAGE_KEY, PLAYER_TUNING_DEFAULTS, PLAYER_TUNING_LIMITS, initPlayerTuning, getPlayerTuning, setPlayerTuning, resetPlayerTuning });
 },
+"src/procgen/hud-context.js": (__exports, __require) => {
+function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
+  if (!contextDiv) return;
+
+  if (!nearbyRoot && (!sim || !sim.state)) {
+    contextDiv.classList.remove('visible');
+    return;
+  }
+
+  contextDiv.classList.add('visible');
+  let html = `<div class="context-header">Bioma Local <span>${state?.activeBiomes?.length || 1}</span></div>`;
+
+  if (nearbyRoot) {
+    const health = nearbyRoot.rootHealth ? Math.round(nearbyRoot.rootHealth * 100) : 100;
+    html += `
+      <div class="context-item">
+        <span>Raiz: <strong>${health >= 80 ? 'Saudável' : health >= 40 ? 'Estressada' : 'Crítica'}</strong> (${health}%)</span>
+        <div class="context-bar"><div class="context-bar-fill" style="width: ${health}%; background: ${health < 40 ? '#ff8297' : '#70e5d6'};"></div></div>
+      </div>
+    `;
+    if (nearbyRoot.hasPhosphate) {
+      html += `<div class="context-item" style="color: #c9a5ff; font-weight: bold; margin-top: 4px;">P Cristalizado Detectado</div>`;
+    }
+  } else {
+    html += `<div class="context-item"><span>Explorando o solo...</span></div>`;
+  }
+
+  if (sim && sim.state) {
+    const s = sim.state;
+    const phase = s.campaign?.phase || 0;
+
+    // Iron
+    const ironMax = 1.5;
+    const ironRecovered = sim.pseudomonasSiderophores?.ironRecovered || 0;
+    const ironPct = Math.min(100, (ironRecovered / ironMax) * 100);
+    if (phase >= 5 || ironPct > 0) {
+      html += `
+        <div class="context-item" style="margin-top: 8px;">
+          <span>Ferro (Fe³⁺): <strong>${Math.round(ironPct)}%</strong></span>
+          <div class="context-bar"><div class="context-bar-fill" style="width: ${ironPct}%; background: #f4a261;"></div></div>
+        </div>
+      `;
+    }
+
+    // Nitrogen
+    const fixation = (s.level?.rhizobiumNodules || []).reduce((sum, site) => sum + (site.fixationRate || 0), 0);
+    const associativeNitrogen = sim.azospirillumNitrogen?.associativeNitrogenRate || 0;
+    if (phase >= 2 || fixation > 0 || associativeNitrogen > 0) {
+      const nPct = Math.min(100, (fixation + associativeNitrogen) * 20);
+      html += `
+        <div class="context-item">
+          <span>Nitrogênio (N): <strong>${Math.round(nPct)}%</strong></span>
+          <div class="context-bar"><div class="context-bar-fill" style="width: ${nPct}%; background: #ffd783;"></div></div>
+        </div>
+      `;
+    }
+
+    // Phosphorus
+    const availablePhosphate = sim.phosphateSolubilization?.availablePhosphate || 0;
+    if (phase >= 7 || availablePhosphate > 0) {
+      const pPct = Math.min(100, availablePhosphate * 100);
+      html += `
+        <div class="context-item">
+          <span>Fósforo (P): <strong>${Math.round(pPct)}%</strong></span>
+          <div class="context-bar"><div class="context-bar-fill" style="width: ${pPct}%; background: #c9a5ff;"></div></div>
+        </div>
+      `;
+    }
+
+    // Antibiosis
+    const vigor = sim.trichodermaColonies?.vigorAverage || 0;
+    if (phase >= 6 || vigor > 0) {
+      const aPct = Math.min(100, vigor * 100);
+      html += `
+        <div class="context-item">
+          <span>Antibiose: <strong>${Math.round(aPct)}%</strong></span>
+          <div class="context-bar"><div class="context-bar-fill" style="width: ${aPct}%; background: #b9f36f;"></div></div>
+        </div>
+      `;
+    }
+  }
+
+  contextDiv.innerHTML = html;
+}
+Object.assign(__exports, { updateContextPanel });
+},
+"src/procgen/ecological-score.js": (__exports, __require) => {
+// Pontuacao ecologica agregada da fase — usada pelo objetivo da fase final
+// (Ecossistema integrado). Reflete a visao do jogo: solo/raiz saudaveis, com os
+// beneficos controlando deficiencias e patogenos. Soma contribuicoes
+// normalizadas de: biocontrole/ISR/antibiose, saude da raiz (recuperacao) e os
+// estoques de N, P e Fe. As metricas usadas comecam em zero e sobem com a acao
+// do jogador (evita falso-positivo de raizes que ja nascem saudaveis).
+//
+// Recebe o avaliador de objetivos (createCampaignObjectiveEvaluator), que ja
+// sabe ler cada metrica de mundo via worldValue — assim a pontuacao e sempre
+// coerente com as condicoes que gatilham as fases.
+//
+// Observacao: os pesos foram calibrados para que uma fase integrada bem
+// conduzida ultrapasse 1; podem ser afinados apos playtest da fase 9.
+
+const clamp = (value, lo, hi) => Math.max(lo, Math.min(hi, value));
+
+function computeEcologicalScore(evaluator) {
+  const wv = (key) => evaluator.worldValue({ type: 'worldState', key });
+
+  // Biocontrole / ISR / antibiose.
+  const biofilms = clamp((wv('functionalBiofilmCount') || 0) / 2, 0, 1);
+  const eggMasses = clamp((wv('neutralizedEggMassCount') || 0) / 1, 0, 1);
+  const fungusControl = clamp(1 - (wv('opportunisticFungusVigor') ?? 1), 0, 1);
+
+  // Saude da raiz: raizes efetivamente recuperadas (sinal de acao).
+  const recoveredRoots = clamp((wv('recoveredRootCount') || 0) / 2, 0, 1);
+
+  // Estoques.
+  const nitrogen = clamp((wv('activeMatureNoduleCount') || 0) / 2, 0, 1);
+  const iron = clamp(wv('pseudomonasIronReserve') || 0, 0, 1);
+  const phosphorus = clamp(
+    Math.max(wv('rootPhosphateStock') || 0, wv('mycorrhizalPhosphateTransported') || 0),
+    0, 1,
+  );
+
+  return (
+    biofilms * 0.40
+    + eggMasses * 0.35
+    + recoveredRoots * 0.40
+    + fungusControl * 0.20
+    + nitrogen * 0.15
+    + iron * 0.10
+    + phosphorus * 0.10
+  );
+}
+Object.assign(__exports, { computeEcologicalScore });
+},
 "src/render/renderer.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");const { createPlayerSprite } = __require("src/render/player-sprite.js");const { resolvePlayerSkin } = __require("src/render/player-skins.js");
+const { H, W } = __require("src/core/constants.js");
+const { clamp } = __require("src/core/math.js");
+const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");
+const { createMicrobeRenderer } = __require("src/render/microbes.js");
+const { createPlayerSprite } = __require("src/render/player-sprite.js");
+const { resolvePlayerSkin } = __require("src/render/player-skins.js");
 function mixHex(a, b, t) {
   const value = clamp(t, 0, 1);
   const parse = color => [
@@ -16645,6 +17165,8 @@ function createRenderer({ canvas, state, entities, playerSkin = null }) {
 
     level.platforms.forEach(p => {
       if (p.nitrogenRootCollider) return;
+      // Nao desenha as plataformas de seguranca quando o jogador as desliga.
+      if (p.recovery && state.recoveryPlatformsDisabled) return;
       const health = p.type === 'root' ? clamp(p.rootHealth ?? 1, .06, 1) : 1;
       const damage = 1 - health;
       const grad = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
@@ -16807,6 +17329,25 @@ function createRenderer({ canvas, state, entities, playerSkin = null }) {
           ctx.arc(0, 0, 11, 0, Math.PI * 2);
           ctx.fill();
         }
+      } else if (a.id === 'dash') {
+        ctx.shadowBlur = 24;
+        ctx.shadowColor = '#70e5d6';
+        ctx.fillStyle = '#1e3835';
+        ctx.strokeStyle = '#70e5d6';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, 18 + Math.sin(time * 3) * 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(-8, -6);
+        ctx.lineTo(4, 0);
+        ctx.lineTo(-8, 6);
+        ctx.moveTo(2, -6);
+        ctx.lineTo(14, 0);
+        ctx.lineTo(2, 6);
+        ctx.stroke();
       } else {
         ctx.shadowBlur = 24;
         ctx.shadowColor = '#8db8ff';
@@ -17001,11 +17542,15 @@ function createRenderer({ canvas, state, entities, playerSkin = null }) {
 Object.assign(__exports, { createRenderer });
 },
 "src/render/microbes.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { drawWorldLabel } = __require("src/procgen/world-label.js");const { lerp } = __require("src/core/math.js");const { microbeCatalog, microbeEncounters } = __require("src/data/microbes.js");
-const PROCEDURAL_SCENERY_IDS = new Set(['rhizobium', 'myco']);
-const proceduralSceneryEncounters = microbeEncounters
-  .filter(encounter => PROCEDURAL_SCENERY_IDS.has(encounter.id))
-  .map(encounter => Object.freeze({ ...encounter, decorative: true }));
+const { W } = __require("src/core/constants.js");
+const { drawWorldLabel } = __require("src/procgen/world-label.js");
+const { lerp } = __require("src/core/math.js");
+const { microbeCatalog, microbeEncounters } = __require("src/data/microbes.js");
+// A campanha procedural nao usa mais a cena decorativa fixa do inicio: ela
+// colocava, em toda fase, uma colonia de rhizobium (bacterias + arco marrom cor
+// de plataforma) e uma micorriza (halo) sem funcao de gameplay, no mesmo lugar.
+// Os encontros funcionais vem de campaign-encounters.js, nao desta lista.
+const proceduralSceneryEncounters = [];
 
 function getMicrobeSceneEncounters(state = {}) {
   return state.proceduralCampaign === true ? proceduralSceneryEncounters : microbeEncounters;
@@ -17620,7 +18165,8 @@ function createPlayerSprite(skin) {
 Object.assign(__exports, { createPlayerSprite });
 },
 "src/procgen/platform-visuals.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { drawWorldLabel } = __require("src/procgen/world-label.js");
+const { H, W } = __require("src/core/constants.js");
+const { drawWorldLabel } = __require("src/procgen/world-label.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -17950,9 +18496,9 @@ function createPlatformVisuals({ state }) {
     );
     const screenY = clamp(platform.y + 17, 54, H - 24);
 
-    drawWorldLabel(ctx, screenX, screenY, text, {
-      color, font: '800 12px Inter,system-ui', glow: 9, alpha,
-    });
+    // drawWorldLabel(ctx, screenX, screenY, text, {
+    //   color, font: '800 12px Inter,system-ui', glow: 9, alpha,
+    // });
   }
 
   return { drawWorld, renderLabel };
@@ -17960,7 +18506,8 @@ function createPlatformVisuals({ state }) {
 Object.assign(__exports, { createPlatformVisuals });
 },
 "src/procgen/camera-view.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { clamp, lerp } = __require("src/core/math.js");
+const { H, W } = __require("src/core/constants.js");
+const { clamp, lerp } = __require("src/core/math.js");
 const DEFAULT_ZOOM = 1.45;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 1.8;
@@ -18413,31 +18960,7 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
   }
 
   function drawStatus(ctx, enemy) {
-    const host = enemy.hostPlatform;
-    if (!host) return;
-    const colonization = clamp(enemy.colonization || 0, 0, 1);
-    const x = enemy.infectionX;
-    const y = host.y + Math.min(33, host.h * .48);
-    const width = Math.min(118, Math.max(78, host.w * .55));
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(19,10,16,.82)';
-    ctx.fillRect(x - width / 2 - 3, y - 3, width + 6, 19);
-    ctx.fillStyle = '#ff5d82';
-    ctx.fillRect(x - width / 2, y, width * colonization, 4);
-    ctx.font = '700 8px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = enemy.contained ? '#9effdf' : '#ffd5df';
-    ctx.fillText(`${stageLabel(enemy)} · ${Math.round(colonization * 100)}%`, x, y + 13);
-
-    const labels = [];
-    if ((enemy.bacillusControl || 0) > .04) labels.push(`Bacillus ${Math.round(enemy.bacillusControl * 100)}%`);
-    if ((enemy.ironLimitation || 0) > .04) labels.push(`Fe limitado ${Math.round(enemy.ironLimitation * 100)}%`);
-    if (labels.length) {
-      ctx.fillStyle = '#d6ffb0';
-      ctx.fillText(labels.join(' · '), x, y + 23);
-    }
-    ctx.restore();
+    // Barras de status removidas a pedido do usuário
   }
 
   function drawAttack(ctx, enemy) {
@@ -18883,18 +19406,6 @@ function createTrichodermaMeloidogyneControl({ state, entities, colonies, lifecy
     const target = targetPosition(attack.target, attack.type);
     const width = attack.type === 'egg' ? 82 : 62;
     const y = target.y - (attack.type === 'egg' ? 31 : 25);
-    ctx.save();
-    ctx.fillStyle = 'rgba(4,20,16,.82)';
-    ctx.fillRect(target.x - width / 2 - 2, y - 2, width + 4, 15);
-    ctx.fillStyle = '#8df0a8';
-    ctx.fillRect(target.x - width / 2, y, width * clamp(attack.lysis || attack.contact * .25, 0, 1), 3);
-    ctx.font = '700 8px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#eaffef';
-    const label = attack.type === 'egg'
-      ? `ovos ${attack.target.eggs} · lise ${Math.round(attack.lysis * 100)}%`
-      : `J2 · lise ${Math.round(attack.lysis * 100)}%`;
-    ctx.fillText(label, target.x, y + 11);
     ctx.restore();
   }
 
@@ -19372,15 +19883,6 @@ function createTrichodermaRhizoctoniaControl({ state, entities, colonies }) {
     const target = targetPosition(attack.enemy);
     const width = 106;
     const y = target.y - 42;
-    ctx.save();
-    ctx.fillStyle = 'rgba(4,20,16,.86)';
-    ctx.fillRect(target.x - width / 2 - 2, y - 2, width + 4, 17);
-    ctx.fillStyle = '#8df0a8';
-    ctx.fillRect(target.x - width / 2, y, width * clamp(attack.lysis || attack.contact * .2, 0, 1), 4);
-    ctx.font = '700 8px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#eaffef';
-    ctx.fillText(`Rhizoctonia · lise ${Math.round(attack.lysis * 100)}%`, target.x, y + 13);
     ctx.restore();
   }
 
@@ -19421,7 +19923,8 @@ function createTrichodermaRhizoctoniaControl({ state, entities, colonies }) {
 Object.assign(__exports, { createTrichodermaRhizoctoniaControl });
 },
 "src/procgen/ralstonia-vascular-wilt.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { W } = __require("src/core/constants.js");
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -19857,21 +20360,6 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
     const vascular = clamp(focus.vascularLoad, 0, 1);
     const control = clamp(focus.bacillusControl * .68 + focus.pseudomonasControl * .42, 0, 1);
 
-    ctx.save();
-    ctx.fillStyle = 'rgba(16,12,10,.86)';
-    ctx.fillRect(x - width / 2 - 3, y - 3, width + 6, 27);
-    ctx.fillStyle = '#a76b45';
-    ctx.fillRect(x - width / 2, y, width * vascular, 4);
-    ctx.fillStyle = '#86d8c3';
-    ctx.fillRect(x - width / 2, y + 6, width * focus.vascularEfficiency, 3);
-    ctx.font = '700 8px Inter,system-ui';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = focus.neutralized ? '#a8ffe6' : vascular >= .82 ? '#ff9b83' : '#f5ddb0';
-    ctx.fillText(`${stageLabel(focus)} · ${Math.round(vascular * 100)}%`, x, y + 18);
-    if (control > .04) {
-      ctx.fillStyle = '#d6ffb0';
-      ctx.fillText(`controle ${Math.round(control * 100)}%`, x, y + 28);
-    }
     ctx.restore();
   }
 
@@ -19928,7 +20416,9 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
 Object.assign(__exports, { createRalstoniaVascularWilt });
 },
 "src/procgen/mobile-controls.js": (__exports, __require) => {
-const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");const { createTutorialManager } = __require("src/procgen/tutorial-manager.js");const { createTutorialTriggers, TUTORIAL_RUNTIME_VERSION } = __require("src/procgen/tutorial-triggers.js");
+const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");
+const { createTutorialManager } = __require("src/procgen/tutorial-manager.js");
+const { createTutorialTriggers, TUTORIAL_RUNTIME_VERSION } = __require("src/procgen/tutorial-triggers.js");
 ensureTutorialInterface();
 
 const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
@@ -20139,7 +20629,10 @@ function ensureTutorialInterface() {
 Object.assign(__exports, { ensureTutorialInterface });
 },
 "src/procgen/tutorial-manager.js": (__exports, __require) => {
-const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");const { getCardsTaughtBeforePhase } = __require("src/procgen/tutorial-prior-knowledge.js");
+const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");
+const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");
+const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");
+const { getCardsTaughtBeforePhase } = __require("src/procgen/tutorial-prior-knowledge.js");
 const TUTORIAL_STORAGE_KEYS = Object.freeze({
   seen: 'miguelito:tutorial:seen:v3',
   unlocked: 'miguelito:tutorial:unlocked:v3',
@@ -20691,7 +21184,9 @@ function createTutorialManager({ state }) {
 Object.assign(__exports, { TUTORIAL_STORAGE_KEYS, isHardReloadShortcut, isTutorialAdvanceShortcut, createTutorialManager });
 },
 "src/procgen/tutorial-registry.js": (__exports, __require) => {
-const { gameplayTutorialCards } = __require("src/procgen/tutorial-cards-gameplay.js");const { organismTutorialCards } = __require("src/procgen/tutorial-cards-organisms.js");const { structureTutorialCards } = __require("src/procgen/tutorial-cards-structures.js");
+const { gameplayTutorialCards } = __require("src/procgen/tutorial-cards-gameplay.js");
+const { organismTutorialCards } = __require("src/procgen/tutorial-cards-organisms.js");
+const { structureTutorialCards } = __require("src/procgen/tutorial-cards-structures.js");
 const tutorialCards = Object.freeze({
   ...gameplayTutorialCards,
   ...organismTutorialCards,
@@ -21448,7 +21943,8 @@ const structureTutorialCards = {
 Object.assign(__exports, { structureTutorialCards });
 },
 "src/procgen/tutorial-flow.js": (__exports, __require) => {
-const { getActiveCampaignManifest, getPresentationById, getSegmentAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { getTutorialCard } = __require("src/procgen/tutorial-registry.js");
+const { getActiveCampaignManifest, getPresentationById, getSegmentAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
+const { getTutorialCard } = __require("src/procgen/tutorial-registry.js");
 function findPresentation(triggerId) {
   for (const phase of getActiveCampaignManifest()) {
     const presentation = phase.presentations.find(entry => entry.triggerIds.includes(triggerId));
@@ -21715,7 +22211,8 @@ function getCardsTaughtBeforePhase(phase) {
 Object.assign(__exports, { getCardsTaughtBeforePhase });
 },
 "src/procgen/tutorial-triggers.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { getTutorialModeAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
+const { W } = __require("src/core/constants.js");
+const { getTutorialModeAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const TUTORIAL_RUNTIME_VERSION = '2026.07.17.3';

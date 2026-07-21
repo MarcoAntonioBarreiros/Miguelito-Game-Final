@@ -69,13 +69,26 @@ export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     const conditions = Array.isArray(testOrConditions)
       ? testOrConditions
       : testOrConditions?.requires || [];
+      
+    if (state.campaign && !state.campaign.latchedObjectives) {
+      state.campaign.latchedObjectives = new Set();
+    }
+
     const results = conditions.map(condition => {
       const actual = conditionValue(condition);
       const compare = OPERATORS[condition.operator];
+      const currentPassed = Boolean(compare && compare(actual, condition.value));
+      
+      if (currentPassed && state.campaign) {
+        state.campaign.latchedObjectives.add(condition.key);
+      }
+      
+      const passed = state.campaign?.latchedObjectives?.has(condition.key) || currentPassed;
+
       return {
         condition,
         actual,
-        passed: Boolean(compare && compare(actual, condition.value)),
+        passed,
       };
     });
     return {
