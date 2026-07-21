@@ -1546,7 +1546,38 @@ function prepareLevel() {
     doubleJump: Boolean(campaign.unlocks?.doubleJump),
     dash: Boolean(campaign.unlocks?.dash),
   });
+  anchorPowerPickups(levelData);
   installFinalGoal(levelData);
+}
+
+// Os pickups de poder (fitohormonios: power-jump/power-dash/power-pulse) tem que
+// ser coletaveis SEM o poder que concedem. Se o desafio-assinatura/escada elevou
+// a plataforma do evento, o pickup do salto duplo ficava num bloco que so o
+// proprio salto duplo alcanca — um bootstrap-softlock. Este passo re-ancora cada
+// pickup a uma plataforma alcancavel por salto simples a partir da anterior.
+function anchorPowerPickups(level) {
+  const route = (level.platforms || [])
+    .filter(p => !p.recovery && !p.final && Number.isInteger(p.logicIndex) && p.logicIndex >= 0)
+    .sort((a, b) => a.logicIndex - b.logicIndex || a.x - b.x);
+  if (!route.length) return;
+  for (const ally of level.allies || []) {
+    if (typeof ally.id !== 'string' || !ally.id.startsWith('power-')) continue;
+    let idx = route.findIndex(p => p.logicIndex === ally.logicIndex);
+    if (idx < 0) {
+      idx = route.reduce((best, p, i) => (
+        Math.abs(p.x - ally.x) < Math.abs(route[best].x - ally.x) ? i : best
+      ), 0);
+    }
+    // Recua enquanto a plataforma hospedeira exigir mais que um salto simples
+    // (~92px de subida) a partir da anterior — garante que da para chegar la sem
+    // o poder ainda nao adquirido.
+    while (idx > 0 && route[idx - 1].y - route[idx].y > 92) idx--;
+    const host = route[idx];
+    ally.x = host.x + host.w / 2;
+    ally.y = host.y - 28;
+    ally.logicIndex = host.logicIndex;
+    ally.anchoredPlatform = true;
+  }
 }
 
 const FEATURE_LABELS = {
@@ -7050,6 +7081,20 @@ function sameConnection(structure, source, target) {
   );
 }
 
+// Ponte pendente: quando nao ha plataforma-alvo no alcance, a hifa se estende na
+// direcao do exsudato ate um comprimento maximo fixo e termina no ar (target
+// nulo). O limite evita pontes infinitas.
+function buildDanglingCandidate(sourceInfo, cloud, config) {
+  const source = sourceInfo.platform;
+  const sourceCenter = source.x + source.w / 2;
+  const direction = cloud.x >= sourceCenter ? 1 : -1;
+  const maxLength = clamp(Number(config.danglingMaxLength) || 300, 140, 360);
+  const startX = direction > 0 ? source.x + source.w - 12 : source.x + 12;
+  const start = { x: startX, y: source.y - 7 };
+  const end = { x: startX + direction * maxLength, y: source.y - 7 + 26 };
+  return { target: null, start, end, gap: maxLength, dy: 26, dangling: true };
+}
+
 function createMycorrhizaStructures({ state, entities, inoculants = null }) {
   let activeInoculants = inoculants;
 
@@ -7095,6 +7140,7 @@ function createMycorrhizaStructures({ state, entities, inoculants = null }) {
     const structure = {
       id: `myco-structure-${nextId++}`,
       type: 'bridge',
+      dangling: Boolean(candidate.dangling),
       source: sourceInfo.platform,
       target,
       start: geometry.start,
@@ -7160,6 +7206,15 @@ function createMycorrhizaStructures({ state, entities, inoculants = null }) {
       return;
     }
 
+    // Sem alvo dentro do alcance: forma uma ponte PENDENTE (uma ponta no ar) ate
+    // um comprimento maximo fixo, para a mecanica nao travar quando nao ha onde
+    // ancorar. O limite evita pontes infinitas.
+    const dangling = buildDanglingCandidate(sourceInfo, cloud, config);
+    if (dangling && !structures.some(item => item.dangling && item.source === sourceInfo.platform)) {
+      createStructure(cloud, sourceInfo, 'bridge', dangling);
+      return;
+    }
+
     if (age > 2.2) cloud.mycorrhizaStructureHandled = true;
   }
 
@@ -7178,7 +7233,7 @@ function createMycorrhizaStructures({ state, entities, inoculants = null }) {
 
     let collisionDirty = false;
     for (const structure of structures) {
-      if (structure.structureType === 'bridge') {
+      if (structure.structureType === 'bridge' && structure.target) {
         const expectedStartY = structure.source.y;
         const expectedEndY = structure.target.y;
         if (structure.start.y !== expectedStartY || structure.end.y !== expectedEndY) {
@@ -13034,6 +13089,10 @@ function createRootHealthGameplay({ state, entities }) {
       root.rootMaxHealth,
     );
     root.rootDamage = clamp(1 - root.rootHealth, 0, .96);
+    // Marca (permanente) que a raiz chegou a ser danificada de fato. O objetivo
+    // "recuperar uma raiz" conta raizes que foram danificadas e voltaram a
+    // saudavel — sinal estavel, sem depender do instante de healthTrend > 0.
+    if (root.rootHealth < .5) root.wasDamaged = true;
     root.healthTrend = root.rootHealth > oldHealth + .0004 ? 1 : root.rootHealth < oldHealth - .0004 ? -1 : 0;
     root.recoveryPulse = root.healthTrend > 0
       ? clamp(root.recoveryPulse + dt * (1 + nodules.strength + mycorrhiza.strength), 0, 1)
@@ -15028,7 +15087,9 @@ function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     if (key === 'opportunisticFungusVigor') return systems.opportunisticFungus?.controlledFungalVigor ?? 1;
     if (key === 'neutralizedOpportunisticFungusCount') return systems.trichoderma?.eliminatedCount || 0;
     if (key === 'recoveredRootCount') {
-      return (state.level.platforms || []).filter(root => root.type === 'root' && root.healthTrend > 0 && (root.rootHealth || 0) >= .75).length;
+      // Uma raiz que foi danificada (wasDamaged) e voltou a >= .75 conta como
+      // recuperada — sinal estavel, ao contrario do healthTrend instantaneo.
+      return (state.level.platforms || []).filter(root => root.type === 'root' && root.wasDamaged === true && (root.rootHealth ?? 1) >= .75).length;
     }
     if (key === 'brokenCrystalCount') return (state.level.crystals || []).filter(crystal => crystal.broken).length;
     if (key === 'solubilizedPhosphateDepositCount') return systems.phosphate?.solubilizedDepositCount || 0;

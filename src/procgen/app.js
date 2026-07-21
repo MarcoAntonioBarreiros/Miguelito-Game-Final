@@ -352,7 +352,38 @@ function prepareLevel() {
     doubleJump: Boolean(campaign.unlocks?.doubleJump),
     dash: Boolean(campaign.unlocks?.dash),
   });
+  anchorPowerPickups(levelData);
   installFinalGoal(levelData);
+}
+
+// Os pickups de poder (fitohormonios: power-jump/power-dash/power-pulse) tem que
+// ser coletaveis SEM o poder que concedem. Se o desafio-assinatura/escada elevou
+// a plataforma do evento, o pickup do salto duplo ficava num bloco que so o
+// proprio salto duplo alcanca — um bootstrap-softlock. Este passo re-ancora cada
+// pickup a uma plataforma alcancavel por salto simples a partir da anterior.
+function anchorPowerPickups(level) {
+  const route = (level.platforms || [])
+    .filter(p => !p.recovery && !p.final && Number.isInteger(p.logicIndex) && p.logicIndex >= 0)
+    .sort((a, b) => a.logicIndex - b.logicIndex || a.x - b.x);
+  if (!route.length) return;
+  for (const ally of level.allies || []) {
+    if (typeof ally.id !== 'string' || !ally.id.startsWith('power-')) continue;
+    let idx = route.findIndex(p => p.logicIndex === ally.logicIndex);
+    if (idx < 0) {
+      idx = route.reduce((best, p, i) => (
+        Math.abs(p.x - ally.x) < Math.abs(route[best].x - ally.x) ? i : best
+      ), 0);
+    }
+    // Recua enquanto a plataforma hospedeira exigir mais que um salto simples
+    // (~92px de subida) a partir da anterior — garante que da para chegar la sem
+    // o poder ainda nao adquirido.
+    while (idx > 0 && route[idx - 1].y - route[idx].y > 92) idx--;
+    const host = route[idx];
+    ally.x = host.x + host.w / 2;
+    ally.y = host.y - 28;
+    ally.logicIndex = host.logicIndex;
+    ally.anchoredPlatform = true;
+  }
 }
 
 const FEATURE_LABELS = {

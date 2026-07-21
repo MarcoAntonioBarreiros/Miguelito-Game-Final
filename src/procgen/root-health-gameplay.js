@@ -214,6 +214,10 @@ export function createRootHealthGameplay({ state, entities }) {
       root.rootMaxHealth,
     );
     root.rootDamage = clamp(1 - root.rootHealth, 0, .96);
+    // Marca (permanente) que a raiz chegou a ser danificada de fato. O objetivo
+    // "recuperar uma raiz" conta raizes que foram danificadas e voltaram a
+    // saudavel — sinal estavel, sem depender do instante de healthTrend > 0.
+    if (root.rootHealth < .5) root.wasDamaged = true;
     root.healthTrend = root.rootHealth > oldHealth + .0004 ? 1 : root.rootHealth < oldHealth - .0004 ? -1 : 0;
     root.recoveryPulse = root.healthTrend > 0
       ? clamp(root.recoveryPulse + dt * (1 + nodules.strength + mycorrhiza.strength), 0, 1)

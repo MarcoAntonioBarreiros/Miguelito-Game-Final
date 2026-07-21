@@ -109,6 +109,20 @@ function sameConnection(structure, source, target) {
   );
 }
 
+// Ponte pendente: quando nao ha plataforma-alvo no alcance, a hifa se estende na
+// direcao do exsudato ate um comprimento maximo fixo e termina no ar (target
+// nulo). O limite evita pontes infinitas.
+function buildDanglingCandidate(sourceInfo, cloud, config) {
+  const source = sourceInfo.platform;
+  const sourceCenter = source.x + source.w / 2;
+  const direction = cloud.x >= sourceCenter ? 1 : -1;
+  const maxLength = clamp(Number(config.danglingMaxLength) || 300, 140, 360);
+  const startX = direction > 0 ? source.x + source.w - 12 : source.x + 12;
+  const start = { x: startX, y: source.y - 7 };
+  const end = { x: startX + direction * maxLength, y: source.y - 7 + 26 };
+  return { target: null, start, end, gap: maxLength, dy: 26, dangling: true };
+}
+
 export function createMycorrhizaStructures({ state, entities, inoculants = null }) {
   let activeInoculants = inoculants;
 
@@ -154,6 +168,7 @@ export function createMycorrhizaStructures({ state, entities, inoculants = null 
     const structure = {
       id: `myco-structure-${nextId++}`,
       type: 'bridge',
+      dangling: Boolean(candidate.dangling),
       source: sourceInfo.platform,
       target,
       start: geometry.start,
@@ -219,6 +234,15 @@ export function createMycorrhizaStructures({ state, entities, inoculants = null 
       return;
     }
 
+    // Sem alvo dentro do alcance: forma uma ponte PENDENTE (uma ponta no ar) ate
+    // um comprimento maximo fixo, para a mecanica nao travar quando nao ha onde
+    // ancorar. O limite evita pontes infinitas.
+    const dangling = buildDanglingCandidate(sourceInfo, cloud, config);
+    if (dangling && !structures.some(item => item.dangling && item.source === sourceInfo.platform)) {
+      createStructure(cloud, sourceInfo, 'bridge', dangling);
+      return;
+    }
+
     if (age > 2.2) cloud.mycorrhizaStructureHandled = true;
   }
 
@@ -237,7 +261,7 @@ export function createMycorrhizaStructures({ state, entities, inoculants = null 
 
     let collisionDirty = false;
     for (const structure of structures) {
-      if (structure.structureType === 'bridge') {
+      if (structure.structureType === 'bridge' && structure.target) {
         const expectedStartY = structure.source.y;
         const expectedEndY = structure.target.y;
         if (structure.start.y !== expectedStartY || structure.end.y !== expectedEndY) {

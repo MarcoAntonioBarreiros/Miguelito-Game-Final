@@ -45,7 +45,9 @@ export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     if (key === 'opportunisticFungusVigor') return systems.opportunisticFungus?.controlledFungalVigor ?? 1;
     if (key === 'neutralizedOpportunisticFungusCount') return systems.trichoderma?.eliminatedCount || 0;
     if (key === 'recoveredRootCount') {
-      return (state.level.platforms || []).filter(root => root.type === 'root' && root.healthTrend > 0 && (root.rootHealth || 0) >= .75).length;
+      // Uma raiz que foi danificada (wasDamaged) e voltou a >= .75 conta como
+      // recuperada — sinal estavel, ao contrario do healthTrend instantaneo.
+      return (state.level.platforms || []).filter(root => root.type === 'root' && root.wasDamaged === true && (root.rootHealth ?? 1) >= .75).length;
     }
     if (key === 'brokenCrystalCount') return (state.level.crystals || []).filter(crystal => crystal.broken).length;
     if (key === 'solubilizedPhosphateDepositCount') return systems.phosphate?.solubilizedDepositCount || 0;
