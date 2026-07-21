@@ -2087,7 +2087,14 @@ function generateLevel(seedString) {
     const chunk = logic[i];
     let validPrims;
 
-    if (chunk.requires.length > 0) {
+    if (chunk.requires.length > 1) {
+      // Chunk de combo: exige a primitiva que usa TODAS as habilidades pedidas
+      // (senao cairia numa de habilidade unica e o combo nao aconteceria).
+      validPrims = primitives.filter(p => chunk.requires.every(r => p.requires.includes(r)));
+      if (validPrims.length === 0) {
+        validPrims = primitives.filter(p => p.requires.length > 0 && p.requires.every(r => chunk.requires.includes(r)));
+      }
+    } else if (chunk.requires.length === 1) {
       validPrims = primitives.filter(p => p.requires.length > 0 && p.requires.every(r => chunk.requires.includes(r)));
     } else {
       validPrims = primitives.filter(p => p.requires.length === 0);
@@ -2248,12 +2255,19 @@ function generateLevel(seedString) {
 // os desafios que exigem a mecanica-tema de proposito (signature challenge,
 // escada de Azospirillum, ponte de micorriza) e so repara vaos genuinamente
 // intransponiveis, inserindo um degrau de recuperacao validado pela fisica.
-function safetyPrimitive(abilities = {}) {
-  const requires = [];
-  let id = 'safety-jump';
-  if (abilities.doubleJump) { requires.push('doubleJump'); id += '-double'; }
-  if (abilities.dash) { requires.push('dash'); id += '-dash'; }
-  return { id, requires };
+// Primitivas que o jogador CONSEGUE executar com as habilidades desbloqueadas.
+// Uma travessia so e "impossivel" se NENHUMA delas pousa no destino — validar
+// com uma unica primitiva de potencia maxima daria falso-negativo por overshoot
+// nos vaos pequenos (a combinacao salto duplo + dash passa longe de um degrau
+// feito para salto comum).
+function executablePrimitives(level, abilities = {}) {
+  const all = level.primitives || [];
+  const usable = all.filter(p => (p.requires || []).every(r => abilities[r]));
+  return usable.length ? usable : all.filter(p => (p.requires || []).length === 0);
+}
+
+function anyPrimitivePasses(from, to, prims) {
+  return prims.some(p => validateChunk(from, to, p, 'normal'));
 }
 
 function isThemedCrossing(prev, next) {
@@ -2266,7 +2280,7 @@ function isThemedCrossing(prev, next) {
   );
 }
 
-function buildSafetyStep(prev, next, prim, logicIndex) {
+function buildSafetyStep(prev, next, prims, logicIndex) {
   const previousEnd = prev.x + prev.w;
   const gap = next.x - previousEnd;
   const width = clamp(gap * .5, 96, 150);
@@ -2287,7 +2301,7 @@ function buildSafetyStep(prev, next, prim, logicIndex) {
       safetyStep: true,
       logicIndex,
     };
-    if (validateChunk(prev, step, prim, 'normal') && validateChunk(step, next, prim, 'normal')) {
+    if (anyPrimitivePasses(prev, step, prims) && anyPrimitivePasses(step, next, prims)) {
       return step;
     }
   }
@@ -2295,7 +2309,8 @@ function buildSafetyStep(prev, next, prim, logicIndex) {
 }
 
 function enforceTraversableRoute(level, abilities = {}) {
-  const prim = safetyPrimitive(abilities);
+  const prims = executablePrimitives(level, abilities);
+  if (!prims.length) return [];
   const route = (level.platforms || [])
     .filter(p => !p.recovery && !p.final && Number.isInteger(p.logicIndex) && p.logicIndex >= 0)
     .sort((a, b) => a.logicIndex - b.logicIndex || a.x - b.x);
@@ -2311,8 +2326,8 @@ function enforceTraversableRoute(level, abilities = {}) {
       && p.x + p.w / 2 < next.x
     ));
     if (alreadyStepped) continue;
-    if (validateChunk(prev, next, prim, 'normal')) continue;
-    const step = buildSafetyStep(prev, next, prim, next.logicIndex);
+    if (anyPrimitivePasses(prev, next, prims)) continue;
+    const step = buildSafetyStep(prev, next, prims, next.logicIndex);
     if (step) {
       level.platforms.push(step);
       inserted.push(step);
@@ -2409,6 +2424,18 @@ function generateLogicGraph(rnd) {
       requiredAbility = weightedAbility(rnd, availableAbilities, profile.theme);
     }
 
+    // Combo integrado: quando salto duplo E dash ja estao desbloqueados, uma
+    // fracao dos chunks (fora de eventos/skill nodes) exige encadear os dois na
+    // mesma travessia — o desafio-assinatura da fase final. So consome rnd()
+    // quando ha chance configurada, para nao alterar a geracao das demais fases.
+    let requiresList = requiredAbility ? [requiredAbility] : [];
+    const bothMovementUnlocked = availableUnlocks.doubleJump && availableUnlocks.dash;
+    if (!event && !isSkillNode && bothMovementUnlocked
+      && (profile.comboRequirementChance || 0) > 0
+      && rnd() < profile.comboRequirementChance) {
+      requiresList = ['doubleJump', 'dash'];
+    }
+
     let difficultyTarget = 'comfortable';
     if (!event && !isSkillNode && i > 3 && rnd() < profile.hardChance) difficultyTarget = 'hard';
 
@@ -2431,7 +2458,7 @@ function generateLogicGraph(rnd) {
 
     chunks.push({
       index: i,
-      requires: requiredAbility ? [requiredAbility] : [],
+      requires: requiresList,
       availableUnlocks,
       availableAbilities,
       practiceFeature,
@@ -3759,6 +3786,23 @@ function generatePrimitives() {
     ['dash']
   );
 
+  // Combo integrado (fase final): salto -> salto duplo -> air-dash. Encadeia as
+  // duas mecanicas ja desbloqueadas para vencer vaos altos E largos, que nenhuma
+  // primitiva isolada alcanca. O agente de validacao (agents.js) usa 'double' e
+  // 'dash' no id para acionar as duas habilidades.
+  const doubleJumpDashSeq = Array(15).fill(jump)
+    .concat(Array(10).fill(right)) // solta o salto
+    .concat(Array(15).fill(jump))  // salto duplo
+    .concat(Array(8).fill(right))  // sobe um pouco
+    .concat([rightDash])           // air-dash no apice
+    .concat(Array(60).fill(right));
+
+  simulateMovement('running-double-jump-dash',
+    (s) => { s.setInputs(right); for(let i=0; i<60; i++) s.step(DT); return 60; },
+    doubleJumpDashSeq,
+    ['doubleJump', 'dash']
+  );
+
   return primitives;
 }
 Object.assign(__exports, { generatePrimitives });
@@ -4702,14 +4746,19 @@ function ensureCampaignUnlockShape(campaign) {
 }
 
 function tuningForPhase(phase) {
-  if (phase === 0) return { hardChance: .02, enemyChance: 0, skillRequirementChance: 0 };
-  if (phase === 1) return { hardChance: .08, enemyChance: .12, skillRequirementChance: .56 };
-  if (phase === 2) return { hardChance: .10, enemyChance: .14, skillRequirementChance: .60 };
-  if (phase === 3) return { hardChance: .14, enemyChance: .18, skillRequirementChance: .68 };
+  if (phase === 0) return { hardChance: .02, enemyChance: 0, skillRequirementChance: 0, comboRequirementChance: 0 };
+  if (phase === 1) return { hardChance: .08, enemyChance: .12, skillRequirementChance: .56, comboRequirementChance: 0 };
+  if (phase === 2) return { hardChance: .10, enemyChance: .14, skillRequirementChance: .60, comboRequirementChance: 0 };
+  if (phase === 3) return { hardChance: .14, enemyChance: .18, skillRequirementChance: .68, comboRequirementChance: 0 };
+  // Fase 9 (Ecossistema integrado): gauntlet das mecanicas ja dominadas — mais
+  // chunks 'hard' e uma fracao exigindo o combo salto duplo + dash. A rede de
+  // seguranca (enforceTraversableRoute) garante que continua vencivel.
+  if (phase === 9) return { hardChance: .34, enemyChance: .26, skillRequirementChance: .82, comboRequirementChance: .30 };
   return {
     hardChance: Math.min(.23, .15 + (phase - 4) * .012),
     enemyChance: Math.min(.28, .18 + (phase - 4) * .01),
     skillRequirementChance: Math.min(.78, .68 + (phase - 4) * .015),
+    comboRequirementChance: 0,
   };
 }
 
@@ -14603,54 +14652,61 @@ function generateGeometry(logicChunk, prevPlatform, primitive, rnd) {
   let dx = primitive.displacement.x;
   let dy = primitive.displacement.y;
 
-  // Stretch factor: comfortable = 60-85%, hard = 80-95%
+  const requiresDouble = primitive.requires.includes('doubleJump');
+  const requiresDash = primitive.requires.includes('dash');
+  const isCombo = requiresDouble && requiresDash;
+  const isHard = logicChunk.difficultyTarget === 'hard';
+
+  // Stretch factor: faixa mais ampla que antes, para distribuir os vaos com mais
+  // variedade. Combo e dash cobrem mais distancia horizontal.
   let stretch;
-  if (logicChunk.difficultyTarget === 'hard') {
+  if (isCombo) {
+    stretch = 0.85 + rnd() * 0.12;
+  } else if (isHard) {
     stretch = 0.80 + rnd() * 0.15;
   } else {
-    stretch = 0.60 + rnd() * 0.25;
+    stretch = 0.55 + rnd() * 0.35;
   }
 
   // Calculate horizontal gap
   dx = Math.abs(dx) * stretch;
+  if (requiresDash) dx *= 1.15; // o dash estende o alcance
   // Ensure minimum gap so platforms don't overlap
   dx = Math.max(dx, 60);
 
-  // Vertical variation: create wave-like terrain
-  // Use chunk index to create natural ups and downs
+  // Variacao vertical: terreno em ondas. Duas senoides de frequencias diferentes
+  // quebram a periodicidade do padrao unico, e o ruido local e mais amplo.
   const chunkIndex = logicChunk.index || 0;
-  const wavePhase = chunkIndex * 0.31; // creates organic-feeling waves
-  const waveAmplitude = 120; // max vertical swing
-  const baseWave = Math.sin(wavePhase) * waveAmplitude;
+  const wave = Math.sin(chunkIndex * 0.31) * 120 + Math.sin(chunkIndex * 0.13 + 1.7) * 70;
+  const localVariation = (rnd() - 0.5) * 130;
 
-  // Add local randomness on top of the wave
-  const localVariation = (rnd() - 0.5) * 80;
-
-  // For skill intro chunks, keep height difference moderate
   let targetDy;
   if (logicChunk.isSkillIntro || logicChunk.allyId) {
-    targetDy = (rnd() - 0.5) * 40; // gentle variation for learning moments
+    targetDy = (rnd() - 0.5) * 40; // variacao suave nos momentos de aprendizado
+  } else if (isCombo) {
+    // Combo: sobe alto; o dash estende o alcance na sequencia.
+    targetDy = -55 - rnd() * 60;
+  } else if (requiresDouble) {
+    // Salto duplo: sobe, mas com magnitude variada (as vezes moderado).
+    targetDy = -30 - rnd() * 90;
+  } else if (requiresDash) {
+    // Dash: leve variacao de altura, nao mais plano fixo.
+    targetDy = (rnd() - 0.5) * 70;
   } else {
-    targetDy = baseWave * 0.3 + localVariation;
-
-    // For double jump, allow reaching higher platforms
-    if (primitive.requires.includes('doubleJump')) {
-      targetDy = -40 - rnd() * 80; // tend upward
-    }
-    // For dash, keep roughly same height
-    if (primitive.requires.includes('dash')) {
-      targetDy = (rnd() - 0.5) * 30;
-    }
+    // Terreno comum acompanha a onda, agora com peso maior e ruido mais amplo.
+    targetDy = wave * 0.5 + localVariation;
   }
 
   // Platform width variation
   let platW;
   if (logicChunk.isSkillIntro || logicChunk.allyId || logicChunk.isCheckpoint) {
-    platW = 150 + rnd() * 80; // wide safe platforms for important moments
-  } else if (logicChunk.difficultyTarget === 'hard') {
-    platW = 60 + rnd() * 40; // narrow for challenge
+    platW = 150 + rnd() * 80; // plataformas largas e seguras nos momentos-chave
+  } else if (isCombo) {
+    platW = 70 + rnd() * 45; // destino do combo nao tao estreito
+  } else if (isHard) {
+    platW = 60 + rnd() * 45; // estreita para desafio
   } else {
-    platW = 80 + rnd() * 100; // medium variety
+    platW = 78 + rnd() * 115; // mais variedade
   }
 
   let platH = 40 + rnd() * 60;

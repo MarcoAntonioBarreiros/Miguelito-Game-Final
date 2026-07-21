@@ -106,14 +106,19 @@ export function ensureCampaignUnlockShape(campaign) {
 }
 
 function tuningForPhase(phase) {
-  if (phase === 0) return { hardChance: .02, enemyChance: 0, skillRequirementChance: 0 };
-  if (phase === 1) return { hardChance: .08, enemyChance: .12, skillRequirementChance: .56 };
-  if (phase === 2) return { hardChance: .10, enemyChance: .14, skillRequirementChance: .60 };
-  if (phase === 3) return { hardChance: .14, enemyChance: .18, skillRequirementChance: .68 };
+  if (phase === 0) return { hardChance: .02, enemyChance: 0, skillRequirementChance: 0, comboRequirementChance: 0 };
+  if (phase === 1) return { hardChance: .08, enemyChance: .12, skillRequirementChance: .56, comboRequirementChance: 0 };
+  if (phase === 2) return { hardChance: .10, enemyChance: .14, skillRequirementChance: .60, comboRequirementChance: 0 };
+  if (phase === 3) return { hardChance: .14, enemyChance: .18, skillRequirementChance: .68, comboRequirementChance: 0 };
+  // Fase 9 (Ecossistema integrado): gauntlet das mecanicas ja dominadas — mais
+  // chunks 'hard' e uma fracao exigindo o combo salto duplo + dash. A rede de
+  // seguranca (enforceTraversableRoute) garante que continua vencivel.
+  if (phase === 9) return { hardChance: .34, enemyChance: .26, skillRequirementChance: .82, comboRequirementChance: .30 };
   return {
     hardChance: Math.min(.23, .15 + (phase - 4) * .012),
     enemyChance: Math.min(.28, .18 + (phase - 4) * .01),
     skillRequirementChance: Math.min(.78, .68 + (phase - 4) * .015),
+    comboRequirementChance: 0,
   };
 }
 

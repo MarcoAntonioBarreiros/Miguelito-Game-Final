@@ -143,10 +143,27 @@ export function generatePrimitives() {
     .concat([rightDash])
     .concat(Array(60).fill(right));
 
-  simulateMovement('air-dash', 
-    (s) => { s.setInputs(right); for(let i=0; i<60; i++) s.step(DT); return 60; }, 
+  simulateMovement('air-dash',
+    (s) => { s.setInputs(right); for(let i=0; i<60; i++) s.step(DT); return 60; },
     airDashSeq,
     ['dash']
+  );
+
+  // Combo integrado (fase final): salto -> salto duplo -> air-dash. Encadeia as
+  // duas mecanicas ja desbloqueadas para vencer vaos altos E largos, que nenhuma
+  // primitiva isolada alcanca. O agente de validacao (agents.js) usa 'double' e
+  // 'dash' no id para acionar as duas habilidades.
+  const doubleJumpDashSeq = Array(15).fill(jump)
+    .concat(Array(10).fill(right)) // solta o salto
+    .concat(Array(15).fill(jump))  // salto duplo
+    .concat(Array(8).fill(right))  // sobe um pouco
+    .concat([rightDash])           // air-dash no apice
+    .concat(Array(60).fill(right));
+
+  simulateMovement('running-double-jump-dash',
+    (s) => { s.setInputs(right); for(let i=0; i<60; i++) s.step(DT); return 60; },
+    doubleJumpDashSeq,
+    ['doubleJump', 'dash']
   );
 
   return primitives;

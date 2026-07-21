@@ -150,7 +150,14 @@ export function generateLevel(seedString) {
     const chunk = logic[i];
     let validPrims;
 
-    if (chunk.requires.length > 0) {
+    if (chunk.requires.length > 1) {
+      // Chunk de combo: exige a primitiva que usa TODAS as habilidades pedidas
+      // (senao cairia numa de habilidade unica e o combo nao aconteceria).
+      validPrims = primitives.filter(p => chunk.requires.every(r => p.requires.includes(r)));
+      if (validPrims.length === 0) {
+        validPrims = primitives.filter(p => p.requires.length > 0 && p.requires.every(r => chunk.requires.includes(r)));
+      }
+    } else if (chunk.requires.length === 1) {
       validPrims = primitives.filter(p => p.requires.length > 0 && p.requires.every(r => chunk.requires.includes(r)));
     } else {
       validPrims = primitives.filter(p => p.requires.length === 0);
@@ -311,12 +318,19 @@ export function generateLevel(seedString) {
 // os desafios que exigem a mecanica-tema de proposito (signature challenge,
 // escada de Azospirillum, ponte de micorriza) e so repara vaos genuinamente
 // intransponiveis, inserindo um degrau de recuperacao validado pela fisica.
-function safetyPrimitive(abilities = {}) {
-  const requires = [];
-  let id = 'safety-jump';
-  if (abilities.doubleJump) { requires.push('doubleJump'); id += '-double'; }
-  if (abilities.dash) { requires.push('dash'); id += '-dash'; }
-  return { id, requires };
+// Primitivas que o jogador CONSEGUE executar com as habilidades desbloqueadas.
+// Uma travessia so e "impossivel" se NENHUMA delas pousa no destino — validar
+// com uma unica primitiva de potencia maxima daria falso-negativo por overshoot
+// nos vaos pequenos (a combinacao salto duplo + dash passa longe de um degrau
+// feito para salto comum).
+function executablePrimitives(level, abilities = {}) {
+  const all = level.primitives || [];
+  const usable = all.filter(p => (p.requires || []).every(r => abilities[r]));
+  return usable.length ? usable : all.filter(p => (p.requires || []).length === 0);
+}
+
+function anyPrimitivePasses(from, to, prims) {
+  return prims.some(p => validateChunk(from, to, p, 'normal'));
 }
 
 function isThemedCrossing(prev, next) {
@@ -329,7 +343,7 @@ function isThemedCrossing(prev, next) {
   );
 }
 
-function buildSafetyStep(prev, next, prim, logicIndex) {
+function buildSafetyStep(prev, next, prims, logicIndex) {
   const previousEnd = prev.x + prev.w;
   const gap = next.x - previousEnd;
   const width = clamp(gap * .5, 96, 150);
@@ -350,7 +364,7 @@ function buildSafetyStep(prev, next, prim, logicIndex) {
       safetyStep: true,
       logicIndex,
     };
-    if (validateChunk(prev, step, prim, 'normal') && validateChunk(step, next, prim, 'normal')) {
+    if (anyPrimitivePasses(prev, step, prims) && anyPrimitivePasses(step, next, prims)) {
       return step;
     }
   }
@@ -358,7 +372,8 @@ function buildSafetyStep(prev, next, prim, logicIndex) {
 }
 
 export function enforceTraversableRoute(level, abilities = {}) {
-  const prim = safetyPrimitive(abilities);
+  const prims = executablePrimitives(level, abilities);
+  if (!prims.length) return [];
   const route = (level.platforms || [])
     .filter(p => !p.recovery && !p.final && Number.isInteger(p.logicIndex) && p.logicIndex >= 0)
     .sort((a, b) => a.logicIndex - b.logicIndex || a.x - b.x);
@@ -374,8 +389,8 @@ export function enforceTraversableRoute(level, abilities = {}) {
       && p.x + p.w / 2 < next.x
     ));
     if (alreadyStepped) continue;
-    if (validateChunk(prev, next, prim, 'normal')) continue;
-    const step = buildSafetyStep(prev, next, prim, next.logicIndex);
+    if (anyPrimitivePasses(prev, next, prims)) continue;
+    const step = buildSafetyStep(prev, next, prims, next.logicIndex);
     if (step) {
       level.platforms.push(step);
       inserted.push(step);

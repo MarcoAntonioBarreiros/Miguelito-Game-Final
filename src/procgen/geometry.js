@@ -3,54 +3,61 @@ export function generateGeometry(logicChunk, prevPlatform, primitive, rnd) {
   let dx = primitive.displacement.x;
   let dy = primitive.displacement.y;
   
-  // Stretch factor: comfortable = 60-85%, hard = 80-95%
+  const requiresDouble = primitive.requires.includes('doubleJump');
+  const requiresDash = primitive.requires.includes('dash');
+  const isCombo = requiresDouble && requiresDash;
+  const isHard = logicChunk.difficultyTarget === 'hard';
+
+  // Stretch factor: faixa mais ampla que antes, para distribuir os vaos com mais
+  // variedade. Combo e dash cobrem mais distancia horizontal.
   let stretch;
-  if (logicChunk.difficultyTarget === 'hard') {
+  if (isCombo) {
+    stretch = 0.85 + rnd() * 0.12;
+  } else if (isHard) {
     stretch = 0.80 + rnd() * 0.15;
   } else {
-    stretch = 0.60 + rnd() * 0.25;
+    stretch = 0.55 + rnd() * 0.35;
   }
 
   // Calculate horizontal gap
   dx = Math.abs(dx) * stretch;
+  if (requiresDash) dx *= 1.15; // o dash estende o alcance
   // Ensure minimum gap so platforms don't overlap
   dx = Math.max(dx, 60);
 
-  // Vertical variation: create wave-like terrain
-  // Use chunk index to create natural ups and downs
+  // Variacao vertical: terreno em ondas. Duas senoides de frequencias diferentes
+  // quebram a periodicidade do padrao unico, e o ruido local e mais amplo.
   const chunkIndex = logicChunk.index || 0;
-  const wavePhase = chunkIndex * 0.31; // creates organic-feeling waves
-  const waveAmplitude = 120; // max vertical swing
-  const baseWave = Math.sin(wavePhase) * waveAmplitude;
-  
-  // Add local randomness on top of the wave
-  const localVariation = (rnd() - 0.5) * 80;
-  
-  // For skill intro chunks, keep height difference moderate
+  const wave = Math.sin(chunkIndex * 0.31) * 120 + Math.sin(chunkIndex * 0.13 + 1.7) * 70;
+  const localVariation = (rnd() - 0.5) * 130;
+
   let targetDy;
   if (logicChunk.isSkillIntro || logicChunk.allyId) {
-    targetDy = (rnd() - 0.5) * 40; // gentle variation for learning moments
+    targetDy = (rnd() - 0.5) * 40; // variacao suave nos momentos de aprendizado
+  } else if (isCombo) {
+    // Combo: sobe alto; o dash estende o alcance na sequencia.
+    targetDy = -55 - rnd() * 60;
+  } else if (requiresDouble) {
+    // Salto duplo: sobe, mas com magnitude variada (as vezes moderado).
+    targetDy = -30 - rnd() * 90;
+  } else if (requiresDash) {
+    // Dash: leve variacao de altura, nao mais plano fixo.
+    targetDy = (rnd() - 0.5) * 70;
   } else {
-    targetDy = baseWave * 0.3 + localVariation;
-    
-    // For double jump, allow reaching higher platforms
-    if (primitive.requires.includes('doubleJump')) {
-      targetDy = -40 - rnd() * 80; // tend upward
-    }
-    // For dash, keep roughly same height
-    if (primitive.requires.includes('dash')) {
-      targetDy = (rnd() - 0.5) * 30;
-    }
+    // Terreno comum acompanha a onda, agora com peso maior e ruido mais amplo.
+    targetDy = wave * 0.5 + localVariation;
   }
 
   // Platform width variation
   let platW;
   if (logicChunk.isSkillIntro || logicChunk.allyId || logicChunk.isCheckpoint) {
-    platW = 150 + rnd() * 80; // wide safe platforms for important moments
-  } else if (logicChunk.difficultyTarget === 'hard') {
-    platW = 60 + rnd() * 40; // narrow for challenge
+    platW = 150 + rnd() * 80; // plataformas largas e seguras nos momentos-chave
+  } else if (isCombo) {
+    platW = 70 + rnd() * 45; // destino do combo nao tao estreito
+  } else if (isHard) {
+    platW = 60 + rnd() * 45; // estreita para desafio
   } else {
-    platW = 80 + rnd() * 100; // medium variety
+    platW = 78 + rnd() * 115; // mais variedade
   }
 
   let platH = 40 + rnd() * 60;

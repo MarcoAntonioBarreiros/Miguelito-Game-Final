@@ -71,6 +71,18 @@ export function generateLogicGraph(rnd) {
       requiredAbility = weightedAbility(rnd, availableAbilities, profile.theme);
     }
 
+    // Combo integrado: quando salto duplo E dash ja estao desbloqueados, uma
+    // fracao dos chunks (fora de eventos/skill nodes) exige encadear os dois na
+    // mesma travessia — o desafio-assinatura da fase final. So consome rnd()
+    // quando ha chance configurada, para nao alterar a geracao das demais fases.
+    let requiresList = requiredAbility ? [requiredAbility] : [];
+    const bothMovementUnlocked = availableUnlocks.doubleJump && availableUnlocks.dash;
+    if (!event && !isSkillNode && bothMovementUnlocked
+      && (profile.comboRequirementChance || 0) > 0
+      && rnd() < profile.comboRequirementChance) {
+      requiresList = ['doubleJump', 'dash'];
+    }
+
     let difficultyTarget = 'comfortable';
     if (!event && !isSkillNode && i > 3 && rnd() < profile.hardChance) difficultyTarget = 'hard';
 
@@ -93,7 +105,7 @@ export function generateLogicGraph(rnd) {
 
     chunks.push({
       index: i,
-      requires: requiredAbility ? [requiredAbility] : [],
+      requires: requiresList,
       availableUnlocks,
       availableAbilities,
       practiceFeature,
