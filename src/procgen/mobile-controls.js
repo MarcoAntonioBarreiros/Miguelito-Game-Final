@@ -83,18 +83,21 @@ document.addEventListener('visibilitychange', () => {
 
 resetButton?.addEventListener('click', event => {
   event.preventDefault();
+  resetButton.blur();
   emit('KeyR', true);
   setTimeout(() => emit('KeyR', false), 80);
 });
 
 debugButton?.addEventListener('click', event => {
   event.preventDefault();
+  debugButton.blur();
   const visible = debug?.classList.toggle('mobile-visible');
   debugButton.setAttribute('aria-pressed', String(Boolean(visible)));
 });
 
 fullscreenButton?.addEventListener('click', async event => {
   event.preventDefault();
+  fullscreenButton.blur();
   try {
     if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.();
     else await document.exitFullscreen?.();

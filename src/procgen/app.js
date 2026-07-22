@@ -593,11 +593,29 @@ function toggleRecoveryPlatforms() {
 recoveryToggleButton?.addEventListener('click', event => {
   event.preventDefault();
   toggleRecoveryPlatforms();
+  recoveryToggleButton.blur();
 });
+
+// Remove o foco do teclado de qualquer botao clicado para impedir que a tecla Espaco reatire o clique do botao
+document.addEventListener('click', event => {
+  const btn = event.target?.closest?.('button, [role="button"]');
+  if (btn && typeof btn.blur === 'function') btn.blur();
+}, { passive: true });
+document.addEventListener('mouseup', event => {
+  const btn = event.target?.closest?.('button, [role="button"]');
+  if (btn && typeof btn.blur === 'function') btn.blur();
+}, { passive: true });
 
 const keys = {};
 window.addEventListener('keydown', event => {
   if (phaseLab.enabled && event.target instanceof Element && event.target.closest('.phase-lab')) return;
+
+  // Impede que a tecla Espaco (pulo) dispara o clique do botao do DOM focado
+  if ((event.code === 'Space' || event.key === ' ') && document.activeElement instanceof HTMLElement && document.activeElement.tagName === 'BUTTON') {
+    document.activeElement.blur();
+    event.preventDefault();
+  }
+
   keys[event.code] = true;
   if (event.code === 'KeyR' && !event.repeat) startNewCampaign();
   if (event.code === 'KeyT' && !event.repeat) toggleRecoveryPlatforms();
