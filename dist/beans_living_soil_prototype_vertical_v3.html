@@ -17609,13 +17609,10 @@ function circularGaugeMarkup({ label, symbol, valueText, pct, color }) {
   `;
 }
 
+let lastRootData = { health: 100, status: 'Saudável', color: '#70e5d6' };
+
 function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
   if (!contextDiv) return;
-
-  if (!nearbyRoot && (!sim || !sim.state)) {
-    contextDiv.classList.remove('visible');
-    return;
-  }
 
   contextDiv.classList.add('visible');
   let html = `<div class="context-header">Bioma Local <span>${state?.activeBiomes?.length || 1}</span></div>`;
@@ -17626,6 +17623,8 @@ function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
     const health = nearbyRoot.rootHealth ? Math.round(nearbyRoot.rootHealth * 100) : 100;
     const rootColor = health < 40 ? '#ff8297' : '#70e5d6';
     const rootStatus = health >= 80 ? 'Saudável' : health >= 40 ? 'Estressada' : 'Crítica';
+    lastRootData = { health, status: rootStatus, color: rootColor };
+
     html += `
       <div class="context-item">
         <span>Raiz: <strong>${rootStatus}</strong> (${health}%)</span>
@@ -17635,10 +17634,18 @@ function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
     if (nearbyRoot.hasPhosphate) {
       html += `<div class="context-item" style="color: #c9a5ff; font-weight: bold; margin-top: 4px;">P Cristalizado Detectado</div>`;
     }
-    mobileGaugesHtml += circularGaugeMarkup({ label: 'Saúde da Raiz', symbol: 'R', valueText: `${rootStatus} (${health}%)`, pct: health, color: rootColor });
   } else {
     html += `<div class="context-item"><span>Explorando o solo...</span></div>`;
   }
+
+  // O medidor circular de Raiz (R) permanece continuamente aceso na UI móvel
+  mobileGaugesHtml += circularGaugeMarkup({
+    label: 'Saúde da Raiz',
+    symbol: 'R',
+    valueText: `${lastRootData.status} (${lastRootData.health}%)`,
+    pct: lastRootData.health,
+    color: lastRootData.color
+  });
 
   if (sim && sim.state) {
     const s = sim.state;
