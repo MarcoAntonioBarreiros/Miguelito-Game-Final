@@ -1,4 +1,5 @@
 import { H, W } from '../core/constants.js';
+import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from '../render/bacillus-sprite.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -509,26 +510,46 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
       const y = -4 + Math.sin(angle) * rr * .48;
       ctx.globalAlpha = colony.dormant ? .32 : .55 + (i % 3) * .14;
       ctx.beginPath();
-      if (colony.type === 'rhizobium') ctx.ellipse(x, y, 4.5, 2.4, angle + .4, 0, TAU);
-      else if (colony.type === 'azospirillum') ctx.ellipse(x, y, 5.3, 1.8, angle, 0, TAU);
-      else if (colony.type === 'bacillus') ctx.roundRect(x - 4.5, y - 2, 9, 4, 2);
-      else ctx.ellipse(x, y, 4.8, 2, angle - .25, 0, TAU);
-      ctx.fill();
-      ctx.stroke();
+      if (colony.type === 'rhizobium') {
+        ctx.ellipse(x, y, 4.5, 2.4, angle + .4, 0, TAU);
+        ctx.fill();
+        ctx.stroke();
+      } else if (colony.type === 'azospirillum') {
+        ctx.ellipse(x, y, 5.3, 1.8, angle, 0, TAU);
+        ctx.fill();
+        ctx.stroke();
+      } else if (colony.type === 'bacillus') {
+        const spriteCount = 5;
+        if (i < spriteCount) {
+          const alpha = colony.dormant ? .35 : .95;
+          const bx = (i / Math.max(1, spriteCount - 1) - 0.5) * Math.max(110, radius * 2.2);
+          const by = -22 + Math.sin(state.time * 2.2 + i * 0.8) * 3;
+          const drawn = drawInoculatedBacillusSprite(ctx, bx, by, 54, null, state.time, i, alpha);
+          if (!drawn) {
+            ctx.roundRect(x - 4.5, y - 2, 9, 4, 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+        }
+      } else {
+        ctx.ellipse(x, y, 4.8, 2, angle - .25, 0, TAU);
+        ctx.fill();
+        ctx.stroke();
+      }
     }
     ctx.globalAlpha = 1;
 
     // A barra de vigor foi removida (poluicao): o estado agora vive no halo.
     // Mantemos so o rotulo de identidade do organismo.
-    const labelY = -radius - 19;
+    const labelY = radius + 14;
     ctx.font = '700 9px Inter,system-ui';
     ctx.textAlign = 'center';
     ctx.fillStyle = '#effff5';
-    ctx.fillText(`${profile.short} — ${colony.stage}`, 0, labelY - 5);
+    ctx.fillText(`${profile.short} — ${colony.stage}`, 0, labelY + 8);
     if (colony.type === 'azospirillum' && colony.associativeNitrogenActive) {
       ctx.font = '650 8px Inter,system-ui';
       ctx.fillStyle = 'rgba(255,215,131,.9)';
-      ctx.fillText('Fixação associativa de N', 0, labelY - 16);
+      ctx.fillText('Fixação associativa de N', 0, labelY + 19);
     }
     ctx.restore();
   }

@@ -2,6 +2,7 @@ import { W } from '../core/constants.js';
 import { drawWorldLabel } from '../procgen/world-label.js';
 import { lerp } from '../core/math.js';
 import { microbeCatalog, microbeEncounters } from '../data/microbes.js';
+import { drawRoamingBacillusSprite } from './bacillus-sprite.js';
 
 // A campanha procedural nao usa mais a cena decorativa fixa do inicio: ela
 // colocava, em toda fase, uma colonia de rhizobium (bacterias + arco marrom cor
@@ -155,7 +156,7 @@ export function createMicrobeRenderer({ ctx, state, entities }) {
     const m = microbeCatalog[z.id];
     const known = state.discoveredMicrobes.has(z.id);
     const label = known ? m.name : 'Sinal biológico';
-    drawWorldLabel(ctx, z.x, z.y - 91, label, {
+    drawWorldLabel(ctx, z.x, z.y + 42, label, {
       color: known ? '#effff6' : '#c0d3cb',
       font: '800 13px Inter,system-ui',
       glow: known ? 12 : 7,
@@ -213,7 +214,13 @@ export function createMicrobeRenderer({ ctx, state, entities }) {
       ctx.arc(z.x + Math.cos(a) * 55, z.y + Math.sin(a) * 35, 30 + Math.sin(time + i) * 4, 0, Math.PI * 2);
       ctx.fill();
     }
-    microbeArt.bacillus.forEach(c => drawBacteriumWithFlags(z.x + c.x, z.y + c.y + Math.sin(time + c.p) * 5, c.a + Math.sin(time * .8 + c.p) * .15, c.s, '#70e5d6', c.p, 'short', 'peri', c.spore ? .9 : 0));
+    microbeArt.bacillus.forEach(c => {
+      const bx = z.x + c.x;
+      const by = z.y + c.y + Math.sin(time + c.p) * 5;
+      if (!drawRoamingBacillusSprite(ctx, bx, by, 38 * c.s, time, c.p)) {
+        drawBacteriumWithFlags(bx, by, c.a + Math.sin(time * .8 + c.p) * .15, c.s, '#70e5d6', c.p, 'short', 'peri', c.spore ? .9 : 0);
+      }
+    });
   }
 
   function drawPhosScene(z) {

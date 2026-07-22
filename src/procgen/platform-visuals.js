@@ -30,313 +30,338 @@ function stateInfo(platform) {
   return { label: 'em colapso', color: '#ff657f', overlay: 'rgba(79,25,38,.36)' };
 }
 
-export function createPlatformVisuals({ state }) {
-  function drawRoot(ctx, platform) {
-    const seed = platformSeed(platform);
-    const radius = platform.final ? 18 : 15;
-    const health = clamp(platform.rootHealth ?? 1, 0, 1);
-    const maxHealth = clamp(platform.rootMaxHealth ?? 1, .01, 1);
-    const permanentDamage = clamp(platform.permanentDamage || 0, 0, .7);
-    const support = clamp(platform.supportIntegrity ?? health, 0, 1);
-    const stateStyle = stateInfo(platform);
+const ROOT_PALETTE = Object.freeze({
+  outline: '#3f2d1d',
+  innerBase: '#4b361f',
+  green: ['#63753a', '#6d8140', '#596b33'],
+  greenStroke: '#394622',
+  blue: ['#70807a', '#7c8d86', '#66756f'],
+  blueStroke: '#4c5a56',
+  ochreSmall: ['#6d532d', '#785b31', '#624a27'],
+  ochreLarge: ['#6f5027', '#78562a', '#654821'],
+  ochreStroke: '#4a3720',
+  radicle: '#8c9256',
+});
 
-    ctx.save();
-    roundedPath(ctx, platform, radius);
-    ctx.clip();
+function drawTissueLayerCanvas(ctx, seed, options) {
+  const { startX, endX, startY, endY, cellW, cellH, fillColors, strokeColor, strokeWidth } = options;
+  const width = endX - startX;
+  const height = endY - startY;
+  const cols = Math.max(1, Math.round(width / cellW));
+  const rows = Math.max(1, Math.round(height / cellH));
+  const dx = width / cols;
+  const dy = height / rows;
 
-    const fill = ctx.createLinearGradient(0, platform.y, 0, platform.y + platform.h);
-    fill.addColorStop(0, platform.final ? '#e6c88f' : health < .25 ? '#765141' : health < .5 ? '#b47a58' : '#d9b477');
-    fill.addColorStop(.18, platform.final ? '#bd8c58' : health < .25 ? '#593934' : '#ad774e');
-    fill.addColorStop(.72, health < .25 ? '#38272c' : '#5a382f');
-    fill.addColorStop(1, '#2b1c25');
-    ctx.fillStyle = fill;
-    ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+  for (let i = 0; i < rows; i++) {
+    const rowY = startY + i * dy;
+    const isOffset = (i % 2 === 1);
+    const currentCols = isOffset ? cols + 1 : cols;
 
-    const top = ctx.createLinearGradient(platform.x, platform.y, platform.x + platform.w, platform.y);
-    top.addColorStop(0, `rgba(255,240,194,${.18 + health * .2})`);
-    top.addColorStop(.5, `rgba(255,220,151,${.25 + health * .47})`);
-    top.addColorStop(1, `rgba(255,240,194,${.12 + health * .16})`);
-    ctx.fillStyle = top;
-    ctx.fillRect(platform.x, platform.y, platform.w, 7);
+    for (let j = 0; j < currentCols; j++) {
+      const idx = i * 31 + j * 7;
+      const cellX = startX + j * dx - (isOffset ? dx * 0.5 : 0);
+      const jx = (pseudo(seed, idx + 1) - 0.5) * dx * 0.2;
+      const jy = (pseudo(seed, idx + 2) - 0.5) * dy * 0.2;
+      const w = dx * (0.95 + pseudo(seed, idx + 3) * 0.13);
+      const h = dy * (0.95 + pseudo(seed, idx + 4) * 0.13);
+      const rx = Math.min(w, h) * (0.25 + pseudo(seed, idx + 5) * 0.2);
+      const fill = fillColors[Math.floor(pseudo(seed, idx + 6) * fillColors.length)];
 
-    ctx.fillStyle = stateStyle.overlay;
-    ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-
-    if (permanentDamage > .01) {
-      const scarWidth = platform.w * permanentDamage;
-      const scarX = platform.x + platform.w - scarWidth;
-      const scar = ctx.createLinearGradient(scarX, platform.y, platform.x + platform.w, platform.y + platform.h);
-      scar.addColorStop(0, 'rgba(80,42,47,.04)');
-      scar.addColorStop(.45, `rgba(72,33,43,${.2 + permanentDamage * .55})`);
-      scar.addColorStop(1, `rgba(37,20,31,${.28 + permanentDamage * .5})`);
-      ctx.fillStyle = scar;
-      ctx.fillRect(scarX, platform.y, scarWidth, platform.h);
-      ctx.strokeStyle = `rgba(255,126,118,${.24 + permanentDamage * .48})`;
-      ctx.lineWidth = 1.2;
-      for (let i = 0; i < 2 + Math.floor(permanentDamage * 8); i++) {
-        const x = scarX + pseudo(seed, i + 301) * Math.max(4, scarWidth);
-        ctx.beginPath();
-        ctx.moveTo(x, platform.y + 5);
-        ctx.bezierCurveTo(x - 8, platform.y + platform.h * .3, x + 9, platform.y + platform.h * .58, x - 3, platform.y + platform.h - 5);
-        ctx.stroke();
-      }
-    }
-
-    const rootDamage = clamp(platform.rootDamage || 0, 0, 1);
-    if (rootDamage > .025) {
-      const stress = ctx.createLinearGradient(platform.x, platform.y, platform.x + platform.w, platform.y + platform.h);
-      stress.addColorStop(0, `rgba(255,116,105,${rootDamage * .16})`);
-      stress.addColorStop(.55, `rgba(128,42,54,${rootDamage * .24})`);
-      stress.addColorStop(1, `rgba(72,22,40,${rootDamage * .12})`);
-      ctx.fillStyle = stress;
-      ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-
-      const crackCount = 2 + Math.floor((1 - support) * 7);
-      ctx.strokeStyle = `rgba(255,145,118,${.12 + rootDamage * .42})`;
-      ctx.lineWidth = 1 + rootDamage * 1.8;
-      for (let i = 0; i < crackCount; i++) {
-        const xx = platform.x + platform.w * (.12 + pseudo(seed, i + 211) * .76);
-        ctx.beginPath();
-        ctx.moveTo(xx, platform.y + 6);
-        ctx.bezierCurveTo(xx - 12, platform.y + platform.h * .28, xx + 18, platform.y + platform.h * .56, xx - 5, platform.y + platform.h * .82);
-        ctx.stroke();
-      }
-    }
-
-    if ((platform.healthTrend || 0) > 0 || (platform.recoveryPulse || 0) > .05) {
-      const pulse = clamp(platform.recoveryPulse || .25, 0, 1);
-      const flowCount = 3 + Math.floor((platform.noduleRecovery || 0) * 3 + (platform.mycorrhizaRecovery || 0) * 4);
-      ctx.lineWidth = 1.1 + pulse;
-      for (let i = 0; i < flowCount; i++) {
-        const phase = (state.time * (.18 + i * .02) + pseudo(seed, i + 411)) % 1;
-        const x = platform.x + 14 + phase * Math.max(12, platform.w - 28);
-        const y = platform.y + 9 + (i % 3) * Math.min(12, platform.h * .18);
-        ctx.strokeStyle = i % 2 ? `rgba(155,234,143,${.18 + pulse * .5})` : `rgba(255,211,111,${.16 + pulse * .44})`;
-        ctx.beginPath();
-        ctx.moveTo(x - 16, y + Math.sin(state.time * 3 + i) * 2);
-        ctx.quadraticCurveTo(x, y - 5, x + 16, y + 1);
-        ctx.stroke();
-      }
-    }
-
-    ctx.lineCap = 'round';
-    for (let i = 0; i < Math.max(3, Math.floor(platform.w / 68)); i++) {
-      const startX = platform.x + 18 + pseudo(seed, i) * Math.max(10, platform.w - 36);
-      const depth = 13 + pseudo(seed, i + 17) * Math.max(12, platform.h * .62);
-      const sway = (pseudo(seed, i + 31) - .5) * 34;
-      ctx.strokeStyle = i % 2
-        ? `rgba(255,220,158,${.08 + health * .11})`
-        : `rgba(104,65,48,${.18 + health * .24})`;
-      ctx.lineWidth = 1.1 + pseudo(seed, i + 43) * 1.6;
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = strokeWidth;
       ctx.beginPath();
-      ctx.moveTo(startX, platform.y + 5);
-      ctx.bezierCurveTo(
-        startX + sway * .25,
-        platform.y + depth * .32,
-        startX - sway * .4,
-        platform.y + depth * .7,
-        startX + sway,
-        platform.y + depth,
-      );
-      ctx.stroke();
-    }
-
-    ctx.strokeStyle = `rgba(255,229,174,${.08 + health * .15})`;
-    ctx.lineWidth = 1;
-    for (let y = platform.y + 18; y < platform.y + platform.h - 8; y += 17) {
-      ctx.beginPath();
-      ctx.moveTo(platform.x + 9, y);
-      ctx.bezierCurveTo(
-        platform.x + platform.w * .28,
-        y + Math.sin(seed + y) * 3,
-        platform.x + platform.w * .68,
-        y - 3,
-        platform.x + platform.w - 9,
-        y + 1,
-      );
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    ctx.save();
-    ctx.strokeStyle = platform.final ? 'rgba(255,235,185,.9)' : platform.healthTrend > 0 ? 'rgba(155,234,143,.92)' : `${stateStyle.color}cc`;
-    ctx.lineWidth = 1.4 + (1 - support) * 1.2;
-    if (platform.rootState === 'collapse') ctx.setLineDash([5, 5]);
-    roundedPath(ctx, platform, radius);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    if (platform.fixedObjective) {
-      const objectivePulse = .78 + Math.sin(state.time * 3.2) * .08;
-      ctx.save();
-      ctx.strokeStyle = `rgba(255,213,111,${objectivePulse})`;
-      ctx.fillStyle = 'rgba(255,213,111,.08)';
-      ctx.lineWidth = 3;
-      ctx.shadowBlur = 8;
-      ctx.shadowColor = '#ffd56f';
-      roundedPath(ctx, platform, radius);
+      ctx.roundRect(cellX + jx, rowY + jy, w, h, rx);
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = '#ffd56f';
-      ctx.fillRect(platform.x + 12, platform.y - 2, Math.max(24, platform.w - 24), 4);
-      ctx.restore();
-    }
 
-    if (!platform.mycorrhizaStructure) {
-      const azospirillumHairDensity = clamp(platform.azospirillumHairDensity || 0, 0, 1);
-      const baseHairCount = Math.floor(platform.w / 44 * health);
-      const hairCount = Math.max(0, Math.min(18, baseHairCount + Math.round(azospirillumHairDensity * 10)));
-      ctx.strokeStyle = azospirillumHairDensity > .05
-        ? `rgba(190,244,211,${.34 + azospirillumHairDensity * .5})`
-        : platform.healthTrend > 0 ? 'rgba(184,255,198,.78)' : `rgba(233,213,180,${.12 + health * .46})`;
-      ctx.lineWidth = 1;
-      for (let i = 0; i < hairCount; i++) {
-        const x = platform.x + 14 + (i + .5) / Math.max(1, hairCount) * Math.max(12, platform.w - 28);
-        const length = 5 + health * (5 + pseudo(seed, i + 71) * 9);
-        const lean = (pseudo(seed, i + 83) - .5) * 8;
-        ctx.beginPath();
-        ctx.moveTo(x, platform.y + 1);
-        ctx.quadraticCurveTo(x + lean * .35, platform.y - length * .55, x + lean, platform.y - length);
-        ctx.stroke();
-      }
+      // Nucleus
+      const nucW = w * (0.12 + pseudo(seed, idx + 7) * 0.1);
+      const nucH = h * (0.12 + pseudo(seed, idx + 8) * 0.1);
+      const maxOffX = Math.max(0, (w / 2) - nucW - strokeWidth);
+      const maxOffY = Math.max(0, (h / 2) - nucH - strokeWidth);
+      let offX = (pseudo(seed, idx + 9) - 0.5) * 2 * maxOffX;
+      let offY = (pseudo(seed, idx + 10) - 0.5) * 2 * maxOffY;
+      if (pseudo(seed, idx + 11) > 0.5) offX *= 1.3;
+      if (pseudo(seed, idx + 12) > 0.5) offY *= 1.3;
+      offX = clamp(offX, -maxOffX, maxOffX);
+      offY = clamp(offY, -maxOffY, maxOffY);
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.beginPath();
+      ctx.ellipse(cellX + jx + w / 2 + offX, rowY + jy + h / 2 + offY, Math.max(1, nucW), Math.max(1, nucH), 0, 0, TAU);
+      ctx.fill();
     }
+  }
+}
+
+function drawUpwardHairs(ctx, platform, seed) {
+  const hairCount = Math.max(3, Math.min(12, Math.floor(platform.w / 60)));
+  const safeCount = Math.max(2, hairCount);
+  const margin = platform.w * 0.13;
+  const height = platform.h;
+  ctx.save();
+  ctx.strokeStyle = ROOT_PALETTE.radicle;
+  ctx.lineWidth = clamp(height * 0.020, 1.4, 2.6);
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.95;
+
+  for (let i = 0; i < safeCount; i++) {
+    const t = safeCount === 1 ? 0.5 : i / (safeCount - 1);
+    const startX = platform.x + margin + t * (platform.w - margin * 2) + (pseudo(seed, i + 80) - 0.5) * platform.w * 0.03;
+    const startY = platform.y + pseudo(seed, i + 81) * height * 0.07;
+    const length = (0.2 + pseudo(seed, i + 82) * 0.15) * height;
+
+    const c1x = startX + (pseudo(seed, i + 83) - 0.5) * 12;
+    const c2x = startX + (pseudo(seed, i + 84) - 0.5) * 24;
+    const endX = startX + (pseudo(seed, i + 85) - 0.5) * 30;
+
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.bezierCurveTo(c1x, startY - length * 0.3, c2x, startY - length * 0.7, endX, startY - length);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+export function drawRootVisual(ctx, platform) {
+  const seed = platformSeed(platform);
+  const radius = platform.final ? 18 : 15;
+  const health = clamp(platform.rootHealth ?? 1, 0, 1);
+  const permanentDamage = clamp(platform.permanentDamage || 0, 0, .7);
+  const stateStyle = stateInfo(platform);
+
+  // 1. Radículas / Pelos no topo
+  drawUpwardHairs(ctx, platform, seed);
+
+  ctx.save();
+  roundedPath(ctx, platform, radius);
+  ctx.clip();
+
+  // 2. Fundo base
+  ctx.fillStyle = ROOT_PALETTE.innerBase;
+  ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+
+  const padX = platform.w * 0.05;
+  const gX = platform.x - padX;
+  const gEndX = platform.x + platform.w + padX;
+  const y = platform.y;
+  const height = platform.h;
+
+  const greenBand = height * 0.20;
+  const blueBand = height * 0.14;
+  const smallOchreBand = height * 0.10;
+
+  // Camada 1: Verde (Topo)
+  drawTissueLayerCanvas(ctx, seed, {
+    startX: gX, endX: gEndX, startY: y - 5, endY: y + greenBand,
+    cellW: clamp(height * 0.24, 15, 36), cellH: Math.max(4, greenBand * 0.5),
+    fillColors: ROOT_PALETTE.green, strokeColor: ROOT_PALETTE.greenStroke,
+    strokeWidth: clamp(height * 0.010, 0.75, 1.2),
+  });
+
+  // Camada 2: Azul
+  drawTissueLayerCanvas(ctx, seed, {
+    startX: gX, endX: gEndX, startY: y + greenBand, endY: y + greenBand + blueBand,
+    cellW: clamp(height * 0.12, 10, 20), cellH: Math.max(3, blueBand * 0.5),
+    fillColors: ROOT_PALETTE.blue, strokeColor: ROOT_PALETTE.blueStroke,
+    strokeWidth: clamp(height * 0.008, 0.65, 1),
+  });
+
+  // Camada 3: Ocre Pequena
+  drawTissueLayerCanvas(ctx, seed, {
+    startX: gX, endX: gEndX, startY: y + greenBand + blueBand, endY: y + greenBand + blueBand + smallOchreBand,
+    cellW: clamp(height * 0.15, 12, 22), cellH: Math.max(3, smallOchreBand * 0.5),
+    fillColors: ROOT_PALETTE.ochreSmall, strokeColor: ROOT_PALETTE.ochreStroke,
+    strokeWidth: clamp(height * 0.009, 0.7, 1.05),
+  });
+
+  // Camada 4: Ocre Grande (Córtex inferior)
+  drawTissueLayerCanvas(ctx, seed, {
+    startX: gX, endX: gEndX, startY: y + greenBand + blueBand + smallOchreBand, endY: y + height + 10,
+    cellW: clamp(height * 0.26, 17, 34), cellH: clamp(height * 0.13, 10, 18),
+    fillColors: ROOT_PALETTE.ochreLarge, strokeColor: ROOT_PALETTE.ochreStroke,
+    strokeWidth: clamp(height * 0.010, 0.75, 1.15),
+  });
+
+  // Overlay de estado de saúde
+  ctx.fillStyle = stateStyle.overlay;
+  ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+
+  if (permanentDamage > .01) {
+    const scarWidth = platform.w * permanentDamage;
+    const scarX = platform.x + platform.w - scarWidth;
+    const scar = ctx.createLinearGradient(scarX, platform.y, platform.x + platform.w, platform.y + platform.h);
+    scar.addColorStop(0, 'rgba(80,42,47,.04)');
+    scar.addColorStop(.45, `rgba(72,33,43,${.2 + permanentDamage * .55})`);
+    scar.addColorStop(1, `rgba(37,20,31,${.28 + permanentDamage * .5})`);
+    ctx.fillStyle = scar;
+    ctx.fillRect(scarX, platform.y, scarWidth, platform.h);
+  }
+
+  const rootDamage = clamp(platform.rootDamage || 0, 0, 1);
+  if (rootDamage > .025) {
+    const stress = ctx.createLinearGradient(platform.x, platform.y, platform.x + platform.w, platform.y + platform.h);
+    stress.addColorStop(0, `rgba(255,116,105,${rootDamage * .16})`);
+    stress.addColorStop(.55, `rgba(128,42,54,${rootDamage * .24})`);
+    stress.addColorStop(1, `rgba(72,22,40,${rootDamage * .12})`);
+    ctx.fillStyle = stress;
+    ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+  }
+
+  ctx.restore();
+
+  // Outlining do bloco de raiz
+  ctx.save();
+  ctx.strokeStyle = ROOT_PALETTE.outline;
+  ctx.lineWidth = Math.max(2, height * 0.025);
+  roundedPath(ctx, platform, radius);
+  ctx.stroke();
+  ctx.restore();
+
+  if (platform.fixedObjective) {
+    const objectivePulse = .78 + Math.sin(3.2) * .08;
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,213,111,${objectivePulse})`;
+    ctx.fillStyle = 'rgba(255,213,111,.08)';
+    ctx.lineWidth = 3;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = '#ffd56f';
+    roundedPath(ctx, platform, radius);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#ffd56f';
+    ctx.fillRect(platform.x + 12, platform.y - 2, Math.max(24, platform.w - 24), 4);
+    ctx.restore();
+  }
+}
+
+export function createPlatformVisuals({ state }) {
+
+  const SOIL_PALETTE = Object.freeze({
+    base: '#3a2115',
+    aggregates: ['#472a1b', '#301b11', '#402417'],
+    pores: '#1c100a',
+    silt: ['#613c28', '#523120'],
+    outline: '#24140d',
+  });
+
+  function drawOrganicBlobCanvas(ctx, seed, idx, cx, cy, radius, fillStyle, alpha) {
+    const sides = Math.floor(5 + pseudo(seed, idx + 1) * 4);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = fillStyle;
+    ctx.strokeStyle = fillStyle;
+    ctx.lineWidth = radius * 0.2;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < sides; i++) {
+      const angle = (i / sides) * TAU;
+      const r = radius * (0.6 + pseudo(seed, idx + 10 + i) * 0.6);
+      const px = cx + Math.cos(angle) * r;
+      const py = cy + Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
   }
 
   function drawSoil(ctx, platform) {
     const seed = platformSeed(platform);
     const radius = 10;
+    const x = platform.x;
+    const y = platform.y;
+    const width = platform.w;
+    const height = platform.h;
+    const area = width * height;
+
     ctx.save();
     roundedPath(ctx, platform, radius);
     ctx.clip();
 
-    const fill = ctx.createLinearGradient(0, platform.y, 0, platform.y + platform.h);
-    fill.addColorStop(0, '#745044');
-    fill.addColorStop(.16, '#563831');
-    fill.addColorStop(.68, '#352329');
-    fill.addColorStop(1, '#211720');
-    ctx.fillStyle = fill;
-    ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+    // Fundo base
+    ctx.fillStyle = SOIL_PALETTE.base;
+    ctx.fillRect(x, y, width, height);
 
-    ctx.fillStyle = 'rgba(188,130,85,.25)';
-    ctx.fillRect(platform.x, platform.y, platform.w, 5);
-
-    ctx.strokeStyle = 'rgba(218,164,118,.14)';
-    ctx.lineWidth = 1.2;
-    for (let y = platform.y + 16; y < platform.y + platform.h; y += 15) {
-      const offset = (pseudo(seed, Math.floor(y)) - .5) * 5;
-      ctx.beginPath();
-      ctx.moveTo(platform.x + 7, y);
-      ctx.bezierCurveTo(
-        platform.x + platform.w * .26,
-        y + offset,
-        platform.x + platform.w * .72,
-        y - offset,
-        platform.x + platform.w - 7,
-        y + offset * .4,
-      );
-      ctx.stroke();
+    // 1. Macroagregados (Torrões maiores)
+    const macroCount = Math.floor(area / 1500);
+    for (let i = 0; i < macroCount; i++) {
+      const idx = i * 13 + 500;
+      const cx = x + pseudo(seed, idx) * width;
+      const cy = y + pseudo(seed, idx + 1) * height;
+      const r = (0.15 + pseudo(seed, idx + 2) * 0.20) * height;
+      const color = SOIL_PALETTE.aggregates[Math.floor(pseudo(seed, idx + 3) * SOIL_PALETTE.aggregates.length)];
+      const alpha = 0.7 + pseudo(seed, idx + 4) * 0.3;
+      drawOrganicBlobCanvas(ctx, seed, idx, cx, cy, r, color, alpha);
     }
 
-    const grains = Math.max(7, Math.floor(platform.w * platform.h / 1250));
-    for (let i = 0; i < grains; i++) {
-      const x = platform.x + 9 + pseudo(seed, i + 101) * Math.max(5, platform.w - 18);
-      const y = platform.y + 11 + pseudo(seed, i + 149) * Math.max(5, platform.h - 18);
-      const r = 1.1 + pseudo(seed, i + 191) * 2.2;
-      ctx.fillStyle = i % 3 === 0 ? 'rgba(222,165,116,.22)' : 'rgba(25,16,22,.32)';
+    // 2. Porosidade (Espaços vazios escuros estruturais)
+    const poreCount = Math.floor(area / 2000);
+    for (let i = 0; i < poreCount; i++) {
+      const idx = i * 17 + 1000;
+      const cx = x + pseudo(seed, idx) * width;
+      const cy = y + pseudo(seed, idx + 1) * height;
+      const r = (0.05 + pseudo(seed, idx + 2) * 0.07) * height;
+      drawOrganicBlobCanvas(ctx, seed, idx, cx, cy, r, SOIL_PALETTE.pores, 0.8);
+    }
+
+    // 3. Partículas de Silte / Areia (Incrustações minerais claras)
+    const siltCount = Math.floor(area / 800);
+    for (let i = 0; i < siltCount; i++) {
+      const idx = i * 19 + 2000;
+      const cx = x + pseudo(seed, idx) * width;
+      const cy = y + pseudo(seed, idx + 1) * height;
+      const r = 1.5 + pseudo(seed, idx + 2) * 2.5;
+      const color = SOIL_PALETTE.silt[Math.floor(pseudo(seed, idx + 3) * SOIL_PALETTE.silt.length)];
+      const alpha = 0.5 + pseudo(seed, idx + 4) * 0.4;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.ellipse(x, y, r * 1.25, r, pseudo(seed, i + 211) * TAU, 0, TAU);
+      ctx.arc(cx, cy, r, 0, TAU);
       ctx.fill();
+      ctx.restore();
     }
+
     ctx.restore();
 
-    ctx.strokeStyle = 'rgba(151,103,82,.52)';
-    ctx.lineWidth = 1.2;
+    // Outlining do bloco de solo
+    ctx.save();
+    ctx.strokeStyle = SOIL_PALETTE.outline;
+    ctx.lineWidth = Math.max(2, height * 0.025);
     roundedPath(ctx, platform, radius);
     ctx.stroke();
+    ctx.restore();
   }
 
   function drawWorld(ctx) {
     ctx.save();
     ctx.translate(-state.cameraX, 0);
     for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure || platform.azospirillumStructure || platform.nitrogenRootCollider) continue;
-      // Toggle das plataformas de seguranca: some com o bloco inteiro, nao so
-      // com o colisor, para nao enganar o jogador com um degrau decorativo.
+      if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
       if (platform.recovery && state.recoveryPlatformsDisabled) continue;
-      if (platform.x + platform.w < state.cameraX - 80 || platform.x > state.cameraX + W + 80) continue;
-      if (platform.type === 'root') drawRoot(ctx, platform);
-      else drawSoil(ctx, platform);
+
+      if (platform.type === 'soil') drawSoil(ctx, platform);
+      else drawRootVisual(ctx, platform);
     }
+
+    for (const label of state.level.worldLabels || []) {
+      drawWorldLabel(ctx, label.x, label.y, label.text, label.options);
+    }
+
     ctx.restore();
   }
 
-  function nearbyPlatform() {
-    const player = state.player;
-    const centerX = player.x + player.w / 2;
-    const feetY = player.y + player.h;
-    let best = null;
-    let bestScore = 76;
-
-    for (const platform of state.level.platforms || []) {
-      if (platform.mycorrhizaStructure || platform.nitrogenRootCollider) continue;
-      const horizontal = centerX < platform.x
-        ? platform.x - centerX
-        : centerX > platform.x + platform.w
-          ? centerX - (platform.x + platform.w)
-          : 0;
-      const vertical = Math.abs(feetY - platform.y);
-      const score = horizontal * 1.25 + vertical;
-      if (score < bestScore) {
-        best = platform;
-        bestScore = score;
-      }
-    }
-    return best ? { platform: best, score: bestScore } : null;
-  }
-
-  function labelFor(platform) {
-    const health = Math.round(clamp(platform.rootHealth ?? 1, 0, 1) * 100);
-    const maxHealth = Math.round(clamp(platform.rootMaxHealth ?? 1, 0, 1) * 100);
-    const stateStyle = stateInfo(platform);
-    const scar = maxHealth < 100 ? ` · máx. ${maxHealth}%` : '';
-    if (platform.azospirillumStructure) {
-      return { text: `Raiz lateral ${stateStyle.label} · ${health}%${scar}`, color: stateStyle.color };
-    }
-    if (platform.recovery) return { text: 'Raiz de recuperação', color: '#d6afff' };
-    if (platform.final) return { text: 'Raiz principal', color: '#ffe0a2' };
-    if (platform.type === 'root') {
-      const recovery = platform.healthTrend > 0 ? ' · recuperando' : platform.unstable ? ' · sustentação instável' : '';
-      return { text: `Raiz ${stateStyle.label} · ${health}%${scar}${recovery}`, color: stateStyle.color };
-    }
-    return { text: 'Solo', color: '#c99475' };
-  }
-
   function renderLabel(ctx) {
-    if (state.gameState !== 'play') return;
-    const nearby = nearbyPlatform();
-    if (!nearby) return;
-    // Os blocos fixos possuem orientação contextual própria. Repetir aqui o
-    // rótulo da raiz criava duas mensagens sobrepostas.
-    if (nearby.platform.fixedObjective) return;
-    const { text, color } = labelFor(nearby.platform);
-    const alpha = clamp(1 - nearby.score / 82, .25, 1);
-    const platform = nearby.platform;
-
-    // O rotulo mora no bloco a que ele se refere, nao acima do jogador. Preso
-    // ao jogador ele cobria o que estivesse por perto — a orientacao da fase,
-    // outro rotulo — e ainda obrigava a adivinhar de qual bloco ele falava.
-    // Sem capsula: o proprio bloco ja e o fundo que da legibilidade.
-    const screenX = clamp(
-      platform.x + platform.w / 2 - state.cameraX,
-      64, W - 64,
-    );
-    const screenY = clamp(platform.y + 17, 54, H - 24);
-
-    // drawWorldLabel(ctx, screenX, screenY, text, {
-    //   color, font: '800 12px Inter,system-ui', glow: 9, alpha,
-    // });
+    // Rótulos adicionais, se houver
   }
 
-  return { drawWorld, renderLabel };
+  return {
+    drawWorld,
+    renderWorld: drawWorld,
+    renderLabel,
+  };
 }

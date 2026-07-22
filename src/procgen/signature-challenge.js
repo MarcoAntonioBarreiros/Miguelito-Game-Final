@@ -30,7 +30,11 @@ function routePlatforms(level) {
 
 function shiftFrom(level, fromX, deltaY, deltaX = 0) {
   if (!deltaY && !deltaX) return;
-  for (const name of ['platforms', 'exudates', 'crystals', 'enemies', 'allies', 'checkpoints']) {
+  for (const name of [
+    'platforms', 'exudates', 'crystals', 'enemies', 'allies', 'checkpoints',
+    'ironDeposits', 'microbeEncounters', 'biofilms', 'beneficialColonies',
+    'rhizobiumNodules', 'azospirillumRoots', 'mycorrhizaArbuscules',
+  ]) {
     for (const entity of level[name] || []) {
       if (!Number.isFinite(entity.x) || entity.x < fromX) continue;
       if (deltaY && Number.isFinite(entity.y)) entity.y += deltaY;

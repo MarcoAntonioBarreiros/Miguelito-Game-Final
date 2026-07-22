@@ -172,7 +172,7 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
     ctx.globalAlpha = 1;
 
     const width = 52;
-    const barY = -radius - 18;
+    const barY = radius + 12;
     ctx.fillStyle = 'rgba(3,18,24,.82)';
     ctx.fillRect(-width / 2 - 2, barY - 2, width + 4, 8);
     ctx.fillStyle = colony.vigor > .55 ? '#8df0a8' : colony.vigor > .24 ? '#ffd36f' : '#ff8297';
@@ -185,7 +185,7 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#effff5';
     const label = colony.exhausted ? 'colônia exaurida' : colony.activeTargetId ? 'colônia ativa' : 'colônia inoculada';
-    ctx.fillText(label, 0, barY - 5);
+    ctx.fillText(label, 0, barY + 18);
     ctx.restore();
   }
 

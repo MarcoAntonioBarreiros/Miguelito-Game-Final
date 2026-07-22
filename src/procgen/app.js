@@ -675,7 +675,7 @@ function loop(now) {
     chips.push({ icon: 'soil', label: 'Solo', value: Math.round(player.soil) });
     chips.push({ icon: 'hope', label: 'Esperança', value: Math.round(player.hope) });
     chips.push({ icon: 'exudate', label: 'Exsudatos', value: player.exudates });
-    if (player.canPhosphateSolubilization) {
+    if (player.canPhosphateSolubilization && (!selected || (selected.id !== 'phos' && selected.kind !== 'phos'))) {
       chips.push({ icon: 'phosphate', label: 'Carga P', value: `${Math.round((player.phosphateCharge || 0) * 100)}%` });
     }
     renderStockChips(chips);

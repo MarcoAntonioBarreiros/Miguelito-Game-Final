@@ -1,4 +1,5 @@
 import { H, W } from '../core/constants.js';
+import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from '../render/bacillus-sprite.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -226,6 +227,10 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
     const player = state.player;
     const center = { x: player.x + player.w / 2, y: player.y + player.h / 2 };
     for (const film of biofilms) {
+      if (film.checkpoint) {
+        film.x = film.checkpoint.x;
+        film.y = film.checkpoint.y + 8;
+      }
       film.age += dt;
       film.growth = clamp(film.growth + dt * .42, 0, 1);
       film.radius += ((film.targetRadius || 78) - film.radius) * clamp(dt * 1.8, 0, 1);
@@ -296,13 +301,16 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
     ctx.arc(0, 0, radius * .72, 0, TAU);
     ctx.stroke();
     ctx.setLineDash([]);
-    for (let i = 0; i < 12; i++) {
-      const angle = i / 12 * TAU + state.time * .08;
-      const radiusOffset = radius * (.2 + (i % 4) * .14);
-      ctx.fillStyle = i % 3 ? '#70e5d6' : '#e3fff5';
-      ctx.globalAlpha = .48 + (i % 3) * .14;
+    // Partículas brilhantes da matriz do biofilme (camada frontal em partículas)
+    for (let i = 0; i < 10; i++) {
+      const angle = i / 10 * TAU + state.time * .12;
+      const radiusOffset = radius * (.28 + (i % 3) * .18);
+      const bx = Math.cos(angle) * radiusOffset;
+      const by = Math.sin(angle) * radiusOffset * 0.45;
+      const alpha = .5 + (i % 3) * .18;
+      ctx.fillStyle = i % 2 ? 'rgba(112,229,214,0.75)' : 'rgba(227,255,245,0.85)';
       ctx.beginPath();
-      ctx.ellipse(Math.cos(angle) * radiusOffset, Math.sin(angle) * radiusOffset, 5, 2.2, angle, 0, TAU);
+      ctx.arc(bx, by - 6, 2.5 + (i % 3) * 0.9, 0, TAU);
       ctx.fill();
     }
     ctx.restore();

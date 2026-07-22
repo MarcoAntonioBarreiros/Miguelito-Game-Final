@@ -1,5 +1,6 @@
 import { H, W } from '../core/constants.js';
 import { microbeCatalog } from '../data/microbes.js';
+import { drawRoamingBacillusSprite } from '../render/bacillus-sprite.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -688,7 +689,7 @@ export function createMicrobeEcology({ state, entities }) {
     ctx.shadowBlur = 10;
     ctx.shadowColor = profile.color;
     ctx.fillStyle = known ? '#effff6' : '#d2e4dc';
-    ctx.fillText(text, zone.x, zone.y - 112);
+    ctx.fillText(text, zone.x, zone.y + 42);
     ctx.restore();
   }
 
@@ -734,6 +735,10 @@ export function createMicrobeEcology({ state, entities }) {
       if (!profile) continue;
       // O fungo oportunista é desenhado como rede hifal pelo sistema dedicado.
       if (agent.type === 'oportunista') continue;
+      if (agent.type === 'bacillus') {
+        const spriteSize = 38 * agent.size * profile.scale;
+        if (drawRoamingBacillusSprite(ctx, agent.x, agent.y, spriteSize, state.time, agent.phase)) continue;
+      }
       if (profile.kind === 'hypha') drawHyphalFragment(ctx, state.time, agent, profile);
       else if (profile.kind === 'spore' || profile.kind === 'conidium') drawSpore(ctx, state.time, agent, profile);
       else drawBacterium(ctx, state.time, agent, profile);

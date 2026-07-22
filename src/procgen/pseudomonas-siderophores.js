@@ -349,6 +349,9 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     }
 
     for (const deposit of deposits()) {
+      if (deposit.platform) {
+        deposit.y = deposit.platform.y + Math.min(24, Math.max(12, (deposit.platform.h || 54) * .45));
+      }
       if (deposit.stock < deposit.maxStock) {
         deposit.stock = Math.min(deposit.maxStock, deposit.stock + dt * .0015);
       }

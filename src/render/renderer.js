@@ -4,6 +4,7 @@ import { drawArbuscule } from '../procgen/hyphal-growth.js';
 import { createMicrobeRenderer } from './microbes.js';
 import { createPlayerSprite } from './player-sprite.js';
 import { resolvePlayerSkin } from './player-skins.js';
+import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from './bacillus-sprite.js';
 
 function mixHex(a, b, t) {
   const value = clamp(t, 0, 1);
@@ -221,30 +222,8 @@ export function createRenderer({ canvas, state, entities, playerSkin = null }) {
     }
 
     level.platforms.forEach(p => {
-      if (p.nitrogenRootCollider) return;
-      // Nao desenha as plataformas de seguranca quando o jogador as desliga.
-      if (p.recovery && state.recoveryPlatformsDisabled) return;
-      const health = p.type === 'root' ? clamp(p.rootHealth ?? 1, .06, 1) : 1;
-      const damage = 1 - health;
-      const grad = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
-      const rootTop = mixHex('#c79964', '#703445', damage);
-      const rootMiddle = mixHex('#9a6c4c', '#4a2634', damage);
-      grad.addColorStop(0, p.type === 'root' ? rootTop : '#77513b');
-      grad.addColorStop(.15, p.type === 'root' ? rootMiddle : '#5b392f');
-      grad.addColorStop(1, mixHex('#241821', '#190f18', damage));
-      ctx.fillStyle = grad;
-      roundedRect(p.x, p.y, p.w, p.h, p.type === 'root' ? 14 : 10);
-      ctx.fill();
-      ctx.fillStyle = p.type === 'root'
-        ? `rgba(${Math.round(255 - damage * 60)},${Math.round(226 - damage * 115)},${Math.round(170 - damage * 70)},${.22 - damage * .08})`
-        : 'rgba(230,170,100,.12)';
-      ctx.fillRect(p.x, p.y, p.w, 5);
-      if (p.type !== 'root') {
-        ctx.fillStyle = 'rgba(255,255,255,.045)';
-        for (let i = 16; i < p.w; i += 32) ctx.fillRect(p.x + i, p.y + 18 + (i % 64), 5, 5);
-      } else {
-        drawRootStress(p, health, time);
-      }
+      // O desenho visual das plataformas e suas texturas e totalmente conduzido por platform-visuals.js.
+      // A geometria e colisao fisica em level.platforms permanecem 100% ativas para o personagem.
     });
 
     level.hazards.forEach(h => {
@@ -331,9 +310,13 @@ export function createRenderer({ canvas, state, entities, playerSkin = null }) {
         ctx.arc(Math.cos(a) * 18, Math.sin(a) * 13, 17 + Math.sin(time + i) * 2, 0, Math.PI * 2);
         ctx.fill();
       }
-      for (let i = 0; i < 6; i++) {
-        const a = i / 6 * Math.PI * 2 + ci * .45;
-        microbes.drawBacteriumWithFlags(Math.cos(a) * 19, Math.sin(a) * 13, a + Math.PI / 2, .55, col, i + ci, 'short', 'peri', c.active && i % 3 === 0 ? .9 : 0);
+      if (!isBacillusSpriteEnabled()) {
+        for (let i = 0; i < 6; i++) {
+          const a = i / 6 * Math.PI * 2 + ci * .45;
+          const bx = Math.cos(a) * 19;
+          const by = Math.sin(a) * 13;
+          microbes.drawBacteriumWithFlags(bx, by, a + Math.PI / 2, .55, col, i + ci, 'short', 'peri', c.active && i % 3 === 0 ? .9 : 0);
+        }
       }
       ctx.strokeStyle = col;
       ctx.lineWidth = 1.4;

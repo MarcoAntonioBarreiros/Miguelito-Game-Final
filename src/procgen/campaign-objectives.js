@@ -44,6 +44,7 @@ export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     if (key === 'pseudomonasIronReserve') return systems.pseudomonas?.ironReserve || 0;
     if (key === 'opportunisticFungusVigor') return systems.opportunisticFungus?.controlledFungalVigor ?? 1;
     if (key === 'neutralizedOpportunisticFungusCount') return systems.trichoderma?.eliminatedCount || 0;
+    if (key === 'neutralizedRhizoctoniaCount') return systems.trichoderma?.eliminatedCount || 0;
     if (key === 'recoveredRootCount') {
       // Uma raiz que foi danificada (wasDamaged) e voltou a >= .75 conta como
       // recuperada — sinal estavel, ao contrario do healthTrend instantaneo.

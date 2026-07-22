@@ -77,6 +77,17 @@ export function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
         </div>
       `;
     }
+
+    if (phase >= 9) {
+      const score = Math.round(Number(s.level?.ecologicalScore || 0) * 100);
+      html += `
+        <div class="context-item" style="margin-top: 10px; border-top: 1px solid rgba(126,214,205,0.3); padding-top: 6px;">
+          <span>Qualidade Ecológica: <strong style="color: ${score >= 100 ? '#82ffbd' : '#ffd783'};">${score}%</strong> / 100%</span>
+          <div class="context-bar"><div class="context-bar-fill" style="width: ${Math.min(100, score)}%; background: #82ffbd;"></div></div>
+          <div style="font-size: 9px; color: rgba(222,250,245,0.72); margin-top: 4px;">Combine N, P, Fe³⁺, Biocontrole e Saúde Radicular</div>
+        </div>
+      `;
+    }
   }
 
   contextDiv.innerHTML = html;

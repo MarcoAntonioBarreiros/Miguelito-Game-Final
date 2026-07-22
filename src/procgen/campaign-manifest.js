@@ -126,7 +126,7 @@ export const FINAL_TEST_KEYS = Object.freeze({
   worldState: Object.freeze([
     'reachedFinalRoot', 'functionalBiofilmCount', 'activeMatureNoduleCount', 'totalFixationRate',
     'visibleLateralRootCount', 'functionalMycorrhizaPathCount', 'pseudomonasIronReserve',
-    'neutralizedOpportunisticFungusCount', 'recoveredRootCount', 'brokenCrystalCount',
+    'neutralizedOpportunisticFungusCount', 'neutralizedRhizoctoniaCount', 'recoveredRootCount', 'brokenCrystalCount',
     'neutralizedEggMassCount', 'preservedRootCount', 'ecologicalScore',
     'deployedExudateCount', 'bacillusColonyCount',
     'opportunisticFungusVigor', 'solubilizedPhosphateDepositCount',
@@ -481,6 +481,7 @@ const phases = [
       { id: 'p6-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['inoculation'] },
     ],
     finalTest: { id: 'p6-test', goal: 'Conter Rhizoctonia com Trichoderma e recuperar uma raiz.', requires: [
+      { type: 'worldState', key: 'neutralizedRhizoctoniaCount', operator: '>=', value: 2 },
       { type: 'worldState', key: 'recoveredRootCount', operator: '>=', value: 1 },
     ]}, notes: [],
   },

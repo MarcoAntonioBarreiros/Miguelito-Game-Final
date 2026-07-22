@@ -1,6 +1,7 @@
 import { W } from '../core/constants.js';
 import { createRandom } from './random.js';
 import { drawWorldLabel } from './world-label.js';
+import { drawRootVisual } from './platform-visuals.js';
 
 export const NITROGEN_ROOT_BLOCK_TYPE = 'underdeveloped-nitrogen-root';
 
@@ -340,24 +341,26 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
     ctx.save();
     ctx.lineCap = 'round';
 
-    const gradient = ctx.createLinearGradient(0, root.y, 0, root.y + height);
-    gradient.addColorStop(0, progress < .35 ? '#c8c3a6' : '#d9b477');
-    gradient.addColorStop(.28, progress < .35 ? '#9b9786' : '#ad774e');
-    gradient.addColorStop(1, progress < .35 ? '#5f5b58' : '#2b1c25');
-    ctx.fillStyle = gradient;
-    ctx.strokeStyle = progress >= 1 ? '#98e287' : `rgba(222,213,173,${.35 + progress * .45})`;
-    ctx.lineWidth = 1.4 + progress;
-    ctx.beginPath();
-    ctx.roundRect(root.x, root.y, width, height, 5 + progress * 10);
-    ctx.fill();
-    ctx.stroke();
+    if (!root.developed || progress < 1) {
+      drawRootVisual(ctx, {
+        x: root.x,
+        y: root.y,
+        w: width,
+        h: height,
+        type: 'root',
+        rootHealth: 1,
+      });
 
-    ctx.strokeStyle = `rgba(255,235,181,${.16 + progress * .4})`;
-    ctx.lineWidth = 2 + progress * 3;
-    ctx.beginPath();
-    ctx.moveTo(root.x + 8, root.y + 3);
-    ctx.lineTo(root.x + width - 8, root.y + 3);
-    ctx.stroke();
+      ctx.save();
+      ctx.strokeStyle = progress > 0 ? '#98e287' : 'rgba(255,211,111,.85)';
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.roundRect(root.x, root.y, width, height, 15);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
 
     if (progress > .38) {
       const hairProgress = clamp((progress - .38) / .62, 0, 1);
