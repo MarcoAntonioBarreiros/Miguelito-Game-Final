@@ -446,11 +446,11 @@
     .touch-device #mobile-tools {
       position: fixed;
       z-index: 70;
-      top: calc(10px + var(--safe-top));
-      right: calc(10px + var(--safe-right));
-      left: auto;
+      top: calc(6px + var(--safe-top));
+      left: calc(10px + var(--safe-left));
+      right: auto;
       display: flex;
-      gap: 6px;
+      gap: 5px;
     }
     .mobile-tool {
       width: 34px;
@@ -470,15 +470,107 @@
       color: #052128;
     }
 
+    .touch-device #objective-list {
+      top: calc(84px + var(--safe-top));
+      left: calc(10px + var(--safe-left));
+      pointer-events: auto;
+      max-width: 85vw;
+      gap: 5px;
+    }
+    .touch-device .objective-item {
+      padding: 2px 4px;
+      border: none;
+      background: transparent;
+      backdrop-filter: none;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: background 0.2s ease, padding 0.2s ease;
+    }
+    .touch-device .objective-item .text {
+      display: none;
+    }
+    .touch-device .objective-item.expanded {
+      background: rgba(6, 26, 32, 0.94);
+      border: 1px solid rgba(126, 214, 205, 0.4);
+      padding: 6px 10px;
+      border-radius: 7px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+    .touch-device .objective-item.expanded .text {
+      display: block;
+    }
+
+    #hud-context .mobile-gauge-row {
+      display: none;
+    }
+    .touch-device #hud-context {
+      top: calc(42px + var(--safe-top));
+      right: calc(10px + var(--safe-right));
+      left: auto;
+      bottom: auto;
+      width: auto;
+      max-width: 50vw;
+      background: transparent;
+      border: none;
+      padding: 0;
+      pointer-events: auto;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .touch-device #hud-context .context-header,
+    .touch-device #hud-context .context-item {
+      display: none !important;
+    }
+    .touch-device #hud-context .mobile-gauge-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .mobile-gauge-item {
+      position: relative;
+      width: 34px;
+      height: 34px;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    .mobile-gauge-item .gauge-circle {
+      width: 34px;
+      height: 34px;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+    }
+    .mobile-gauge-item .gauge-tooltip {
+      display: none;
+      position: absolute;
+      top: 40px;
+      right: 0;
+      white-space: nowrap;
+      background: rgba(6, 26, 32, 0.94);
+      border: 1px solid rgba(126, 214, 205, 0.4);
+      color: #ecfff7;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      z-index: 80;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    }
+    .mobile-gauge-item.active .gauge-tooltip,
+    .mobile-gauge-item:hover .gauge-tooltip {
+      display: block;
+    }
+
     @media (pointer: coarse) and (orientation: portrait) {
       .touch-device #toast { top: calc(70px + var(--safe-top)); max-width: 88vw; }
       .touch-device #mission { max-width: 58vw; }
       /* Retrato e estreito: os chips passam para baixo do objetivo em vez de
          disputarem a mesma linha com ele. */
       .touch-device #hud-stock {
-        top: calc(32px + var(--safe-top));
-        left: calc(7px + var(--safe-left));
-        right: auto;
+        top: calc(8px + var(--safe-top));
+        right: calc(7px + var(--safe-right));
+        left: auto;
         flex-wrap: wrap;
         max-width: 84vw;
       }
@@ -488,7 +580,6 @@
         right: calc(7px + var(--safe-right));
         max-width: 62vw;
       }
-      .touch-device #mobile-tools { top: calc(70px + var(--safe-top)); }
       .touch-cluster.actions { gap: 6px; }
       .touch-key { width: 58px; height: 58px; }
       .touch-key.primary { width: 68px; height: 68px; }
@@ -1335,6 +1426,33 @@ function renderObjectives(campaign, evaluator) {
   if (listDiv.dataset.markup !== html) {
     listDiv.dataset.markup = html;
     listDiv.innerHTML = html;
+  }
+
+  if (!listDiv.dataset.touchInit) {
+    listDiv.dataset.touchInit = 'true';
+    listDiv.addEventListener('pointerdown', (e) => {
+      const item = e.target.closest('.objective-item');
+      if (item) {
+        item.classList.toggle('expanded');
+        if (item.classList.contains('expanded')) {
+          setTimeout(() => item.classList.remove('expanded'), 4000);
+        }
+      }
+    });
+  }
+
+  const contextDiv = document.getElementById('hud-context');
+  if (contextDiv && !contextDiv.dataset.touchInit) {
+    contextDiv.dataset.touchInit = 'true';
+    contextDiv.addEventListener('pointerdown', (e) => {
+      const gauge = e.target.closest('.mobile-gauge-item');
+      if (gauge) {
+        gauge.classList.toggle('active');
+        if (gauge.classList.contains('active')) {
+          setTimeout(() => gauge.classList.remove('active'), 4000);
+        }
+      }
+    });
   }
 }
 const dashTouchButton = document.querySelector('[data-key="ShiftLeft"]');
@@ -11655,8 +11773,7 @@ function drawWorldLabel(ctx, x, y, text, options = {}) {
 Object.assign(__exports, { drawWorldLabel });
 },
 "src/procgen/platform-visuals.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");
-const { drawWorldLabel } = __require("src/procgen/world-label.js");
+const { H, W } = __require("src/core/constants.js");const { drawWorldLabel } = __require("src/procgen/world-label.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -17434,6 +17551,20 @@ function resetPlayerTuning() {
 Object.assign(__exports, { PLAYER_TUNING_STORAGE_KEY, PLAYER_TUNING_DEFAULTS, PLAYER_TUNING_LIMITS, initPlayerTuning, getPlayerTuning, setPlayerTuning, resetPlayerTuning });
 },
 "src/procgen/hud-context.js": (__exports, __require) => {
+function circularGaugeMarkup({ label, symbol, valueText, pct, color }) {
+  const dashOffset = 100 - Math.min(100, Math.max(0, pct));
+  return `
+    <div class="mobile-gauge-item" data-tooltip="${label}: ${valueText}">
+      <svg class="gauge-circle" viewBox="0 0 36 36">
+        <path class="gauge-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="rgba(6,26,32,0.88)" stroke="rgba(255,255,255,0.18)" stroke-width="2.5" />
+        <path class="gauge-fill" stroke-dasharray="100, 100" stroke-dashoffset="${dashOffset}" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="${color}" stroke-width="3.5" stroke-linecap="round" />
+        <text x="18" y="21.5" text-anchor="middle" fill="#ecfff7" font-size="10.5" font-weight="900">${symbol}</text>
+      </svg>
+      <div class="gauge-tooltip">${label}: <strong>${valueText}</strong></div>
+    </div>
+  `;
+}
+
 function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
   if (!contextDiv) return;
 
@@ -17445,17 +17576,22 @@ function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
   contextDiv.classList.add('visible');
   let html = `<div class="context-header">Bioma Local <span>${state?.activeBiomes?.length || 1}</span></div>`;
 
+  let mobileGaugesHtml = '<div class="mobile-gauge-row">';
+
   if (nearbyRoot) {
     const health = nearbyRoot.rootHealth ? Math.round(nearbyRoot.rootHealth * 100) : 100;
+    const rootColor = health < 40 ? '#ff8297' : '#70e5d6';
+    const rootStatus = health >= 80 ? 'Saudável' : health >= 40 ? 'Estressada' : 'Crítica';
     html += `
       <div class="context-item">
-        <span>Raiz: <strong>${health >= 80 ? 'Saudável' : health >= 40 ? 'Estressada' : 'Crítica'}</strong> (${health}%)</span>
-        <div class="context-bar"><div class="context-bar-fill" style="width: ${health}%; background: ${health < 40 ? '#ff8297' : '#70e5d6'};"></div></div>
+        <span>Raiz: <strong>${rootStatus}</strong> (${health}%)</span>
+        <div class="context-bar"><div class="context-bar-fill" style="width: ${health}%; background: ${rootColor};"></div></div>
       </div>
     `;
     if (nearbyRoot.hasPhosphate) {
       html += `<div class="context-item" style="color: #c9a5ff; font-weight: bold; margin-top: 4px;">P Cristalizado Detectado</div>`;
     }
+    mobileGaugesHtml += circularGaugeMarkup({ label: 'Saúde da Raiz', symbol: 'R', valueText: `${rootStatus} (${health}%)`, pct: health, color: rootColor });
   } else {
     html += `<div class="context-item"><span>Explorando o solo...</span></div>`;
   }
@@ -17475,6 +17611,7 @@ function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
           <div class="context-bar"><div class="context-bar-fill" style="width: ${ironPct}%; background: #f4a261;"></div></div>
         </div>
       `;
+      mobileGaugesHtml += circularGaugeMarkup({ label: 'Ferro (Fe³⁺)', symbol: 'Fe', valueText: `${Math.round(ironPct)}%`, pct: ironPct, color: '#f4a261' });
     }
 
     // Nitrogen
@@ -17488,6 +17625,7 @@ function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
           <div class="context-bar"><div class="context-bar-fill" style="width: ${nPct}%; background: #ffd783;"></div></div>
         </div>
       `;
+      mobileGaugesHtml += circularGaugeMarkup({ label: 'Nitrogênio (N)', symbol: 'N', valueText: `${Math.round(nPct)}%`, pct: nPct, color: '#ffd783' });
     }
 
     // Phosphorus
@@ -17500,6 +17638,7 @@ function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
           <div class="context-bar"><div class="context-bar-fill" style="width: ${pPct}%; background: #c9a5ff;"></div></div>
         </div>
       `;
+      mobileGaugesHtml += circularGaugeMarkup({ label: 'Fósforo (P)', symbol: 'P', valueText: `${Math.round(pPct)}%`, pct: pPct, color: '#c9a5ff' });
     }
 
     // Antibiosis
@@ -17512,6 +17651,7 @@ function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
           <div class="context-bar"><div class="context-bar-fill" style="width: ${aPct}%; background: #b9f36f;"></div></div>
         </div>
       `;
+      mobileGaugesHtml += circularGaugeMarkup({ label: 'Antibiose', symbol: 'A', valueText: `${Math.round(aPct)}%`, pct: aPct, color: '#b9f36f' });
     }
 
     if (phase >= 9) {
@@ -17523,10 +17663,13 @@ function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
           <div style="font-size: 9px; color: rgba(222,250,245,0.72); margin-top: 4px;">Combine N, P, Fe³⁺, Biocontrole e Saúde Radicular</div>
         </div>
       `;
+      mobileGaugesHtml += circularGaugeMarkup({ label: 'Qualidade Ecológica', symbol: 'Q', valueText: `${score}%`, pct: score, color: '#82ffbd' });
     }
   }
 
-  contextDiv.innerHTML = html;
+  mobileGaugesHtml += '</div>';
+
+  contextDiv.innerHTML = html + mobileGaugesHtml;
 }
 Object.assign(__exports, { updateContextPanel });
 },

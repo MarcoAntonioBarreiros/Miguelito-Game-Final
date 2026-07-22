@@ -167,6 +167,33 @@ function renderObjectives(campaign, evaluator) {
     listDiv.dataset.markup = html;
     listDiv.innerHTML = html;
   }
+
+  if (!listDiv.dataset.touchInit) {
+    listDiv.dataset.touchInit = 'true';
+    listDiv.addEventListener('pointerdown', (e) => {
+      const item = e.target.closest('.objective-item');
+      if (item) {
+        item.classList.toggle('expanded');
+        if (item.classList.contains('expanded')) {
+          setTimeout(() => item.classList.remove('expanded'), 4000);
+        }
+      }
+    });
+  }
+
+  const contextDiv = document.getElementById('hud-context');
+  if (contextDiv && !contextDiv.dataset.touchInit) {
+    contextDiv.dataset.touchInit = 'true';
+    contextDiv.addEventListener('pointerdown', (e) => {
+      const gauge = e.target.closest('.mobile-gauge-item');
+      if (gauge) {
+        gauge.classList.toggle('active');
+        if (gauge.classList.contains('active')) {
+          setTimeout(() => gauge.classList.remove('active'), 4000);
+        }
+      }
+    });
+  }
 }
 const dashTouchButton = document.querySelector('[data-key="ShiftLeft"]');
 const selectionTouchButton = document.querySelector('[data-key="ArrowDown"]');

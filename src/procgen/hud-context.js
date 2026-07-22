@@ -1,3 +1,17 @@
+function circularGaugeMarkup({ label, symbol, valueText, pct, color }) {
+  const dashOffset = 100 - Math.min(100, Math.max(0, pct));
+  return `
+    <div class="mobile-gauge-item" data-tooltip="${label}: ${valueText}">
+      <svg class="gauge-circle" viewBox="0 0 36 36">
+        <path class="gauge-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="rgba(6,26,32,0.88)" stroke="rgba(255,255,255,0.18)" stroke-width="2.5" />
+        <path class="gauge-fill" stroke-dasharray="100, 100" stroke-dashoffset="${dashOffset}" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="${color}" stroke-width="3.5" stroke-linecap="round" />
+        <text x="18" y="21.5" text-anchor="middle" fill="#ecfff7" font-size="10.5" font-weight="900">${symbol}</text>
+      </svg>
+      <div class="gauge-tooltip">${label}: <strong>${valueText}</strong></div>
+    </div>
+  `;
+}
+
 export function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
   if (!contextDiv) return;
 
@@ -9,17 +23,22 @@ export function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
   contextDiv.classList.add('visible');
   let html = `<div class="context-header">Bioma Local <span>${state?.activeBiomes?.length || 1}</span></div>`;
 
+  let mobileGaugesHtml = '<div class="mobile-gauge-row">';
+
   if (nearbyRoot) {
     const health = nearbyRoot.rootHealth ? Math.round(nearbyRoot.rootHealth * 100) : 100;
+    const rootColor = health < 40 ? '#ff8297' : '#70e5d6';
+    const rootStatus = health >= 80 ? 'Saudável' : health >= 40 ? 'Estressada' : 'Crítica';
     html += `
       <div class="context-item">
-        <span>Raiz: <strong>${health >= 80 ? 'Saudável' : health >= 40 ? 'Estressada' : 'Crítica'}</strong> (${health}%)</span>
-        <div class="context-bar"><div class="context-bar-fill" style="width: ${health}%; background: ${health < 40 ? '#ff8297' : '#70e5d6'};"></div></div>
+        <span>Raiz: <strong>${rootStatus}</strong> (${health}%)</span>
+        <div class="context-bar"><div class="context-bar-fill" style="width: ${health}%; background: ${rootColor};"></div></div>
       </div>
     `;
     if (nearbyRoot.hasPhosphate) {
       html += `<div class="context-item" style="color: #c9a5ff; font-weight: bold; margin-top: 4px;">P Cristalizado Detectado</div>`;
     }
+    mobileGaugesHtml += circularGaugeMarkup({ label: 'Saúde da Raiz', symbol: 'R', valueText: `${rootStatus} (${health}%)`, pct: health, color: rootColor });
   } else {
     html += `<div class="context-item"><span>Explorando o solo...</span></div>`;
   }
@@ -39,6 +58,7 @@ export function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
           <div class="context-bar"><div class="context-bar-fill" style="width: ${ironPct}%; background: #f4a261;"></div></div>
         </div>
       `;
+      mobileGaugesHtml += circularGaugeMarkup({ label: 'Ferro (Fe³⁺)', symbol: 'Fe', valueText: `${Math.round(ironPct)}%`, pct: ironPct, color: '#f4a261' });
     }
     
     // Nitrogen
@@ -52,6 +72,7 @@ export function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
           <div class="context-bar"><div class="context-bar-fill" style="width: ${nPct}%; background: #ffd783;"></div></div>
         </div>
       `;
+      mobileGaugesHtml += circularGaugeMarkup({ label: 'Nitrogênio (N)', symbol: 'N', valueText: `${Math.round(nPct)}%`, pct: nPct, color: '#ffd783' });
     }
 
     // Phosphorus
@@ -64,6 +85,7 @@ export function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
           <div class="context-bar"><div class="context-bar-fill" style="width: ${pPct}%; background: #c9a5ff;"></div></div>
         </div>
       `;
+      mobileGaugesHtml += circularGaugeMarkup({ label: 'Fósforo (P)', symbol: 'P', valueText: `${Math.round(pPct)}%`, pct: pPct, color: '#c9a5ff' });
     }
 
     // Antibiosis
@@ -76,6 +98,7 @@ export function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
           <div class="context-bar"><div class="context-bar-fill" style="width: ${aPct}%; background: #b9f36f;"></div></div>
         </div>
       `;
+      mobileGaugesHtml += circularGaugeMarkup({ label: 'Antibiose', symbol: 'A', valueText: `${Math.round(aPct)}%`, pct: aPct, color: '#b9f36f' });
     }
 
     if (phase >= 9) {
@@ -87,8 +110,11 @@ export function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
           <div style="font-size: 9px; color: rgba(222,250,245,0.72); margin-top: 4px;">Combine N, P, Fe³⁺, Biocontrole e Saúde Radicular</div>
         </div>
       `;
+      mobileGaugesHtml += circularGaugeMarkup({ label: 'Qualidade Ecológica', symbol: 'Q', valueText: `${score}%`, pct: score, color: '#82ffbd' });
     }
   }
 
-  contextDiv.innerHTML = html;
+  mobileGaugesHtml += '</div>';
+
+  contextDiv.innerHTML = html + mobileGaugesHtml;
 }

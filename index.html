@@ -446,11 +446,11 @@
     .touch-device #mobile-tools {
       position: fixed;
       z-index: 70;
-      top: calc(10px + var(--safe-top));
-      right: calc(10px + var(--safe-right));
-      left: auto;
+      top: calc(6px + var(--safe-top));
+      left: calc(10px + var(--safe-left));
+      right: auto;
       display: flex;
-      gap: 6px;
+      gap: 5px;
     }
     .mobile-tool {
       width: 34px;
@@ -470,15 +470,107 @@
       color: #052128;
     }
 
+    .touch-device #objective-list {
+      top: calc(84px + var(--safe-top));
+      left: calc(10px + var(--safe-left));
+      pointer-events: auto;
+      max-width: 85vw;
+      gap: 5px;
+    }
+    .touch-device .objective-item {
+      padding: 2px 4px;
+      border: none;
+      background: transparent;
+      backdrop-filter: none;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: background 0.2s ease, padding 0.2s ease;
+    }
+    .touch-device .objective-item .text {
+      display: none;
+    }
+    .touch-device .objective-item.expanded {
+      background: rgba(6, 26, 32, 0.94);
+      border: 1px solid rgba(126, 214, 205, 0.4);
+      padding: 6px 10px;
+      border-radius: 7px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    }
+    .touch-device .objective-item.expanded .text {
+      display: block;
+    }
+
+    #hud-context .mobile-gauge-row {
+      display: none;
+    }
+    .touch-device #hud-context {
+      top: calc(42px + var(--safe-top));
+      right: calc(10px + var(--safe-right));
+      left: auto;
+      bottom: auto;
+      width: auto;
+      max-width: 50vw;
+      background: transparent;
+      border: none;
+      padding: 0;
+      pointer-events: auto;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .touch-device #hud-context .context-header,
+    .touch-device #hud-context .context-item {
+      display: none !important;
+    }
+    .touch-device #hud-context .mobile-gauge-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .mobile-gauge-item {
+      position: relative;
+      width: 34px;
+      height: 34px;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    .mobile-gauge-item .gauge-circle {
+      width: 34px;
+      height: 34px;
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+    }
+    .mobile-gauge-item .gauge-tooltip {
+      display: none;
+      position: absolute;
+      top: 40px;
+      right: 0;
+      white-space: nowrap;
+      background: rgba(6, 26, 32, 0.94);
+      border: 1px solid rgba(126, 214, 205, 0.4);
+      color: #ecfff7;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 700;
+      z-index: 80;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    }
+    .mobile-gauge-item.active .gauge-tooltip,
+    .mobile-gauge-item:hover .gauge-tooltip {
+      display: block;
+    }
+
     @media (pointer: coarse) and (orientation: portrait) {
       .touch-device #toast { top: calc(70px + var(--safe-top)); max-width: 88vw; }
       .touch-device #mission { max-width: 58vw; }
       /* Retrato e estreito: os chips passam para baixo do objetivo em vez de
          disputarem a mesma linha com ele. */
       .touch-device #hud-stock {
-        top: calc(32px + var(--safe-top));
-        left: calc(7px + var(--safe-left));
-        right: auto;
+        top: calc(8px + var(--safe-top));
+        right: calc(7px + var(--safe-right));
+        left: auto;
         flex-wrap: wrap;
         max-width: 84vw;
       }
@@ -488,7 +580,6 @@
         right: calc(7px + var(--safe-right));
         max-width: 62vw;
       }
-      .touch-device #mobile-tools { top: calc(70px + var(--safe-top)); }
       .touch-cluster.actions { gap: 6px; }
       .touch-key { width: 58px; height: 58px; }
       .touch-key.primary { width: 68px; height: 68px; }
