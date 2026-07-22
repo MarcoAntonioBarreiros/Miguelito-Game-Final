@@ -173,9 +173,13 @@ function renderObjectives(campaign, evaluator) {
     listDiv.addEventListener('pointerdown', (e) => {
       const item = e.target.closest('.objective-item');
       if (item) {
+        if (item._autoTimer) clearTimeout(item._autoTimer);
         item.classList.toggle('expanded');
         if (item.classList.contains('expanded')) {
-          setTimeout(() => item.classList.remove('expanded'), 4000);
+          item._autoTimer = setTimeout(() => {
+            item.classList.remove('expanded');
+            item._autoTimer = null;
+          }, 4000);
         }
       }
     });
@@ -187,9 +191,13 @@ function renderObjectives(campaign, evaluator) {
     contextDiv.addEventListener('pointerdown', (e) => {
       const gauge = e.target.closest('.mobile-gauge-item');
       if (gauge) {
+        if (gauge._autoTimer) clearTimeout(gauge._autoTimer);
         gauge.classList.toggle('active');
         if (gauge.classList.contains('active')) {
-          setTimeout(() => gauge.classList.remove('active'), 4000);
+          gauge._autoTimer = setTimeout(() => {
+            gauge.classList.remove('active');
+            gauge._autoTimer = null;
+          }, 4000);
         }
       }
     });

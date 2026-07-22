@@ -471,28 +471,32 @@
     }
 
     .touch-device #objective-list {
-      top: calc(84px + var(--safe-top));
+      top: calc(108px + var(--safe-top));
       left: calc(10px + var(--safe-left));
       pointer-events: auto;
       max-width: 85vw;
-      gap: 5px;
+      gap: 6px;
     }
     .touch-device .objective-item {
-      padding: 2px 4px;
-      border: none;
+      padding: 3px 5px;
+      border-radius: 8px;
+      border: 1px solid transparent;
       background: transparent;
       backdrop-filter: none;
       cursor: pointer;
       pointer-events: auto;
-      transition: background 0.2s ease, padding 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s ease, border-color 0.2s ease, padding 0.2s ease;
     }
     .touch-device .objective-item .text {
       display: none;
     }
     .touch-device .objective-item.expanded {
       background: rgba(6, 26, 32, 0.94);
-      border: 1px solid rgba(126, 214, 205, 0.4);
-      padding: 6px 10px;
+      border-color: rgba(126, 214, 205, 0.4);
+      padding: 6px 12px;
       border-radius: 7px;
       backdrop-filter: blur(8px);
       box-shadow: 0 4px 16px rgba(0,0,0,0.5);
@@ -505,18 +509,19 @@
       display: none;
     }
     .touch-device #hud-context {
-      top: calc(42px + var(--safe-top));
+      top: calc(48px + var(--safe-top));
       right: calc(10px + var(--safe-right));
       left: auto;
       bottom: auto;
       width: auto;
-      max-width: 50vw;
+      max-width: 60vw;
       background: transparent;
       border: none;
       padding: 0;
       pointer-events: auto;
-      flex-direction: row;
-      flex-wrap: wrap;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
       gap: 6px;
     }
     .touch-device #hud-context .context-header,
@@ -525,9 +530,9 @@
     }
     .touch-device #hud-context .mobile-gauge-row {
       display: flex;
+      flex-direction: column;
+      align-items: flex-end;
       gap: 6px;
-      align-items: center;
-      flex-wrap: wrap;
     }
     .mobile-gauge-item {
       position: relative;
@@ -544,18 +549,20 @@
     .mobile-gauge-item .gauge-tooltip {
       display: none;
       position: absolute;
-      top: 40px;
-      right: 0;
+      top: 3px;
+      right: 42px;
       white-space: nowrap;
       background: rgba(6, 26, 32, 0.94);
       border: 1px solid rgba(126, 214, 205, 0.4);
       color: #ecfff7;
-      padding: 4px 8px;
-      border-radius: 6px;
-      font-size: 10px;
+      padding: 5px 10px;
+      border-radius: 7px;
+      font-size: 11px;
       font-weight: 700;
       z-index: 80;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+      backdrop-filter: blur(8px);
+      pointer-events: none;
     }
     .mobile-gauge-item.active .gauge-tooltip,
     .mobile-gauge-item:hover .gauge-tooltip {
@@ -1433,9 +1440,13 @@ function renderObjectives(campaign, evaluator) {
     listDiv.addEventListener('pointerdown', (e) => {
       const item = e.target.closest('.objective-item');
       if (item) {
+        if (item._autoTimer) clearTimeout(item._autoTimer);
         item.classList.toggle('expanded');
         if (item.classList.contains('expanded')) {
-          setTimeout(() => item.classList.remove('expanded'), 4000);
+          item._autoTimer = setTimeout(() => {
+            item.classList.remove('expanded');
+            item._autoTimer = null;
+          }, 4000);
         }
       }
     });
@@ -1447,9 +1458,13 @@ function renderObjectives(campaign, evaluator) {
     contextDiv.addEventListener('pointerdown', (e) => {
       const gauge = e.target.closest('.mobile-gauge-item');
       if (gauge) {
+        if (gauge._autoTimer) clearTimeout(gauge._autoTimer);
         gauge.classList.toggle('active');
         if (gauge.classList.contains('active')) {
-          setTimeout(() => gauge.classList.remove('active'), 4000);
+          gauge._autoTimer = setTimeout(() => {
+            gauge.classList.remove('active');
+            gauge._autoTimer = null;
+          }, 4000);
         }
       }
     });
