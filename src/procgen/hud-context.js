@@ -1,7 +1,12 @@
+if (typeof window !== 'undefined') {
+  window._activeGauges = window._activeGauges || new Set();
+}
+
 function circularGaugeMarkup({ label, symbol, valueText, pct, color }) {
   const dashOffset = 100 - Math.min(100, Math.max(0, pct));
+  const isActive = typeof window !== 'undefined' && window._activeGauges && window._activeGauges.has(label);
   return `
-    <div class="mobile-gauge-item" data-tooltip="${label}: ${valueText}">
+    <div class="mobile-gauge-item${isActive ? ' active' : ''}" data-label="${label}">
       <svg class="gauge-circle" viewBox="0 0 36 36">
         <path class="gauge-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="rgba(6,26,32,0.88)" stroke="rgba(255,255,255,0.18)" stroke-width="2.5" />
         <path class="gauge-fill" stroke-dasharray="100, 100" stroke-dashoffset="${dashOffset}" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="${color}" stroke-width="3.5" stroke-linecap="round" />

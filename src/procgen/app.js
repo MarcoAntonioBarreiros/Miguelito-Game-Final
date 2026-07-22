@@ -188,19 +188,23 @@ function renderObjectives(campaign, evaluator) {
   const contextDiv = document.getElementById('hud-context');
   if (contextDiv && !contextDiv.dataset.touchInit) {
     contextDiv.dataset.touchInit = 'true';
-    contextDiv.addEventListener('pointerdown', (e) => {
+    const toggleGauge = (e) => {
       const gauge = e.target.closest('.mobile-gauge-item');
-      if (gauge) {
-        if (gauge._autoTimer) clearTimeout(gauge._autoTimer);
-        gauge.classList.toggle('active');
-        if (gauge.classList.contains('active')) {
-          gauge._autoTimer = setTimeout(() => {
-            gauge.classList.remove('active');
-            gauge._autoTimer = null;
+      if (gauge && gauge.dataset.label) {
+        const label = gauge.dataset.label;
+        window._activeGauges = window._activeGauges || new Set();
+        if (window._activeGauges.has(label)) {
+          window._activeGauges.delete(label);
+        } else {
+          window._activeGauges.add(label);
+          setTimeout(() => {
+            if (window._activeGauges) window._activeGauges.delete(label);
           }, 4000);
         }
       }
-    });
+    };
+    contextDiv.addEventListener('pointerdown', toggleGauge);
+    contextDiv.addEventListener('click', toggleGauge);
   }
 }
 const dashTouchButton = document.querySelector('[data-key="ShiftLeft"]');
