@@ -48,29 +48,6 @@ function topPoint(platform, x) {
   };
 }
 
-function occupiesPlatform(entity, platform) {
-  if (Number.isFinite(entity?.x)) {
-    return entity.x >= platform.x && entity.x <= platform.x + platform.w;
-  }
-  return Number.isInteger(entity?.logicIndex) && entity.logicIndex === platform.logicIndex;
-}
-
-function shiftContentsWithPlatform(level, encounters, platform, deltaY) {
-  if (!deltaY) return;
-  for (const collection of [
-    level.exudates,
-    level.crystals,
-    level.enemies,
-    level.allies,
-    level.checkpoints,
-    encounters,
-  ]) {
-    for (const entity of collection || []) {
-      if (occupiesPlatform(entity, platform) && Number.isFinite(entity.y)) entity.y += deltaY;
-    }
-  }
-}
-
 function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChunk, config) {
   const candidates = [];
   const platforms = (level.platforms || [])
@@ -115,24 +92,23 @@ function ladderCandidates(level, firstExudate, minimumHostChunk, maximumHostChun
         Number(config.verticalSpacing) || FIRST_DEMONSTRATION_VERTICAL_SPACING,
         FIRST_DEMONSTRATION_VERTICAL_SPACING,
       );
-      const desiredRise = clamp(
+      // A assinatura da fase e a unica dona do desnivel macro. Este valor serve
+      // apenas para preferir uma geometria existente com espacamento didatico;
+      // nunca e aplicado de volta ao destino.
+      const preferredRise = clamp(
         verticalSpacing * (config.stepCount + 1),
         MIN_VERTICAL_RISE,
         MAX_VERTICAL_RISE,
       );
-      const destinationY = (recapAccess || knownSkill) && config.preserveDestinationHeight
-        ? destination.y
-        : Math.min(destination.y, host.y - desiredRise);
       const following = mainRoute.find(platform => platform.logicIndex > destination.logicIndex) || null;
       const score = (host.logicIndex - minimumHostChunk) * 1000
-        + Math.abs(desiredRise - naturalRise)
+        + Math.abs(preferredRise - naturalRise)
         + dx * .35;
       const candidate = {
         host,
         destination,
         following,
-        destinationY,
-        desiredRise,
+        preferredRise,
         dx,
         recapAccess,
         score,
@@ -258,11 +234,6 @@ export function generateAzospirillumRootLadders({
       const id = `azo-ladder-${slot.host.logicIndex}-${index}`;
       const originalDestinationY = slot.destination.y;
       const originalDestinationX = slot.destination.x;
-      shiftContentsWithPlatform(level, encounters, slot.destination, slot.destinationY - originalDestinationY);
-      slot.destination.y = slot.destinationY;
-      if (Number.isFinite(slot.destination.rootBaseY)) {
-        slot.destination.rootBaseY = slot.destinationY;
-      }
       slot.host.wasRecoveryRoot = Boolean(slot.host.recovery);
       slot.host.recovery = false;
       if (slot.recapAccess) slot.host.type = 'root';

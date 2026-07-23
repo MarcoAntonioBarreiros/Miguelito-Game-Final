@@ -131,6 +131,7 @@ export const FINAL_TEST_KEYS = Object.freeze({
     'deployedExudateCount', 'bacillusColonyCount',
     'opportunisticFungusVigor', 'solubilizedPhosphateDepositCount',
     'mycorrhizalPhosphateTransported', 'rootPhosphateStock',
+    'performedDoubleJumpCount', 'performedDashCount', 'performedPhosphatePulseCount',
   ]),
 });
 
@@ -313,7 +314,7 @@ const phases = [
       { id: 'p3-final', kind: 'final', from: 22, to: 24, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
     ],
     finalTest: { id: 'p3-test', goal: 'Induzir raiz lateral e usar salto duplo.', requires: [
-      { type: 'playerUnlock', key: 'doubleJump', operator: '===', value: true },
+      { type: 'worldState', key: 'performedDoubleJumpCount', operator: '>=', value: 1 },
       { type: 'worldState', key: 'visibleLateralRootCount', operator: '>=', value: 1 },
     ]}, notes: [],
   },
@@ -377,7 +378,7 @@ const phases = [
       { id: 'p4-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent', mechanicsRequired: ['dash', 'mycorrhizaStructures'] },
     ],
     finalTest: { id: 'p4-test', goal: 'Completar travessia com ponte micorrízica e Dash.', requires: [
-      { type: 'playerUnlock', key: 'dash', operator: '===', value: true },
+      { type: 'worldState', key: 'performedDashCount', operator: '>=', value: 1 },
       { type: 'worldState', key: 'functionalMycorrhizaPathCount', operator: '>=', value: 1 },
     ]}, notes: [],
   },

@@ -24,6 +24,10 @@ import { createEcologicalGameplay } from './ecological-gameplay.js';
 import { createPathogenSurvival } from './pathogen-survival.js';
 import { createInoculumSelection } from './inoculum-selection.js';
 import { createPhosphateSolubilization } from './phosphate-solubilization.js';
+import {
+  createEmptyObjectiveProgress,
+  resetPhaseObjectiveProgress,
+} from './campaign-objective-progress.js';
 
 function createEmptyLevel() {
   return {
@@ -34,6 +38,7 @@ function createEmptyLevel() {
     azospirillumRootLadders: [], azospirillumRoots: [], ironDeposits: [], siderophores: [],
     phosphateDeposits: [], availablePhosphatePools: [], phosphateTransportParticles: [],
     nematodeEggMasses: [], nematodeJuveniles: [], rootGalls: [],
+    objectiveProgress: createEmptyObjectiveProgress(),
   };
 }
 
@@ -245,6 +250,7 @@ export function createSimulator() {
   const physics = createPhysicsSystem({ state, input, entities, hud, audio });
 
   function reset() {
+    const nextObjectiveAttemptId = (state.level.objectiveProgress?.attemptId || 0) + 1;
     resetPlayer(state.player, state.campaign?.unlocks);
     state.player.alive = true;
     state.time = 0;
@@ -271,6 +277,10 @@ export function createSimulator() {
     pathogenSurvival.clear();
     phosphateSolubilization.clear();
     state.level = createEmptyLevel();
+    resetPhaseObjectiveProgress(state, {
+      phaseId: state.campaign?.phase ?? null,
+      attemptId: nextObjectiveAttemptId,
+    });
     for (const key in input.keys) input.keys[key] = false;
   }
 

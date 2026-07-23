@@ -185,7 +185,12 @@ export function generateLevel(seedString) {
 
     if (chunk.isCheckpoint) {
       nextPlatform.w = Math.max(nextPlatform.w, 180);
-      checkpoints.push({ x: nextPlatform.x + nextPlatform.w / 2, y: nextPlatform.y - 10, active: false });
+      checkpoints.push({
+        x: nextPlatform.x + nextPlatform.w / 2,
+        y: nextPlatform.y - 10,
+        logicIndex: i,
+        active: false,
+      });
     }
 
     if (chunk.allyId) {

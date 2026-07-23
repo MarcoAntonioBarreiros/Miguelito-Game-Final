@@ -5,6 +5,10 @@ import { generateAzospirillumRootLadders } from './azospirillum-root-growth.js';
 import { createCampaignObjectiveEvaluator } from './campaign-objectives.js';
 import { applyPhaseOneVerticalSlice, createFixedBlockRuntime } from './phase-one-vertical-slice.js';
 import { applySignatureChallenge } from './signature-challenge.js';
+import {
+  createRouteAnchorRegistry,
+  recordRouteGeometryStage,
+} from './route-geometry.js';
 import { applyPhaseFourMycorrhizaIntro } from './phase-four-mycorrhiza-intro.js';
 import { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } from './phase-five-tutorial.js';
 import { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } from './phase-six-tutorial.js';
@@ -20,6 +24,7 @@ import { computeEcologicalScore } from './ecological-score.js';
 import { initPlayerTuning } from '../render/player-skin-tuning.js';
 import { createSimulator } from './simulator.js';
 import { createRenderer } from '../render/renderer.js';
+import { BIOLOGICAL_PARALLAX_KEY } from '../render/rhizosphere-parallax.js';
 import { createPlatformVisuals } from './platform-visuals.js';
 import { createCameraView } from './camera-view.js';
 import { createRhizoctoniaControl } from './rhizoctonia-control.js';
@@ -119,6 +124,8 @@ const OBJECTIVE_LABELS = {
   ecologicalScore: 'Deixe o solo saudável e equilibrado',
   functionalBiofilmCount: 'Forme um biofilme funcional',
   functionalMycorrhizaPathCount: 'Estabeleça uma ponte micorrízica',
+  performedDashCount: 'Use o Dash nesta tentativa',
+  performedDoubleJumpCount: 'Execute um salto duplo nesta tentativa',
   mycorrhizalPhosphateTransported: 'Transporte fósforo pela micorriza',
   neutralizedEggMassCount: 'Neutralize uma massa de ovos de Meloidogyne',
   opportunisticFungusVigor: 'Reduza o vigor do fungo oportunista',
@@ -146,15 +153,9 @@ function renderObjectives(campaign, evaluator) {
   }
 
   const evaluation = evaluator.evaluate(finalTest.requires);
-  const doneSet = new Set(
-    evaluation.results
-      .filter(r => r.passed)
-      .map(r => r.condition.key)
-  );
-
   let html = '';
-  for (const req of finalTest.requires) {
-    const isCompleted = doneSet.has(req.key);
+  for (const [index, req] of finalTest.requires.entries()) {
+    const isCompleted = evaluation.results[index]?.passed === true;
     html += `
       <div class="objective-item ${isCompleted ? 'completed' : ''}">
         <div class="circle"></div>
@@ -284,6 +285,7 @@ let seed = '';
 let levelData = null;
 let renderer = null;
 let platformVisuals = null;
+let biologicalParallaxEnabled = true;
 // O console de telemetria e ferramenta de desenvolvimento, nao HUD de jogo:
 // nasce ligado so dentro do Phase Lab. Fora dele continua acessivel pelo Tab
 // (e pelo botao (i) no celular) para quando eu precisar dele numa partida real.
@@ -325,6 +327,10 @@ function prepareLevel() {
   profile = prepareCampaignGeneration(campaign);
   seed = campaignPhaseSeed(campaign);
   levelData = generateLevel(seed);
+  const traceGeometry = stage => (
+    campaign.phase === 3 ? recordRouteGeometryStage(levelData, stage) : null
+  );
+  traceGeometry('generateLevel');
   applyPhaseFourMycorrhizaIntro(
     levelData,
     campaign.phase,
@@ -334,8 +340,12 @@ function prepareLevel() {
   applyPhaseSixTutorialGeometry(levelData, campaign.phase);
   levelData = decorateCampaignLevel(levelData, campaign, profile);
   applyPhaseOneVerticalSlice(levelData, campaign.phase);
+  traceGeometry('decorateCampaignLevel');
+  const routeAnchors = createRouteAnchorRegistry(levelData);
+  routeAnchors.capture();
   // Garante que a mecanica-tema da fase seja necessaria ao menos uma vez.
   applySignatureChallenge(levelData, campaign.phase);
+  traceGeometry('applySignatureChallenge');
   if (phaseLab.enabled) applyPhaseLabResources(levelData, getPhaseManifest(campaign.phase), seed);
   applyPhaseSevenPhosphateGeometry(
     levelData,
@@ -377,6 +387,7 @@ function prepareLevel() {
       ? null
       : declaredAzospirillumLadder || contextualAzospirillumLadder,
   });
+  traceGeometry('generateAzospirillumRootLadders');
   generateUnderdevelopedNitrogenRoots({
     level: levelData,
     phase: campaign.phase,
@@ -384,6 +395,7 @@ function prepareLevel() {
     encounters: levelData.microbeEncounters,
     config: getPhaseManifest(campaign.phase)?.nitrogenRoot,
   });
+  traceGeometry('generateUnderdevelopedNitrogenRoots');
   // Rede de seguranca global anti-softlock: repara qualquer vao que fique
   // intransponivel com as habilidades ja desbloqueadas, sem tocar nos desafios
   // que exigem a mecanica-tema de proposito.
@@ -391,6 +403,11 @@ function prepareLevel() {
     doubleJump: Boolean(campaign.unlocks?.doubleJump),
     dash: Boolean(campaign.unlocks?.dash),
   });
+  traceGeometry('enforceTraversableRoute');
+  // Inclui encontros e recursos criados depois do desafio, preservando os
+  // offsets capturados antes dele para as entidades que ja existiam.
+  routeAnchors.capture();
+  routeAnchors.synchronize();
   anchorPowerPickups(levelData);
   installFinalGoal(levelData);
 }
@@ -463,7 +480,13 @@ function initGame({ announce = false } = {}) {
   sim.resetEcology(levelData.microbeEncounters);
   sim.resetBiology();
   ralstoniaControl.initialize();
-  renderer = createRenderer({ canvas, state: sim.state, entities: sim.entities });
+  renderer = createRenderer({
+    canvas,
+    state: sim.state,
+    entities: sim.entities,
+    parallaxSeed: seed || `campaign-phase-${campaign.phase}`,
+  });
+  renderer.parallaxBackground.setEnabled(biologicalParallaxEnabled);
   platformVisuals = createPlatformVisuals({ state: sim.state });
   toastDiv.className = '';
   lastToast = '';
@@ -532,6 +555,13 @@ function buildPhaseReport() {
     + protection * 15
     + vascularTransport * 10,
   );
+  const finalTest = getPhaseManifest(campaign.phase)?.finalTest;
+  const objectiveResults = objectiveEvaluator.evaluate(finalTest?.requires || []).results.map(result => ({
+    conditionId: result.conditionId,
+    key: result.condition.key,
+    actual: result.actual,
+    passed: result.passed,
+  }));
   return {
     phase: campaign.phase,
     title: profile.title,
@@ -541,6 +571,7 @@ function buildPhaseReport() {
     fixation: Number(fixation.toFixed(1)),
     protectedRoots: sim.bacillusBioprotection.protectedRootCount || 0,
     vascularTransport: Math.round(vascularTransport * 100),
+    objectiveResults,
     score,
   };
 }
@@ -581,6 +612,7 @@ initGame({ announce: true });
 if (phaseLab.enabled) phaseLab.mount({ onRestart: startNewCampaign });
 
 const recoveryToggleButton = document.querySelector('[data-mobile-action="toggle-recovery"]');
+const parallaxToggleButton = document.querySelector('[data-mobile-action="toggle-parallax"]');
 function toggleRecoveryPlatforms() {
   const disabled = !sim.state.recoveryPlatformsDisabled;
   sim.state.recoveryPlatformsDisabled = disabled;
@@ -594,6 +626,21 @@ recoveryToggleButton?.addEventListener('click', event => {
   event.preventDefault();
   toggleRecoveryPlatforms();
   recoveryToggleButton.blur();
+});
+
+function toggleBiologicalParallax() {
+  if (!renderer?.parallaxBackground || sim.state.gameState !== 'play') return;
+  biologicalParallaxEnabled = renderer.parallaxBackground.toggle();
+  parallaxToggleButton?.setAttribute('aria-pressed', String(biologicalParallaxEnabled));
+  sim.state.toast = biologicalParallaxEnabled
+    ? 'Paralaxe biológico ativado'
+    : 'Paralaxe biológico desativado';
+  sim.state.toastTime = 3.2;
+}
+parallaxToggleButton?.addEventListener('click', event => {
+  event.preventDefault();
+  toggleBiologicalParallax();
+  parallaxToggleButton.blur();
 });
 
 // Remove o foco do teclado de qualquer botao clicado para impedir que a tecla Espaco reatire o clique do botao
@@ -619,6 +666,7 @@ window.addEventListener('keydown', event => {
   keys[event.code] = true;
   if (event.code === 'KeyR' && !event.repeat) startNewCampaign();
   if (event.code === 'KeyT' && !event.repeat) toggleRecoveryPlatforms();
+  if (event.code === BIOLOGICAL_PARALLAX_KEY && !event.repeat) toggleBiologicalParallax();
   if (event.code === 'Tab') {
     event.preventDefault();
     showDebug = !showDebug;

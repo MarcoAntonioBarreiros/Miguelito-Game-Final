@@ -30,16 +30,26 @@ function routePlatforms(level) {
 
 function shiftFrom(level, fromX, deltaY, deltaX = 0) {
   if (!deltaY && !deltaX) return;
-  for (const name of [
-    'platforms', 'exudates', 'crystals', 'enemies', 'allies', 'checkpoints',
-    'ironDeposits', 'microbeEncounters', 'biofilms', 'beneficialColonies',
-    'rhizobiumNodules', 'azospirillumRoots', 'mycorrhizaArbuscules',
-  ]) {
-    for (const entity of level[name] || []) {
-      if (!Number.isFinite(entity.x) || entity.x < fromX) continue;
-      if (deltaY && Number.isFinite(entity.y)) entity.y += deltaY;
-      if (deltaX) entity.x += deltaX;
+  // A geometria macro pertence ao desafio. Elementos apoiados nas plataformas
+  // sao sincronizados uma unica vez ao final do pipeline por seu vinculo
+  // explicito/logicIndex; move-los aqui por faixa de x criava deslocamentos
+  // duplos e falhava quando o sprite estava fora da largura atual do bloco.
+  for (const platform of level.platforms || []) {
+    if (!Number.isFinite(platform.x) || platform.x < fromX) continue;
+    if (deltaY && Number.isFinite(platform.y)) {
+      platform.y += deltaY;
+      if (Number.isFinite(platform.rootBaseY)) platform.rootBaseY += deltaY;
     }
+    if (deltaX) platform.x += deltaX;
+  }
+
+  // As raizes de fundo nao carregam logicIndex. Elas pertencem ao trecho por
+  // coordenada e precisam acompanhar a transformacao para nao ficarem
+  // suspensas na posicao anterior.
+  for (const root of level.roots || []) {
+    if (!Number.isFinite(root.x) || root.x < fromX) continue;
+    if (deltaY && Number.isFinite(root.y)) root.y += deltaY;
+    if (deltaX) root.x += deltaX;
   }
   if (deltaX) {
     if (Number.isFinite(level.endX)) level.endX += deltaX;

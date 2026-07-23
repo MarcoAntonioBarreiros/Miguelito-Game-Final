@@ -1,3 +1,8 @@
+import {
+  ensurePhaseObjectiveProgress,
+  objectiveConditionId,
+} from './campaign-objective-progress.js';
+
 const OPERATORS = Object.freeze({
   '===': (actual, expected) => actual === expected,
   '!==': (actual, expected) => actual !== expected,
@@ -23,6 +28,13 @@ function activeNodules(state) {
 export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
   function worldValue(condition) {
     const key = condition.key;
+    if (
+      key === 'performedDoubleJumpCount'
+      || key === 'performedDashCount'
+      || key === 'performedPhosphatePulseCount'
+    ) {
+      return ensurePhaseObjectiveProgress(state)[key];
+    }
     if (key === 'reachedFinalRoot') return Boolean(state.level.goal?.completed);
     if (key === 'functionalBiofilmCount') return functionalBiofilms(state, condition.target).length;
     if (key === 'deployedExudateCount') return systems.gameplay?.deployedCloudCount || 0;
@@ -73,23 +85,26 @@ export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
       ? testOrConditions
       : testOrConditions?.requires || [];
       
-    if (state.campaign && !state.campaign.latchedObjectives) {
-      state.campaign.latchedObjectives = new Set();
-    }
+    const progress = ensurePhaseObjectiveProgress(state);
 
     const results = conditions.map(condition => {
       const actual = conditionValue(condition);
       const compare = OPERATORS[condition.operator];
       const currentPassed = Boolean(compare && compare(actual, condition.value));
       
-      if (currentPassed && state.campaign) {
-        state.campaign.latchedObjectives.add(condition.key);
-      }
-      
-      const passed = state.campaign?.latchedObjectives?.has(condition.key) || currentPassed;
+      const conditionId = objectiveConditionId(
+        condition,
+        progress.phaseId,
+        progress.attemptId,
+      );
+
+      if (currentPassed) progress.latchedConditions.add(conditionId);
+
+      const passed = progress.latchedConditions.has(conditionId) || currentPassed;
 
       return {
         condition,
+        conditionId,
         actual,
         passed,
       };

@@ -1,5 +1,6 @@
 import { W } from '../core/constants.js';
 import { PHOSPHATE_SOLUBILIZATION_DEFAULTS } from './campaign-manifest.js';
+import { recordPhaseObjectiveAction } from './campaign-objective-progress.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -153,6 +154,7 @@ export function createPhosphateSolubilization({
       x, y, originX: x, originY: y, direction: state.player.facing || 1,
       charge, energy: charge * 2, distance: 0, hitDeposits: new Set(),
     });
+    recordPhaseObjectiveAction(state, 'performedPhosphatePulseCount');
     entities.burst(x, y, '#df91ff', 10 + Math.round(charge * 12), 110);
     charge = 0;
     state.player.phosphateCharge = 0;
