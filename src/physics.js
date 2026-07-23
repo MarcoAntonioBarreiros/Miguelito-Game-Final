@@ -1,6 +1,7 @@
 import { PLAYER_MAX_X, W } from './core/constants.js';
 import { clamp, lerp, rects } from './core/math.js';
 import { microbeEncounters } from './data/microbes.js';
+import { recordPhaseObjectiveAction } from './procgen/campaign-objective-progress.js';
 import { unlockCampaignFeature } from './procgen/campaign-progression.js';
 
 export function createPhysicsSystem({ state, input, entities, hud, audio }) {
@@ -211,6 +212,7 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
         player.vy = -445 * jumpMultiplier;
         player.jumpBuffer = 0;
         player.airJumpAvailable = false;
+        recordPhaseObjectiveAction(state, 'performedDoubleJumpCount');
         entities.burst(player.x + 16, player.y + 39, '#72e8dd', 22, 165);
         audio.toneNow(330, .11, 'triangle', .07);
       }
@@ -225,6 +227,7 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
     ) {
       player.dashTime = .16;
       player.dashCooldown = .82 * (player.dashCooldownMultiplier || 1);
+      recordPhaseObjectiveAction(state, 'performedDashCount');
       entities.burst(player.x + 16, player.y + 24, '#6ce7df', 16, 170);
       keys.ShiftLeft = keys.ShiftRight = keys.KeyJ = false;
     }

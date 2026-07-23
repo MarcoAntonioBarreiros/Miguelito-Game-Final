@@ -83,6 +83,7 @@ test('3-4. somente a opcao selecionada carrega ao segurar E e dispara ao soltar'
   h.system.prepare(0);
   assert.equal(h.system.charge, 0);
   assert.equal(h.system.shotCount, 1);
+  assert.equal(h.state.level.objectiveProgress.performedPhosphatePulseCount, 1);
 });
 
 test('5-7. outras acoes continuam instantaneas, K nao dispara e touch usa TROCAR/hold E', () => {

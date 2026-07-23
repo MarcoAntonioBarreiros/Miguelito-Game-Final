@@ -128,7 +128,8 @@ test('desafio de Azo so e reservado depois de Azo, exsudato e raiz colonizavel',
   assert.equal(ladder.host.type, 'root');
   assert.equal(ladder.host.wasRecoveryRoot, true);
   assert.equal(ladder.host.recovery, false);
-  assert.ok(ladder.blockedRise >= 210);
+  assert.equal(ladder.destination.y, ladder.originalDestinationY);
+  assert.equal(ladder.blockedRise, ladder.host.y - ladder.destination.y);
   assert.ok(ladder.hostLogicIndex <= 12);
   assert.equal(level.platforms.some(platform => platform.azospirillumRootWall), false);
 });
@@ -285,7 +286,7 @@ test('escada cresce apenas com colonia de Azo na raiz e cada degrau so colide em
   assert.equal(ladder.steps.every(step => step.collider), true);
 });
 
-test('primeira escada conecta o bloco inferior ao superior com pulo normal', () => {
+test('primeira escada adapta os degraus ao bloco superior sem mover a rota', () => {
   const { ladder } = createFixtureLadder();
   const route = [
     ladder.host,
@@ -300,9 +301,8 @@ test('primeira escada conecta o bloco inferior ao superior com pulo normal', () 
     ladder.destination,
   ];
   assert.ok(Math.abs(ladder.endX - ladder.startX) < ladder.blockedRise);
-  assert.ok(ladder.steps[0].y - ladder.steps.at(-1).y > 150);
   assert.ok(ladder.steps.every((step, index) => index === 0 || step.y < ladder.steps[index - 1].y));
-  assert.equal(validateChunk(ladder.host, ladder.destination, NORMAL_JUMP), false);
+  assert.equal(ladder.destination.y, ladder.originalDestinationY);
   for (let index = 0; index < route.length - 1; index++) {
     assert.equal(
       validateVerticalStep(route[index], route[index + 1]),
@@ -388,9 +388,16 @@ test('geracao da escada permanece deterministica em multiplas seeds da Fase 3', 
           })),
           ladder.destination,
         ];
-        assert.ok(Math.abs(ladder.endX - ladder.startX) < ladder.blockedRise);
+        assert.ok(
+          Math.abs(ladder.endX - ladder.startX) <= 390,
+          `seed ${index}: destino precisa permanecer dentro do alcance lateral`,
+        );
         assert.ok(ladder.hostLogicIndex <= 12, `seed ${index} nao deve adiar o alvo de Azo`);
-        assert.equal(validateChunk(ladder.host, ladder.destination, NORMAL_JUMP), false);
+        assert.equal(
+          ladder.destination.y,
+          ladder.originalDestinationY,
+          `seed ${index}: a escada nao pode reposicionar o destino`,
+        );
         for (let routeIndex = 0; routeIndex < route.length - 1; routeIndex++) {
           assert.equal(
             validateVerticalStep(route[routeIndex], route[routeIndex + 1]),

@@ -2,9 +2,12 @@ import { H, W } from '../core/constants.js';
 import { clamp } from '../core/math.js';
 import { drawArbuscule } from '../procgen/hyphal-growth.js';
 import { createMicrobeRenderer } from './microbes.js';
+import { createNecroticZone } from './necrotic-zone.js';
 import { createPlayerSprite } from './player-sprite.js';
 import { resolvePlayerSkin } from './player-skins.js';
 import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from './bacillus-sprite.js';
+import { createRhizosphereBackdrop } from './rhizosphere-backdrop.js';
+import { createRhizosphereParallax } from './rhizosphere-parallax.js';
 
 function mixHex(a, b, t) {
   const value = clamp(t, 0, 1);
@@ -19,9 +22,36 @@ function mixHex(a, b, t) {
   return `#${channel(ar, br)}${channel(ag, bg)}${channel(ab, bb)}`;
 }
 
-export function createRenderer({ canvas, state, entities, playerSkin = null }) {
+export function createRenderer({
+  canvas,
+  state,
+  entities,
+  playerSkin = null,
+  parallaxSeed = 'rhizosphere',
+}) {
   const ctx = canvas.getContext('2d');
   const microbes = createMicrobeRenderer({ ctx, state, entities });
+  const necroticZone = createNecroticZone();
+  const rhizosphereBackdrop = createRhizosphereBackdrop({
+    seed: parallaxSeed,
+    createImage: () => canvas.ownerDocument?.createElement?.('img') || null,
+  });
+  const parallaxBackground = createRhizosphereParallax({
+    seed: parallaxSeed,
+    createCanvas: () => canvas.ownerDocument?.createElement?.('canvas') || null,
+  });
+  let lastNecroticTime = Number.isFinite(state.time) ? state.time : 0;
+  const parallaxCamera = { cameraX: 0, cameraY: 0, zoom: 1 };
+  const parallaxViewport = { width: W, height: H };
+  const necroticView = {
+    cameraX: 0,
+    cameraY: 0,
+    zoom: 1,
+    viewportWidth: W,
+    viewportHeight: H,
+    top: 674,
+    bottom: H,
+  };
   const skin = playerSkin || resolvePlayerSkin({
     locationLike: typeof window === 'undefined' ? null : window.location,
     storage: (() => { try { return window.localStorage; } catch (_) { return null; } })(),
@@ -34,47 +64,14 @@ export function createRenderer({ canvas, state, entities, playerSkin = null }) {
   }
 
   function drawBackground() {
-    const time = state.time;
-    const cameraX = state.cameraX;
-    const level = state.level;
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, '#0d2f37');
     g.addColorStop(.45, '#10262e');
     g.addColorStop(1, '#170f1b');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
-    ctx.save();
-    ctx.globalAlpha = .22;
-    for (let i = 0; i < 9; i++) {
-      const x = ((i * 240 - cameraX * .18) % 1800) - 180;
-      ctx.fillStyle = i % 2 ? '#4d7866' : '#285b64';
-      ctx.beginPath();
-      ctx.ellipse(x, 210 + i % 3 * 34, 240, 120, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-    ctx.save();
-    ctx.translate(-cameraX * .5, 0);
-    ctx.globalAlpha = .27;
-    level.roots.forEach(r => {
-      ctx.strokeStyle = r.layer > .5 ? '#b7a071' : '#769873';
-      ctx.lineWidth = r.thick;
-      ctx.beginPath();
-      ctx.moveTo(r.x, 60);
-      ctx.bezierCurveTo(r.x + Math.sin(r.ang) * 50, 180, r.x + Math.sin(r.ang) * 100, 300, r.x + Math.sin(r.ang) * r.len, 60 + r.len);
-      ctx.stroke();
-    });
-    ctx.restore();
-    level.spores.forEach(s => {
-      const sx = s.x - cameraX * .3;
-      if (sx < -10 || sx > W + 10) return;
-      ctx.globalAlpha = .16 + .14 * Math.sin(time * s.s + s.p);
-      ctx.fillStyle = s.p > 3 ? '#6ce7df' : '#b7f36b';
-      ctx.beginPath();
-      ctx.arc(sx, s.y + Math.sin(time * s.s + s.p) * 5, s.r, 0, Math.PI * 2);
-      ctx.fill();
-    });
-    ctx.globalAlpha = 1;
+    rhizosphereBackdrop.render(ctx, parallaxCamera, parallaxViewport);
+    parallaxBackground.render(ctx, parallaxCamera, parallaxViewport);
   }
 
   function drawRootStress(platform, health, time) {
@@ -226,21 +223,20 @@ export function createRenderer({ canvas, state, entities, playerSkin = null }) {
       // A geometria e colisao fisica em level.platforms permanecem 100% ativas para o personagem.
     });
 
-    level.hazards.forEach(h => {
-      const g = ctx.createLinearGradient(0, h.y, 0, h.y + h.h);
-      g.addColorStop(0, 'rgba(255,111,145,.15)');
-      g.addColorStop(1, 'rgba(255,111,145,.02)');
-      ctx.fillStyle = g;
-      ctx.fillRect(h.x, h.y, h.w, h.h);
-      for (let i = 0; i < h.w; i += 18) {
-        ctx.fillStyle = 'rgba(255,111,145,.35)';
-        ctx.beginPath();
-        ctx.moveTo(h.x + i, h.y + h.h);
-        ctx.lineTo(h.x + i + 9, h.y + 4);
-        ctx.lineTo(h.x + i + 18, h.y + h.h);
-        ctx.fill();
+    if (level.hazards.length) {
+      let top = Infinity;
+      let bottom = -Infinity;
+      for (const hazard of level.hazards) {
+        top = Math.min(top, hazard.y);
+        bottom = Math.max(bottom, hazard.y + hazard.h);
       }
-    });
+      necroticView.cameraX = cameraX;
+      necroticView.cameraY = state.cameraY || 0;
+      necroticView.zoom = state.cameraZoom || 1;
+      necroticView.top = top;
+      necroticView.bottom = bottom;
+      necroticZone.render(ctx, necroticView);
+    }
 
     if (level.endX === undefined) {
       ctx.strokeStyle = '#cfaa72';
@@ -570,6 +566,18 @@ export function createRenderer({ canvas, state, entities, playerSkin = null }) {
   }
 
   function render() {
+    const necroticTime = Number.isFinite(state.time) ? state.time : lastNecroticTime;
+    const necroticDt = necroticTime >= lastNecroticTime
+      ? Math.min(.1, necroticTime - lastNecroticTime)
+      : 0;
+    necroticZone.update(necroticDt);
+    parallaxCamera.cameraX = state.cameraX || 0;
+    parallaxCamera.cameraY = state.cameraY || 0;
+    parallaxCamera.zoom = state.cameraZoom || 1;
+    parallaxViewport.width = canvas.width || W;
+    parallaxViewport.height = canvas.height || H;
+    parallaxBackground.update(necroticDt, parallaxCamera, state.player);
+    lastNecroticTime = necroticTime;
     const sx = state.shake ? (Math.random() - .5) * state.shake * 24 : 0;
     const sy = state.shake ? (Math.random() - .5) * state.shake * 16 : 0;
     ctx.save();
@@ -584,6 +592,9 @@ export function createRenderer({ canvas, state, entities, playerSkin = null }) {
 
   return {
     render, drawBackground, drawWorld, drawPlayer,
+    necroticZone,
+    rhizosphereBackdrop,
+    parallaxBackground,
     playerSkin: { id: skin?.id || 'astronaut', usingSprite: () => Boolean(sprite && !sprite.isFallback()), debug: () => sprite?.debug() || null },
   };
 }

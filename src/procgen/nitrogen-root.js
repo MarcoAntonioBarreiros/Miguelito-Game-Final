@@ -10,6 +10,17 @@ const PHASE_TWO_MAX_ORDINARY_GAP = 142;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
+export function nitrogenRootVisualBounds(root, progress = root.progress) {
+  const normalized = clamp(progress, 0, 1);
+  return {
+    x: root.x,
+    y: root.y,
+    w: lerp(root.startWidth, root.targetWidth, normalized),
+    h: lerp(root.startHeight, root.targetHeight, normalized),
+    rootBaseY: root.y,
+  };
+}
+
 function routePlatforms(level) {
   return (level.platforms || [])
     .filter(platform => !platform.recovery && !platform.final && Number.isInteger(platform.logicIndex))
@@ -34,7 +45,8 @@ function colonizableRoot(platform, allowPromotion = false) {
     && !platform.azospirillumLadderHost
     && !platform.azospirillumLadderDestination
     && !platform.nitrogenRootCollider
-    && !platform.fixedObjective,
+    && !platform.fixedObjective
+    && !platform.signatureChallenge
   );
 }
 
@@ -204,6 +216,7 @@ export function generateUnderdevelopedNitrogenRoots({
       sourceExudateLogicIndex: firstExudate,
       x: targetPlatform.x,
       y: targetPlatform.y,
+      rootBaseY: targetPlatform.y,
       startWidth,
       startHeight,
       targetWidth: targetPlatform.w,
@@ -253,11 +266,9 @@ function updateCollider(state, root) {
     };
     state.level.platforms.push(root.collider);
   }
+  const bounds = nitrogenRootVisualBounds(root, 1);
   Object.assign(root.collider, {
-    x: root.x,
-    y: root.y,
-    w: root.targetWidth,
-    h: root.targetHeight,
+    ...bounds,
     oneWay: false,
     mature: true,
   });
@@ -291,8 +302,9 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
   function updateRoot(root, dt) {
     if (root.developed) {
       root.progress = 1;
-      root.currentWidth = root.targetWidth;
-      root.currentHeight = root.targetHeight;
+      const bounds = nitrogenRootVisualBounds(root, 1);
+      root.currentWidth = bounds.w;
+      root.currentHeight = bounds.h;
       updateCollider(state, root);
       return;
     }
@@ -309,8 +321,9 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
 
     const wasStarted = root.progress > 0;
     root.progress = clamp(root.progress + dt / Math.max(.1, root.growthDurationSeconds), 0, 1);
-    root.currentWidth = lerp(root.startWidth, root.targetWidth, root.progress);
-    root.currentHeight = lerp(root.startHeight, root.targetHeight, root.progress);
+    const bounds = nitrogenRootVisualBounds(root);
+    root.currentWidth = bounds.w;
+    root.currentHeight = bounds.h;
     root.stage = root.progress < .22
       ? 'receiving-nitrogen'
       : root.progress < 1 ? 'growing' : 'developed';
@@ -334,19 +347,16 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
 
   function drawRoot(ctx, root) {
     const progress = clamp(root.progress, 0, 1);
-    const colorProgress = .18 + progress * .82;
-    const width = root.currentWidth;
-    const height = root.currentHeight;
+    const bounds = nitrogenRootVisualBounds(root, progress);
+    const width = bounds.w;
+    const height = bounds.h;
 
     ctx.save();
     ctx.lineCap = 'round';
 
     if (!root.developed || progress < 1) {
       drawRootVisual(ctx, {
-        x: root.x,
-        y: root.y,
-        w: width,
-        h: height,
+        ...bounds,
         type: 'root',
         rootHealth: 1,
       });
@@ -356,7 +366,7 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
       ctx.lineWidth = 1.4;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
-      ctx.roundRect(root.x, root.y, width, height, 15);
+      ctx.roundRect(bounds.x, bounds.y, bounds.w, bounds.h, 15);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.restore();
@@ -368,11 +378,16 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
       ctx.strokeStyle = `rgba(230,218,185,${.24 + hairProgress * .52})`;
       ctx.lineWidth = 1;
       for (let index = 0; index < count; index++) {
-        const x = root.x + 14 + (index + .5) / count * Math.max(8, width - 28);
+        const x = bounds.x + 14 + (index + .5) / count * Math.max(8, width - 28);
         const direction = index % 2 ? 1 : -1;
         ctx.beginPath();
-        ctx.moveTo(x, root.y + height - 2);
-        ctx.quadraticCurveTo(x + direction * 6, root.y + height + 8, x + direction * 10, root.y + height + 15 + (index % 3) * 3);
+        ctx.moveTo(x, bounds.y + height - 2);
+        ctx.quadraticCurveTo(
+          x + direction * 6,
+          bounds.y + height + 8,
+          x + direction * 10,
+          bounds.y + height + 15 + (index % 3) * 3,
+        );
         ctx.stroke();
       }
     }
@@ -381,8 +396,8 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
     if (site?.mature && (site.fixationRate || 0) >= root.requiredFixationRate && !root.developed) {
       const sourceX = site.x;
       const sourceY = site.surfaceY + site.depth;
-      const targetX = root.x + Math.min(width * .58, root.targetWidth * .52);
-      const targetY = root.y + height * .42;
+      const targetX = bounds.x + Math.min(width * .58, root.targetWidth * .52);
+      const targetY = bounds.y + height * .42;
       const distance = Math.max(80, targetX - sourceX);
       const controlOne = { x: sourceX + distance * .28, y: sourceY - 48 };
       const controlTwo = { x: targetX - distance * .24, y: targetY - 34 };
