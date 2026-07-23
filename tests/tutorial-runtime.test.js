@@ -16,6 +16,16 @@ import {
   TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT,
 } from '../src/procgen/tutorial-triggers.js';
 import { getCardsTaughtBeforePhase } from '../src/procgen/tutorial-prior-knowledge.js';
+import {
+  createAutomaticTutorialSafetyGate,
+  createPendingTutorialQueue,
+  findSupportingTutorialPlatform,
+  stabilizePlayerForAutomaticTutorial,
+} from '../src/procgen/tutorial-presentation.js';
+import {
+  advanceGameplayFrame,
+  createTutorialInputGate,
+} from '../src/procgen/tutorial-pause.js';
 
 test('simuladores auxiliares não substituem o simulador ativo exposto', () => {
   const previousWindow = globalThis.window;
@@ -428,4 +438,177 @@ test('painel aberto não cria fila geral e preserva um encontro obrigatório com
   const secondary = flow.handle('action-exudate', guided({ panelOpen: true }));
   assert.equal(secondary.open, false);
   assert.equal(secondary.reason, 'panel-open');
+});
+
+function safeTutorialState(overrides = {}) {
+  const platform = {
+    id: 'safe-root',
+    x: 100,
+    y: 400,
+    w: 180,
+    h: 72,
+    type: 'root',
+  };
+  const player = {
+    x: 145,
+    y: platform.y - 48,
+    w: 32,
+    h: 48,
+    vx: 70,
+    vy: 0,
+    onGround: true,
+    alive: true,
+    dashTime: 0,
+    tutorialUnsafeUntil: 0,
+  };
+  return {
+    state: {
+      time: 10,
+      gameState: 'play',
+      respawnTimer: 0,
+      jumpHeldLast: false,
+      player,
+      level: { platforms: [platform] },
+      ...overrides,
+    },
+    platform,
+    player,
+  };
+}
+
+test('fila automática preserva ordem e deduplica cartões e gatilhos', () => {
+  const queue = createPendingTutorialQueue();
+  assert.equal(queue.enqueue({ cardId: 'a', triggerId: 'trigger-a' }), true);
+  assert.equal(queue.enqueue({ cardId: 'a', triggerId: 'trigger-a-repeat' }), false);
+  assert.equal(queue.enqueue({ cardId: 'b', triggerId: 'trigger-b' }), true);
+  assert.equal(queue.hasTrigger('trigger-a'), true);
+  assert.deepEqual(queue.snapshot().map(entry => entry.cardId), ['a', 'b']);
+  assert.equal(queue.shift().cardId, 'a');
+  assert.equal(queue.shift().cardId, 'b');
+  assert.equal(queue.length, 0);
+});
+
+test('gatilho no ar permanece pendente até apoio estável', () => {
+  const { state, platform, player } = safeTutorialState();
+  const queue = createPendingTutorialQueue();
+  let gameplayEffects = 0;
+  gameplayEffects++;
+  queue.enqueue({ cardId: 'organism-bacillus', triggerId: 'organism-bacillus' });
+
+  player.onGround = false;
+  player.y -= 80;
+  player.vy = 160;
+  const gate = createAutomaticTutorialSafetyGate({ state });
+  assert.equal(gate.inspect(.05).safe, false);
+  assert.equal(queue.length, 1);
+  assert.equal(gameplayEffects, 1, 'o efeito do gatilho ocorre sem esperar o modal');
+
+  player.y = platform.y - player.h;
+  player.vy = 0;
+  player.onGround = true;
+  assert.equal(gate.inspect(.05).safe, false, 'um quadro de contato não basta');
+  assert.equal(gate.inspect(.05).safe, false, 'a confirmação também exige vários quadros');
+  const stable = gate.inspect(.05);
+  assert.equal(stable.safe, true);
+  assert.equal(stabilizePlayerForAutomaticTutorial(state, stable.support), true);
+  assert.equal(player.vx, 0);
+  assert.equal(player.vy, 0);
+});
+
+test('apoio mínimo na borda não é superfície segura', () => {
+  const { state, platform, player } = safeTutorialState();
+  player.x = platform.x + platform.w - 4;
+  assert.equal(findSupportingTutorialPlatform(state), null);
+});
+
+test('dash, dano, knockback, morte e respawn bloqueiam apresentação', () => {
+  const { state, player } = safeTutorialState();
+  const gate = createAutomaticTutorialSafetyGate({ state });
+
+  player.dashTime = .1;
+  assert.equal(gate.inspect(.05).reason, 'dash');
+  player.dashTime = 0;
+  player.tutorialUnsafeUntil = state.time + .2;
+  assert.equal(gate.inspect(.05).reason, 'damage');
+  player.tutorialUnsafeUntil = 0;
+  player.onGround = false;
+  player.vy = -220;
+  assert.equal(gate.inspect(.05).reason, 'jumping');
+  player.alive = false;
+  assert.equal(gate.inspect(.05).reason, 'dead');
+  player.alive = true;
+  state.gameState = 'respawning';
+  state.respawnTimer = .4;
+  assert.equal(gate.inspect(.05).reason, 'game-state');
+});
+
+test('morte não descarta nem marca cartão pendente', () => {
+  const { state, platform, player } = safeTutorialState();
+  const queue = createPendingTutorialQueue();
+  queue.enqueue({ cardId: 'organism-rhizobium', triggerId: 'organism-rhizobium' });
+  const seen = new Set();
+  const gate = createAutomaticTutorialSafetyGate({ state });
+
+  player.alive = false;
+  state.gameState = 'respawning';
+  state.respawnTimer = .5;
+  assert.equal(gate.inspect(.1).safe, false);
+  assert.equal(queue.length, 1);
+  assert.equal(seen.has('organism-rhizobium'), false);
+
+  player.alive = true;
+  state.gameState = 'play';
+  state.respawnTimer = 0;
+  player.y = platform.y - player.h;
+  player.vy = 0;
+  player.onGround = true;
+  gate.inspect(.05);
+  gate.inspect(.05);
+  assert.equal(gate.inspect(.05).safe, true);
+  assert.equal(queue.shift().cardId, 'organism-rhizobium');
+});
+
+test('pausa central impede que o simulador real e runtimes avancem', () => {
+  const sim = createSimulator();
+  const before = {
+    time: sim.state.time,
+    x: sim.state.player.x,
+    y: sim.state.player.y,
+    toastTime: sim.state.toastTime,
+  };
+  sim.state.gameState = 'tutorial';
+  let controllerUpdates = 0;
+  const advanced = advanceGameplayFrame({
+    state: sim.state,
+    manager: { isOpen: true },
+    sim,
+    dt: .1,
+    advance: dt => {
+      sim.step(dt);
+      controllerUpdates++;
+    },
+  });
+  assert.equal(advanced, false);
+  assert.equal(controllerUpdates, 0);
+  assert.equal(sim.state.time, before.time);
+  assert.equal(sim.state.player.x, before.x);
+  assert.equal(sim.state.player.y, before.y);
+  assert.equal(sim.state.toastTime, before.toastTime);
+});
+
+test('entradas anteriores e teclas mantidas exigem liberação', () => {
+  const sim = createSimulator();
+  const keys = { Space: true, ShiftLeft: true, KeyE: true, ArrowRight: true };
+  sim.setInputs(keys);
+  const gate = createTutorialInputGate({ keys, sim });
+  gate.clear({ blockActive: true, extraBlockedCodes: ['KeyJ'] });
+
+  assert.equal(sim.input.keys.Space, false);
+  assert.equal(sim.input.keys.ShiftLeft, false);
+  assert.equal(sim.input.keys.KeyE, false);
+  assert.equal(gate.acceptsKeyDown('Space'), false);
+  assert.equal(gate.acceptsKeyDown('KeyJ'), false);
+  gate.release('Space');
+  assert.equal(gate.acceptsKeyDown('Space'), true);
+  assert.equal(gate.acceptsKeyDown('ShiftLeft'), false);
 });

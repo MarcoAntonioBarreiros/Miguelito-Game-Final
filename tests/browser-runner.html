@@ -33,10 +33,10 @@
     throw new Error(message);
   }
 
-  async function loadGame(pathname, query = 'test=1') {
+  async function loadGame(pathname, query = 'test=1', viewport = {}) {
     const iframe = document.createElement('iframe');
-    iframe.width = 1280;
-    iframe.height = 720;
+    iframe.width = viewport.width || 1280;
+    iframe.height = viewport.height || 720;
     iframe.src = `${pathname}?${query}`;
     document.body.appendChild(iframe);
     await new Promise((resolve, reject) => {
@@ -89,6 +89,20 @@
       `${label}: tutorial manager should become ready without blocking the test entrypoint`,
     );
 
+    // O cartão de boas-vindas também usa a fila automática. Ele não faz parte
+    // deste cenário e é marcado como conhecido antes de posicionarmos o jogador.
+    manager.markSeen('system-welcome');
+    await waitFor(
+      () => !manager.pendingCards.some(entry => entry.cardId === 'system-welcome'),
+      `${label}: seen welcome card should leave the automatic queue`,
+    );
+
+    const sim = win.miguelitoSim;
+    const player = sim.state.player;
+    player.onGround = false;
+    player.y = 180;
+    player.vy = 180;
+
     const encounter = manager.trigger('organism-bacillus', {
       tutorialMode: 'silent',
       source: 'first-proximity-encounter',
@@ -98,8 +112,44 @@
       visibleWorldWidth: 900,
       nowSeconds: 10,
     });
-    assert(encounter, `${label}: first Bacillus proximity should open its mandatory card`);
-    assert(manager.currentCardId === 'organism-bacillus', `${label}: mandatory proximity should bypass silent mode`);
+    assert(encounter, `${label}: first Bacillus proximity should process its mandatory trigger`);
+    assert(!manager.isOpen, `${label}: airborne mandatory card must not open immediately`);
+    assert(
+      manager.pendingCards.some(entry => entry.cardId === 'organism-bacillus'),
+      `${label}: airborne mandatory card should remain queued`,
+    );
+
+    const support = sim.state.level.platforms.find(platform => (
+      !platform.recovery && !platform.final && platform.w >= 100
+    ));
+    player.x = support.x + Math.min(40, support.w / 3);
+    player.y = support.y - player.h;
+    player.vx = 120;
+    player.vy = 0;
+    player.onGround = true;
+    try {
+      await waitFor(
+        () => manager.currentCardId === 'organism-bacillus',
+        `${label}: queued Bacillus card should open after stable support`,
+      );
+    } catch (error) {
+      throw new Error(`${error.message}; diagnostics=${JSON.stringify({
+        pending: manager.pendingCards,
+        safety: manager.safetyDiagnostics,
+        gameState: sim.state.gameState,
+        player: {
+          x: player.x, y: player.y, vx: player.vx, vy: player.vy,
+          onGround: player.onGround, alive: player.alive,
+        },
+        support,
+      })}`);
+    }
+    assert(player.vx === 0 && player.vy === 0, `${label}: automatic opening should stabilize the player`);
+    const pausedTime = sim.state.time;
+    const pausedPosition = { x: player.x, y: player.y };
+    await wait(120);
+    assert(sim.state.time === pausedTime, `${label}: game time should freeze while tutorial is open`);
+    assert(player.x === pausedPosition.x && player.y === pausedPosition.y, `${label}: player should not move while paused`);
 
     const nextButton = win.document.querySelector('.tutorial-next');
     const nextRect = nextButton.getBoundingClientRect();
@@ -117,8 +167,61 @@
       `${label}: first Bacillus encounter should unlock only page zero`,
     );
 
+    const second = manager.trigger('organism-rhizobium', {
+      tutorialMode: 'silent',
+      source: 'first-proximity-encounter',
+      phase: 2,
+      chunkIndex: 4,
+      worldX: 1100,
+      visibleWorldWidth: 900,
+      nowSeconds: 11,
+    });
+    assert(second, `${label}: a different mandatory card should join the queue`);
+    win.dispatchEvent(new win.KeyboardEvent('keydown', {
+      code: 'Space', key: ' ', bubbles: true, cancelable: true,
+    }));
     nextButton.click();
+    assert(!manager.isOpen, `${label}: closing one card must resume before opening the next`);
+    // O Chrome headless pode suspender RAFs do segundo iframe quando o orçamento
+    // virtual está perto do fim. Executamos aqui os mesmos checks pós-física que
+    // o app chama no fim de cada frame: 1 frame de retomada + 3 de estabilidade.
+    for (let frame = 0; frame < 4; frame++) manager.updateAutomaticPresentation(.05);
+    try {
+      await waitFor(
+        () => manager.currentCardId === 'organism-rhizobium',
+        `${label}: held jump must not fire; second card opens after a fresh grounded check`,
+      );
+    } catch (error) {
+      throw new Error(`${error.message}; diagnostics=${JSON.stringify({
+        pending: manager.pendingCards,
+        safety: manager.safetyDiagnostics,
+        gameState: sim.state.gameState,
+        player: {
+          x: player.x, y: player.y, vx: player.vx, vy: player.vy,
+          onGround: player.onGround, alive: player.alive,
+        },
+        debug: win.document.getElementById('debug')?.textContent,
+      })}`);
+    }
+    assert(player.onGround && player.vy === 0, `${label}: held jump should remain blocked until keyup`);
+    win.dispatchEvent(new win.KeyboardEvent('keyup', {
+      code: 'Space', key: ' ', bubbles: true, cancelable: true,
+    }));
+    win.document.querySelector('.tutorial-next').click();
     await waitFor(() => !manager.isOpen, `${label}: one-page Bacillus introduction should close`);
+
+    const pendingBeforeRepeat = manager.pendingCount;
+    manager.trigger('organism-bacillus', {
+      tutorialMode: 'silent',
+      source: 'first-proximity-encounter',
+      phase: 1,
+      chunkIndex: 6,
+      worldX: 1000,
+      visibleWorldWidth: 900,
+      nowSeconds: 12,
+    });
+    assert(manager.pendingCount === pendingBeforeRepeat, `${label}: seen card should not re-enter the queue`);
+
     manager.trigger('structure-biofilm', {
       tutorialMode: 'silent',
       phase: 1,
@@ -201,6 +304,27 @@
     await wait(100);
     assert(errors.length === 0, `console/page errors: ${errors.join('; ')}`);
     built.iframe.remove();
+
+    // O Chromium headless deixa de entregar RAFs de forma confiavel depois de
+    // varios jogos no mesmo runner. Esta verificacao nao depende do loop e fica
+    // por ultimo para nao interferir nos fluxos integrados anteriores.
+    const mobile = await loadGame(
+      '/index.html',
+      'test=1',
+      { width: 844, height: 390 },
+    );
+    await waitFor(
+      () => mobile.win.document.querySelector('canvas')?.width === 1558,
+      'responsive canvas did not adapt to the mobile landscape viewport',
+    );
+    const mobileCanvas = mobile.win.document.querySelector('canvas');
+    assert(mobileCanvas.height === 720, 'mobile canvas must preserve logical height');
+    assert(
+      Math.abs(mobileCanvas.width / mobileCanvas.height - 844 / 390) < .001,
+      'mobile canvas must match the viewport aspect ratio without letterbox bars',
+    );
+    record('responsive mobile viewport fills the full width');
+    mobile.iframe.remove();
 
     document.body.dataset.status = 'pass';
     result.textContent = JSON.stringify({ status: 'pass', checks }, null, 2);

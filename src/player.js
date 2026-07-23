@@ -17,6 +17,7 @@ const initialPlayer = {
   dashTime: 0,
   dashCooldown: 0,
   invuln: 0,
+  tutorialUnsafeUntil: 0,
   alive: true,
   exudates: 0,
   soil: 28,

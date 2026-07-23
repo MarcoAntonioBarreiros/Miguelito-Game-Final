@@ -1308,11 +1308,15 @@ const __modules = {
 const { generateLevel, enforceTraversableRoute } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");
 const { createRouteAnchorRegistry, recordRouteGeometryStage } = __require("src/procgen/route-geometry.js");
 const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry } = __require("src/procgen/phosphate-solubilization.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { updateContextPanel } = __require("src/procgen/hud-context.js");const { computeEcologicalScore } = __require("src/procgen/ecological-score.js");const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");const { createSimulator } = __require("src/procgen/simulator.js");
+const { advanceGameplayFrame, createTutorialInputGate } = __require("src/procgen/tutorial-pause.js");
 const { createRenderer } = __require("src/render/renderer.js");
 const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.js");
 const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");
-const { createCameraView } = __require("src/procgen/camera-view.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
+const { createCameraView } = __require("src/procgen/camera-view.js");
+const { createResponsiveCanvas } = __require("src/procgen/responsive-canvas.js");
+const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
+const responsiveCanvas = createResponsiveCanvas({ canvas, windowObject: window });
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
 const missionDiv = document.getElementById('mission');
@@ -1496,6 +1500,7 @@ const campaign = createCampaign(phaseLab.enabled ? phaseLab.config.seed : undefi
 if (phaseLab.enabled) phaseLab.configureCampaign(campaign);
 sim.state.campaign = campaign;
 const cameraView = createCameraView({ canvas, state: sim.state });
+window.miguelitoViewport = responsiveCanvas;
 const rhizoctoniaControl = createRhizoctoniaControl({
   state: sim.state,
   entities: sim.entities,
@@ -1925,8 +1930,13 @@ document.addEventListener('mouseup', event => {
 }, { passive: true });
 
 const keys = {};
+const tutorialInputGate = createTutorialInputGate({ keys, sim });
 window.addEventListener('keydown', event => {
   if (phaseLab.enabled && event.target instanceof Element && event.target.closest('.phase-lab')) return;
+  if (!tutorialInputGate.acceptsKeyDown(event.code)) {
+    event.preventDefault();
+    return;
+  }
 
   // Impede que a tecla Espaco (pulo) dispara o clique do botao do DOM focado
   if ((event.code === 'Space' || event.key === ' ') && document.activeElement instanceof HTMLElement && document.activeElement.tagName === 'BUTTON') {
@@ -1944,7 +1954,17 @@ window.addEventListener('keydown', event => {
     debugDiv.classList.toggle('hidden', !showDebug);
   }
 });
-window.addEventListener('keyup', event => { keys[event.code] = false; });
+window.addEventListener('keyup', event => tutorialInputGate.release(event.code));
+window.addEventListener('miguelito:tutorial-open', () => {
+  tutorialInputGate.clear({ blockActive: true });
+});
+window.addEventListener('miguelito:tutorial-close', event => {
+  tutorialInputGate.clear({
+    blockActive: true,
+    extraBlockedCodes: event.detail?.blockedInputCodes || [],
+  });
+  lastTime = performance.now();
+});
 
 function currentLogicIndex() {
   let logicIndex = -1;
@@ -1995,18 +2015,28 @@ function loop(now) {
     const dt = Math.max(0, Math.min((now - lastTime) / 1000, .1));
     lastTime = now;
 
-    rhizoctoniaControl.prepare(dt);
-    trichodermaRhizoctoniaControl.update(0);
-    trichodermaMeloidogyneControl.update(0);
-    sim.setInputs(keys);
-    sim.step(dt);
-    fixedBlockRuntime.update(dt);
-    rhizoctoniaControl.update(dt);
-    trichodermaRhizoctoniaControl.update(dt);
-    trichodermaMeloidogyneControl.update(dt);
-    ralstoniaControl.update(dt);
-    maybeAdvanceCampaign();
-    cameraView.update(dt);
+    const tutorialManager = window.miguelitoTutorial || null;
+    const advanced = advanceGameplayFrame({
+      state: sim.state,
+      manager: tutorialManager,
+      sim,
+      dt,
+      advance: frameDt => {
+        rhizoctoniaControl.prepare(frameDt);
+        trichodermaRhizoctoniaControl.update(0);
+        trichodermaMeloidogyneControl.update(0);
+        sim.setInputs(keys);
+        sim.step(frameDt);
+        fixedBlockRuntime.update(frameDt);
+        rhizoctoniaControl.update(frameDt);
+        trichodermaRhizoctoniaControl.update(frameDt);
+        trichodermaMeloidogyneControl.update(frameDt);
+        ralstoniaControl.update(frameDt);
+        maybeAdvanceCampaign();
+        cameraView.update(frameDt);
+      },
+    });
+    if (advanced) tutorialManager?.updateAutomaticPresentation?.(dt);
     renderWorld();
     updateTouchAbilityVisibility();
 
@@ -4140,6 +4170,7 @@ function createSimulator() {
       player.airJumpAvailable = player.canDoubleJump;
       if (state.campaign) applyPersistentUnlocks(player, state.campaign);
       player.invuln = 1.7;
+      player.tutorialUnsafeUntil = state.time + .1;
       state.respawnTimer = 0;
       state.gameState = 'play';
       state.toast = reason === 'death'
@@ -5336,6 +5367,7 @@ const initialPlayer = {
   dashTime: 0,
   dashCooldown: 0,
   invuln: 0,
+  tutorialUnsafeUntil: 0,
   alive: true,
   exudates: 0,
   soil: 28,
@@ -14704,6 +14736,10 @@ function createPathogenSurvival({ state, entities, ecology }) {
     player.infection = clamp((player.infection || 0) + (options.infection || 0), 0, 1);
     player.vx = options.knockbackX ?? (-player.facing * 250);
     player.vy = options.knockbackY ?? -245;
+    player.tutorialUnsafeUntil = Math.max(
+      player.tutorialUnsafeUntil || 0,
+      state.time + .24,
+    );
     state.shake = Math.max(state.shake || 0, damage > 1 ? .42 : .3);
     entities.burst(
       player.x + player.w / 2,
@@ -18073,6 +18109,71 @@ function computeEcologicalScore(evaluator) {
 }
 Object.assign(__exports, { computeEcologicalScore });
 },
+"src/procgen/tutorial-pause.js": (__exports, __require) => {
+function tutorialPauseActive(state, manager = null) {
+  return state?.gameState === 'tutorial' || Boolean(manager?.isOpen);
+}
+
+function clearInstantPlayerActions(state) {
+  const player = state?.player;
+  if (!player) return;
+  player.vx = 0;
+  player.vy = 0;
+  player.dashTime = 0;
+  player.jumpBuffer = 0;
+  state.jumpHeldLast = false;
+}
+
+function createTutorialInputGate({ keys, sim }) {
+  const blockedUntilRelease = new Set();
+
+  function clear({ blockActive = false, extraBlockedCodes = [] } = {}) {
+    if (blockActive) {
+      for (const [code, down] of Object.entries(keys)) {
+        if (down) blockedUntilRelease.add(code);
+      }
+    }
+    for (const code of extraBlockedCodes) {
+      if (code) blockedUntilRelease.add(code);
+    }
+    for (const code of Object.keys(keys)) keys[code] = false;
+    sim.setInputs({});
+    clearInstantPlayerActions(sim.state);
+  }
+
+  function acceptsKeyDown(code) {
+    return !blockedUntilRelease.has(code);
+  }
+
+  function release(code) {
+    keys[code] = false;
+    blockedUntilRelease.delete(code);
+  }
+
+  return {
+    clear,
+    acceptsKeyDown,
+    release,
+    get blockedCodes() { return [...blockedUntilRelease]; },
+  };
+}
+
+function advanceGameplayFrame({
+  state,
+  manager = null,
+  sim,
+  dt,
+  advance,
+}) {
+  if (tutorialPauseActive(state, manager)) {
+    sim.setInputs({});
+    return false;
+  }
+  advance(dt);
+  return true;
+}
+Object.assign(__exports, { tutorialPauseActive, clearInstantPlayerActions, createTutorialInputGate, advanceGameplayFrame });
+},
 "src/render/renderer.js": (__exports, __require) => {
 const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");
 const { createNecroticZone } = __require("src/render/necrotic-zone.js");
@@ -18136,12 +18237,18 @@ function createRenderer({
   }
 
   function drawBackground() {
-    const g = ctx.createLinearGradient(0, 0, 0, H);
+    const viewportWidth = canvas.width || W;
+    const viewportHeight = canvas.height || H;
+    const cameraY = state.cameraY || 0;
+    const g = ctx.createLinearGradient(0, cameraY, 0, cameraY + viewportHeight);
     g.addColorStop(0, '#0d2f37');
     g.addColorStop(.45, '#10262e');
     g.addColorStop(1, '#170f1b');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
+    // O fundo fica ancorado ao viewport. Como a transformacao vertical da
+    // camera ja esta aplicada ao contexto, somar cameraY aqui a cancela e evita
+    // revelar a borda superior da imagem em trechos que sobem acima de y=0.
+    ctx.fillRect(0, cameraY, viewportWidth, viewportHeight);
     rhizosphereBackdrop.render(ctx, parallaxCamera, parallaxViewport);
     parallaxBackground.render(ctx, parallaxCamera, parallaxViewport);
   }
@@ -18305,6 +18412,8 @@ function createRenderer({
       necroticView.cameraX = cameraX;
       necroticView.cameraY = state.cameraY || 0;
       necroticView.zoom = state.cameraZoom || 1;
+      necroticView.viewportWidth = canvas.width || W;
+      necroticView.viewportHeight = canvas.height || H;
       necroticView.top = top;
       necroticView.bottom = bottom;
       necroticZone.render(ctx, necroticView);
@@ -19607,27 +19716,29 @@ function createRhizosphereBackdrop({
       cameraX: camera.cameraX,
       seedPosition,
     });
+    const cameraY = Number(camera.cameraY) || 0;
 
     ctx.save();
     ctx.globalAlpha = 0.82;
     for (const tile of tiles) {
+      const drawY = tile.y + cameraY;
       if (tile.mirrored) {
         ctx.save();
-        ctx.translate(tile.x + tile.width, tile.y);
+        ctx.translate(tile.x + tile.width, drawY);
         ctx.scale(-1, 1);
         ctx.drawImage(image, 0, 0, tile.width, tile.height);
         ctx.restore();
       } else {
-        ctx.drawImage(image, tile.x, tile.y, tile.width, tile.height);
+        ctx.drawImage(image, tile.x, drawY, tile.width, tile.height);
       }
     }
     ctx.globalAlpha = 1;
-    const veil = ctx.createLinearGradient(0, 0, 0, height);
+    const veil = ctx.createLinearGradient(0, cameraY, 0, cameraY + height);
     veil.addColorStop(0, 'rgba(1,13,20,.20)');
     veil.addColorStop(0.58, 'rgba(3,18,25,.34)');
     veil.addColorStop(1, 'rgba(10,8,18,.56)');
     ctx.fillStyle = veil;
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, cameraY, width, height);
     ctx.restore();
     return true;
   }
@@ -20146,20 +20257,38 @@ function createRhizosphereParallax({
 Object.assign(__exports, { BIOLOGICAL_PARALLAX_KEY, RHIZOSPHERE_PARALLAX_FACTORS, createRhizosphereParallax });
 },
 "src/procgen/camera-view.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { clamp, lerp } = __require("src/core/math.js");
+const { H, W } = __require("src/core/constants.js");
+const { clamp, lerp } = __require("src/core/math.js");
 const DEFAULT_ZOOM = 1.45;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 1.8;
 const ZOOM_STEP = .1;
 
-const coarsePointer = window.matchMedia('(pointer: coarse)').matches
-  || navigator.maxTouchPoints > 0;
-
 function roundedZoom(value) {
   return Math.round(value * 20) / 20;
 }
 
+function calculateVerticalCameraTarget({
+  playerCenterY,
+  visibleHeight,
+  verticalAnchor,
+  worldHeight = H,
+}) {
+  const safeVisibleHeight = Math.max(1, Number(visibleHeight) || H);
+  const rawTarget = (Number(playerCenterY) || 0)
+    - safeVisibleHeight * (Number(verticalAnchor) || 0);
+  const minCameraY = Math.min(0, rawTarget);
+  const maxCameraY = Math.max(0, (Number(worldHeight) || H) - safeVisibleHeight);
+  return clamp(rawTarget, minCameraY, maxCameraY);
+}
+
 function createCameraView({ canvas, state }) {
+  const windowObject = canvas?.ownerDocument?.defaultView
+    || (typeof window === 'undefined' ? null : window);
+  const coarsePointer = Boolean(
+    windowObject?.matchMedia?.('(pointer: coarse)').matches
+      || windowObject?.navigator?.maxTouchPoints > 0,
+  );
   let zoom = DEFAULT_ZOOM;
   let targetZoom = DEFAULT_ZOOM;
   const readout = document.querySelector('[data-camera-readout]');
@@ -20203,8 +20332,14 @@ function createCameraView({ canvas, state }) {
     const player = state.player;
     if (!player) return;
 
-    const visibleW = W / zoom;
-    const visibleH = H / zoom;
+    const viewportWidth = canvas.width || W;
+    const viewportHeight = canvas.height || H;
+    const visibleW = viewportWidth / zoom;
+    const visibleH = viewportHeight / zoom;
+    state.viewportWidth = viewportWidth;
+    state.viewportHeight = viewportHeight;
+    state.visibleWorldWidth = visibleW;
+    state.visibleWorldHeight = visibleH;
     const playerCenterX = player.x + player.w / 2;
     const playerCenterY = player.y + player.h / 2;
     const direction = player.facing || 1;
@@ -20222,12 +20357,16 @@ function createCameraView({ canvas, state }) {
     state.cameraX = lerp(state.cameraX || 0, targetCameraX, horizontalBlend);
 
     const verticalAnchor = coarsePointer ? .56 : .61;
-    const maxCameraY = Math.max(0, H - visibleH);
-    const targetCameraY = clamp(
-      playerCenterY - visibleH * verticalAnchor,
-      0,
-      maxCameraY,
-    );
+    // Rotas altas podem ultrapassar y=0. O limite antigo prendia a camera em
+    // zero e deixava somente os pes do personagem visiveis. Para cima, o
+    // proprio alvo do jogador passa a definir o limite; para baixo, preservamos
+    // a borda inferior historica do mundo.
+    const targetCameraY = calculateVerticalCameraTarget({
+      playerCenterY,
+      visibleHeight: visibleH,
+      verticalAnchor,
+      worldHeight: H,
+    });
     const verticalBlend = 1 - Math.pow(.012, dt);
     state.cameraY = lerp(state.cameraY || 0, targetCameraY, verticalBlend);
   }
@@ -20289,7 +20428,100 @@ function createCameraView({ canvas, state }) {
     get targetZoom() { return targetZoom; },
   };
 }
-Object.assign(__exports, { createCameraView });
+Object.assign(__exports, { calculateVerticalCameraTarget, createCameraView });
+},
+"src/procgen/responsive-canvas.js": (__exports, __require) => {
+const { H, W } = __require("src/core/constants.js");
+function calculateResponsiveCanvasSize(
+  viewportWidth,
+  viewportHeight,
+  logicalHeight = H,
+) {
+  const width = Number(viewportWidth);
+  const height = Number(viewportHeight);
+  const safeLogicalHeight = Math.max(1, Math.round(Number(logicalHeight) || H));
+  if (!(width > 0) || !(height > 0)) {
+    return { width: W, height: safeLogicalHeight, aspectRatio: W / H };
+  }
+
+  const aspectRatio = width / height;
+  return {
+    width: Math.max(1, Math.round(safeLogicalHeight * aspectRatio)),
+    height: safeLogicalHeight,
+    aspectRatio,
+  };
+}
+
+function measuredViewport(canvas, windowObject) {
+  const rect = canvas?.getBoundingClientRect?.();
+  const width = rect?.width
+    || windowObject?.visualViewport?.width
+    || windowObject?.innerWidth
+    || W;
+  const height = rect?.height
+    || windowObject?.visualViewport?.height
+    || windowObject?.innerHeight
+    || H;
+  return { width, height };
+}
+
+function createResponsiveCanvas({
+  canvas,
+  windowObject = typeof window === 'undefined' ? null : window,
+} = {}) {
+  if (!canvas) throw new Error('createResponsiveCanvas requer um canvas');
+
+  let scheduled = false;
+  let lastViewportWidth = 0;
+  let lastViewportHeight = 0;
+
+  function sync() {
+    scheduled = false;
+    const viewport = measuredViewport(canvas, windowObject);
+    const next = calculateResponsiveCanvasSize(viewport.width, viewport.height);
+    const changed = canvas.width !== next.width || canvas.height !== next.height;
+    if (changed) {
+      canvas.width = next.width;
+      canvas.height = next.height;
+    }
+    lastViewportWidth = viewport.width;
+    lastViewportHeight = viewport.height;
+    return changed;
+  }
+
+  function schedule() {
+    if (scheduled) return;
+    scheduled = true;
+    const requestFrame = windowObject?.requestAnimationFrame?.bind(windowObject);
+    if (requestFrame) requestFrame(sync);
+    else sync();
+  }
+
+  sync();
+  windowObject?.addEventListener?.('resize', schedule, { passive: true });
+  windowObject?.addEventListener?.('orientationchange', schedule, { passive: true });
+  windowObject?.visualViewport?.addEventListener?.('resize', schedule, { passive: true });
+
+  return {
+    sync,
+    schedule,
+    destroy() {
+      windowObject?.removeEventListener?.('resize', schedule);
+      windowObject?.removeEventListener?.('orientationchange', schedule);
+      windowObject?.visualViewport?.removeEventListener?.('resize', schedule);
+    },
+    diagnostics() {
+      return {
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+        viewportWidth: lastViewportWidth,
+        viewportHeight: lastViewportHeight,
+        aspectRatio: canvas.width / Math.max(1, canvas.height),
+      };
+    },
+  };
+}
+Object.assign(__exports, { calculateResponsiveCanvasSize, createResponsiveCanvas });
 },
 "src/procgen/rhizoctonia-control.js": (__exports, __require) => {
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -22054,7 +22286,9 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
 Object.assign(__exports, { createRalstoniaVascularWilt });
 },
 "src/procgen/mobile-controls.js": (__exports, __require) => {
-const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");const { createTutorialManager } = __require("src/procgen/tutorial-manager.js");const { createTutorialTriggers, TUTORIAL_RUNTIME_VERSION } = __require("src/procgen/tutorial-triggers.js");
+const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");
+const { createTutorialManager } = __require("src/procgen/tutorial-manager.js");
+const { createTutorialTriggers, TUTORIAL_RUNTIME_VERSION } = __require("src/procgen/tutorial-triggers.js");
 ensureTutorialInterface();
 
 const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
@@ -22118,15 +22352,22 @@ for (const button of document.querySelectorAll('.touch-key')) {
   button.addEventListener('contextmenu', event => event.preventDefault());
 }
 
-function clearAllInputs() {
+function clearAllInputs({ emitFallbackKeyups = true } = {}) {
   for (const pointerId of [...pressed.keys()]) releasePointer(pointerId);
-  for (const code of ['ArrowLeft', 'ArrowRight', 'Space', 'KeyE', 'ShiftLeft', 'ArrowDown']) {
-    emit(code, false);
+  if (emitFallbackKeyups) {
+    for (const code of ['ArrowLeft', 'ArrowRight', 'Space', 'KeyE', 'ShiftLeft', 'ArrowDown']) {
+      emit(code, false);
+    }
   }
 }
 
 window.addEventListener('blur', clearAllInputs);
-window.addEventListener('miguelito:tutorial-open', clearAllInputs);
+window.addEventListener('miguelito:tutorial-open', () => {
+  // Os ponteiros realmente ativos emitem seu keyup por releasePointer. Nao
+  // emitimos keyups sinteticos para todas as teclas aqui: isso faria uma tecla
+  // fisica ainda segurada parecer liberada e burlaria a trava de retomada.
+  clearAllInputs({ emitFallbackKeyups: false });
+});
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) clearAllInputs();
 });
@@ -22268,7 +22509,9 @@ function ensureTutorialInterface() {
 Object.assign(__exports, { ensureTutorialInterface });
 },
 "src/procgen/tutorial-manager.js": (__exports, __require) => {
-const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");const { getCardsTaughtBeforePhase } = __require("src/procgen/tutorial-prior-knowledge.js");
+const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");
+const { getCardsTaughtBeforePhase } = __require("src/procgen/tutorial-prior-knowledge.js");
+const { createAutomaticTutorialSafetyGate, createPendingTutorialQueue, platformHasActiveTutorialCollision, stabilizePlayerForAutomaticTutorial } = __require("src/procgen/tutorial-presentation.js");
 const TUTORIAL_STORAGE_KEYS = Object.freeze({
   seen: 'miguelito:tutorial:seen:v3',
   unlocked: 'miguelito:tutorial:unlocked:v3',
@@ -22470,7 +22713,12 @@ function createTutorialManager({ state }) {
   let previousGameState = 'play';
   let returnToLibrary = false;
   let activeFirstSeen = false;
-  let pendingMandatory = null;
+  let activeAutomaticEntry = null;
+  let pausedSupport = null;
+  let resumeFramesRemaining = 0;
+  const heldDuringTutorial = new Set();
+  const pendingTutorials = createPendingTutorialQueue();
+  const safetyGate = createAutomaticTutorialSafetyGate({ state });
 
   function persist() {
     const snapshot = flow.snapshot();
@@ -22491,10 +22739,25 @@ function createTutorialManager({ state }) {
     document.documentElement.classList.add('tutorial-open');
     overlay.hidden = false;
     overlay.setAttribute('aria-hidden', 'false');
-    window.dispatchEvent(new CustomEvent('miguelito:tutorial-open'));
+    window.dispatchEvent(new CustomEvent('miguelito:tutorial-open', {
+      detail: { automatic: Boolean(activeAutomaticEntry) },
+    }));
   }
 
   function resumeGame() {
+    if (
+      activeAutomaticEntry
+      && pausedSupport
+      && platformHasActiveTutorialCollision(pausedSupport, state)
+    ) {
+      stabilizePlayerForAutomaticTutorial(state, pausedSupport);
+    } else if (state.player) {
+      state.player.vx = 0;
+      state.player.vy = 0;
+      state.player.dashTime = 0;
+      state.player.jumpBuffer = 0;
+      state.jumpHeldLast = false;
+    }
     overlay.hidden = true;
     overlay.setAttribute('aria-hidden', 'true');
     document.documentElement.classList.remove('tutorial-open');
@@ -22502,7 +22765,14 @@ function createTutorialManager({ state }) {
     mode = 'closed';
     activeId = null;
     returnToLibrary = false;
-    window.dispatchEvent(new CustomEvent('miguelito:tutorial-close'));
+    activeAutomaticEntry = null;
+    pausedSupport = null;
+    resumeFramesRemaining = 1;
+    safetyGate.reset('tutorial-closed');
+    window.dispatchEvent(new CustomEvent('miguelito:tutorial-close', {
+      detail: { blockedInputCodes: [...heldDuringTutorial] },
+    }));
+    heldDuringTutorial.clear();
   }
 
   function renderCycle(card) {
@@ -22572,13 +22842,21 @@ function createTutorialManager({ state }) {
       : 'Próximo →';
   }
 
-  function openCard(id, { fromLibrary = false, firstSeen = !flow.hasSeen(id) } = {}) {
+  function openCard(id, {
+    fromLibrary = false,
+    firstSeen = !flow.hasSeen(id),
+    automaticEntry = null,
+    support = null,
+  } = {}) {
     const card = getTutorialCard(id);
     if (!card) return false;
     if (!flow.isUnlocked(id)) flow.revealAll(id);
     const availablePages = flow.pagesFor(id);
     if (!availablePages.length) return false;
+    if (!automaticEntry) pendingTutorials.removeCard(id);
     persist();
+    activeAutomaticEntry = automaticEntry;
+    pausedSupport = support;
     pauseGame();
     mode = 'card';
     activeId = id;
@@ -22593,23 +22871,6 @@ function createTutorialManager({ state }) {
     return true;
   }
 
-  function dispatchPendingCollision(incoming) {
-    const detail = {
-      activeCardId: activeId,
-      pendingCardId: pendingMandatory?.cardId || null,
-      incomingCardId: incoming.cardId,
-      presentationId: incoming.presentationId,
-    };
-    window.dispatchEvent(new CustomEvent(tutorialPacing.simultaneousFirstEncountersEventName, { detail }));
-  }
-
-  function openPendingMandatory() {
-    const pending = pendingMandatory;
-    pendingMandatory = null;
-    if (!pending || flow.hasSeen(pending.cardId)) return false;
-    return openCard(pending.cardId, { firstSeen: true });
-  }
-
   function finishActiveCard() {
     if (activeId) {
       flow.markSeen(activeId);
@@ -22619,7 +22880,6 @@ function createTutorialManager({ state }) {
       openLibrary();
       return;
     }
-    if (openPendingMandatory()) return;
     resumeGame();
   }
 
@@ -22694,11 +22954,29 @@ function createTutorialManager({ state }) {
   }
 
   function closeLibrary() {
-    if (openPendingMandatory()) return;
     resumeGame();
   }
 
+  function enqueueAutomaticTutorial(action, triggerId, context) {
+    const repeatAllowed = Boolean(context.force);
+    if (flow.hasSeen(action.cardId) && !repeatAllowed) return false;
+    return pendingTutorials.enqueue({
+      cardId: action.cardId,
+      triggerId,
+      presentationId: action.presentationId,
+      payload: context.payload ?? null,
+      triggerContext: { ...context },
+      queuedAt: performance.now(),
+      repeatAllowed,
+    });
+  }
+
   function trigger(id, context = {}) {
+    if (
+      pendingTutorials.hasTrigger(id)
+      || activeAutomaticEntry?.triggerId === id
+    ) return false;
+
     const action = flow.handle(id, {
       ...context,
       panelOpen: mode !== 'closed',
@@ -22711,18 +22989,47 @@ function createTutorialManager({ state }) {
         detail: action.diagnostic,
       }));
     }
-    if (action.mandatoryFirstAppearance && !action.open) {
-      if (!pendingMandatory || pendingMandatory.cardId === action.cardId) {
-        pendingMandatory = action;
-      } else {
-        dispatchPendingCollision(action);
-      }
-    }
-    if (action.open && mode === 'closed') {
-      if (pendingMandatory?.cardId === action.cardId) pendingMandatory = null;
-      openCard(action.cardId, { firstSeen: !flow.hasSeen(action.cardId) });
+    if (action.open || (action.mandatoryFirstAppearance && action.reason === 'panel-open')) {
+      enqueueAutomaticTutorial(action, id, context);
     }
     return true;
+  }
+
+  function updateAutomaticPresentation(dt = 0) {
+    if (mode !== 'closed') {
+      safetyGate.reset('panel-open');
+      return false;
+    }
+    if (resumeFramesRemaining > 0) {
+      resumeFramesRemaining--;
+      safetyGate.reset('resume-frame');
+      return false;
+    }
+
+    let pending = pendingTutorials.peek();
+    while (pending && flow.hasSeen(pending.cardId) && !pending.repeatAllowed) {
+      pendingTutorials.shift();
+      pending = pendingTutorials.peek();
+    }
+    if (!pending) {
+      safetyGate.reset('empty-queue');
+      return false;
+    }
+
+    const safety = safetyGate.inspect(dt);
+    if (!safety.safe || !platformHasActiveTutorialCollision(safety.support, state)) return false;
+    if (!stabilizePlayerForAutomaticTutorial(state, safety.support)) {
+      safetyGate.reset('stabilization-failed');
+      return false;
+    }
+
+    const entry = pendingTutorials.shift();
+    safetyGate.reset('tutorial-opening');
+    return openCard(entry.cardId, {
+      firstSeen: !flow.hasSeen(entry.cardId),
+      automaticEntry: entry,
+      support: safety.support,
+    });
   }
 
   // Ao entrar numa fase, tudo que fases anteriores ensinaram passa a valer como
@@ -22741,7 +23048,10 @@ function createTutorialManager({ state }) {
 
   function clearStoredTutorialProgress() {
     flow.clear();
-    pendingMandatory = null;
+    pendingTutorials.clear();
+    activeAutomaticEntry = null;
+    pausedSupport = null;
+    safetyGate.reset('progress-cleared');
     removeStoredTutorialProgress();
   }
 
@@ -22785,6 +23095,7 @@ function createTutorialManager({ state }) {
       return;
     }
 
+    if (event.code) heldDuringTutorial.add(event.code);
     if (event.code === 'Tab') return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -22796,15 +23107,22 @@ function createTutorialManager({ state }) {
       nextPage();
     }
   }, true);
+  window.addEventListener('keyup', event => {
+    if (event.code) heldDuringTutorial.delete(event.code);
+  }, true);
 
   return {
     get isOpen() { return mode !== 'closed'; },
     get currentCardId() { return activeId; },
     get discoveredCount() { return flow.discoveredCount; },
+    get pendingCount() { return pendingTutorials.length; },
+    get pendingCards() { return pendingTutorials.snapshot(); },
+    get safetyDiagnostics() { return safetyGate.diagnostics(); },
     hasSeen: id => flow.hasSeen(id),
     isUnlocked: id => flow.isUnlocked(id),
     getUnlockedPages: id => flow.pagesFor(id),
     trigger,
+    updateAutomaticPresentation,
     syncPriorKnowledge,
     openCard: id => openCard(id, { fromLibrary: false, firstSeen: !flow.hasSeen(id) }),
     openLibrary,
@@ -23843,11 +24161,211 @@ function getCardsTaughtBeforePhase(phase) {
 }
 Object.assign(__exports, { getCardsTaughtBeforePhase });
 },
+"src/procgen/tutorial-presentation.js": (__exports, __require) => {
+const AUTOMATIC_TUTORIAL_STABILITY_SECONDS = 0.1;
+const AUTOMATIC_TUTORIAL_STABILITY_FRAMES = 3;
+
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+function platformHasActiveTutorialCollision(platform, state) {
+  if (!platform || !Number.isFinite(platform.x) || !Number.isFinite(platform.y)) return false;
+  if (!(platform.w > 0) || !(platform.h > 0)) return false;
+  if (platform.destroyed || platform.removed || platform.disappearing || platform.vanishing) return false;
+  if (platform.disabled || platform.enabled === false || platform.active === false) return false;
+  if (platform.colliderActive === false || platform.collisionActive === false || platform.solid === false) return false;
+  if (platform.recovery && state?.recoveryPlatformsDisabled) return false;
+  if (platform.mature === false || platform.developed === false) return false;
+  return true;
+}
+
+function horizontalSupportOverlap(player, platform) {
+  return Math.max(
+    0,
+    Math.min(player.x + player.w, platform.x + platform.w) - Math.max(player.x, platform.x),
+  );
+}
+
+function findSupportingTutorialPlatform(state, {
+  verticalTolerance = 2.5,
+  minimumOverlap = 10,
+  overlapRatio = 0.55,
+} = {}) {
+  const player = state?.player;
+  if (!player?.onGround || !player.alive) return null;
+
+  const feetY = player.y + player.h;
+  let best = null;
+  let bestScore = Infinity;
+  for (const platform of state.level?.platforms || []) {
+    if (!platformHasActiveTutorialCollision(platform, state)) continue;
+    const verticalGap = Math.abs(feetY - platform.y);
+    if (verticalGap > verticalTolerance) continue;
+
+    const overlap = horizontalSupportOverlap(player, platform);
+    const requiredOverlap = Math.max(
+      minimumOverlap,
+      Math.min(player.w * overlapRatio, platform.w * overlapRatio),
+    );
+    if (overlap + 1e-6 < requiredOverlap) continue;
+
+    const centerGap = Math.abs(
+      (player.x + player.w / 2) - (platform.x + platform.w / 2),
+    );
+    const score = verticalGap * 1000 + centerGap;
+    if (score < bestScore) {
+      best = platform;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+function automaticTutorialUnsafeReason(state) {
+  const player = state?.player;
+  if (!player) return 'missing-player';
+  if (state.gameState !== 'play') return 'game-state';
+  if (!player.alive) return 'dead';
+  if ((state.respawnTimer || 0) > 0) return 'respawning';
+  if ((player.dashTime || 0) > 0.001) return 'dash';
+  if ((player.tutorialUnsafeUntil || -Infinity) > (state.time || 0)) return 'damage';
+  if (!player.onGround) return player.vy < 0 ? 'jumping' : 'falling';
+  if (Math.abs(player.vy || 0) > 1) return 'vertical-motion';
+  return null;
+}
+
+function createAutomaticTutorialSafetyGate({
+  state,
+  stabilitySeconds = AUTOMATIC_TUTORIAL_STABILITY_SECONDS,
+  stabilityFrames = AUTOMATIC_TUTORIAL_STABILITY_FRAMES,
+} = {}) {
+  let support = null;
+  let stableSeconds = 0;
+  let stableFrames = 0;
+  let lastReason = 'not-checked';
+
+  function reset(reason = 'reset') {
+    support = null;
+    stableSeconds = 0;
+    stableFrames = 0;
+    lastReason = reason;
+  }
+
+  function inspect(dt = 0) {
+    const unsafeReason = automaticTutorialUnsafeReason(state);
+    if (unsafeReason) {
+      reset(unsafeReason);
+      return { safe: false, reason: unsafeReason, support: null, stableSeconds, stableFrames };
+    }
+
+    const nextSupport = findSupportingTutorialPlatform(state);
+    if (!nextSupport) {
+      reset('unsupported');
+      return { safe: false, reason: 'unsupported', support: null, stableSeconds, stableFrames };
+    }
+
+    if (nextSupport !== support) {
+      support = nextSupport;
+      stableSeconds = 0;
+      stableFrames = 0;
+    }
+
+    // Um unico quadro atrasado nunca pode satisfazer sozinho a estabilidade.
+    stableSeconds += clamp(Number.isFinite(dt) ? dt : 0, 0, 0.05);
+    stableFrames++;
+    const safe = stableFrames >= stabilityFrames && stableSeconds >= stabilitySeconds;
+    lastReason = safe ? 'stable-support' : 'confirming-support';
+    return {
+      safe,
+      reason: lastReason,
+      support,
+      stableSeconds,
+      stableFrames,
+    };
+  }
+
+  return {
+    inspect,
+    reset,
+    get support() { return support; },
+    diagnostics() {
+      return { support, stableSeconds, stableFrames, reason: lastReason };
+    },
+  };
+}
+
+function stabilizePlayerForAutomaticTutorial(state, support, {
+  verticalTolerance = 4,
+} = {}) {
+  const player = state?.player;
+  if (!player || !platformHasActiveTutorialCollision(support, state)) return false;
+  const targetY = support.y - player.h;
+  if (Math.abs(player.y - targetY) > verticalTolerance) return false;
+
+  player.y = targetY;
+  player.vx = 0;
+  player.vy = 0;
+  player.dashTime = 0;
+  player.jumpBuffer = 0;
+  player.coyote = 0;
+  state.jumpHeldLast = false;
+  return true;
+}
+
+function createPendingTutorialQueue() {
+  const entries = [];
+  const cardIds = new Set();
+  const triggerIds = new Set();
+
+  function enqueue(entry) {
+    if (!entry?.cardId || cardIds.has(entry.cardId)) return false;
+    entries.push(entry);
+    cardIds.add(entry.cardId);
+    if (entry.triggerId) triggerIds.add(entry.triggerId);
+    return true;
+  }
+
+  function shift() {
+    const entry = entries.shift() || null;
+    if (!entry) return null;
+    cardIds.delete(entry.cardId);
+    if (entry.triggerId) triggerIds.delete(entry.triggerId);
+    return entry;
+  }
+
+  function removeCard(cardId) {
+    const index = entries.findIndex(entry => entry.cardId === cardId);
+    if (index < 0) return null;
+    const [entry] = entries.splice(index, 1);
+    cardIds.delete(entry.cardId);
+    if (entry.triggerId) triggerIds.delete(entry.triggerId);
+    return entry;
+  }
+
+  function clear() {
+    entries.length = 0;
+    cardIds.clear();
+    triggerIds.clear();
+  }
+
+  return {
+    enqueue,
+    shift,
+    removeCard,
+    clear,
+    hasCard: cardId => cardIds.has(cardId),
+    hasTrigger: triggerId => triggerIds.has(triggerId),
+    peek: () => entries[0] || null,
+    get length() { return entries.length; },
+    snapshot: () => entries.map(entry => ({ ...entry })),
+  };
+}
+Object.assign(__exports, { AUTOMATIC_TUTORIAL_STABILITY_SECONDS, AUTOMATIC_TUTORIAL_STABILITY_FRAMES, platformHasActiveTutorialCollision, horizontalSupportOverlap, findSupportingTutorialPlatform, automaticTutorialUnsafeReason, createAutomaticTutorialSafetyGate, stabilizePlayerForAutomaticTutorial, createPendingTutorialQueue });
+},
 "src/procgen/tutorial-triggers.js": (__exports, __require) => {
 const { W } = __require("src/core/constants.js");const { getTutorialModeAt, tutorialPacing } = __require("src/procgen/campaign-manifest.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-const TUTORIAL_RUNTIME_VERSION = '2026.07.17.3';
+const TUTORIAL_RUNTIME_VERSION = '2026.07.23.1';
 const TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT =
   tutorialPacing.simultaneousFirstEncountersEventName;
 
@@ -23955,7 +24473,7 @@ function createTutorialTriggers({
       chunkIndex,
       tutorialMode: getTutorialModeAt(phase, chunkIndex),
       worldX: playerPoint().x,
-      visibleWorldWidth: W / Math.max(0.1, state.cameraZoom || 1),
+      visibleWorldWidth: (state.viewportWidth || W) / Math.max(0.1, state.cameraZoom || 1),
       nowSeconds: performance.now() / 1000,
       ...extra,
     };
@@ -24220,7 +24738,7 @@ function createTutorialTriggers({
     manager.trigger('system-welcome', {
       tutorialMode: 'guided',
       worldX: playerPoint().x,
-      visibleWorldWidth: W / Math.max(0.1, state.cameraZoom || 1),
+      visibleWorldWidth: (state.viewportWidth || W) / Math.max(0.1, state.cameraZoom || 1),
       nowSeconds: performance.now() / 1000,
       affectsPacing: false,
     });

@@ -1,9 +1,9 @@
-import { ensureTutorialInterface } from './tutorial-bootstrap.js?v=20260717-2';
-import { createTutorialManager } from './tutorial-manager.js?v=20260717-2';
+import { ensureTutorialInterface } from './tutorial-bootstrap.js?v=20260723-1';
+import { createTutorialManager } from './tutorial-manager.js?v=20260723-1';
 import {
   createTutorialTriggers,
   TUTORIAL_RUNTIME_VERSION,
-} from './tutorial-triggers.js?v=20260717-2';
+} from './tutorial-triggers.js?v=20260723-1';
 
 ensureTutorialInterface();
 
@@ -68,15 +68,22 @@ for (const button of document.querySelectorAll('.touch-key')) {
   button.addEventListener('contextmenu', event => event.preventDefault());
 }
 
-function clearAllInputs() {
+function clearAllInputs({ emitFallbackKeyups = true } = {}) {
   for (const pointerId of [...pressed.keys()]) releasePointer(pointerId);
-  for (const code of ['ArrowLeft', 'ArrowRight', 'Space', 'KeyE', 'ShiftLeft', 'ArrowDown']) {
-    emit(code, false);
+  if (emitFallbackKeyups) {
+    for (const code of ['ArrowLeft', 'ArrowRight', 'Space', 'KeyE', 'ShiftLeft', 'ArrowDown']) {
+      emit(code, false);
+    }
   }
 }
 
 window.addEventListener('blur', clearAllInputs);
-window.addEventListener('miguelito:tutorial-open', clearAllInputs);
+window.addEventListener('miguelito:tutorial-open', () => {
+  // Os ponteiros realmente ativos emitem seu keyup por releasePointer. Nao
+  // emitimos keyups sinteticos para todas as teclas aqui: isso faria uma tecla
+  // fisica ainda segurada parecer liberada e burlaria a trava de retomada.
+  clearAllInputs({ emitFallbackKeyups: false });
+});
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) clearAllInputs();
 });

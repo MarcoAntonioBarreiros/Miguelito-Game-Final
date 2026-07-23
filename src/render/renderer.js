@@ -64,12 +64,18 @@ export function createRenderer({
   }
 
   function drawBackground() {
-    const g = ctx.createLinearGradient(0, 0, 0, H);
+    const viewportWidth = canvas.width || W;
+    const viewportHeight = canvas.height || H;
+    const cameraY = state.cameraY || 0;
+    const g = ctx.createLinearGradient(0, cameraY, 0, cameraY + viewportHeight);
     g.addColorStop(0, '#0d2f37');
     g.addColorStop(.45, '#10262e');
     g.addColorStop(1, '#170f1b');
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
+    // O fundo fica ancorado ao viewport. Como a transformacao vertical da
+    // camera ja esta aplicada ao contexto, somar cameraY aqui a cancela e evita
+    // revelar a borda superior da imagem em trechos que sobem acima de y=0.
+    ctx.fillRect(0, cameraY, viewportWidth, viewportHeight);
     rhizosphereBackdrop.render(ctx, parallaxCamera, parallaxViewport);
     parallaxBackground.render(ctx, parallaxCamera, parallaxViewport);
   }
@@ -233,6 +239,8 @@ export function createRenderer({
       necroticView.cameraX = cameraX;
       necroticView.cameraY = state.cameraY || 0;
       necroticView.zoom = state.cameraZoom || 1;
+      necroticView.viewportWidth = canvas.width || W;
+      necroticView.viewportHeight = canvas.height || H;
       necroticView.top = top;
       necroticView.bottom = bottom;
       necroticZone.render(ctx, necroticView);

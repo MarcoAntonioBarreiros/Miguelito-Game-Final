@@ -213,6 +213,10 @@ export function createPathogenSurvival({ state, entities, ecology }) {
     player.infection = clamp((player.infection || 0) + (options.infection || 0), 0, 1);
     player.vx = options.knockbackX ?? (-player.facing * 250);
     player.vy = options.knockbackY ?? -245;
+    player.tutorialUnsafeUntil = Math.max(
+      player.tutorialUnsafeUntil || 0,
+      state.time + .24,
+    );
     state.shake = Math.max(state.shake || 0, damage > 1 ? .42 : .3);
     entities.burst(
       player.x + player.w / 2,

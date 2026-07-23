@@ -23,10 +23,15 @@ import { updateContextPanel } from './hud-context.js';
 import { computeEcologicalScore } from './ecological-score.js';
 import { initPlayerTuning } from '../render/player-skin-tuning.js';
 import { createSimulator } from './simulator.js';
+import {
+  advanceGameplayFrame,
+  createTutorialInputGate,
+} from './tutorial-pause.js';
 import { createRenderer } from '../render/renderer.js';
 import { BIOLOGICAL_PARALLAX_KEY } from '../render/rhizosphere-parallax.js';
 import { createPlatformVisuals } from './platform-visuals.js';
 import { createCameraView } from './camera-view.js';
+import { createResponsiveCanvas } from './responsive-canvas.js';
 import { createRhizoctoniaControl } from './rhizoctonia-control.js';
 import { createTrichodermaMeloidogyneControl } from './trichoderma-meloidogyne-control.js';
 import { createTrichodermaRhizoctoniaControl } from './trichoderma-rhizoctonia-control.js';
@@ -42,6 +47,7 @@ import {
 } from './campaign-progression.js';
 
 const canvas = document.querySelector('canvas');
+const responsiveCanvas = createResponsiveCanvas({ canvas, windowObject: window });
 const ctx = canvas.getContext('2d');
 const debugDiv = document.getElementById('debug');
 const missionDiv = document.getElementById('mission');
@@ -225,6 +231,7 @@ const campaign = createCampaign(phaseLab.enabled ? phaseLab.config.seed : undefi
 if (phaseLab.enabled) phaseLab.configureCampaign(campaign);
 sim.state.campaign = campaign;
 const cameraView = createCameraView({ canvas, state: sim.state });
+window.miguelitoViewport = responsiveCanvas;
 const rhizoctoniaControl = createRhizoctoniaControl({
   state: sim.state,
   entities: sim.entities,
@@ -654,8 +661,13 @@ document.addEventListener('mouseup', event => {
 }, { passive: true });
 
 const keys = {};
+const tutorialInputGate = createTutorialInputGate({ keys, sim });
 window.addEventListener('keydown', event => {
   if (phaseLab.enabled && event.target instanceof Element && event.target.closest('.phase-lab')) return;
+  if (!tutorialInputGate.acceptsKeyDown(event.code)) {
+    event.preventDefault();
+    return;
+  }
 
   // Impede que a tecla Espaco (pulo) dispara o clique do botao do DOM focado
   if ((event.code === 'Space' || event.key === ' ') && document.activeElement instanceof HTMLElement && document.activeElement.tagName === 'BUTTON') {
@@ -673,7 +685,17 @@ window.addEventListener('keydown', event => {
     debugDiv.classList.toggle('hidden', !showDebug);
   }
 });
-window.addEventListener('keyup', event => { keys[event.code] = false; });
+window.addEventListener('keyup', event => tutorialInputGate.release(event.code));
+window.addEventListener('miguelito:tutorial-open', () => {
+  tutorialInputGate.clear({ blockActive: true });
+});
+window.addEventListener('miguelito:tutorial-close', event => {
+  tutorialInputGate.clear({
+    blockActive: true,
+    extraBlockedCodes: event.detail?.blockedInputCodes || [],
+  });
+  lastTime = performance.now();
+});
 
 function currentLogicIndex() {
   let logicIndex = -1;
@@ -724,18 +746,28 @@ function loop(now) {
     const dt = Math.max(0, Math.min((now - lastTime) / 1000, .1));
     lastTime = now;
 
-    rhizoctoniaControl.prepare(dt);
-    trichodermaRhizoctoniaControl.update(0);
-    trichodermaMeloidogyneControl.update(0);
-    sim.setInputs(keys);
-    sim.step(dt);
-    fixedBlockRuntime.update(dt);
-    rhizoctoniaControl.update(dt);
-    trichodermaRhizoctoniaControl.update(dt);
-    trichodermaMeloidogyneControl.update(dt);
-    ralstoniaControl.update(dt);
-    maybeAdvanceCampaign();
-    cameraView.update(dt);
+    const tutorialManager = window.miguelitoTutorial || null;
+    const advanced = advanceGameplayFrame({
+      state: sim.state,
+      manager: tutorialManager,
+      sim,
+      dt,
+      advance: frameDt => {
+        rhizoctoniaControl.prepare(frameDt);
+        trichodermaRhizoctoniaControl.update(0);
+        trichodermaMeloidogyneControl.update(0);
+        sim.setInputs(keys);
+        sim.step(frameDt);
+        fixedBlockRuntime.update(frameDt);
+        rhizoctoniaControl.update(frameDt);
+        trichodermaRhizoctoniaControl.update(frameDt);
+        trichodermaMeloidogyneControl.update(frameDt);
+        ralstoniaControl.update(frameDt);
+        maybeAdvanceCampaign();
+        cameraView.update(frameDt);
+      },
+    });
+    if (advanced) tutorialManager?.updateAutomaticPresentation?.(dt);
     renderWorld();
     updateTouchAbilityVisibility();
 

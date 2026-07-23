@@ -143,6 +143,7 @@ export function createSimulator() {
       player.airJumpAvailable = player.canDoubleJump;
       if (state.campaign) applyPersistentUnlocks(player, state.campaign);
       player.invuln = 1.7;
+      player.tutorialUnsafeUntil = state.time + .1;
       state.respawnTimer = 0;
       state.gameState = 'play';
       state.toast = reason === 'death'

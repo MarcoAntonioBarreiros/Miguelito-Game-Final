@@ -3,7 +3,7 @@ import { getTutorialModeAt, tutorialPacing } from './campaign-manifest.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-export const TUTORIAL_RUNTIME_VERSION = '2026.07.17.3';
+export const TUTORIAL_RUNTIME_VERSION = '2026.07.23.1';
 export const TUTORIAL_SIMULTANEOUS_FIRST_ENCOUNTERS_EVENT =
   tutorialPacing.simultaneousFirstEncountersEventName;
 
@@ -111,7 +111,7 @@ export function createTutorialTriggers({
       chunkIndex,
       tutorialMode: getTutorialModeAt(phase, chunkIndex),
       worldX: playerPoint().x,
-      visibleWorldWidth: W / Math.max(0.1, state.cameraZoom || 1),
+      visibleWorldWidth: (state.viewportWidth || W) / Math.max(0.1, state.cameraZoom || 1),
       nowSeconds: performance.now() / 1000,
       ...extra,
     };
@@ -376,7 +376,7 @@ export function createTutorialTriggers({
     manager.trigger('system-welcome', {
       tutorialMode: 'guided',
       worldX: playerPoint().x,
-      visibleWorldWidth: W / Math.max(0.1, state.cameraZoom || 1),
+      visibleWorldWidth: (state.viewportWidth || W) / Math.max(0.1, state.cameraZoom || 1),
       nowSeconds: performance.now() / 1000,
       affectsPacing: false,
     });

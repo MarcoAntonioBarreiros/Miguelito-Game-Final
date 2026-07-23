@@ -6,14 +6,31 @@ const MIN_ZOOM = 1;
 const MAX_ZOOM = 1.8;
 const ZOOM_STEP = .1;
 
-const coarsePointer = window.matchMedia('(pointer: coarse)').matches
-  || navigator.maxTouchPoints > 0;
-
 function roundedZoom(value) {
   return Math.round(value * 20) / 20;
 }
 
+export function calculateVerticalCameraTarget({
+  playerCenterY,
+  visibleHeight,
+  verticalAnchor,
+  worldHeight = H,
+}) {
+  const safeVisibleHeight = Math.max(1, Number(visibleHeight) || H);
+  const rawTarget = (Number(playerCenterY) || 0)
+    - safeVisibleHeight * (Number(verticalAnchor) || 0);
+  const minCameraY = Math.min(0, rawTarget);
+  const maxCameraY = Math.max(0, (Number(worldHeight) || H) - safeVisibleHeight);
+  return clamp(rawTarget, minCameraY, maxCameraY);
+}
+
 export function createCameraView({ canvas, state }) {
+  const windowObject = canvas?.ownerDocument?.defaultView
+    || (typeof window === 'undefined' ? null : window);
+  const coarsePointer = Boolean(
+    windowObject?.matchMedia?.('(pointer: coarse)').matches
+      || windowObject?.navigator?.maxTouchPoints > 0,
+  );
   let zoom = DEFAULT_ZOOM;
   let targetZoom = DEFAULT_ZOOM;
   const readout = document.querySelector('[data-camera-readout]');
@@ -57,8 +74,14 @@ export function createCameraView({ canvas, state }) {
     const player = state.player;
     if (!player) return;
 
-    const visibleW = W / zoom;
-    const visibleH = H / zoom;
+    const viewportWidth = canvas.width || W;
+    const viewportHeight = canvas.height || H;
+    const visibleW = viewportWidth / zoom;
+    const visibleH = viewportHeight / zoom;
+    state.viewportWidth = viewportWidth;
+    state.viewportHeight = viewportHeight;
+    state.visibleWorldWidth = visibleW;
+    state.visibleWorldHeight = visibleH;
     const playerCenterX = player.x + player.w / 2;
     const playerCenterY = player.y + player.h / 2;
     const direction = player.facing || 1;
@@ -76,12 +99,16 @@ export function createCameraView({ canvas, state }) {
     state.cameraX = lerp(state.cameraX || 0, targetCameraX, horizontalBlend);
 
     const verticalAnchor = coarsePointer ? .56 : .61;
-    const maxCameraY = Math.max(0, H - visibleH);
-    const targetCameraY = clamp(
-      playerCenterY - visibleH * verticalAnchor,
-      0,
-      maxCameraY,
-    );
+    // Rotas altas podem ultrapassar y=0. O limite antigo prendia a camera em
+    // zero e deixava somente os pes do personagem visiveis. Para cima, o
+    // proprio alvo do jogador passa a definir o limite; para baixo, preservamos
+    // a borda inferior historica do mundo.
+    const targetCameraY = calculateVerticalCameraTarget({
+      playerCenterY,
+      visibleHeight: visibleH,
+      verticalAnchor,
+      worldHeight: H,
+    });
     const verticalBlend = 1 - Math.pow(.012, dt);
     state.cameraY = lerp(state.cameraY || 0, targetCameraY, verticalBlend);
   }

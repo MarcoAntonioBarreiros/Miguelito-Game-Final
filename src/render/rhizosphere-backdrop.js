@@ -78,27 +78,29 @@ export function createRhizosphereBackdrop({
       cameraX: camera.cameraX,
       seedPosition,
     });
+    const cameraY = Number(camera.cameraY) || 0;
 
     ctx.save();
     ctx.globalAlpha = 0.82;
     for (const tile of tiles) {
+      const drawY = tile.y + cameraY;
       if (tile.mirrored) {
         ctx.save();
-        ctx.translate(tile.x + tile.width, tile.y);
+        ctx.translate(tile.x + tile.width, drawY);
         ctx.scale(-1, 1);
         ctx.drawImage(image, 0, 0, tile.width, tile.height);
         ctx.restore();
       } else {
-        ctx.drawImage(image, tile.x, tile.y, tile.width, tile.height);
+        ctx.drawImage(image, tile.x, drawY, tile.width, tile.height);
       }
     }
     ctx.globalAlpha = 1;
-    const veil = ctx.createLinearGradient(0, 0, 0, height);
+    const veil = ctx.createLinearGradient(0, cameraY, 0, cameraY + height);
     veil.addColorStop(0, 'rgba(1,13,20,.20)');
     veil.addColorStop(0.58, 'rgba(3,18,25,.34)');
     veil.addColorStop(1, 'rgba(10,8,18,.56)');
     ctx.fillStyle = veil;
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, cameraY, width, height);
     ctx.restore();
     return true;
   }

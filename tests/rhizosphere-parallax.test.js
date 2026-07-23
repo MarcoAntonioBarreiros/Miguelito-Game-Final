@@ -25,6 +25,8 @@ class MockContext {
     this.lineWidth = 1;
     this.lineCap = 'butt';
     this.drawImageCount = 0;
+    this.drawImageArgs = [];
+    this.fillRectArgs = [];
     this.arcCount = 0;
     this.stack = [];
     this.transformDepth = 0;
@@ -49,7 +51,7 @@ class MockContext {
 
   createLinearGradient() { return new MockGradient(); }
   clearRect() {}
-  fillRect() {}
+  fillRect(...args) { this.fillRectArgs.push(args); }
   beginPath() {}
   closePath() {}
   moveTo() {}
@@ -63,7 +65,10 @@ class MockContext {
   setLineDash() {}
   translate() { this.transformDepth++; }
   arc() { this.arcCount++; }
-  drawImage() { this.drawImageCount++; }
+  drawImage(...args) {
+    this.drawImageCount++;
+    this.drawImageArgs.push(args);
+  }
 }
 
 function createMockCanvasFactory() {
@@ -328,5 +333,34 @@ test('imagem de fundo é desenhada antes do paralaxe e permanece independente do
   assert.doesNotMatch(
     readFileSync(new URL('../src/render/rhizosphere-backdrop.js', import.meta.url), 'utf8'),
     /BIOLOGICAL_PARALLAX_KEY|toggle\(/,
+  );
+});
+
+test('fundo acompanha camera vertical sem revelar a borda da imagem', () => {
+  const fakeImage = {
+    complete: true,
+    naturalWidth: 4996,
+    naturalHeight: 940,
+    decoding: '',
+    src: '',
+  };
+  const backdrop = createRhizosphereBackdrop({
+    seed: 'vertical-camera',
+    createImage: () => fakeImage,
+  });
+  const ctx = new MockContext();
+  assert.equal(
+    backdrop.render(
+      ctx,
+      { cameraX: 0, cameraY: -260 },
+      { width: 1558, height: 720 },
+    ),
+    true,
+  );
+  assert.ok(ctx.drawImageCount >= 1);
+  assert.deepEqual(
+    ctx.fillRectArgs.at(-1),
+    [0, -260, 1558, 720],
+    'o veil e a imagem devem permanecer ancorados ao viewport deslocado',
   );
 });

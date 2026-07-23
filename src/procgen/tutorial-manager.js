@@ -2,6 +2,12 @@ import { getTutorialCard, tutorialCardIds, tutorialCards } from './tutorial-regi
 import { tutorialPacing } from './campaign-manifest.js';
 import { createTutorialFlow } from './tutorial-flow.js';
 import { getCardsTaughtBeforePhase } from './tutorial-prior-knowledge.js';
+import {
+  createAutomaticTutorialSafetyGate,
+  createPendingTutorialQueue,
+  platformHasActiveTutorialCollision,
+  stabilizePlayerForAutomaticTutorial,
+} from './tutorial-presentation.js';
 
 export const TUTORIAL_STORAGE_KEYS = Object.freeze({
   seen: 'miguelito:tutorial:seen:v3',
@@ -204,7 +210,12 @@ export function createTutorialManager({ state }) {
   let previousGameState = 'play';
   let returnToLibrary = false;
   let activeFirstSeen = false;
-  let pendingMandatory = null;
+  let activeAutomaticEntry = null;
+  let pausedSupport = null;
+  let resumeFramesRemaining = 0;
+  const heldDuringTutorial = new Set();
+  const pendingTutorials = createPendingTutorialQueue();
+  const safetyGate = createAutomaticTutorialSafetyGate({ state });
 
   function persist() {
     const snapshot = flow.snapshot();
@@ -225,10 +236,25 @@ export function createTutorialManager({ state }) {
     document.documentElement.classList.add('tutorial-open');
     overlay.hidden = false;
     overlay.setAttribute('aria-hidden', 'false');
-    window.dispatchEvent(new CustomEvent('miguelito:tutorial-open'));
+    window.dispatchEvent(new CustomEvent('miguelito:tutorial-open', {
+      detail: { automatic: Boolean(activeAutomaticEntry) },
+    }));
   }
 
   function resumeGame() {
+    if (
+      activeAutomaticEntry
+      && pausedSupport
+      && platformHasActiveTutorialCollision(pausedSupport, state)
+    ) {
+      stabilizePlayerForAutomaticTutorial(state, pausedSupport);
+    } else if (state.player) {
+      state.player.vx = 0;
+      state.player.vy = 0;
+      state.player.dashTime = 0;
+      state.player.jumpBuffer = 0;
+      state.jumpHeldLast = false;
+    }
     overlay.hidden = true;
     overlay.setAttribute('aria-hidden', 'true');
     document.documentElement.classList.remove('tutorial-open');
@@ -236,7 +262,14 @@ export function createTutorialManager({ state }) {
     mode = 'closed';
     activeId = null;
     returnToLibrary = false;
-    window.dispatchEvent(new CustomEvent('miguelito:tutorial-close'));
+    activeAutomaticEntry = null;
+    pausedSupport = null;
+    resumeFramesRemaining = 1;
+    safetyGate.reset('tutorial-closed');
+    window.dispatchEvent(new CustomEvent('miguelito:tutorial-close', {
+      detail: { blockedInputCodes: [...heldDuringTutorial] },
+    }));
+    heldDuringTutorial.clear();
   }
 
   function renderCycle(card) {
@@ -306,13 +339,21 @@ export function createTutorialManager({ state }) {
       : 'Próximo →';
   }
 
-  function openCard(id, { fromLibrary = false, firstSeen = !flow.hasSeen(id) } = {}) {
+  function openCard(id, {
+    fromLibrary = false,
+    firstSeen = !flow.hasSeen(id),
+    automaticEntry = null,
+    support = null,
+  } = {}) {
     const card = getTutorialCard(id);
     if (!card) return false;
     if (!flow.isUnlocked(id)) flow.revealAll(id);
     const availablePages = flow.pagesFor(id);
     if (!availablePages.length) return false;
+    if (!automaticEntry) pendingTutorials.removeCard(id);
     persist();
+    activeAutomaticEntry = automaticEntry;
+    pausedSupport = support;
     pauseGame();
     mode = 'card';
     activeId = id;
@@ -327,23 +368,6 @@ export function createTutorialManager({ state }) {
     return true;
   }
 
-  function dispatchPendingCollision(incoming) {
-    const detail = {
-      activeCardId: activeId,
-      pendingCardId: pendingMandatory?.cardId || null,
-      incomingCardId: incoming.cardId,
-      presentationId: incoming.presentationId,
-    };
-    window.dispatchEvent(new CustomEvent(tutorialPacing.simultaneousFirstEncountersEventName, { detail }));
-  }
-
-  function openPendingMandatory() {
-    const pending = pendingMandatory;
-    pendingMandatory = null;
-    if (!pending || flow.hasSeen(pending.cardId)) return false;
-    return openCard(pending.cardId, { firstSeen: true });
-  }
-
   function finishActiveCard() {
     if (activeId) {
       flow.markSeen(activeId);
@@ -353,7 +377,6 @@ export function createTutorialManager({ state }) {
       openLibrary();
       return;
     }
-    if (openPendingMandatory()) return;
     resumeGame();
   }
 
@@ -428,11 +451,29 @@ export function createTutorialManager({ state }) {
   }
 
   function closeLibrary() {
-    if (openPendingMandatory()) return;
     resumeGame();
   }
 
+  function enqueueAutomaticTutorial(action, triggerId, context) {
+    const repeatAllowed = Boolean(context.force);
+    if (flow.hasSeen(action.cardId) && !repeatAllowed) return false;
+    return pendingTutorials.enqueue({
+      cardId: action.cardId,
+      triggerId,
+      presentationId: action.presentationId,
+      payload: context.payload ?? null,
+      triggerContext: { ...context },
+      queuedAt: performance.now(),
+      repeatAllowed,
+    });
+  }
+
   function trigger(id, context = {}) {
+    if (
+      pendingTutorials.hasTrigger(id)
+      || activeAutomaticEntry?.triggerId === id
+    ) return false;
+
     const action = flow.handle(id, {
       ...context,
       panelOpen: mode !== 'closed',
@@ -445,18 +486,47 @@ export function createTutorialManager({ state }) {
         detail: action.diagnostic,
       }));
     }
-    if (action.mandatoryFirstAppearance && !action.open) {
-      if (!pendingMandatory || pendingMandatory.cardId === action.cardId) {
-        pendingMandatory = action;
-      } else {
-        dispatchPendingCollision(action);
-      }
-    }
-    if (action.open && mode === 'closed') {
-      if (pendingMandatory?.cardId === action.cardId) pendingMandatory = null;
-      openCard(action.cardId, { firstSeen: !flow.hasSeen(action.cardId) });
+    if (action.open || (action.mandatoryFirstAppearance && action.reason === 'panel-open')) {
+      enqueueAutomaticTutorial(action, id, context);
     }
     return true;
+  }
+
+  function updateAutomaticPresentation(dt = 0) {
+    if (mode !== 'closed') {
+      safetyGate.reset('panel-open');
+      return false;
+    }
+    if (resumeFramesRemaining > 0) {
+      resumeFramesRemaining--;
+      safetyGate.reset('resume-frame');
+      return false;
+    }
+
+    let pending = pendingTutorials.peek();
+    while (pending && flow.hasSeen(pending.cardId) && !pending.repeatAllowed) {
+      pendingTutorials.shift();
+      pending = pendingTutorials.peek();
+    }
+    if (!pending) {
+      safetyGate.reset('empty-queue');
+      return false;
+    }
+
+    const safety = safetyGate.inspect(dt);
+    if (!safety.safe || !platformHasActiveTutorialCollision(safety.support, state)) return false;
+    if (!stabilizePlayerForAutomaticTutorial(state, safety.support)) {
+      safetyGate.reset('stabilization-failed');
+      return false;
+    }
+
+    const entry = pendingTutorials.shift();
+    safetyGate.reset('tutorial-opening');
+    return openCard(entry.cardId, {
+      firstSeen: !flow.hasSeen(entry.cardId),
+      automaticEntry: entry,
+      support: safety.support,
+    });
   }
 
   // Ao entrar numa fase, tudo que fases anteriores ensinaram passa a valer como
@@ -475,7 +545,10 @@ export function createTutorialManager({ state }) {
 
   function clearStoredTutorialProgress() {
     flow.clear();
-    pendingMandatory = null;
+    pendingTutorials.clear();
+    activeAutomaticEntry = null;
+    pausedSupport = null;
+    safetyGate.reset('progress-cleared');
     removeStoredTutorialProgress();
   }
 
@@ -519,6 +592,7 @@ export function createTutorialManager({ state }) {
       return;
     }
 
+    if (event.code) heldDuringTutorial.add(event.code);
     if (event.code === 'Tab') return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -530,15 +604,22 @@ export function createTutorialManager({ state }) {
       nextPage();
     }
   }, true);
+  window.addEventListener('keyup', event => {
+    if (event.code) heldDuringTutorial.delete(event.code);
+  }, true);
 
   return {
     get isOpen() { return mode !== 'closed'; },
     get currentCardId() { return activeId; },
     get discoveredCount() { return flow.discoveredCount; },
+    get pendingCount() { return pendingTutorials.length; },
+    get pendingCards() { return pendingTutorials.snapshot(); },
+    get safetyDiagnostics() { return safetyGate.diagnostics(); },
     hasSeen: id => flow.hasSeen(id),
     isUnlocked: id => flow.isUnlocked(id),
     getUnlockedPages: id => flow.pagesFor(id),
     trigger,
+    updateAutomaticPresentation,
     syncPriorKnowledge,
     openCard: id => openCard(id, { fromLibrary: false, firstSeen: !flow.hasSeen(id) }),
     openLibrary,
