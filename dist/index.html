@@ -1305,16 +1305,7 @@ html.tutorial-open .phase-lab {
 'use strict';
 const __modules = {
 "src/procgen/app.js": (__exports, __require) => {
-const { generateLevel, enforceTraversableRoute } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");
-const { createRouteAnchorRegistry, recordRouteGeometryStage } = __require("src/procgen/route-geometry.js");
-const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry } = __require("src/procgen/phosphate-solubilization.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { updateContextPanel } = __require("src/procgen/hud-context.js");const { computeEcologicalScore } = __require("src/procgen/ecological-score.js");const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");const { createSimulator } = __require("src/procgen/simulator.js");
-const { advanceGameplayFrame, createTutorialInputGate } = __require("src/procgen/tutorial-pause.js");
-const { createRenderer } = __require("src/render/renderer.js");
-const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.js");
-const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");
-const { createCameraView } = __require("src/procgen/camera-view.js");
-const { createResponsiveCanvas } = __require("src/procgen/responsive-canvas.js");
-const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
+const { generateLevel, enforceTraversableRoute } = __require("src/procgen/generator.js");const { generateCampaignEncounters } = __require("src/procgen/campaign-encounters.js");const { generateUnderdevelopedNitrogenRoots } = __require("src/procgen/nitrogen-root.js");const { generateAzospirillumRootLadders } = __require("src/procgen/azospirillum-root-growth.js");const { createCampaignObjectiveEvaluator } = __require("src/procgen/campaign-objectives.js");const { applyPhaseOneVerticalSlice, createFixedBlockRuntime } = __require("src/procgen/phase-one-vertical-slice.js");const { applySignatureChallenge } = __require("src/procgen/signature-challenge.js");const { createRouteAnchorRegistry, recordRouteGeometryStage } = __require("src/procgen/route-geometry.js");const { applyPhaseFourMycorrhizaIntro } = __require("src/procgen/phase-four-mycorrhiza-intro.js");const { applyPhaseFiveTutorialEncounters, applyPhaseFiveTutorialGeometry } = __require("src/procgen/phase-five-tutorial.js");const { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } = __require("src/procgen/phase-six-tutorial.js");const { applyPhaseSevenPhosphateGeometry } = __require("src/procgen/phosphate-solubilization.js");const { AZOSPIRILLUM_ROOT_LADDER_DEFAULTS, getPhaseManifest } = __require("src/procgen/campaign-manifest.js");const { applyPhaseLabResources } = __require("src/procgen/phase-lab-config.js");const { createPhaseLabSession } = __require("src/procgen/phase-lab.js");const { updateContextPanel } = __require("src/procgen/hud-context.js");const { computeEcologicalScore } = __require("src/procgen/ecological-score.js");const { initPlayerTuning } = __require("src/render/player-skin-tuning.js");const { createSimulator } = __require("src/procgen/simulator.js");const { advanceGameplayFrame, createTutorialInputGate } = __require("src/procgen/tutorial-pause.js");const { createRenderer } = __require("src/render/renderer.js");const { BIOLOGICAL_PARALLAX_KEY } = __require("src/render/rhizosphere-parallax.js");const { createPlatformVisuals } = __require("src/procgen/platform-visuals.js");const { createCameraView } = __require("src/procgen/camera-view.js");const { createResponsiveCanvas } = __require("src/procgen/responsive-canvas.js");const { createRhizoctoniaControl } = __require("src/procgen/rhizoctonia-control.js");const { createTrichodermaMeloidogyneControl } = __require("src/procgen/trichoderma-meloidogyne-control.js");const { createTrichodermaRhizoctoniaControl } = __require("src/procgen/trichoderma-rhizoctonia-control.js");const { createRalstoniaVascularWilt } = __require("src/procgen/ralstonia-vascular-wilt.js");const { advanceCampaignPhase, campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration, recordPhaseResult, resetCampaign } = __require("src/procgen/campaign-progression.js");
 const canvas = document.querySelector('canvas');
 const responsiveCanvas = createResponsiveCanvas({ canvas, windowObject: window });
 const ctx = canvas.getContext('2d');
@@ -4054,8 +4045,7 @@ function generatePrimitives() {
 Object.assign(__exports, { generatePrimitives });
 },
 "src/procgen/simulator.js": (__exports, __require) => {
-const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks, unlockCampaignFeature } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");const { createInoculumSelection } = __require("src/procgen/inoculum-selection.js");const { createPhosphateSolubilization } = __require("src/procgen/phosphate-solubilization.js");
-const { createEmptyObjectiveProgress, resetPhaseObjectiveProgress } = __require("src/procgen/campaign-objective-progress.js");
+const { createPhysicsSystem } = __require("src/physics.js");const { createPlayer, resetPlayer } = __require("src/player.js");const { applyPersistentUnlocks, unlockCampaignFeature } = __require("src/procgen/campaign-progression.js");const { createMicrobeArt } = __require("src/data/microbes.js");const { createRoamingMicrobeEcology } = __require("src/procgen/microbe-roaming.js");const { createMycorrhizaGrowth } = __require("src/procgen/mycorrhiza-growth.js");const { createMycorrhizaStructures } = __require("src/procgen/mycorrhiza-structures.js");const { createTrichodermaGrowth } = __require("src/procgen/trichoderma-growth.js");const { createTrichodermaRecruitment } = __require("src/procgen/trichoderma-recruitment.js");const { createTrichodermaColonies } = __require("src/procgen/trichoderma-colonies.js");const { createBeneficialInoculants } = __require("src/procgen/beneficial-inoculants.js");const { createPseudomonasSiderophores } = __require("src/procgen/pseudomonas-siderophores.js");const { createOpportunisticFungus } = __require("src/procgen/opportunistic-fungus.js");const { createBacillusBioprotection } = __require("src/procgen/bacillus-bioprotection.js");const { createBacillusBioprotectionSafety } = __require("src/procgen/bacillus-bioprotection-safety.js");const { createRhizobiumNodulation } = __require("src/procgen/rhizobium-nodulation.js");const { createNitrogenRootDevelopment } = __require("src/procgen/nitrogen-root.js");const { createAzospirillumRootGrowth } = __require("src/procgen/azospirillum-root-growth.js");const { createAzospirillumRootSafety } = __require("src/procgen/azospirillum-root-safety.js");const { createAzospirillumNitrogen } = __require("src/procgen/azospirillum-nitrogen.js");const { createMeloidogyneLifecycle } = __require("src/procgen/meloidogyne-lifecycle.js");const { createGoalSystem } = __require("src/procgen/goal-system.js");const { createEcologicalGameplay } = __require("src/procgen/ecological-gameplay.js");const { createPathogenSurvival } = __require("src/procgen/pathogen-survival.js");const { createInoculumSelection } = __require("src/procgen/inoculum-selection.js");const { createPhosphateSolubilization } = __require("src/procgen/phosphate-solubilization.js");const { createEmptyObjectiveProgress, resetPhaseObjectiveProgress } = __require("src/procgen/campaign-objective-progress.js");
 function createEmptyLevel() {
   return {
     platforms: [], hazards: [], crystals: [], enemies: [], exudates: [],
@@ -18175,13 +18165,7 @@ function advanceGameplayFrame({
 Object.assign(__exports, { tutorialPauseActive, clearInstantPlayerActions, createTutorialInputGate, advanceGameplayFrame });
 },
 "src/render/renderer.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");
-const { createNecroticZone } = __require("src/render/necrotic-zone.js");
-const { createPlayerSprite } = __require("src/render/player-sprite.js");
-const { resolvePlayerSkin } = __require("src/render/player-skins.js");
-const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");
-const { createRhizosphereBackdrop } = __require("src/render/rhizosphere-backdrop.js");
-const { createRhizosphereParallax } = __require("src/render/rhizosphere-parallax.js");
+const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");const { createNecroticZone } = __require("src/render/necrotic-zone.js");const { createPlayerSprite } = __require("src/render/player-sprite.js");const { resolvePlayerSkin } = __require("src/render/player-skins.js");const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");const { createRhizosphereBackdrop } = __require("src/render/rhizosphere-backdrop.js");const { createRhizosphereParallax } = __require("src/render/rhizosphere-parallax.js");
 function mixHex(a, b, t) {
   const value = clamp(t, 0, 1);
   const parse = color => [
@@ -19759,6 +19743,7 @@ const MIN_CACHE_HEIGHT = 720;
 const DEEP_STRUCTURE_COUNT = 14;
 const BIOLOGY_STRUCTURE_COUNT = 24;
 const PARTICLE_COUNT = 32;
+const DEEP_FILAMENT_COUNT = 7;
 
 const BIOLOGICAL_PARALLAX_KEY = 'KeyP';
 const RHIZOSPHERE_PARALLAX_FACTORS = Object.freeze({
@@ -19805,33 +19790,6 @@ function resetCanvasState(ctx) {
   ctx.setLineDash?.([]);
 }
 
-function drawDeepRoot(ctx, random, height) {
-  const x = random() * TILE_WIDTH;
-  const width = 8 + random() * 18;
-  const direction = random() > 0.5 ? 1 : -1;
-  const top = -50 + random() * 190;
-  const length = height * (0.58 + random() * 0.52);
-  ctx.strokeStyle = random() > 0.5
-    ? 'rgba(62,126,126,.20)'
-    : 'rgba(66,105,117,.17)';
-  ctx.lineWidth = width;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(x, top);
-  ctx.bezierCurveTo(
-    x + direction * (35 + random() * 85),
-    top + length * 0.28,
-    x - direction * (20 + random() * 70),
-    top + length * 0.65,
-    x + direction * (45 + random() * 110),
-    top + length,
-  );
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(107,209,194,.07)';
-  ctx.lineWidth = Math.max(1, width * 0.16);
-  ctx.stroke();
-}
-
 function drawAggregate(ctx, random, height) {
   const x = random() * TILE_WIDTH;
   const y = height * (0.2 + random() * 0.68);
@@ -19854,6 +19812,102 @@ function drawAggregate(ctx, random, height) {
   ctx.stroke();
 }
 
+function consumeAggregateRandom(random) {
+  for (let aggregate = 0; aggregate < 7; aggregate++) {
+    for (let call = 0; call < 15; call++) random();
+  }
+}
+
+function buildDeepFilaments(seed, height) {
+  const random = createRandom(seed ^ 0x4a21b3c7);
+  // Mantém a mesma sequência que antes desenhava os agregados e, em seguida,
+  // as grandes estruturas filamentosas no bitmap profundo.
+  consumeAggregateRandom(random);
+  return Array.from({ length: DEEP_FILAMENT_COUNT }, (_, index) => {
+    const x = random() * TILE_WIDTH;
+    const width = 8 + random() * 18;
+    const direction = random() > 0.5 ? 1 : -1;
+    const top = -50 + random() * 190;
+    const length = height * (0.58 + random() * 0.52);
+    const colorVariant = random() > 0.5;
+    return {
+      index,
+      x,
+      top,
+      width,
+      length,
+      controlOneX: direction * (35 + random() * 85),
+      controlTwoX: -direction * (20 + random() * 70),
+      endX: direction * (45 + random() * 110),
+      phase: random() * TAU,
+      angularSpeed: TAU / (4.5 + random() * 3.5),
+      amplitude: 3.5 + random() * 4,
+      waveLag: 0.8 + random() * 0.7,
+      stroke: colorVariant
+        ? 'rgba(62,126,126,.20)'
+        : 'rgba(66,105,117,.17)',
+      highlight: 'rgba(107,209,194,.07)',
+    };
+  });
+}
+
+function calculateFilamentGeometry(filament, elapsed, motionScale = 1) {
+  const time = Math.max(0, Number(elapsed) || 0);
+  const scale = clamp(Number(motionScale) || 0, 0, 1);
+  const wave = time * filament.angularSpeed + filament.phase;
+  const sway = progress => (
+    Math.sin(wave - filament.waveLag * progress)
+    * filament.amplitude
+    * Math.pow(1 - progress, 1.35)
+    * scale
+  );
+  const bob = Math.sin(wave * 0.73 + filament.phase) * filament.amplitude * 0.16 * scale;
+  return {
+    start: {
+      x: filament.x + sway(0),
+      y: filament.top + bob,
+    },
+    controlOne: {
+      x: filament.x + filament.controlOneX + sway(0.32),
+      y: filament.top + filament.length * 0.28 + bob * 0.65,
+    },
+    controlTwo: {
+      x: filament.x + filament.controlTwoX + sway(0.68),
+      y: filament.top + filament.length * 0.65 + bob * 0.25,
+    },
+    end: {
+      x: filament.x + filament.endX,
+      y: filament.top + filament.length,
+    },
+  };
+}
+
+function traceFilament(ctx, geometry) {
+  ctx.beginPath();
+  ctx.moveTo(geometry.start.x, geometry.start.y);
+  ctx.bezierCurveTo(
+    geometry.controlOne.x,
+    geometry.controlOne.y,
+    geometry.controlTwo.x,
+    geometry.controlTwo.y,
+    geometry.end.x,
+    geometry.end.y,
+  );
+}
+
+function drawFilament(ctx, filament, elapsed, motionScale) {
+  const geometry = calculateFilamentGeometry(filament, elapsed, motionScale);
+  ctx.strokeStyle = filament.stroke;
+  ctx.lineWidth = filament.width;
+  ctx.lineCap = 'round';
+  traceFilament(ctx, geometry);
+  ctx.stroke();
+  ctx.strokeStyle = filament.highlight;
+  ctx.lineWidth = Math.max(1, filament.width * 0.16);
+  traceFilament(ctx, geometry);
+  ctx.stroke();
+}
+
 function buildDeepCache(ctx, seed, height) {
   const random = createRandom(seed ^ 0x4a21b3c7);
   ctx.save();
@@ -19869,7 +19923,6 @@ function buildDeepCache(ctx, seed, height) {
   ctx.fillRect(0, 0, TILE_WIDTH, height);
 
   for (let i = 0; i < 7; i++) drawAggregate(ctx, random, height);
-  for (let i = 0; i < 7; i++) drawDeepRoot(ctx, random, height);
   ctx.restore();
 }
 
@@ -20058,9 +20111,40 @@ function drawTiled(ctx, cache, cameraX, factor, cameraY, verticalOffset, viewpor
   ctx.restore();
 }
 
+function drawTiledFilaments(
+  ctx,
+  filaments,
+  cameraX,
+  cameraY,
+  verticalOffset,
+  viewportWidth,
+  elapsed,
+  motion,
+  motionScale,
+) {
+  if (!filaments.length) return;
+  const effectiveX = cameraX * RHIZOSPHERE_PARALLAX_FACTORS.deep;
+  const firstTile = Math.floor(effectiveX / TILE_WIDTH) - 1;
+  const lastTile = Math.ceil((effectiveX + viewportWidth) / TILE_WIDTH) + 1;
+  ctx.save();
+  resetCanvasState(ctx);
+  ctx.translate(motion.x, cameraY + verticalOffset + motion.y);
+  for (let tile = firstTile; tile <= lastTile; tile++) {
+    const tileX = tile * TILE_WIDTH - effectiveX;
+    ctx.save();
+    ctx.translate(tileX, 0);
+    for (const filament of filaments) {
+      drawFilament(ctx, filament, elapsed, motionScale);
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 function createRhizosphereParallax({
   seed = 'rhizosphere',
   createCanvas = null,
+  reducedMotion = null,
 } = {}) {
   const seedHash = hashSeed(seed);
   const random = createRandom(seedHash ^ 0x51ed270b);
@@ -20081,18 +20165,24 @@ function createRhizosphereParallax({
   let cacheHeight = 0;
   let deepCache = null;
   let biologyCache = null;
+  let deepFilaments = [];
   let elapsed = 0;
   let baselineCameraY = 0;
   let initialized = false;
   const vertical = { deep: 0, biology: 0, particles: 0 };
   const deepMotion = { x: 0, y: 0, rotation: 0, scale: 1 };
   const biologyMotion = { x: 0, y: 0, rotation: 0, scale: 1 };
+  const prefersReducedMotion = reducedMotion == null
+    ? Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)
+    : Boolean(reducedMotion);
+  const filamentMotionScale = prefersReducedMotion ? 0.18 : 1;
   const stats = {
     updateCount: 0,
     renderCount: 0,
     cacheBuildCount: 0,
     particleCount: PARTICLE_COUNT,
     deepStructureCount: DEEP_STRUCTURE_COUNT,
+    deepFilamentCount: DEEP_FILAMENT_COUNT,
     biologyStructureCount: BIOLOGY_STRUCTURE_COUNT,
   };
 
@@ -20102,6 +20192,7 @@ function createRhizosphereParallax({
     biologyCache = createCache(createCanvas, TILE_WIDTH, cacheHeight);
     if (deepCache) buildDeepCache(deepCache.ctx, seedHash, cacheHeight);
     if (biologyCache) buildBiologyCache(biologyCache.ctx, seedHash, cacheHeight);
+    deepFilaments = buildDeepFilaments(seedHash, cacheHeight);
     stats.cacheBuildCount++;
   }
 
@@ -20201,6 +20292,17 @@ function createRhizosphereParallax({
       viewportWidth,
       deepMotion,
     );
+    drawTiledFilaments(
+      ctx,
+      deepFilaments,
+      cameraX,
+      cameraY,
+      vertical.deep,
+      viewportWidth,
+      elapsed,
+      deepMotion,
+      filamentMotionScale,
+    );
     drawTiled(
       ctx,
       biologyCache,
@@ -20240,6 +20342,11 @@ function createRhizosphereParallax({
       factors: RHIZOSPHERE_PARALLAX_FACTORS,
       limits: VERTICAL_LIMITS,
       particlePool: particles,
+      deepFilamentPool: deepFilaments,
+      filamentMotion: {
+        reduced: prefersReducedMotion,
+        scale: filamentMotionScale,
+      },
       stats: { ...stats },
     };
   }
@@ -20254,11 +20361,10 @@ function createRhizosphereParallax({
     get enabled() { return enabled; },
   };
 }
-Object.assign(__exports, { BIOLOGICAL_PARALLAX_KEY, RHIZOSPHERE_PARALLAX_FACTORS, createRhizosphereParallax });
+Object.assign(__exports, { BIOLOGICAL_PARALLAX_KEY, RHIZOSPHERE_PARALLAX_FACTORS, calculateFilamentGeometry, createRhizosphereParallax });
 },
 "src/procgen/camera-view.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");
-const { clamp, lerp } = __require("src/core/math.js");
+const { H, W } = __require("src/core/constants.js");const { clamp, lerp } = __require("src/core/math.js");
 const DEFAULT_ZOOM = 1.45;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 1.8;
@@ -22286,9 +22392,7 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
 Object.assign(__exports, { createRalstoniaVascularWilt });
 },
 "src/procgen/mobile-controls.js": (__exports, __require) => {
-const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");
-const { createTutorialManager } = __require("src/procgen/tutorial-manager.js");
-const { createTutorialTriggers, TUTORIAL_RUNTIME_VERSION } = __require("src/procgen/tutorial-triggers.js");
+const { ensureTutorialInterface } = __require("src/procgen/tutorial-bootstrap.js");const { createTutorialManager } = __require("src/procgen/tutorial-manager.js");const { createTutorialTriggers, TUTORIAL_RUNTIME_VERSION } = __require("src/procgen/tutorial-triggers.js");
 ensureTutorialInterface();
 
 const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
@@ -22509,9 +22613,7 @@ function ensureTutorialInterface() {
 Object.assign(__exports, { ensureTutorialInterface });
 },
 "src/procgen/tutorial-manager.js": (__exports, __require) => {
-const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");
-const { getCardsTaughtBeforePhase } = __require("src/procgen/tutorial-prior-knowledge.js");
-const { createAutomaticTutorialSafetyGate, createPendingTutorialQueue, platformHasActiveTutorialCollision, stabilizePlayerForAutomaticTutorial } = __require("src/procgen/tutorial-presentation.js");
+const { getTutorialCard, tutorialCardIds, tutorialCards } = __require("src/procgen/tutorial-registry.js");const { tutorialPacing } = __require("src/procgen/campaign-manifest.js");const { createTutorialFlow } = __require("src/procgen/tutorial-flow.js");const { getCardsTaughtBeforePhase } = __require("src/procgen/tutorial-prior-knowledge.js");const { createAutomaticTutorialSafetyGate, createPendingTutorialQueue, platformHasActiveTutorialCollision, stabilizePlayerForAutomaticTutorial } = __require("src/procgen/tutorial-presentation.js");
 const TUTORIAL_STORAGE_KEYS = Object.freeze({
   seen: 'miguelito:tutorial:seen:v3',
   unlocked: 'miguelito:tutorial:unlocked:v3',

@@ -4,6 +4,7 @@ const MIN_CACHE_HEIGHT = 720;
 const DEEP_STRUCTURE_COUNT = 14;
 const BIOLOGY_STRUCTURE_COUNT = 24;
 const PARTICLE_COUNT = 32;
+const DEEP_FILAMENT_COUNT = 7;
 
 export const BIOLOGICAL_PARALLAX_KEY = 'KeyP';
 export const RHIZOSPHERE_PARALLAX_FACTORS = Object.freeze({
@@ -50,33 +51,6 @@ function resetCanvasState(ctx) {
   ctx.setLineDash?.([]);
 }
 
-function drawDeepRoot(ctx, random, height) {
-  const x = random() * TILE_WIDTH;
-  const width = 8 + random() * 18;
-  const direction = random() > 0.5 ? 1 : -1;
-  const top = -50 + random() * 190;
-  const length = height * (0.58 + random() * 0.52);
-  ctx.strokeStyle = random() > 0.5
-    ? 'rgba(62,126,126,.20)'
-    : 'rgba(66,105,117,.17)';
-  ctx.lineWidth = width;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(x, top);
-  ctx.bezierCurveTo(
-    x + direction * (35 + random() * 85),
-    top + length * 0.28,
-    x - direction * (20 + random() * 70),
-    top + length * 0.65,
-    x + direction * (45 + random() * 110),
-    top + length,
-  );
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(107,209,194,.07)';
-  ctx.lineWidth = Math.max(1, width * 0.16);
-  ctx.stroke();
-}
-
 function drawAggregate(ctx, random, height) {
   const x = random() * TILE_WIDTH;
   const y = height * (0.2 + random() * 0.68);
@@ -99,6 +73,102 @@ function drawAggregate(ctx, random, height) {
   ctx.stroke();
 }
 
+function consumeAggregateRandom(random) {
+  for (let aggregate = 0; aggregate < 7; aggregate++) {
+    for (let call = 0; call < 15; call++) random();
+  }
+}
+
+function buildDeepFilaments(seed, height) {
+  const random = createRandom(seed ^ 0x4a21b3c7);
+  // Mantém a mesma sequência que antes desenhava os agregados e, em seguida,
+  // as grandes estruturas filamentosas no bitmap profundo.
+  consumeAggregateRandom(random);
+  return Array.from({ length: DEEP_FILAMENT_COUNT }, (_, index) => {
+    const x = random() * TILE_WIDTH;
+    const width = 8 + random() * 18;
+    const direction = random() > 0.5 ? 1 : -1;
+    const top = -50 + random() * 190;
+    const length = height * (0.58 + random() * 0.52);
+    const colorVariant = random() > 0.5;
+    return {
+      index,
+      x,
+      top,
+      width,
+      length,
+      controlOneX: direction * (35 + random() * 85),
+      controlTwoX: -direction * (20 + random() * 70),
+      endX: direction * (45 + random() * 110),
+      phase: random() * TAU,
+      angularSpeed: TAU / (4.5 + random() * 3.5),
+      amplitude: 3.5 + random() * 4,
+      waveLag: 0.8 + random() * 0.7,
+      stroke: colorVariant
+        ? 'rgba(62,126,126,.20)'
+        : 'rgba(66,105,117,.17)',
+      highlight: 'rgba(107,209,194,.07)',
+    };
+  });
+}
+
+export function calculateFilamentGeometry(filament, elapsed, motionScale = 1) {
+  const time = Math.max(0, Number(elapsed) || 0);
+  const scale = clamp(Number(motionScale) || 0, 0, 1);
+  const wave = time * filament.angularSpeed + filament.phase;
+  const sway = progress => (
+    Math.sin(wave - filament.waveLag * progress)
+    * filament.amplitude
+    * Math.pow(1 - progress, 1.35)
+    * scale
+  );
+  const bob = Math.sin(wave * 0.73 + filament.phase) * filament.amplitude * 0.16 * scale;
+  return {
+    start: {
+      x: filament.x + sway(0),
+      y: filament.top + bob,
+    },
+    controlOne: {
+      x: filament.x + filament.controlOneX + sway(0.32),
+      y: filament.top + filament.length * 0.28 + bob * 0.65,
+    },
+    controlTwo: {
+      x: filament.x + filament.controlTwoX + sway(0.68),
+      y: filament.top + filament.length * 0.65 + bob * 0.25,
+    },
+    end: {
+      x: filament.x + filament.endX,
+      y: filament.top + filament.length,
+    },
+  };
+}
+
+function traceFilament(ctx, geometry) {
+  ctx.beginPath();
+  ctx.moveTo(geometry.start.x, geometry.start.y);
+  ctx.bezierCurveTo(
+    geometry.controlOne.x,
+    geometry.controlOne.y,
+    geometry.controlTwo.x,
+    geometry.controlTwo.y,
+    geometry.end.x,
+    geometry.end.y,
+  );
+}
+
+function drawFilament(ctx, filament, elapsed, motionScale) {
+  const geometry = calculateFilamentGeometry(filament, elapsed, motionScale);
+  ctx.strokeStyle = filament.stroke;
+  ctx.lineWidth = filament.width;
+  ctx.lineCap = 'round';
+  traceFilament(ctx, geometry);
+  ctx.stroke();
+  ctx.strokeStyle = filament.highlight;
+  ctx.lineWidth = Math.max(1, filament.width * 0.16);
+  traceFilament(ctx, geometry);
+  ctx.stroke();
+}
+
 function buildDeepCache(ctx, seed, height) {
   const random = createRandom(seed ^ 0x4a21b3c7);
   ctx.save();
@@ -114,7 +184,6 @@ function buildDeepCache(ctx, seed, height) {
   ctx.fillRect(0, 0, TILE_WIDTH, height);
 
   for (let i = 0; i < 7; i++) drawAggregate(ctx, random, height);
-  for (let i = 0; i < 7; i++) drawDeepRoot(ctx, random, height);
   ctx.restore();
 }
 
@@ -303,9 +372,40 @@ function drawTiled(ctx, cache, cameraX, factor, cameraY, verticalOffset, viewpor
   ctx.restore();
 }
 
+function drawTiledFilaments(
+  ctx,
+  filaments,
+  cameraX,
+  cameraY,
+  verticalOffset,
+  viewportWidth,
+  elapsed,
+  motion,
+  motionScale,
+) {
+  if (!filaments.length) return;
+  const effectiveX = cameraX * RHIZOSPHERE_PARALLAX_FACTORS.deep;
+  const firstTile = Math.floor(effectiveX / TILE_WIDTH) - 1;
+  const lastTile = Math.ceil((effectiveX + viewportWidth) / TILE_WIDTH) + 1;
+  ctx.save();
+  resetCanvasState(ctx);
+  ctx.translate(motion.x, cameraY + verticalOffset + motion.y);
+  for (let tile = firstTile; tile <= lastTile; tile++) {
+    const tileX = tile * TILE_WIDTH - effectiveX;
+    ctx.save();
+    ctx.translate(tileX, 0);
+    for (const filament of filaments) {
+      drawFilament(ctx, filament, elapsed, motionScale);
+    }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 export function createRhizosphereParallax({
   seed = 'rhizosphere',
   createCanvas = null,
+  reducedMotion = null,
 } = {}) {
   const seedHash = hashSeed(seed);
   const random = createRandom(seedHash ^ 0x51ed270b);
@@ -326,18 +426,24 @@ export function createRhizosphereParallax({
   let cacheHeight = 0;
   let deepCache = null;
   let biologyCache = null;
+  let deepFilaments = [];
   let elapsed = 0;
   let baselineCameraY = 0;
   let initialized = false;
   const vertical = { deep: 0, biology: 0, particles: 0 };
   const deepMotion = { x: 0, y: 0, rotation: 0, scale: 1 };
   const biologyMotion = { x: 0, y: 0, rotation: 0, scale: 1 };
+  const prefersReducedMotion = reducedMotion == null
+    ? Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)
+    : Boolean(reducedMotion);
+  const filamentMotionScale = prefersReducedMotion ? 0.18 : 1;
   const stats = {
     updateCount: 0,
     renderCount: 0,
     cacheBuildCount: 0,
     particleCount: PARTICLE_COUNT,
     deepStructureCount: DEEP_STRUCTURE_COUNT,
+    deepFilamentCount: DEEP_FILAMENT_COUNT,
     biologyStructureCount: BIOLOGY_STRUCTURE_COUNT,
   };
 
@@ -347,6 +453,7 @@ export function createRhizosphereParallax({
     biologyCache = createCache(createCanvas, TILE_WIDTH, cacheHeight);
     if (deepCache) buildDeepCache(deepCache.ctx, seedHash, cacheHeight);
     if (biologyCache) buildBiologyCache(biologyCache.ctx, seedHash, cacheHeight);
+    deepFilaments = buildDeepFilaments(seedHash, cacheHeight);
     stats.cacheBuildCount++;
   }
 
@@ -446,6 +553,17 @@ export function createRhizosphereParallax({
       viewportWidth,
       deepMotion,
     );
+    drawTiledFilaments(
+      ctx,
+      deepFilaments,
+      cameraX,
+      cameraY,
+      vertical.deep,
+      viewportWidth,
+      elapsed,
+      deepMotion,
+      filamentMotionScale,
+    );
     drawTiled(
       ctx,
       biologyCache,
@@ -485,6 +603,11 @@ export function createRhizosphereParallax({
       factors: RHIZOSPHERE_PARALLAX_FACTORS,
       limits: VERTICAL_LIMITS,
       particlePool: particles,
+      deepFilamentPool: deepFilaments,
+      filamentMotion: {
+        reduced: prefersReducedMotion,
+        scale: filamentMotionScale,
+      },
       stats: { ...stats },
     };
   }

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   BIOLOGICAL_PARALLAX_KEY,
+  calculateFilamentGeometry,
   createRhizosphereParallax,
   RHIZOSPHERE_PARALLAX_FACTORS,
 } from '../src/render/rhizosphere-parallax.js';
@@ -217,6 +218,55 @@ test('wobble usa apenas o cache, é lento e permanece dentro de limites discreto
   assert.ok(Math.abs(later.biology.rotation) <= 0.008);
   assert.ok(later.biology.scale >= 0.995 && later.biology.scale <= 1.005);
   assert.equal(component.diagnostics().stats.cacheBuildCount, 0);
+});
+
+test('filamentos profundos oscilam com base inferior fixa e topo livre', () => {
+  const component = createComponent('underwater-filaments');
+  component.resize(1280, 720);
+  const filament = component.diagnostics().deepFilamentPool[0];
+  const first = calculateFilamentGeometry(filament, 0, 1);
+  const later = calculateFilamentGeometry(filament, 2.3, 1);
+
+  assert.deepEqual(later.end, first.end, 'a base inferior do filamento deve permanecer ancorada');
+  assert.notDeepEqual(later.start, first.start, 'a extremidade superior deve oscilar ao longo do tempo');
+  const lowerControlMovement = Math.abs(later.controlTwo.x - first.controlTwo.x);
+  const tipMovement = Math.abs(later.start.x - first.start.x);
+  assert.ok(tipMovement > lowerControlMovement, 'a flexão deve aumentar em direção ao topo');
+  assert.ok(tipMovement <= filament.amplitude * 2 + 1e-9);
+});
+
+test('filamentos são determinísticos pela seed e movimento reduzido limita a oscilação', () => {
+  const normal = createRhizosphereParallax({
+    seed: 'same-underwater-seed',
+    createCanvas: createMockCanvasFactory(),
+    reducedMotion: false,
+  });
+  const reduced = createRhizosphereParallax({
+    seed: 'same-underwater-seed',
+    createCanvas: createMockCanvasFactory(),
+    reducedMotion: true,
+  });
+  normal.resize(1280, 720);
+  reduced.resize(1280, 720);
+  const normalDiagnostics = normal.diagnostics();
+  const reducedDiagnostics = reduced.diagnostics();
+
+  assert.deepEqual(
+    normalDiagnostics.deepFilamentPool,
+    reducedDiagnostics.deepFilamentPool,
+    'a composição deve depender somente da seed',
+  );
+  assert.equal(normalDiagnostics.stats.deepFilamentCount, 7);
+  assert.equal(reducedDiagnostics.filamentMotion.scale, 0.18);
+
+  const filament = normalDiagnostics.deepFilamentPool[0];
+  const still = calculateFilamentGeometry(filament, 0, 0);
+  const reducedLater = calculateFilamentGeometry(filament, 3, reducedDiagnostics.filamentMotion.scale);
+  const normalLater = calculateFilamentGeometry(filament, 3, normalDiagnostics.filamentMotion.scale);
+  assert.ok(
+    Math.abs(reducedLater.start.x - still.start.x)
+      < Math.abs(normalLater.start.x - still.start.x),
+  );
 });
 
 test('render restaura alpha, composição, filtro, sombra e pilha de transformação', () => {
