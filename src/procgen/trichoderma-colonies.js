@@ -1,4 +1,5 @@
 import { H } from '../core/constants.js';
+import { organismSprites } from '../render/organism-sprites.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -149,6 +150,20 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
     ctx.arc(0, 0, radius * 2.8, 0, TAU);
     ctx.fill();
 
+    const spriteDrawn = organismSprites.draw(ctx, 'trichoderma', {
+      x: 0,
+      y: 3,
+      height: 70 * Math.max(.35, growth),
+      time: state.time,
+      phase: colony.phase,
+      alpha: colony.exhausted ? .42 : .72 + colony.vigor * .28,
+      anchorY: .82,
+      flipX: Math.sin(colony.phase) < 0,
+    });
+    if (spriteDrawn) {
+      ctx.save();
+      ctx.globalAlpha = 0;
+    }
     ctx.strokeStyle = colony.exhausted ? 'rgba(255,130,151,.58)' : 'rgba(184,255,198,.72)';
     ctx.lineWidth = 1.3;
     for (let i = 0; i < 7; i++) {
@@ -170,6 +185,7 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+    if (spriteDrawn) ctx.restore();
 
     const width = 52;
     const barY = radius + 12;

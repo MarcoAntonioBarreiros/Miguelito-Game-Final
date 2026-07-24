@@ -1,4 +1,5 @@
 import { H, W } from '../core/constants.js';
+import { organismSprites } from '../render/organism-sprites.js';
 import { getPhaseManifest } from './campaign-manifest.js';
 
 const TAU = Math.PI * 2;
@@ -509,6 +510,16 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
 
   function drawFocus(ctx, network, vigor) {
     const pulse = .82 + Math.sin(state.time * 2.4 + network.lesions[0].phase) * .12;
+    if (organismSprites.draw(ctx, 'oportunista', {
+      x: network.anchor.x,
+      y: network.anchor.y + 6,
+      height: 74 * (.9 + pulse * .1),
+      time: state.time,
+      phase: network.lesions[0].phase,
+      alpha: .5 + vigor * .5,
+      anchorY: .78,
+      flipX: Math.sin(network.lesions[0].phase) < 0,
+    })) return;
     ctx.save();
     ctx.translate(network.anchor.x, network.anchor.y + 3);
     ctx.fillStyle = `rgba(91,18,45,${.32 + vigor * .18})`;
@@ -531,7 +542,6 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     const response = network.response || { vigor: 1 };
     const vigor = response.vigor;
     const green = Math.round(72 + vigor * 45);
-    drawFocus(ctx, network, vigor);
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -606,6 +616,9 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
       ctx.fill();
     }
     ctx.restore();
+    // O foco animado fica na frente da rede: as hifas nascem visualmente
+    // atrás da sheet, sem atravessar o corpo do organismo.
+    drawFocus(ctx, network, vigor);
   }
 
   function drawVigorIndicator(ctx, network) {

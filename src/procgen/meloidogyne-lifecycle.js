@@ -1,4 +1,5 @@
 import { W } from '../core/constants.js';
+import { organismSprites } from '../render/organism-sprites.js';
 import { createRootHealthGameplay } from './root-health-gameplay.js';
 import { MELOIDOGYNE_DEFAULTS } from './campaign-manifest.js';
 
@@ -356,6 +357,23 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     const caught = Boolean(j.trichodermaCaught);
     const embedded = j.state !== 'seeking', a = Math.atan2(j.vy || 0, j.vx || 1);
     const length = embedded ? 34 : 42;
+    if (organismSprites.draw(ctx, 'nematoide', {
+      x: j.x,
+      y: j.y,
+      height: embedded ? 45 : 62,
+      time: state.time,
+      phase: j.phase,
+      alpha: caught ? .52 : 1,
+      flipX: (j.vx || 1) < 0,
+    })) {
+      ctx.save();
+      ctx.font = '700 7px Inter,system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = caught ? '#baffc7' : '#fff1d5';
+      ctx.fillText(embedded ? 'J2 interno' : 'J2', j.x, j.y - (embedded ? 25 : 34));
+      ctx.restore();
+      return;
+    }
     ctx.save(); ctx.translate(j.x, j.y); ctx.rotate(a);
     ctx.shadowBlur = caught ? 10 : embedded ? 7 : 5;
     ctx.shadowColor = caught ? '#8df0a8' : embedded ? '#ff9f8f' : '#fff0cf';

@@ -1,4 +1,5 @@
 import { W } from '../core/constants.js';
+import { organismSprites } from '../render/organism-sprites.js';
 import { getPhaseManifest } from './campaign-manifest.js';
 
 const TAU = Math.PI * 2;
@@ -355,6 +356,16 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     const root = focus.root;
     const surface = clamp(focus.surfaceLoad, 0, 1);
     const vascular = clamp(focus.vascularLoad, 0, 1);
+    if (organismSprites.draw(ctx, 'ralstonia', {
+      x: focus.x,
+      y: root.y + 2,
+      height: 58 + surface * 12,
+      time: state.time,
+      phase: focus.phase,
+      alpha: focus.neutralized ? .38 : .72 + surface * .28,
+      anchorY: .88,
+      flipX: Math.sin(focus.phase) < 0,
+    })) return;
     const count = 5 + Math.floor(surface * 11 + vascular * 9);
     for (let i = 0; i < count; i++) {
       const angle = focus.phase + i * 2.399 + state.time * (.18 + (i % 3) * .04);

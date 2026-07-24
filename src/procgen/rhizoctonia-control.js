@@ -1,5 +1,37 @@
+import { organismSprites } from '../render/organism-sprites.js';
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const TAU = Math.PI * 2;
+
+export function createRhizoctoniaAttackHyphaPath({
+  startX,
+  startY,
+  endX,
+  endY,
+  phase = 0,
+  charge = 0,
+}) {
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const length = Math.max(1, Math.hypot(dx, dy));
+  const normalX = -dy / length;
+  const normalY = dx / length;
+  const pointCount = clamp(Math.ceil(length / 12), 5, 24);
+  const amplitude = Math.min(16, Math.max(4, length * .075)) * (.42 + clamp(charge, 0, 1) * .58);
+  const points = [];
+  for (let index = 0; index <= pointCount; index++) {
+    const progress = index / pointCount;
+    const envelope = Math.sin(progress * Math.PI);
+    const broadWave = Math.sin(progress * Math.PI * 2.35 + phase) * amplitude;
+    const fineWave = Math.sin(progress * Math.PI * 5.7 + phase * 1.41) * amplitude * .22;
+    const offset = (broadWave + fineWave) * envelope;
+    points.push({
+      x: startX + dx * progress + normalX * offset,
+      y: startY + dy * progress + normalY * offset,
+    });
+  }
+  return points;
+}
 
 function nearestHostRoot(state, enemy) {
   const centerX = enemy.x + enemy.w / 2;
@@ -308,6 +340,48 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     // Barras de status removidas a pedido do usuário
   }
 
+  function traceAttackHypha(ctx, points) {
+    ctx.beginPath();
+    points.forEach((point, index) => {
+      if (index) ctx.lineTo(point.x, point.y);
+      else ctx.moveTo(point.x, point.y);
+    });
+    ctx.stroke();
+  }
+
+  function drawAttackBranches(ctx, points, enemy, halo = false) {
+    const charge = clamp(enemy.rhizoCharge || 0, 0, 1);
+    const branchCount = charge > .62 ? 3 : 2;
+    for (let index = 0; index < branchCount; index++) {
+      const pointIndex = Math.min(
+        points.length - 2,
+        Math.max(1, Math.round((.34 + index * .22) * (points.length - 1))),
+      );
+      const point = points[pointIndex];
+      const previous = points[pointIndex - 1];
+      const next = points[pointIndex + 1];
+      const dx = next.x - previous.x;
+      const dy = next.y - previous.y;
+      const length = Math.max(1, Math.hypot(dx, dy));
+      const side = Math.sin((enemy.phase || 0) * 1.7 + index * 2.3) < 0 ? -1 : 1;
+      const normalX = -dy / length * side;
+      const normalY = dx / length * side;
+      const branchLength = 10 + charge * 13 + index * 2;
+      const endX = point.x + normalX * branchLength + dx / length * branchLength * .32;
+      const endY = point.y + normalY * branchLength + dy / length * branchLength * .32;
+      ctx.beginPath();
+      ctx.moveTo(point.x, point.y);
+      ctx.quadraticCurveTo(
+        point.x + normalX * branchLength * .55,
+        point.y + normalY * branchLength * .55,
+        endX,
+        endY,
+      );
+      ctx.lineWidth = halo ? 3.4 : .9;
+      ctx.stroke();
+    }
+  }
+
   function drawAttack(ctx, enemy) {
     const host = enemy.hostPlatform;
     if (!host) return;
@@ -318,20 +392,57 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     const endX = lunging
       ? (enemy.attackTipX || startX)
       : startX + enemy.rhizoAttackDirection * (45 + charge * (70 + enemy.colonization * 70));
-    const y = host.y - 10;
+    const startY = host.y - 10;
+    const endY = startY - 4;
+    const points = createRhizoctoniaAttackHyphaPath({
+      startX,
+      startY,
+      endX,
+      endY,
+      phase: enemy.phase || 0,
+      charge: Math.max(charge, lunging ? .8 : 0),
+    });
     ctx.save();
     ctx.globalAlpha = .3 + Math.max(charge, lunging ? .8 : 0) * .65;
-    ctx.strokeStyle = '#ff416d';
-    ctx.lineWidth = 2 + charge * 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Mesma linguagem das hifas de ataque do Trichoderma: bainha neon,
+    // núcleo fino, crescimento orgânico e pequenas ramificações laterais.
+    ctx.shadowColor = '#ff416d';
+    ctx.shadowBlur = 14;
+    ctx.strokeStyle = 'rgba(255,65,109,.32)';
+    ctx.lineWidth = 6.4;
+    traceAttackHypha(ctx, points);
+    drawAttackBranches(ctx, points, enemy, true);
+
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#ffdbe3';
+    ctx.lineWidth = 2.15;
+    traceAttackHypha(ctx, points);
+    drawAttackBranches(ctx, points, enemy, false);
+
+    ctx.shadowColor = '#ff416d';
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = '#fff4f7';
     ctx.beginPath();
-    ctx.moveTo(startX, y);
-    ctx.quadraticCurveTo((startX + endX) / 2, y - 18 - charge * 14, endX, y - 4);
-    ctx.stroke();
-    ctx.fillStyle = '#ff8ba3';
-    ctx.beginPath();
-    ctx.arc(endX, y - 4, 4 + charge * 3, 0, TAU);
+    ctx.arc(endX, endY, 2.7 + Math.sin(state.time * 5 + (enemy.phase || 0)) * .6, 0, TAU);
     ctx.fill();
     ctx.restore();
+  }
+
+  function drawRhizoctoniaSprite(ctx, enemy, index) {
+    const charge = clamp(enemy.rhizoCharge || 0, 0, 1);
+    const pulse = 1 + Math.sin(state.time * 2.4 + index) * .05;
+    organismSprites.draw(ctx, 'rhizoctonia', {
+      x: enemy.x + enemy.w / 2,
+      y: enemy.y + enemy.h / 2 + 2,
+      height: 82 * pulse * (1 + charge * .08),
+      time: state.time,
+      phase: enemy.phase ?? index,
+      alpha: enemy.contained ? .58 : 1,
+      flipX: (enemy.rhizoAttackDirection || 1) < 0,
+    });
   }
 
   function render(ctx) {
@@ -341,6 +452,9 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       if (!enemy.alive || !ensure(enemy, index)) return;
       drawColonizedRoot(ctx, enemy, index);
       drawAttack(ctx, enemy);
+      // A sheet fecha a composição na frente da hifa. Se estiver desativada,
+      // o fallback procedural já foi desenhado pelo renderer principal.
+      drawRhizoctoniaSprite(ctx, enemy, index);
       drawStatus(ctx, enemy);
     });
     ctx.restore();
