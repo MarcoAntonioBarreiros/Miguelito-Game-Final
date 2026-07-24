@@ -5872,7 +5872,9 @@ function createRoamingMicrobeEcology({ state, entities }) {
 Object.assign(__exports, { createRoamingMicrobeEcology });
 },
 "src/procgen/microbe-ecology.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { microbeCatalog } = __require("src/data/microbes.js");const { drawRoamingBacillusSprite } = __require("src/render/bacillus-sprite.js");
+const { H, W } = __require("src/core/constants.js");const { microbeCatalog } = __require("src/data/microbes.js");
+const { drawRoamingBacillusSprite } = __require("src/render/bacillus-sprite.js");
+const { organismSprites } = __require("src/render/organism-sprites.js");
 const TAU = Math.PI * 2;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -6560,7 +6562,10 @@ function createMicrobeEcology({ state, entities }) {
     ctx.shadowBlur = 10;
     ctx.shadowColor = profile.color;
     ctx.fillStyle = known ? '#effff6' : '#d2e4dc';
-    ctx.fillText(text, zone.x, zone.y + 42);
+    // O nome identifica a comunidade inteira, não um agente isolado. Mantê-lo
+    // no centro do encontro evita confusão com os rótulos inferiores dos
+    // inóculos, que pertencem a outro sistema.
+    ctx.fillText(text, zone.x, zone.y);
     ctx.restore();
   }
 
@@ -6610,6 +6615,30 @@ function createMicrobeEcology({ state, entities }) {
         const spriteSize = 38 * agent.size * profile.scale;
         if (drawRoamingBacillusSprite(ctx, agent.x, agent.y, spriteSize, state.time, agent.phase)) continue;
       }
+      const spriteType = {
+        rhizobium: 'rhizobium',
+        azospirillum: 'azospirillum',
+        pseudomonas: 'pseudomonas',
+        trichoderma: 'trichoderma',
+        myco: 'micorriza',
+      }[agent.type];
+      if (spriteType && organismSprites.draw(ctx, spriteType, {
+        x: agent.x,
+        y: agent.y,
+        height: (
+          agent.type === 'myco'
+            ? 50
+            : agent.type === 'trichoderma'
+              ? 58
+              : agent.type === 'azospirillum'
+                ? 64
+                : 55
+        )
+          * agent.size * profile.scale,
+        time: state.time,
+        phase: agent.phase,
+        flipX: agent.vx < 0,
+      })) continue;
       if (profile.kind === 'hypha') drawHyphalFragment(ctx, state.time, agent, profile);
       else if (profile.kind === 'spore' || profile.kind === 'conidium') drawSpore(ctx, state.time, agent, profile);
       else drawBacterium(ctx, state.time, agent, profile);
@@ -6774,8 +6803,211 @@ if (typeof window !== 'undefined') {
 }
 Object.assign(__exports, { drawInoculatedBacillusSprite, drawRoamingBacillusSprite, isBacillusSpriteEnabled, setBacillusSpriteEnabled });
 },
+"src/render/organism-sprites.js": (__exports, __require) => {
+const DEFAULT_FRAME_WIDTH = 320;
+const DEFAULT_FRAME_HEIGHT = 400;
+
+const ORGANISM_SPRITE_SHEETS = Object.freeze({
+  rhizobium: Object.freeze({
+    src: 'assets/organisms/rhizobium.png',
+    frameCount: 12,
+    fps: 6,
+    height: 62,
+  }),
+  azospirillum: Object.freeze({
+    src: 'assets/organisms/azospirillum.png',
+    frameCount: 12,
+    fps: 7,
+    height: 68,
+  }),
+  ralstonia: Object.freeze({
+    src: 'assets/organisms/ralstonia.png',
+    frameCount: 12,
+    fps: 7,
+    height: 60,
+  }),
+  rhizoctonia: Object.freeze({
+    src: 'assets/organisms/rhizoctonia.png',
+    frameCount: 12,
+    fps: 7,
+    height: 82,
+  }),
+  micorriza: Object.freeze({
+    src: 'assets/organisms/micorriza.png',
+    frameCount: 24,
+    fps: 10,
+    height: 62,
+  }),
+  oportunista: Object.freeze({
+    src: 'assets/organisms/oportunista.png',
+    frameCount: 12,
+    fps: 7,
+    height: 78,
+  }),
+  pseudomonas: Object.freeze({
+    src: 'assets/organisms/pseudomonas.png',
+    frameCount: 24,
+    fps: 10,
+    height: 66,
+  }),
+  nematoide: Object.freeze({
+    src: 'assets/organisms/nematoide.png',
+    frameCount: 12,
+    fps: 7,
+    height: 68,
+  }),
+  trichoderma: Object.freeze({
+    src: 'assets/organisms/trichoderma.png',
+    frameCount: 12,
+    fps: 7,
+    height: 72,
+  }),
+});
+
+const enabled = new Map(Object.keys(ORGANISM_SPRITE_SHEETS).map(type => [type, true]));
+
+function calculateOrganismSpriteFrame(type, time = 0, phase = 0) {
+  const sheet = ORGANISM_SPRITE_SHEETS[type];
+  if (!sheet) return null;
+  const raw = Math.floor(Math.max(0, time) * sheet.fps + Math.abs(phase) * 3.7);
+  const frameIndex = raw % sheet.frameCount;
+  return {
+    frameIndex,
+    sourceX: frameIndex * DEFAULT_FRAME_WIDTH,
+    sourceY: 0,
+    sourceWidth: DEFAULT_FRAME_WIDTH,
+    sourceHeight: DEFAULT_FRAME_HEIGHT,
+  };
+}
+
+function createOrganismSpriteRenderer({
+  imageFactory = () => (typeof Image === 'undefined' ? null : new Image()),
+} = {}) {
+  const images = new Map();
+
+  function ensureImage(type) {
+    const sheet = ORGANISM_SPRITE_SHEETS[type];
+    if (!sheet) return null;
+    if (images.has(type)) return images.get(type);
+
+    const image = imageFactory(type, sheet);
+    const record = { image, loaded: false, failed: !image };
+    images.set(type, record);
+    if (!image) return record;
+
+    image.onload = () => {
+      record.loaded = true;
+      record.failed = false;
+    };
+    image.onerror = () => {
+      record.failed = true;
+      record.loaded = false;
+    };
+    image.src = sheet.src;
+    return record;
+  }
+
+  function draw(ctx, type, {
+    x = 0,
+    y = 0,
+    height = null,
+    time = 0,
+    phase = 0,
+    alpha = 1,
+    rotation = 0,
+    flipX = false,
+    anchorX = .5,
+    anchorY = .5,
+  } = {}) {
+    const sheet = ORGANISM_SPRITE_SHEETS[type];
+    if (!sheet || !enabled.get(type)) return false;
+    const record = ensureImage(type);
+    if (!record?.loaded || record.failed) return false;
+
+    const frame = calculateOrganismSpriteFrame(type, time, phase);
+    const renderHeight = Math.max(1, height ?? sheet.height);
+    const renderWidth = renderHeight * (DEFAULT_FRAME_WIDTH / DEFAULT_FRAME_HEIGHT);
+
+    ctx.save();
+    ctx.globalAlpha *= Math.max(0, Math.min(1, alpha));
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    ctx.scale(flipX ? -1 : 1, 1);
+    ctx.drawImage(
+      record.image,
+      frame.sourceX,
+      frame.sourceY,
+      frame.sourceWidth,
+      frame.sourceHeight,
+      -renderWidth * anchorX,
+      -renderHeight * anchorY,
+      renderWidth,
+      renderHeight,
+    );
+    ctx.restore();
+    return true;
+  }
+
+  return {
+    draw,
+    preload(types = Object.keys(ORGANISM_SPRITE_SHEETS)) {
+      types.forEach(ensureImage);
+    },
+    status(type) {
+      const record = images.get(type);
+      return {
+        enabled: Boolean(enabled.get(type)),
+        requested: Boolean(record),
+        loaded: Boolean(record?.loaded),
+        failed: Boolean(record?.failed),
+      };
+    },
+  };
+}
+
+function isOrganismSpriteEnabled(type) {
+  return Boolean(enabled.get(type));
+}
+
+function setOrganismSpriteEnabled(type, value) {
+  if (!ORGANISM_SPRITE_SHEETS[type]) return false;
+  enabled.set(type, Boolean(value));
+  return true;
+}
+
+const organismSprites = createOrganismSpriteRenderer();
+
+if (typeof window !== 'undefined') {
+  organismSprites.preload();
+  window.miguelitoOrganismSprites = {
+    enable(type) {
+      if (type === 'all') Object.keys(ORGANISM_SPRITE_SHEETS).forEach(key => enabled.set(key, true));
+      else setOrganismSpriteEnabled(type, true);
+      return this.status();
+    },
+    disable(type) {
+      if (type === 'all') Object.keys(ORGANISM_SPRITE_SHEETS).forEach(key => enabled.set(key, false));
+      else setOrganismSpriteEnabled(type, false);
+      return this.status();
+    },
+    toggle(type) {
+      if (!ORGANISM_SPRITE_SHEETS[type]) return this.status();
+      enabled.set(type, !enabled.get(type));
+      return this.status();
+    },
+    status() {
+      return Object.fromEntries(
+        Object.keys(ORGANISM_SPRITE_SHEETS).map(type => [type, organismSprites.status(type)]),
+      );
+    },
+  };
+}
+Object.assign(__exports, { ORGANISM_SPRITE_SHEETS, calculateOrganismSpriteFrame, createOrganismSpriteRenderer, isOrganismSpriteEnabled, setOrganismSpriteEnabled, organismSprites });
+},
 "src/procgen/mycorrhiza-growth.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { clamp, createHyphalNetwork, drawArbuscule, renderHyphalNetwork, TAU, updateHyphalNetwork } = __require("src/procgen/hyphal-growth.js");
+const { H, W } = __require("src/core/constants.js");
+const { organismSprites } = __require("src/render/organism-sprites.js");
+const { clamp, createHyphalNetwork, drawArbuscule, renderHyphalNetwork, TAU, updateHyphalNetwork } = __require("src/procgen/hyphal-growth.js");
 function nearestRootTarget(state, x, y, minDistance = 0) {
   let best = null;
   let bestDistance = Infinity;
@@ -7006,19 +7238,32 @@ function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
   }
 
   function drawNetwork(ctx, network) {
-    // Rede inoculada nao tem esporo de cenario para desenhar por baixo.
-    const sporeAlpha = network.colony || network.ally?.taken ? .28 : 1;
+    // A rede inoculada tambem produz propágulos animados, mas discretos para
+    // que as hifas enraizadas continuem sendo a estrutura dominante.
+    const sporeAlpha = network.colony || network.ally?.taken ? .52 : 1;
     ctx.save();
     ctx.translate(-state.cameraX, 0);
-    ctx.globalAlpha = sporeAlpha;
-    ctx.shadowBlur = 22;
-    ctx.shadowColor = '#d6afff';
-    ctx.fillStyle = '#f2ddff';
-    ctx.beginPath();
-    ctx.arc(network.x, network.y + Math.sin(state.time * 1.7 + network.pulse) * 4, 9 + network.germination * 2, 0, TAU);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 1;
+    const sporeY = network.y + Math.sin(state.time * 1.7 + network.pulse) * 4;
+    const spriteDrawn = organismSprites.draw(ctx, 'micorriza', {
+      x: network.x,
+      y: sporeY,
+      height: 56 + network.germination * 8,
+      time: state.time,
+      phase: network.pulse,
+      alpha: sporeAlpha,
+      flipX: Math.sin(network.pulse) < 0,
+    });
+    if (!spriteDrawn) {
+      ctx.globalAlpha = sporeAlpha;
+      ctx.shadowBlur = 22;
+      ctx.shadowColor = '#d6afff';
+      ctx.fillStyle = '#f2ddff';
+      ctx.beginPath();
+      ctx.arc(network.x, sporeY, 9 + network.germination * 2, 0, TAU);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
 
     if (network.hypha) {
@@ -8397,6 +8642,7 @@ Object.assign(__exports, { createTrichodermaRecruitment });
 },
 "src/procgen/trichoderma-colonies.js": (__exports, __require) => {
 const { H } = __require("src/core/constants.js");
+const { organismSprites } = __require("src/render/organism-sprites.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -8546,6 +8792,20 @@ function createTrichodermaColonies({ state, input, ecology, entities }) {
     ctx.arc(0, 0, radius * 2.8, 0, TAU);
     ctx.fill();
 
+    const spriteDrawn = organismSprites.draw(ctx, 'trichoderma', {
+      x: 0,
+      y: 3,
+      height: 70 * Math.max(.35, growth),
+      time: state.time,
+      phase: colony.phase,
+      alpha: colony.exhausted ? .42 : .72 + colony.vigor * .28,
+      anchorY: .82,
+      flipX: Math.sin(colony.phase) < 0,
+    });
+    if (spriteDrawn) {
+      ctx.save();
+      ctx.globalAlpha = 0;
+    }
     ctx.strokeStyle = colony.exhausted ? 'rgba(255,130,151,.58)' : 'rgba(184,255,198,.72)';
     ctx.lineWidth = 1.3;
     for (let i = 0; i < 7; i++) {
@@ -8567,6 +8827,7 @@ function createTrichodermaColonies({ state, input, ecology, entities }) {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
+    if (spriteDrawn) ctx.restore();
 
     const width = 52;
     const barY = radius + 12;
@@ -8627,7 +8888,9 @@ function createTrichodermaColonies({ state, input, ecology, entities }) {
 Object.assign(__exports, { createTrichodermaColonies });
 },
 "src/procgen/beneficial-inoculants.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");
+const { H, W } = __require("src/core/constants.js");
+const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");
+const { organismSprites } = __require("src/render/organism-sprites.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -9130,6 +9393,9 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
     ctx.strokeStyle = profile.pale;
     ctx.lineWidth = 1.2;
     const cellCount = 7 + colony.sourceCount * 3;
+    const colonySpriteType = colony.type === 'myco' ? 'micorriza' : colony.type;
+    const colonySpriteStatus = organismSprites.status(colonySpriteType);
+    const colonySpriteReady = colonySpriteStatus.enabled && colonySpriteStatus.loaded && !colonySpriteStatus.failed;
     for (let i = 0; i < cellCount; i++) {
       const angle = i / cellCount * TAU + colony.phase;
       const rr = radius * (.25 + (i % 4) * .18);
@@ -9138,13 +9404,37 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
       ctx.globalAlpha = colony.dormant ? .32 : .55 + (i % 3) * .14;
       ctx.beginPath();
       if (colony.type === 'rhizobium') {
-        ctx.ellipse(x, y, 4.5, 2.4, angle + .4, 0, TAU);
-        ctx.fill();
-        ctx.stroke();
+        if (colonySpriteReady) {
+          if (i < 3) organismSprites.draw(ctx, 'rhizobium', {
+            x: (i - 1) * 25,
+            y: -22 + Math.sin(state.time * 2 + i) * 3,
+            height: 55,
+            time: state.time,
+            phase: colony.phase + i,
+            alpha: colony.dormant ? .45 : 1,
+            flipX: i === 0,
+          });
+        } else {
+          ctx.ellipse(x, y, 4.5, 2.4, angle + .4, 0, TAU);
+          ctx.fill();
+          ctx.stroke();
+        }
       } else if (colony.type === 'azospirillum') {
-        ctx.ellipse(x, y, 5.3, 1.8, angle, 0, TAU);
-        ctx.fill();
-        ctx.stroke();
+        if (colonySpriteReady) {
+          if (i < 3) organismSprites.draw(ctx, 'azospirillum', {
+            x: (i - 1) * 25,
+            y: -24 + Math.sin(state.time * 2 + i) * 3,
+            height: 64,
+            time: state.time,
+            phase: colony.phase + i,
+            alpha: colony.dormant ? .42 : 1,
+            flipX: i === 0,
+          });
+        } else {
+          ctx.ellipse(x, y, 5.3, 1.8, angle, 0, TAU);
+          ctx.fill();
+          ctx.stroke();
+        }
       } else if (colony.type === 'bacillus') {
         const spriteCount = 5;
         if (i < spriteCount) {
@@ -9157,6 +9447,23 @@ function createBeneficialInoculants({ state, input, ecology, entities }) {
             ctx.fill();
             ctx.stroke();
           }
+        }
+      } else if (colony.type === 'pseudomonas' || colony.type === 'myco') {
+        if (colonySpriteReady) {
+          const spriteType = colony.type === 'myco' ? 'micorriza' : 'pseudomonas';
+          if (i < 3) organismSprites.draw(ctx, spriteType, {
+            x: (i - 1) * 24,
+            y: -21 + Math.sin(state.time * 2.1 + i) * 3,
+            height: colony.type === 'myco' ? 50 : 57,
+            time: state.time,
+            phase: colony.phase + i,
+            alpha: colony.dormant ? .4 : .95,
+            flipX: i === 0,
+          });
+        } else {
+          ctx.ellipse(x, y, 4.8, 2, angle - .25, 0, TAU);
+          ctx.fill();
+          ctx.stroke();
         }
       } else {
         ctx.ellipse(x, y, 4.8, 2, angle - .25, 0, TAU);
@@ -9759,7 +10066,9 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
 Object.assign(__exports, { createPseudomonasSiderophores });
 },
 "src/procgen/opportunistic-fungus.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { H, W } = __require("src/core/constants.js");
+const { organismSprites } = __require("src/render/organism-sprites.js");
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -10268,6 +10577,16 @@ function createOpportunisticFungus({ state, entities, ecology }) {
 
   function drawFocus(ctx, network, vigor) {
     const pulse = .82 + Math.sin(state.time * 2.4 + network.lesions[0].phase) * .12;
+    if (organismSprites.draw(ctx, 'oportunista', {
+      x: network.anchor.x,
+      y: network.anchor.y + 6,
+      height: 74 * (.9 + pulse * .1),
+      time: state.time,
+      phase: network.lesions[0].phase,
+      alpha: .5 + vigor * .5,
+      anchorY: .78,
+      flipX: Math.sin(network.lesions[0].phase) < 0,
+    })) return;
     ctx.save();
     ctx.translate(network.anchor.x, network.anchor.y + 3);
     ctx.fillStyle = `rgba(91,18,45,${.32 + vigor * .18})`;
@@ -10290,7 +10609,6 @@ function createOpportunisticFungus({ state, entities, ecology }) {
     const response = network.response || { vigor: 1 };
     const vigor = response.vigor;
     const green = Math.round(72 + vigor * 45);
-    drawFocus(ctx, network, vigor);
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -10365,6 +10683,9 @@ function createOpportunisticFungus({ state, entities, ecology }) {
       ctx.fill();
     }
     ctx.restore();
+    // O foco animado fica na frente da rede: as hifas nascem visualmente
+    // atrás da sheet, sem atravessar o corpo do organismo.
+    drawFocus(ctx, network, vigor);
   }
 
   function drawVigorIndicator(ctx, network) {
@@ -13216,7 +13537,10 @@ function createAzospirillumNitrogen({ state, inoculants }) {
 Object.assign(__exports, { sameRootSystem, createAzospirillumNitrogen });
 },
 "src/procgen/meloidogyne-lifecycle.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { createRootHealthGameplay } = __require("src/procgen/root-health-gameplay.js");const { MELOIDOGYNE_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
+const { W } = __require("src/core/constants.js");
+const { organismSprites } = __require("src/render/organism-sprites.js");
+const { createRootHealthGameplay } = __require("src/procgen/root-health-gameplay.js");
+const { MELOIDOGYNE_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const hash = (p, s = 0) => {
@@ -13571,6 +13895,23 @@ function createMeloidogyneLifecycle({ state, entities }) {
     const caught = Boolean(j.trichodermaCaught);
     const embedded = j.state !== 'seeking', a = Math.atan2(j.vy || 0, j.vx || 1);
     const length = embedded ? 34 : 42;
+    if (organismSprites.draw(ctx, 'nematoide', {
+      x: j.x,
+      y: j.y,
+      height: embedded ? 45 : 62,
+      time: state.time,
+      phase: j.phase,
+      alpha: caught ? .52 : 1,
+      flipX: (j.vx || 1) < 0,
+    })) {
+      ctx.save();
+      ctx.font = '700 7px Inter,system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = caught ? '#baffc7' : '#fff1d5';
+      ctx.fillText(embedded ? 'J2 interno' : 'J2', j.x, j.y - (embedded ? 25 : 34));
+      ctx.restore();
+      return;
+    }
     ctx.save(); ctx.translate(j.x, j.y); ctx.rotate(a);
     ctx.shadowBlur = caught ? 10 : embedded ? 7 : 5;
     ctx.shadowColor = caught ? '#8df0a8' : embedded ? '#ff9f8f' : '#fff0cf';
@@ -18165,7 +18506,9 @@ function advanceGameplayFrame({
 Object.assign(__exports, { tutorialPauseActive, clearInstantPlayerActions, createTutorialInputGate, advanceGameplayFrame });
 },
 "src/render/renderer.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");const { createNecroticZone } = __require("src/render/necrotic-zone.js");const { createPlayerSprite } = __require("src/render/player-sprite.js");const { resolvePlayerSkin } = __require("src/render/player-skins.js");const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");const { createRhizosphereBackdrop } = __require("src/render/rhizosphere-backdrop.js");const { createRhizosphereParallax } = __require("src/render/rhizosphere-parallax.js");
+const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");const { createNecroticZone } = __require("src/render/necrotic-zone.js");const { createPlayerSprite } = __require("src/render/player-sprite.js");const { resolvePlayerSkin } = __require("src/render/player-skins.js");const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");
+const { organismSprites } = __require("src/render/organism-sprites.js");
+const { createRhizosphereBackdrop } = __require("src/render/rhizosphere-backdrop.js");const { createRhizosphereParallax } = __require("src/render/rhizosphere-parallax.js");
 function mixHex(a, b, t) {
   const value = clamp(t, 0, 1);
   const parse = color => [
@@ -18289,8 +18632,13 @@ function createRenderer({
     const lunge = enemy.mode === 'lunge' ? 1 : 0;
     const stunned = enemy.mode === 'stunned';
     const pulse = 1 + Math.sin(time * 2.4 + index) * .05;
+    const spriteStatus = organismSprites.status('rhizoctonia');
+    const spriteReady = spriteStatus.enabled && spriteStatus.loaded && !spriteStatus.failed;
 
     ctx.save();
+    // A sheet é desenhada pelo controle da Rhizoctonia depois da hifa de
+    // ataque. Aqui mantemos somente o fallback procedural reversível.
+    if (spriteReady) ctx.globalAlpha = 0;
     ctx.translate(enemy.x + enemy.w / 2, enemy.y + enemy.h / 2 + 4);
     ctx.scale(pulse * (1 + charge * .12), pulse * .76);
 
@@ -20630,8 +20978,39 @@ function createResponsiveCanvas({
 Object.assign(__exports, { calculateResponsiveCanvasSize, createResponsiveCanvas });
 },
 "src/procgen/rhizoctonia-control.js": (__exports, __require) => {
+const { organismSprites } = __require("src/render/organism-sprites.js");
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const TAU = Math.PI * 2;
+
+function createRhizoctoniaAttackHyphaPath({
+  startX,
+  startY,
+  endX,
+  endY,
+  phase = 0,
+  charge = 0,
+}) {
+  const dx = endX - startX;
+  const dy = endY - startY;
+  const length = Math.max(1, Math.hypot(dx, dy));
+  const normalX = -dy / length;
+  const normalY = dx / length;
+  const pointCount = clamp(Math.ceil(length / 12), 5, 24);
+  const amplitude = Math.min(16, Math.max(4, length * .075)) * (.42 + clamp(charge, 0, 1) * .58);
+  const points = [];
+  for (let index = 0; index <= pointCount; index++) {
+    const progress = index / pointCount;
+    const envelope = Math.sin(progress * Math.PI);
+    const broadWave = Math.sin(progress * Math.PI * 2.35 + phase) * amplitude;
+    const fineWave = Math.sin(progress * Math.PI * 5.7 + phase * 1.41) * amplitude * .22;
+    const offset = (broadWave + fineWave) * envelope;
+    points.push({
+      x: startX + dx * progress + normalX * offset,
+      y: startY + dy * progress + normalY * offset,
+    });
+  }
+  return points;
+}
 
 function nearestHostRoot(state, enemy) {
   const centerX = enemy.x + enemy.w / 2;
@@ -20940,6 +21319,48 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     // Barras de status removidas a pedido do usuário
   }
 
+  function traceAttackHypha(ctx, points) {
+    ctx.beginPath();
+    points.forEach((point, index) => {
+      if (index) ctx.lineTo(point.x, point.y);
+      else ctx.moveTo(point.x, point.y);
+    });
+    ctx.stroke();
+  }
+
+  function drawAttackBranches(ctx, points, enemy, halo = false) {
+    const charge = clamp(enemy.rhizoCharge || 0, 0, 1);
+    const branchCount = charge > .62 ? 3 : 2;
+    for (let index = 0; index < branchCount; index++) {
+      const pointIndex = Math.min(
+        points.length - 2,
+        Math.max(1, Math.round((.34 + index * .22) * (points.length - 1))),
+      );
+      const point = points[pointIndex];
+      const previous = points[pointIndex - 1];
+      const next = points[pointIndex + 1];
+      const dx = next.x - previous.x;
+      const dy = next.y - previous.y;
+      const length = Math.max(1, Math.hypot(dx, dy));
+      const side = Math.sin((enemy.phase || 0) * 1.7 + index * 2.3) < 0 ? -1 : 1;
+      const normalX = -dy / length * side;
+      const normalY = dx / length * side;
+      const branchLength = 10 + charge * 13 + index * 2;
+      const endX = point.x + normalX * branchLength + dx / length * branchLength * .32;
+      const endY = point.y + normalY * branchLength + dy / length * branchLength * .32;
+      ctx.beginPath();
+      ctx.moveTo(point.x, point.y);
+      ctx.quadraticCurveTo(
+        point.x + normalX * branchLength * .55,
+        point.y + normalY * branchLength * .55,
+        endX,
+        endY,
+      );
+      ctx.lineWidth = halo ? 3.4 : .9;
+      ctx.stroke();
+    }
+  }
+
   function drawAttack(ctx, enemy) {
     const host = enemy.hostPlatform;
     if (!host) return;
@@ -20950,20 +21371,57 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     const endX = lunging
       ? (enemy.attackTipX || startX)
       : startX + enemy.rhizoAttackDirection * (45 + charge * (70 + enemy.colonization * 70));
-    const y = host.y - 10;
+    const startY = host.y - 10;
+    const endY = startY - 4;
+    const points = createRhizoctoniaAttackHyphaPath({
+      startX,
+      startY,
+      endX,
+      endY,
+      phase: enemy.phase || 0,
+      charge: Math.max(charge, lunging ? .8 : 0),
+    });
     ctx.save();
     ctx.globalAlpha = .3 + Math.max(charge, lunging ? .8 : 0) * .65;
-    ctx.strokeStyle = '#ff416d';
-    ctx.lineWidth = 2 + charge * 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Mesma linguagem das hifas de ataque do Trichoderma: bainha neon,
+    // núcleo fino, crescimento orgânico e pequenas ramificações laterais.
+    ctx.shadowColor = '#ff416d';
+    ctx.shadowBlur = 14;
+    ctx.strokeStyle = 'rgba(255,65,109,.32)';
+    ctx.lineWidth = 6.4;
+    traceAttackHypha(ctx, points);
+    drawAttackBranches(ctx, points, enemy, true);
+
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#ffdbe3';
+    ctx.lineWidth = 2.15;
+    traceAttackHypha(ctx, points);
+    drawAttackBranches(ctx, points, enemy, false);
+
+    ctx.shadowColor = '#ff416d';
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = '#fff4f7';
     ctx.beginPath();
-    ctx.moveTo(startX, y);
-    ctx.quadraticCurveTo((startX + endX) / 2, y - 18 - charge * 14, endX, y - 4);
-    ctx.stroke();
-    ctx.fillStyle = '#ff8ba3';
-    ctx.beginPath();
-    ctx.arc(endX, y - 4, 4 + charge * 3, 0, TAU);
+    ctx.arc(endX, endY, 2.7 + Math.sin(state.time * 5 + (enemy.phase || 0)) * .6, 0, TAU);
     ctx.fill();
     ctx.restore();
+  }
+
+  function drawRhizoctoniaSprite(ctx, enemy, index) {
+    const charge = clamp(enemy.rhizoCharge || 0, 0, 1);
+    const pulse = 1 + Math.sin(state.time * 2.4 + index) * .05;
+    organismSprites.draw(ctx, 'rhizoctonia', {
+      x: enemy.x + enemy.w / 2,
+      y: enemy.y + enemy.h / 2 + 2,
+      height: 82 * pulse * (1 + charge * .08),
+      time: state.time,
+      phase: enemy.phase ?? index,
+      alpha: enemy.contained ? .58 : 1,
+      flipX: (enemy.rhizoAttackDirection || 1) < 0,
+    });
   }
 
   function render(ctx) {
@@ -20973,6 +21431,9 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       if (!enemy.alive || !ensure(enemy, index)) return;
       drawColonizedRoot(ctx, enemy, index);
       drawAttack(ctx, enemy);
+      // A sheet fecha a composição na frente da hifa. Se estiver desativada,
+      // o fallback procedural já foi desenhado pelo renderer principal.
+      drawRhizoctoniaSprite(ctx, enemy, index);
       drawStatus(ctx, enemy);
     });
     ctx.restore();
@@ -20994,7 +21455,7 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     reset,
   };
 }
-Object.assign(__exports, { createRhizoctoniaControl });
+Object.assign(__exports, { createRhizoctoniaAttackHyphaPath, createRhizoctoniaControl });
 },
 "src/procgen/trichoderma-meloidogyne-control.js": (__exports, __require) => {
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -21900,7 +22361,9 @@ function createTrichodermaRhizoctoniaControl({ state, entities, colonies }) {
 Object.assign(__exports, { createTrichodermaRhizoctoniaControl });
 },
 "src/procgen/ralstonia-vascular-wilt.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { W } = __require("src/core/constants.js");
+const { organismSprites } = __require("src/render/organism-sprites.js");
+const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -22255,6 +22718,16 @@ function createRalstoniaVascularWilt({ state, entities, inoculants, pseudomonas 
     const root = focus.root;
     const surface = clamp(focus.surfaceLoad, 0, 1);
     const vascular = clamp(focus.vascularLoad, 0, 1);
+    if (organismSprites.draw(ctx, 'ralstonia', {
+      x: focus.x,
+      y: root.y + 2,
+      height: 58 + surface * 12,
+      time: state.time,
+      phase: focus.phase,
+      alpha: focus.neutralized ? .38 : .72 + surface * .28,
+      anchorY: .88,
+      flipX: Math.sin(focus.phase) < 0,
+    })) return;
     const count = 5 + Math.floor(surface * 11 + vascular * 9);
     for (let i = 0; i < count; i++) {
       const angle = focus.phase + i * 2.399 + state.time * (.18 + (i % 3) * .04);

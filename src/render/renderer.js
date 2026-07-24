@@ -6,6 +6,7 @@ import { createNecroticZone } from './necrotic-zone.js';
 import { createPlayerSprite } from './player-sprite.js';
 import { resolvePlayerSkin } from './player-skins.js';
 import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from './bacillus-sprite.js';
+import { organismSprites } from './organism-sprites.js';
 import { createRhizosphereBackdrop } from './rhizosphere-backdrop.js';
 import { createRhizosphereParallax } from './rhizosphere-parallax.js';
 
@@ -132,8 +133,13 @@ export function createRenderer({
     const lunge = enemy.mode === 'lunge' ? 1 : 0;
     const stunned = enemy.mode === 'stunned';
     const pulse = 1 + Math.sin(time * 2.4 + index) * .05;
+    const spriteStatus = organismSprites.status('rhizoctonia');
+    const spriteReady = spriteStatus.enabled && spriteStatus.loaded && !spriteStatus.failed;
 
     ctx.save();
+    // A sheet é desenhada pelo controle da Rhizoctonia depois da hifa de
+    // ataque. Aqui mantemos somente o fallback procedural reversível.
+    if (spriteReady) ctx.globalAlpha = 0;
     ctx.translate(enemy.x + enemy.w / 2, enemy.y + enemy.h / 2 + 4);
     ctx.scale(pulse * (1 + charge * .12), pulse * .76);
 

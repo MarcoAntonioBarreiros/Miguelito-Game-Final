@@ -1,4 +1,5 @@
 import { H, W } from '../core/constants.js';
+import { organismSprites } from '../render/organism-sprites.js';
 import {
   clamp,
   createHyphalNetwork,
@@ -238,19 +239,32 @@ export function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
   }
 
   function drawNetwork(ctx, network) {
-    // Rede inoculada nao tem esporo de cenario para desenhar por baixo.
-    const sporeAlpha = network.colony || network.ally?.taken ? .28 : 1;
+    // A rede inoculada tambem produz propágulos animados, mas discretos para
+    // que as hifas enraizadas continuem sendo a estrutura dominante.
+    const sporeAlpha = network.colony || network.ally?.taken ? .52 : 1;
     ctx.save();
     ctx.translate(-state.cameraX, 0);
-    ctx.globalAlpha = sporeAlpha;
-    ctx.shadowBlur = 22;
-    ctx.shadowColor = '#d6afff';
-    ctx.fillStyle = '#f2ddff';
-    ctx.beginPath();
-    ctx.arc(network.x, network.y + Math.sin(state.time * 1.7 + network.pulse) * 4, 9 + network.germination * 2, 0, TAU);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 1;
+    const sporeY = network.y + Math.sin(state.time * 1.7 + network.pulse) * 4;
+    const spriteDrawn = organismSprites.draw(ctx, 'micorriza', {
+      x: network.x,
+      y: sporeY,
+      height: 56 + network.germination * 8,
+      time: state.time,
+      phase: network.pulse,
+      alpha: sporeAlpha,
+      flipX: Math.sin(network.pulse) < 0,
+    });
+    if (!spriteDrawn) {
+      ctx.globalAlpha = sporeAlpha;
+      ctx.shadowBlur = 22;
+      ctx.shadowColor = '#d6afff';
+      ctx.fillStyle = '#f2ddff';
+      ctx.beginPath();
+      ctx.arc(network.x, sporeY, 9 + network.germination * 2, 0, TAU);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
 
     if (network.hypha) {

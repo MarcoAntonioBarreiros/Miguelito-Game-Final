@@ -1,6 +1,7 @@
 import { H, W } from '../core/constants.js';
 import { microbeCatalog } from '../data/microbes.js';
 import { drawRoamingBacillusSprite } from '../render/bacillus-sprite.js';
+import { organismSprites } from '../render/organism-sprites.js';
 
 const TAU = Math.PI * 2;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -689,7 +690,10 @@ export function createMicrobeEcology({ state, entities }) {
     ctx.shadowBlur = 10;
     ctx.shadowColor = profile.color;
     ctx.fillStyle = known ? '#effff6' : '#d2e4dc';
-    ctx.fillText(text, zone.x, zone.y + 42);
+    // O nome identifica a comunidade inteira, não um agente isolado. Mantê-lo
+    // no centro do encontro evita confusão com os rótulos inferiores dos
+    // inóculos, que pertencem a outro sistema.
+    ctx.fillText(text, zone.x, zone.y);
     ctx.restore();
   }
 
@@ -739,6 +743,30 @@ export function createMicrobeEcology({ state, entities }) {
         const spriteSize = 38 * agent.size * profile.scale;
         if (drawRoamingBacillusSprite(ctx, agent.x, agent.y, spriteSize, state.time, agent.phase)) continue;
       }
+      const spriteType = {
+        rhizobium: 'rhizobium',
+        azospirillum: 'azospirillum',
+        pseudomonas: 'pseudomonas',
+        trichoderma: 'trichoderma',
+        myco: 'micorriza',
+      }[agent.type];
+      if (spriteType && organismSprites.draw(ctx, spriteType, {
+        x: agent.x,
+        y: agent.y,
+        height: (
+          agent.type === 'myco'
+            ? 50
+            : agent.type === 'trichoderma'
+              ? 58
+              : agent.type === 'azospirillum'
+                ? 64
+                : 55
+        )
+          * agent.size * profile.scale,
+        time: state.time,
+        phase: agent.phase,
+        flipX: agent.vx < 0,
+      })) continue;
       if (profile.kind === 'hypha') drawHyphalFragment(ctx, state.time, agent, profile);
       else if (profile.kind === 'spore' || profile.kind === 'conidium') drawSpore(ctx, state.time, agent, profile);
       else drawBacterium(ctx, state.time, agent, profile);

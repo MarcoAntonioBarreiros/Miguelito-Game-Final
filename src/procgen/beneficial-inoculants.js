@@ -1,5 +1,6 @@
 import { H, W } from '../core/constants.js';
 import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from '../render/bacillus-sprite.js';
+import { organismSprites } from '../render/organism-sprites.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -503,6 +504,9 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
     ctx.strokeStyle = profile.pale;
     ctx.lineWidth = 1.2;
     const cellCount = 7 + colony.sourceCount * 3;
+    const colonySpriteType = colony.type === 'myco' ? 'micorriza' : colony.type;
+    const colonySpriteStatus = organismSprites.status(colonySpriteType);
+    const colonySpriteReady = colonySpriteStatus.enabled && colonySpriteStatus.loaded && !colonySpriteStatus.failed;
     for (let i = 0; i < cellCount; i++) {
       const angle = i / cellCount * TAU + colony.phase;
       const rr = radius * (.25 + (i % 4) * .18);
@@ -511,13 +515,37 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
       ctx.globalAlpha = colony.dormant ? .32 : .55 + (i % 3) * .14;
       ctx.beginPath();
       if (colony.type === 'rhizobium') {
-        ctx.ellipse(x, y, 4.5, 2.4, angle + .4, 0, TAU);
-        ctx.fill();
-        ctx.stroke();
+        if (colonySpriteReady) {
+          if (i < 3) organismSprites.draw(ctx, 'rhizobium', {
+            x: (i - 1) * 25,
+            y: -22 + Math.sin(state.time * 2 + i) * 3,
+            height: 55,
+            time: state.time,
+            phase: colony.phase + i,
+            alpha: colony.dormant ? .45 : 1,
+            flipX: i === 0,
+          });
+        } else {
+          ctx.ellipse(x, y, 4.5, 2.4, angle + .4, 0, TAU);
+          ctx.fill();
+          ctx.stroke();
+        }
       } else if (colony.type === 'azospirillum') {
-        ctx.ellipse(x, y, 5.3, 1.8, angle, 0, TAU);
-        ctx.fill();
-        ctx.stroke();
+        if (colonySpriteReady) {
+          if (i < 3) organismSprites.draw(ctx, 'azospirillum', {
+            x: (i - 1) * 25,
+            y: -24 + Math.sin(state.time * 2 + i) * 3,
+            height: 64,
+            time: state.time,
+            phase: colony.phase + i,
+            alpha: colony.dormant ? .42 : 1,
+            flipX: i === 0,
+          });
+        } else {
+          ctx.ellipse(x, y, 5.3, 1.8, angle, 0, TAU);
+          ctx.fill();
+          ctx.stroke();
+        }
       } else if (colony.type === 'bacillus') {
         const spriteCount = 5;
         if (i < spriteCount) {
@@ -530,6 +558,23 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
             ctx.fill();
             ctx.stroke();
           }
+        }
+      } else if (colony.type === 'pseudomonas' || colony.type === 'myco') {
+        if (colonySpriteReady) {
+          const spriteType = colony.type === 'myco' ? 'micorriza' : 'pseudomonas';
+          if (i < 3) organismSprites.draw(ctx, spriteType, {
+            x: (i - 1) * 24,
+            y: -21 + Math.sin(state.time * 2.1 + i) * 3,
+            height: colony.type === 'myco' ? 50 : 57,
+            time: state.time,
+            phase: colony.phase + i,
+            alpha: colony.dormant ? .4 : .95,
+            flipX: i === 0,
+          });
+        } else {
+          ctx.ellipse(x, y, 4.8, 2, angle - .25, 0, TAU);
+          ctx.fill();
+          ctx.stroke();
         }
       } else {
         ctx.ellipse(x, y, 4.8, 2, angle - .25, 0, TAU);
