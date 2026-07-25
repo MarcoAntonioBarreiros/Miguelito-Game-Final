@@ -4394,9 +4394,7 @@ function createSimulator() {
 Object.assign(__exports, { restoreExudatesAhead, createSimulator });
 },
 "src/physics.js": (__exports, __require) => {
-const { PLAYER_MAX_X, W } = __require("src/core/constants.js");const { clamp, lerp, rects } = __require("src/core/math.js");const { microbeEncounters } = __require("src/data/microbes.js");
-const { recordPhaseObjectiveAction } = __require("src/procgen/campaign-objective-progress.js");
-const { unlockCampaignFeature } = __require("src/procgen/campaign-progression.js");
+const { PLAYER_MAX_X, W } = __require("src/core/constants.js");const { clamp, lerp, rects } = __require("src/core/math.js");const { microbeEncounters } = __require("src/data/microbes.js");const { recordPhaseObjectiveAction } = __require("src/procgen/campaign-objective-progress.js");const { unlockCampaignFeature } = __require("src/procgen/campaign-progression.js");
 function createPhysicsSystem({ state, input, entities, hud, audio }) {
   function collectCampaignUnlock(ally, player) {
     const feature = ally.unlockFeature
@@ -5872,9 +5870,7 @@ function createRoamingMicrobeEcology({ state, entities }) {
 Object.assign(__exports, { createRoamingMicrobeEcology });
 },
 "src/procgen/microbe-ecology.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { microbeCatalog } = __require("src/data/microbes.js");
-const { drawRoamingBacillusSprite } = __require("src/render/bacillus-sprite.js");
-const { organismSprites } = __require("src/render/organism-sprites.js");
+const { H, W } = __require("src/core/constants.js");const { microbeCatalog } = __require("src/data/microbes.js");const { drawRoamingBacillusSprite } = __require("src/render/bacillus-sprite.js");const { organismSprites } = __require("src/render/organism-sprites.js");
 const TAU = Math.PI * 2;
 const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -5939,6 +5935,8 @@ const ROAMING_ORGANISM_SPRITE_SIZES = Object.freeze({
   pseudomonas: 92,
   trichoderma: 77,
   myco: 75,
+  oportunista: 115,
+  rhizoctonia: 105,
 });
 
 function hashSeed(text) {
@@ -7010,9 +7008,7 @@ if (typeof window !== 'undefined') {
 Object.assign(__exports, { ORGANISM_SPRITE_SHEETS, calculateOrganismSpriteFrame, createOrganismSpriteRenderer, isOrganismSpriteEnabled, setOrganismSpriteEnabled, organismSprites });
 },
 "src/procgen/mycorrhiza-growth.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");
-const { organismSprites } = __require("src/render/organism-sprites.js");
-const { clamp, createHyphalNetwork, drawArbuscule, renderHyphalNetwork, TAU, updateHyphalNetwork } = __require("src/procgen/hyphal-growth.js");
+const { H, W } = __require("src/core/constants.js");const { organismSprites } = __require("src/render/organism-sprites.js");const { clamp, createHyphalNetwork, drawArbuscule, renderHyphalNetwork, TAU, updateHyphalNetwork } = __require("src/procgen/hyphal-growth.js");
 function nearestRootTarget(state, x, y, minDistance = 0) {
   let best = null;
   let bestDistance = Infinity;
@@ -8646,8 +8642,7 @@ function createTrichodermaRecruitment({ state, ecology, entities }) {
 Object.assign(__exports, { createTrichodermaRecruitment });
 },
 "src/procgen/trichoderma-colonies.js": (__exports, __require) => {
-const { H } = __require("src/core/constants.js");
-const { organismSprites } = __require("src/render/organism-sprites.js");
+const { H } = __require("src/core/constants.js");const { organismSprites } = __require("src/render/organism-sprites.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -8893,9 +8888,7 @@ function createTrichodermaColonies({ state, input, ecology, entities }) {
 Object.assign(__exports, { createTrichodermaColonies });
 },
 "src/procgen/beneficial-inoculants.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");
-const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");
-const { organismSprites } = __require("src/render/organism-sprites.js");
+const { H, W } = __require("src/core/constants.js");const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");const { organismSprites } = __require("src/render/organism-sprites.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -10071,9 +10064,7 @@ function createPseudomonasSiderophores({ state, entities, ecology, inoculants })
 Object.assign(__exports, { createPseudomonasSiderophores });
 },
 "src/procgen/opportunistic-fungus.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");
-const { organismSprites } = __require("src/render/organism-sprites.js");
-const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { H, W } = __require("src/core/constants.js");const { organismSprites } = __require("src/render/organism-sprites.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -10585,7 +10576,7 @@ function createOpportunisticFungus({ state, entities, ecology }) {
     if (organismSprites.draw(ctx, 'oportunista', {
       x: network.anchor.x,
       y: network.anchor.y + 6,
-      height: 74 * (.9 + pulse * .1),
+      height: 115 * (.9 + pulse * .1),
       time: state.time,
       phase: network.lesions[0].phase,
       alpha: .5 + vigor * .5,
@@ -13542,10 +13533,7 @@ function createAzospirillumNitrogen({ state, inoculants }) {
 Object.assign(__exports, { sameRootSystem, createAzospirillumNitrogen });
 },
 "src/procgen/meloidogyne-lifecycle.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");
-const { organismSprites } = __require("src/render/organism-sprites.js");
-const { createRootHealthGameplay } = __require("src/procgen/root-health-gameplay.js");
-const { MELOIDOGYNE_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
+const { W } = __require("src/core/constants.js");const { organismSprites } = __require("src/render/organism-sprites.js");const { createRootHealthGameplay } = __require("src/procgen/root-health-gameplay.js");const { MELOIDOGYNE_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const hash = (p, s = 0) => {
@@ -15435,8 +15423,7 @@ function createInoculumSelection({ state, input, inoculants, trichodermaColonies
 Object.assign(__exports, { createInoculumSelection });
 },
 "src/procgen/phosphate-solubilization.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");const { PHOSPHATE_SOLUBILIZATION_DEFAULTS } = __require("src/procgen/campaign-manifest.js");
-const { recordPhaseObjectiveAction } = __require("src/procgen/campaign-objective-progress.js");
+const { W } = __require("src/core/constants.js");const { PHOSPHATE_SOLUBILIZATION_DEFAULTS } = __require("src/procgen/campaign-manifest.js");const { recordPhaseObjectiveAction } = __require("src/procgen/campaign-objective-progress.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -18511,9 +18498,7 @@ function advanceGameplayFrame({
 Object.assign(__exports, { tutorialPauseActive, clearInstantPlayerActions, createTutorialInputGate, advanceGameplayFrame });
 },
 "src/render/renderer.js": (__exports, __require) => {
-const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");const { createNecroticZone } = __require("src/render/necrotic-zone.js");const { createPlayerSprite } = __require("src/render/player-sprite.js");const { resolvePlayerSkin } = __require("src/render/player-skins.js");const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");
-const { organismSprites } = __require("src/render/organism-sprites.js");
-const { createRhizosphereBackdrop } = __require("src/render/rhizosphere-backdrop.js");const { createRhizosphereParallax } = __require("src/render/rhizosphere-parallax.js");
+const { H, W } = __require("src/core/constants.js");const { clamp } = __require("src/core/math.js");const { drawArbuscule } = __require("src/procgen/hyphal-growth.js");const { createMicrobeRenderer } = __require("src/render/microbes.js");const { createNecroticZone } = __require("src/render/necrotic-zone.js");const { createPlayerSprite } = __require("src/render/player-sprite.js");const { resolvePlayerSkin } = __require("src/render/player-skins.js");const { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } = __require("src/render/bacillus-sprite.js");const { organismSprites } = __require("src/render/organism-sprites.js");const { createRhizosphereBackdrop } = __require("src/render/rhizosphere-backdrop.js");const { createRhizosphereParallax } = __require("src/render/rhizosphere-parallax.js");
 function mixHex(a, b, t) {
   const value = clamp(t, 0, 1);
   const parse = color => [
@@ -21421,7 +21406,7 @@ function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     organismSprites.draw(ctx, 'rhizoctonia', {
       x: enemy.x + enemy.w / 2,
       y: enemy.y + enemy.h / 2 + 2,
-      height: 82 * pulse * (1 + charge * .08),
+      height: 105 * pulse * (1 + charge * .08),
       time: state.time,
       phase: enemy.phase ?? index,
       alpha: enemy.contained ? .58 : 1,
@@ -22366,9 +22351,7 @@ function createTrichodermaRhizoctoniaControl({ state, entities, colonies }) {
 Object.assign(__exports, { createTrichodermaRhizoctoniaControl });
 },
 "src/procgen/ralstonia-vascular-wilt.js": (__exports, __require) => {
-const { W } = __require("src/core/constants.js");
-const { organismSprites } = __require("src/render/organism-sprites.js");
-const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
+const { W } = __require("src/core/constants.js");const { organismSprites } = __require("src/render/organism-sprites.js");const { getPhaseManifest } = __require("src/procgen/campaign-manifest.js");
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 

@@ -513,7 +513,7 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     if (organismSprites.draw(ctx, 'oportunista', {
       x: network.anchor.x,
       y: network.anchor.y + 6,
-      height: 74 * (.9 + pulse * .1),
+      height: 115 * (.9 + pulse * .1),
       time: state.time,
       phase: network.lesions[0].phase,
       alpha: .5 + vigor * .5,

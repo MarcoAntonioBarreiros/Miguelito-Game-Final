@@ -67,6 +67,8 @@ export const ROAMING_ORGANISM_SPRITE_SIZES = Object.freeze({
   pseudomonas: 92,
   trichoderma: 77,
   myco: 75,
+  oportunista: 115,
+  rhizoctonia: 105,
 });
 
 function hashSeed(text) {

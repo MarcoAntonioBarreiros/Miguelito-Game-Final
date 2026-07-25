@@ -437,7 +437,7 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
     organismSprites.draw(ctx, 'rhizoctonia', {
       x: enemy.x + enemy.w / 2,
       y: enemy.y + enemy.h / 2 + 2,
-      height: 82 * pulse * (1 + charge * .08),
+      height: 105 * pulse * (1 + charge * .08),
       time: state.time,
       phase: enemy.phase ?? index,
       alpha: enemy.contained ? .58 : 1,
