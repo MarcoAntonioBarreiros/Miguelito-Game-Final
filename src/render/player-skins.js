@@ -123,5 +123,9 @@ export function resolvePlayerSkin({ locationLike = null, storage = null } = {}) 
   try { saved = storage?.getItem(PLAYER_SKIN_STORAGE_KEY); } catch (_) {}
   // Um valor guardado que nao existe mais no catalogo nao pode deixar o jogo
   // sem personagem: cai no astronauta.
-  return PLAYER_SKINS[saved] || PLAYER_SKINS.astronaut;
+  // Miguelito e o padrao em todo browser (antes exigia preferencia salva, entao
+  // so aparecia onde ja tinha sido ativado). O astronauta continua como rede de
+  // seguranca automatica: se qualquer folha nao carregar, createPlayerSprite()
+  // .isFallback() volta true e o renderer desenha o astronauta.
+  return PLAYER_SKINS[saved] || PLAYER_SKINS.miguelito;
 }

@@ -13,9 +13,9 @@ function storageStub(initial = null) {
   };
 }
 
-test('sem parametro nenhum o personagem e o astronauta', () => {
-  assert.equal(resolvePlayerSkin({}).id, 'astronaut');
-  assert.equal(resolvePlayerSkin({ locationLike: { search: '' }, storage: storageStub() }).id, 'astronaut');
+test('sem parametro nenhum o personagem e o Miguelito (padrao)', () => {
+  assert.equal(resolvePlayerSkin({}).id, 'miguelito');
+  assert.equal(resolvePlayerSkin({ locationLike: { search: '' }, storage: storageStub() }).id, 'miguelito');
 });
 
 test('?player=miguelito troca a skin e a escolha fica guardada', () => {
@@ -28,11 +28,12 @@ test('?player=miguelito troca a skin e a escolha fica guardada', () => {
   assert.equal(resolvePlayerSkin({ locationLike: { search: '?player=astronaut' }, storage }).id, 'astronaut');
 });
 
-test('skin desconhecida ou guardada invalida cai no astronauta', () => {
+test('skin desconhecida ou guardada invalida cai no padrao (Miguelito)', () => {
   // O jogo nunca pode ficar sem personagem por causa de um valor velho no
-  // localStorage ou de um parametro digitado errado.
-  assert.equal(resolvePlayerSkin({ locationLike: { search: '?player=nao-existe' }, storage: storageStub() }).id, 'astronaut');
-  assert.equal(resolvePlayerSkin({ storage: storageStub('skin-que-foi-removida') }).id, 'astronaut');
+  // localStorage ou de um parametro digitado errado: cai no padrao, e se a folha
+  // nao carregar o astronauta assume via isFallback().
+  assert.equal(resolvePlayerSkin({ locationLike: { search: '?player=nao-existe' }, storage: storageStub() }).id, 'miguelito');
+  assert.equal(resolvePlayerSkin({ storage: storageStub('skin-que-foi-removida') }).id, 'miguelito');
 });
 
 test('o astronauta nao declara folha nenhuma: ele e desenhado, nao carregado', () => {

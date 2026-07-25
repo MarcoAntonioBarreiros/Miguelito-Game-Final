@@ -261,6 +261,10 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       if (root.type !== 'root') continue;
       root.rhizoctoniaColonization = 0;
       root.rhizoctoniaControl = 0;
+      // A pressao tambem precisa zerar a cada frame: como e reatribuida por
+      // Math.max, sem este reset ela virava um pico permanente e a raiz nunca
+      // recuperava depois da praga morta — o objetivo da Fase 6 nunca fechava.
+      root.rhizoctoniaPressure = 0;
     }
     (state.level.enemies || []).forEach((enemy, index) => {
       if (!enemy.alive) return;
