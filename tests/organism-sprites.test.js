@@ -8,6 +8,10 @@ import {
   createOrganismSpriteRenderer,
   setOrganismSpriteEnabled,
 } from '../src/render/organism-sprites.js';
+import {
+  MICROBE_MOTION_PROFILES,
+  ROAMING_ORGANISM_SPRITE_SIZES,
+} from '../src/procgen/microbe-ecology.js';
 import { createRhizoctoniaAttackHyphaPath } from '../src/procgen/rhizoctonia-control.js';
 
 const root = path.resolve(import.meta.dirname, '..');
@@ -105,6 +109,21 @@ test('cada sheet pode ser desligada sem remover o fallback procedural', () => {
   assert.equal(renderer.draw({}, 'trichoderma'), false);
   setOrganismSpriteEnabled('trichoderma', true);
   assert.equal(renderer.draw({}, 'trichoderma'), false);
+});
+
+test('organismos em roaming ficam pouco menores que o Miguelito', () => {
+  for (const type of ['rhizobium', 'azospirillum', 'pseudomonas', 'trichoderma', 'myco']) {
+    const renderedHeight = ROAMING_ORGANISM_SPRITE_SIZES[type]
+      * MICROBE_MOTION_PROFILES[type].scale;
+    assert.ok(renderedHeight >= 64 && renderedHeight <= 65.5, `${type}: ${renderedHeight}px`);
+  }
+
+  // A spritesheet do Bacillus usa largura; a proporção média de seus quadros
+  // transforma essa largura em aproximadamente 64 px de altura.
+  const bacillusWidth = ROAMING_ORGANISM_SPRITE_SIZES.bacillus
+    * MICROBE_MOTION_PROFILES.bacillus.scale;
+  const bacillusHeight = bacillusWidth * (104 / 63);
+  assert.ok(bacillusHeight >= 63 && bacillusHeight <= 65);
 });
 
 test('a hifa ofensiva da Rhizoctonia é orgânica, determinística e preserva os extremos', () => {

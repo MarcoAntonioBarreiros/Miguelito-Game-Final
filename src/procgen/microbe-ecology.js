@@ -57,6 +57,18 @@ export const MICROBE_MOTION_PROFILES = {
   },
 };
 
+// Tamanhos-base compensam profile.scale para que o organismo em roaming
+// termine com cerca de 64-65 px: um pouco menor que o Miguelito de 72 px.
+// Bacillus usa largura; as demais sheets usam altura.
+export const ROAMING_ORGANISM_SPRITE_SIZES = Object.freeze({
+  rhizobium: 90,
+  azospirillum: 83,
+  bacillus: 55,
+  pseudomonas: 92,
+  trichoderma: 77,
+  myco: 75,
+});
+
 function hashSeed(text) {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) {
@@ -740,7 +752,8 @@ export function createMicrobeEcology({ state, entities }) {
       // O fungo oportunista é desenhado como rede hifal pelo sistema dedicado.
       if (agent.type === 'oportunista') continue;
       if (agent.type === 'bacillus') {
-        const spriteSize = 38 * agent.size * profile.scale;
+        const spriteSize = ROAMING_ORGANISM_SPRITE_SIZES.bacillus
+          * agent.size * profile.scale;
         if (drawRoamingBacillusSprite(ctx, agent.x, agent.y, spriteSize, state.time, agent.phase)) continue;
       }
       const spriteType = {
@@ -753,15 +766,7 @@ export function createMicrobeEcology({ state, entities }) {
       if (spriteType && organismSprites.draw(ctx, spriteType, {
         x: agent.x,
         y: agent.y,
-        height: (
-          agent.type === 'myco'
-            ? 50
-            : agent.type === 'trichoderma'
-              ? 58
-              : agent.type === 'azospirillum'
-                ? 64
-                : 55
-        )
+        height: ROAMING_ORGANISM_SPRITE_SIZES[agent.type]
           * agent.size * profile.scale,
         time: state.time,
         phase: agent.phase,
