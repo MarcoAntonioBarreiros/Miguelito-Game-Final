@@ -117,6 +117,16 @@ export function createRootHealthGameplay({ state, entities }) {
     return best;
   }
 
+  // Raiz lateral de Azospirillum ancorada nesta raiz: outro benefico que cura.
+  function lateralRootSupport(root) {
+    let best = 0;
+    for (const lateral of state.level.azospirillumRoots || []) {
+      if ((lateral.host || lateral.platform) !== root) continue;
+      best = Math.max(best, lateral.developed === true ? 1 : clamp(lateral.visibleProgress || 0, 0, 1));
+    }
+    return best;
+  }
+
   function pathogenTarget(root, adults) {
     const nematode = clamp(root.meloidogyneBurden || 0, 0, 1);
     const rhizoctonia = clamp(
@@ -191,14 +201,18 @@ export function createRootHealthGameplay({ state, entities }) {
     root.noduleRecovery = nodules.strength;
     root.mycorrhizaRecovery = mycorrhiza.strength;
 
+    const lateral = lateralRootSupport(root);
     const recoveryBlocked = Boolean(root.recoveryBlocked) || (root.ralstoniaVascularLoad || 0) >= .58;
+    // Sem base autonoma: a raiz so melhora com os beneficos do jogador (FBN/
+    // nodulos, biofilme, micorriza, raiz lateral). Sem nenhum, recuperacao = 0.
+    // Teto maior para a cura ate 100% ser viável em tempo jogável.
     const recoveryStrength = clamp(
-      .012
-      + nodules.strength * .026
-      + mycorrhiza.strength * .034
-      + biofilm * .012,
+      nodules.strength * .034
+      + mycorrhiza.strength * .04
+      + biofilm * .03
+      + lateral * .028,
       0,
-      .075,
+      .12,
     ) * (recoveryBlocked ? .16 : 1) * (1 - gall.adults * .13);
 
     if (targetDamage > root.rootGameplayDamage) {

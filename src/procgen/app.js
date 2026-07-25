@@ -417,6 +417,36 @@ function prepareLevel() {
   routeAnchors.synchronize();
   anchorPowerPickups(levelData);
   installFinalGoal(levelData);
+  applyInitialRootHealth(levelData, campaign.phase);
+}
+
+// Saúde da raiz como feedback central: as raízes começam DANIFICADAS e só sobem
+// a 100% quando o jogador aplica benéficos (a recuperação autônoma foi zerada em
+// root-health-gameplay). ~65% por padrão; ~50% (45-58%) em fases com fungo
+// oportunista, Rhizoctonia ou Ralstonia. Roda depois de installFinalGoal para já
+// excluir a raiz final marcada.
+function phaseHasRootSickness(phase) {
+  const manifest = getPhaseManifest(phase);
+  if (!manifest) return false;
+  if (manifest.opportunisticFungus) return true;
+  return (manifest.pathogenDebuts || []).some(
+    debut => debut.pathogen === 'rhizoctonia' || debut.pathogen === 'ralstonia',
+  );
+}
+
+function applyInitialRootHealth(level, phase) {
+  const sick = phaseHasRootSickness(phase);
+  for (const root of level.platforms || []) {
+    if (root.type !== 'root') continue;
+    if (root.final || root.recovery || root.mycorrhizaStructure || root.azospirillumStructure) continue;
+    if (!Number.isInteger(root.logicIndex) || root.logicIndex < 0) continue; // plataforma inicial fica saudável
+    // Variação leve e determinística pela posição, para as raízes não ficarem
+    // todas idênticas.
+    const jitter = (Math.abs(Math.sin(root.x * 12.9898) * 43758.5453) % 1);
+    const health = sick ? 0.45 + jitter * 0.13 : 0.60 + jitter * 0.10;
+    root.rootHealth = health;
+    root.rootGameplayDamage = 1 - health;
+  }
 }
 
 // Os pickups de poder (fitohormonios: power-jump/power-dash/power-pulse) tem que
