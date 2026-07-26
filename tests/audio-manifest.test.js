@@ -20,6 +20,7 @@ import {
   PHASE_MUSIC,
   PHASE_VICTORY_TOAST_SECONDS,
   PHASE_VICTORY_TRANSITION_SECONDS,
+  VICTORY_AUDIO_FALLBACK_SECONDS,
   musicTrackForPhase,
 } from '../src/audio-manifest.js';
 import { campaignManifest } from '../src/procgen/campaign-manifest.js';
@@ -129,16 +130,46 @@ test('a mixagem mantém a hierarquia: música > ambiente > gotas', () => {
   assert.ok(AUDIO_DEFAULTS.ambience > AUDIO_DEFAULTS.drops);
 });
 
-test('a espera da vitória cabe o stinger de ~10 s', () => {
-  // O arquivo tem 10,24 s; 3,4 s cortavam a frase logo no começo.
+test('a espera fixa é só fallback; a rede de segurança cobre os 10,24 s', () => {
+  // Com áudio, quem decide o momento da troca é o evento `ended`. A espera fixa
+  // vale quando não há som nenhum, e o prazo de segurança precisa ser maior que
+  // a duração do arquivo para não cortá-lo.
+  assert.ok(PHASE_VICTORY_TOAST_SECONDS <= PHASE_VICTORY_TRANSITION_SECONDS);
   assert.ok(
-    PHASE_VICTORY_TRANSITION_SECONDS >= 7,
-    `transição curta demais: ${PHASE_VICTORY_TRANSITION_SECONDS}s`,
+    VICTORY_AUDIO_FALLBACK_SECONDS > 10.24,
+    `o prazo de segurança (${VICTORY_AUDIO_FALLBACK_SECONDS}s) cortaria o stinger de 10,24 s`,
   );
-  assert.ok(
-    PHASE_VICTORY_TOAST_SECONDS <= PHASE_VICTORY_TRANSITION_SECONDS,
-    'a mensagem some antes ou junto com a transição',
-  );
+});
+
+test('as fases 4 a 9 têm música própria e a 10 mantém o fallback', () => {
+  const esperado = {
+    4: 'musicMycorrhiza',
+    5: 'musicPseudomonas',
+    6: 'musicBacillus',
+    7: 'musicRhizoctonia',
+    8: 'musicMeloidogyne',
+    9: 'musicRalstonia',
+  };
+  for (const [fase, id] of Object.entries(esperado)) {
+    assert.equal(PHASE_MUSIC[fase], id, `fase ${fase}`);
+    assert.notEqual(PHASE_MUSIC[fase], 'musicTitle', `fase ${fase} não usa mais o tema geral`);
+    assert.ok(AUDIO_TRACKS[id], `faixa ausente: ${id}`);
+    assert.equal(AUDIO_TRACKS[id].kind, 'music');
+    assert.equal(AUDIO_TRACKS[id].loop, true);
+    assert.equal(AUDIO_TRACKS[id].defaultGain, 1);
+    assert.equal(AUDIO_TRACKS[id].preload, 'metadata');
+    assert.ok(AUDIO_TRACKS[id].src.startsWith('assets/audio/music/'));
+    assert.ok(AUDIO_TRACKS[id].src.endsWith('_loop.ogg'));
+  }
+  // A fase 10 (ecossistema integrado) ainda não tem tema próprio.
+  assert.equal(PHASE_MUSIC[10], 'musicTitle');
+});
+
+test('cada fase tem uma faixa distinta, exceto o fallback compartilhado', () => {
+  const usados = Object.entries(PHASE_MUSIC).filter(([, id]) => id !== 'musicTitle');
+  const ids = usados.map(([, id]) => id);
+  assert.equal(new Set(ids).size, ids.length, 'nenhum tema de organismo se repete entre fases');
+  assert.equal(ids.length, 8, 'oito fases com tema próprio');
 });
 
 test('todos os arquivos declarados existem no disco', () => {

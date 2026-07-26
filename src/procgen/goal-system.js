@@ -40,11 +40,14 @@ export function createGoalSystem({ state, entities }) {
 
     if (state.campaign) {
       state.campaign.transitionRequested = true;
-      // 7,5 s: o stinger de vitória tem 10,24 s e era cortado logo no começo
-      // pelos 3,4 s anteriores. A constante mora no manifesto de áudio para o
-      // toast, a transição e o fade do stinger usarem o mesmo número.
+      // Espera de FALLBACK, usada só quando não há áudio de vitória. Com áudio,
+      // quem decide o momento é o evento `ended` do stinger — o arquivo tem
+      // 10,24 s e um cronômetro fixo o cortava no meio.
       state.campaign.transitionAt = state.time + PHASE_VICTORY_TRANSITION_SECONDS;
       state.campaign.transitionCaptured = false;
+      state.campaign.waitingForVictoryAudio = false;
+      state.campaign.victoryAudioFinished = false;
+      state.campaign.victoryAudioDeadline = 0;
     }
 
     for (let i = 0; i < 5; i++) {

@@ -89,12 +89,31 @@ function fakeMediaElement() {
     _listeners: new Map(),
     play() { this.paused = false; this.playCount++; return Promise.resolve(); },
     pause() { this.paused = true; },
-    addEventListener(type, handler) {
+    addEventListener(type, handler, options) {
       if (!this._listeners.has(type)) this._listeners.set(type, []);
       this._listeners.get(type).push(handler);
+      if (options?.once) {
+        this._once = this._once || new Map();
+        this._once.set(handler, true);
+      }
     },
-    removeEventListener() {},
-    emit(type) { for (const handler of this._listeners.get(type) || []) handler(); },
+    removeEventListener(type, handler) {
+      const lista = this._listeners.get(type) || [];
+      const index = lista.indexOf(handler);
+      if (index >= 0) lista.splice(index, 1);
+    },
+    emit(type) {
+      // `{ once: true }` precisa remover o handler depois de chamar, como o DOM.
+      const lista = [...(this._listeners.get(type) || [])];
+      for (const handler of lista) {
+        const opcoes = this._once?.get(handler);
+        if (opcoes) {
+          this._once.delete(handler);
+          this.removeEventListener(type, handler);
+        }
+        handler();
+      }
+    },
   };
 }
 
@@ -898,4 +917,206 @@ test('o primeiro salto encontra o buffer já carregado', async () => {
   await b.audio.unlock();
   await flush();
   assert.equal(b.audio.playFx('playerJump', { gain: 1, rate: 1 }), true, 'toca de imediato');
+});
+
+// ---------------------------------------------------------------------------
+// PRELOAD EM init(): o primeiro salto de CADA fase precisa ter som
+// ---------------------------------------------------------------------------
+
+test('o preload dos efeitos curtos começa em init(), antes do desbloqueio', async () => {
+  const b = bancada();
+  const buscados = [];
+  b.windowRef.fetch = url => {
+    buscados.push(url);
+    return Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) });
+  };
+
+  b.audio.init();
+  // Ainda BLOQUEADO: fetch e decode funcionam com o contexto suspenso; só
+  // `source.start()` exige desbloqueio.
+  assert.equal(b.audio.isUnlocked(), false);
+  assert.ok(
+    buscados.includes(AUDIO_TRACKS.playerJump.src),
+    'o salto precisa começar a carregar já no init',
+  );
+  for (const id of ['playerDamage', 'healthLost', 'gameOver']) {
+    assert.ok(buscados.includes(AUDIO_TRACKS[id].src), `${id} também`);
+  }
+
+  await flush();
+  assert.ok(b.audio.debugSnapshot().fxLoaded.includes('playerJump'), 'e termina de decodificar');
+});
+
+test('o unlock não dispara um segundo fetch dos efeitos já carregados', async () => {
+  const b = bancada();
+  const contagem = new Map();
+  b.windowRef.fetch = url => {
+    contagem.set(url, (contagem.get(url) || 0) + 1);
+    return Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) });
+  };
+
+  b.audio.init();
+  await flush();
+  await b.audio.unlock();
+  await flush();
+  await b.audio.unlock();
+  await flush();
+
+  for (const [url, vezes] of contagem) {
+    assert.equal(vezes, 1, `${url} buscado ${vezes} vezes`);
+  }
+});
+
+test('o primeiro salto logo após o desbloqueio já encontra o buffer', async () => {
+  const b = bancada();
+  b.audio.init();
+  await flush();
+  await b.audio.unlock();
+  assert.equal(b.audio.playFx('playerJump', { gain: 1, rate: 1 }), true, 'toca de imediato');
+});
+
+test('um efeito que demora além da janela não toca atrasado', async () => {
+  const b = bancada();
+  let liberar = null;
+  b.windowRef.fetch = () => new Promise(resolve => {
+    liberar = () => resolve({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) });
+  });
+  b.audio.init();
+  await b.audio.unlock();
+
+  // Salto com o buffer ainda a caminho: não toca agora.
+  assert.equal(b.audio.playFx('playerJump'), false);
+
+  // O buffer chega bem depois da janela de 80 ms.
+  await new Promise(resolve => setTimeout(resolve, 140));
+  liberar();
+  await flush();
+
+  assert.ok(
+    b.audio.debugSnapshot().errors.some(m => m.includes('tarde demais')),
+    'o som atrasado é descartado e registrado, não tocado depois do movimento',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// MÚSICAS DAS FASES 4 A 9
+// ---------------------------------------------------------------------------
+
+test('cada fase troca para a própria música, com dois decks apenas', async () => {
+  const b = bancada();
+  b.audio.init();
+  await b.audio.unlock();
+
+  const esperado = [
+    [2, 'musicRhizobium', 'music_rhizobium_symbiosis_loop.ogg'],
+    [3, 'musicAzospirillum', 'music_azospirillum_growth_loop.ogg'],
+    [4, 'musicMycorrhiza', 'music_mycorrhiza_network_loop.ogg'],
+    [5, 'musicPseudomonas', 'music_pseudomonas_iron_competition_loop.ogg'],
+    [6, 'musicBacillus', 'music_bacillus_biofilm_loop.ogg'],
+    [7, 'musicRhizoctonia', 'music_rhizoctonia_threat_loop.ogg'],
+    [8, 'musicMeloidogyne', 'music_meloidogyne_infestation_loop.ogg'],
+    [9, 'musicRalstonia', 'music_ralstonia_vascular_wilt_loop.ogg'],
+    [10, 'musicTitle', 'music_title_menino_da_rizosfera_loop.ogg'],
+  ];
+
+  for (const [fase, id, arquivo] of esperado) {
+    await b.audio.setPhase(fase);
+    const snapshot = b.audio.debugSnapshot();
+    assert.equal(snapshot.musicTrackId, id, `fase ${fase}`);
+    assert.ok(
+      b.elementos.some(element => element.src.includes(arquivo)),
+      `fase ${fase}: ${arquivo} precisa ter sido carregado`,
+    );
+    // Nunca mais de dois decks, por mais trocas que aconteçam.
+    const decks = b.elementos.filter(element => element.src.includes('/music/'));
+    assert.ok(decks.length <= 2, `fase ${fase}: ${decks.length} decks`);
+  }
+});
+
+test('repetir a mesma fase não reinicia a faixa', async () => {
+  const b = bancada();
+  b.audio.init();
+  await b.audio.unlock();
+  await b.audio.setPhase(7);
+  const deck = b.elementos.find(e => e.src.includes('music_rhizoctonia_threat_loop.ogg'));
+  const reproducoes = deck.playCount;
+
+  await b.audio.setPhase(7);
+  await b.audio.setPhase(7);
+  assert.equal(deck.playCount, reproducoes, 'nenhum replay');
+  assert.equal(b.audio.debugSnapshot().musicTrackId, 'musicRhizoctonia');
+});
+
+// ---------------------------------------------------------------------------
+// VITÓRIA COMPLETA VIA `ended`
+// ---------------------------------------------------------------------------
+
+test('a vitória avisa quando o arquivo termina, e não antes', async () => {
+  const b = bancada();
+  b.audio.init();
+  await b.audio.unlock();
+
+  let terminou = false;
+  const iniciou = b.audio.beginPhaseVictory({ onEnded: () => { terminou = true; } });
+  assert.equal(iniciou, true);
+  assert.equal(terminou, false, 'nada de avisar antes da hora');
+
+  // Tempo passa: o callback continua sem disparar.
+  for (let i = 0; i < 600; i++) b.audio.update(1 / 60);
+  assert.equal(terminou, false, 'nenhum cronômetro encerra a vitória');
+
+  // Só o fim real do arquivo encerra.
+  const stinger = b.elementos.find(e => e.src.includes('fx_phase_victory_short.ogg'));
+  assert.ok(stinger, 'o stinger foi carregado');
+  stinger.emit('ended');
+  assert.equal(terminou, true, 'o evento `ended` é quem avisa');
+  assert.equal(b.audio.debugSnapshot().activeStinger, null);
+});
+
+test('interromper o stinger não dispara o callback de término', async () => {
+  const b = bancada();
+  b.audio.init();
+  await b.audio.unlock();
+
+  let terminou = false;
+  b.audio.beginPhaseVictory({ onEnded: () => { terminou = true; } });
+  b.audio.stopStinger(0.1);
+
+  const stinger = b.elementos.find(e => e.src.includes('fx_phase_victory_short.ogg'));
+  stinger.emit('ended');
+  assert.equal(terminou, false, 'parar por reset não é "a faixa terminou"');
+});
+
+test('sem áudio, a vitória devolve false e não deixa o jogo esperando', async () => {
+  const b = bancada();
+  b.audio.init();
+  await b.audio.unlock();
+  await b.audio.setMuted(true);
+
+  let terminou = false;
+  const iniciou = b.audio.beginPhaseVictory({ onEnded: () => { terminou = true; } });
+  assert.equal(iniciou, false, 'mudo: nenhum stinger toca');
+  assert.equal(terminou, false);
+  // E a supressão da música é desfeita: nada fica preso num estado de vitória.
+  for (let i = 0; i < 60; i++) b.audio.update(1 / 60);
+  assert.ok(b.audio.debugSnapshot().musicSuppression > 0.95, 'a mixagem volta ao normal');
+});
+
+test('o callback de uma vitória antiga não vaza para a seguinte', async () => {
+  const b = bancada();
+  b.audio.init();
+  await b.audio.unlock();
+
+  let primeira = 0;
+  let segunda = 0;
+  b.audio.beginPhaseVictory({ onEnded: () => { primeira++; } });
+  const stinger = b.elementos.find(e => e.src.includes('fx_phase_victory_short.ogg'));
+  stinger.emit('ended');
+  assert.equal(primeira, 1);
+
+  b.audio.endPhaseVictory();
+  b.audio.beginPhaseVictory({ onEnded: () => { segunda++; } });
+  stinger.emit('ended');
+  assert.equal(segunda, 1);
+  assert.equal(primeira, 1, 'o callback anterior não dispara de novo');
 });

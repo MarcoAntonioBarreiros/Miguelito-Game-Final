@@ -321,7 +321,14 @@
       `botão bloqueado deve convidar a ativar, veio "${botaoInicial.getAttribute('title')}"`,
     );
     assert(botaoInicial.getAttribute('aria-pressed') === 'false', 'bloqueado não é "pressionado"');
-    record('audio starts locked and the button says so');
+    // E os efeitos já começam a carregar aqui, com o contexto ainda suspenso:
+    // era isso que faltava e deixava o primeiro salto de cada fase sem som.
+    await waitFor(
+      () => audioApi.debug().fxLoaded.includes('playerJump'),
+      () => `o preload precisa começar no init, antes do unlock (carregados: ${audioApi.debug().fxLoaded})`,
+    );
+    assert(audioApi.debug().unlocked === false, 'e isso acontece ainda bloqueado');
+    record('audio starts locked, button says so, and fx preload already began');
 
     // Primeira interação em qualquer lugar do jogo: desbloqueia e começa a tocar,
     // sem precisar ligar e desligar o botão.
@@ -345,9 +352,26 @@
     // Os efeitos curtos são precarregados: o primeiro salto não pode sair mudo.
     await waitFor(
       () => audioApi.debug().fxLoaded.includes('playerJump'),
-      'playerJump precisa estar precarregado',
+      () => `playerJump precisa estar precarregado (carregados: ${audioApi.debug().fxLoaded})`,
     );
-    record('short fx are preloaded at unlock');
+    for (const id of ['playerDamage', 'healthLost', 'gameOver']) {
+      assert(audioApi.debug().fxLoaded.includes(id), `${id} também precisa estar pronto`);
+    }
+    record('short fx are preloaded before the first jump');
+
+    // As nove músicas precisam existir: a fase 4 em diante ganhou tema próprio.
+    for (const caminho of [
+      'assets/audio/music/music_mycorrhiza_network_loop.ogg',
+      'assets/audio/music/music_pseudomonas_iron_competition_loop.ogg',
+      'assets/audio/music/music_bacillus_biofilm_loop.ogg',
+      'assets/audio/music/music_rhizoctonia_threat_loop.ogg',
+      'assets/audio/music/music_meloidogyne_infestation_loop.ogg',
+      'assets/audio/music/music_ralstonia_vascular_wilt_loop.ogg',
+    ]) {
+      const resposta = await audioGame.win.fetch(caminho, { method: 'HEAD' });
+      assert(resposta.ok, `404 em ${caminho}`);
+    }
+    record('phase 4-9 music files respond without 404');
 
     // Os arquivos precisam existir de verdade: 404 aqui é erro de caminho.
     for (const caminho of [

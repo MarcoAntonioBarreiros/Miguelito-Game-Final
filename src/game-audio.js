@@ -39,6 +39,10 @@ import {
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+// Janela máxima que um efeito pode esperar pelo próprio buffer. Acima disso o
+// som sairia depois do movimento e é descartado.
+const FX_MAXIMUM_DELAY_MS = 80;
+
 // Adaptador silencioso: mesma API, nenhum efeito. É o que o simulador usa nos
 // testes Node, onde não existe AudioContext nem document.
 export function createNoopAudio() {
@@ -168,6 +172,7 @@ export function createGameAudio({
   let stingerGain = null;
   let stingerBusGain = null;
   let stingerId = null;
+  let stingerEndedHandler = null;
 
   let duck = 1;
   let duckTarget = 1;
@@ -270,6 +275,14 @@ export function createGameAudio({
       note(`deck de stinger falhou: ${error?.message || error}`);
     }
 
+    // PRELOAD AQUI, não no unlock.
+    //
+    // `fetch` e `decodeAudioData` funcionam com o contexto suspenso — só
+    // `source.start()` exige desbloqueio. Carregar no unlock deixava o primeiro
+    // salto de CADA fase sem som: a fase nova recria o app, o unlock já
+    // aconteceu, e o buffer só começava a ser buscado no primeiro pulo.
+    preloadShortFx();
+
     registerUnlockListeners();
     registerVisibilityListener();
   }
@@ -345,6 +358,7 @@ export function createGameAudio({
 
       await startAmbience();
       await setPhase(currentPhase(), { immediate: true, forcePlayback: true });
+      // Idempotente: se o preload do init falhou por rede, tenta de novo aqui.
       preloadShortFx();
       if (primeiraVez) scheduleNextDrop(DROP_SCHEDULE.firstDelaySeconds);
       applyBusVolumes();
@@ -565,13 +579,20 @@ export function createGameAudio({
 
     const buffer = fxBuffers.get(id);
     if (!buffer) {
-      // Ainda carregando: tenta uma vez, com janela curta. Um som que chegasse
-      // 300 ms depois do salto seria pior que silêncio.
+      // Buffer ainda a caminho: aguarda a promessa QUE JÁ EXISTE (nunca dispara
+      // um segundo fetch) por uma janela curta. Passando disso, o som chegaria
+      // depois de o movimento terminar — pior que silêncio.
       const promise = loadFxBuffer(track);
       if (promise?.then) {
-        const limite = new Promise(resolve => addTimer(setTimeout(resolve, 100)));
-        Promise.race([promise, limite]).then(() => {
-          if (fxBuffers.has(id)) emitBuffer(id, { gain, rate, pan });
+        const pedidoEm = Date.now();
+        const limite = new Promise(resolve => addTimer(setTimeout(() => resolve('tempo'), FX_MAXIMUM_DELAY_MS)));
+        Promise.race([promise, limite]).then(quem => {
+          const atrasado = quem === 'tempo' || Date.now() - pedidoEm > FX_MAXIMUM_DELAY_MS;
+          if (atrasado || !fxBuffers.has(id)) {
+            note(`${id}: buffer chegou tarde demais, som descartado`);
+            return;
+          }
+          emitBuffer(id, { gain, rate, pan });
         });
       }
       return false;
@@ -611,16 +632,33 @@ export function createGameAudio({
 
   // Stingers longos rodam como mídia. Um por vez: o curto de vitória de fase e o
   // longo de fim de campanha nunca tocam juntos.
-  function playStinger(id, { gain = 1 } = {}) {
+  //
+  // `onEnded` é o que permite a vitória tocar INTEIRA: quem decide o momento da
+  // troca de fase é o evento `ended` do elemento, não um cronômetro fixo que
+  // cortava o arquivo de 10,24 s aos 7,5 s.
+  function playStinger(id, { gain = 1, onEnded = null } = {}) {
     if (destroyed || !unlocked || !context || settings.muted || !stingerElement) return false;
     const track = AUDIO_TRACKS[id];
     if (!track) { note(`stinger desconhecido: ${id}`); return false; }
     try {
       stingerElement.pause();
+      // Um listener por reprodução: sem remover o anterior, um stinger antigo
+      // dispararia o callback do novo.
+      if (stingerEndedHandler) {
+        stingerElement.removeEventListener('ended', stingerEndedHandler);
+        stingerEndedHandler = null;
+      }
+      stingerEndedHandler = () => {
+        stingerEndedHandler = null;
+        if (stingerId === id) stingerId = null;
+        if (typeof onEnded === 'function') onEnded(id);
+      };
+      stingerElement.addEventListener('ended', stingerEndedHandler, { once: true });
+
       stingerElement.src = assetUrl(track.src);
       stingerElement.currentTime = 0;
       setGain(stingerGain, clamp(track.defaultGain * gain, 0, 2), 0.05);
-      play(stingerElement);
+      play(stingerElement, id);
       stingerId = id;
       lastFxId = id;
       return true;
@@ -632,7 +670,10 @@ export function createGameAudio({
 
   // Vitória de fase: a música da fase some por fade, o ambiente fica discreto e
   // as gotas param. O stinger toca no barramento próprio, sem competir.
-  function beginPhaseVictory({ campaign = false } = {}) {
+  //
+  // `onEnded` é repassado ao stinger: quem decide o momento da troca de fase é o
+  // fim real do arquivo, não um cronômetro.
+  function beginPhaseVictory({ campaign = false, onEnded = null } = {}) {
     if (destroyed) return false;
     if (campaign) {
       if (campaignVictoryPlaying) return false;
@@ -645,7 +686,21 @@ export function createGameAudio({
     victoryActive = true;
     musicSuppressionTarget = 0;
     applyBusVolumes();
-    return playStinger(campaign ? 'campaignVictory' : 'phaseVictory', { gain: 1 });
+
+    const iniciou = playStinger(campaign ? 'campaignVictory' : 'phaseVictory', {
+      gain: 1,
+      onEnded,
+    });
+    if (!iniciou) {
+      // Sem áudio (mudo, arquivo ausente, contexto indisponível): desfaz as
+      // marcas para o jogo não ficar preso esperando um `ended` que não vem.
+      victoryActive = false;
+      if (campaign) campaignVictoryPlaying = false;
+      else phaseVictoryPlaying = false;
+      musicSuppressionTarget = 1;
+      applyBusVolumes();
+    }
+    return iniciou;
   }
 
   // Próxima fase: o stinger sai por fade, o ambiente volta e a música nova entra.
@@ -665,6 +720,12 @@ export function createGameAudio({
 
   function stopStinger(seconds = 0.4) {
     if (!stingerElement || !stingerId) return;
+    // Interrupção explícita (reset, nova campanha, morte): o callback de `ended`
+    // não deve disparar como se a faixa tivesse terminado sozinha.
+    if (stingerEndedHandler) {
+      stingerElement.removeEventListener('ended', stingerEndedHandler);
+      stingerEndedHandler = null;
+    }
     setGain(stingerGain, 0, seconds);
     const element = stingerElement;
     addTimer(setTimeout(() => {

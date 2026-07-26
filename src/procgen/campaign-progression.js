@@ -65,6 +65,10 @@ function blankCampaign(seed) {
     history: [],
     transitionRequested: false,
     transitionAt: 0,
+    // Espera pelo fim do stinger de vitória (ver maybeAdvanceCampaign).
+    waitingForVictoryAudio: false,
+    victoryAudioFinished: false,
+    victoryAudioDeadline: 0,
     transitionCaptured: false,
     pendingReport: null,
   };
@@ -401,6 +405,9 @@ export function advanceCampaignPhase(campaign) {
   ensureCampaignUnlockShape(campaign);
   campaign.transitionRequested = false;
   campaign.transitionAt = 0;
+  campaign.waitingForVictoryAudio = false;
+  campaign.victoryAudioFinished = false;
+  campaign.victoryAudioDeadline = 0;
   campaign.transitionCaptured = false;
   campaign.pendingReport = null;
   persistCampaign(campaign);

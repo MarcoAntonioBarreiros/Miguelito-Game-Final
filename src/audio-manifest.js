@@ -102,8 +102,14 @@ export const STINGER_FADE_SECONDS = 0.5;
 // Eram 3,4 s — e o stinger de vitória tem 10,24 s, então ele era cortado logo no
 // começo. 7,5 s deixa a frase musical respirar sem parar o jogo por muito tempo.
 // O arquivo NÃO foi editado; só a espera mudou.
-export const PHASE_VICTORY_TRANSITION_SECONDS = 7.5;
-export const PHASE_VICTORY_TOAST_SECONDS = 7.0;
+// Espera usada quando NÃO existe áudio de vitória (mudo, OGG que falhou,
+// AudioContext indisponível). Com áudio, quem decide o momento é o evento
+// `ended` do stinger — o arquivo tem 10,24 s e não deve ser cortado.
+export const PHASE_VICTORY_TRANSITION_SECONDS = 3.4;
+export const PHASE_VICTORY_TOAST_SECONDS = 3.2;
+// Rede de segurança: se o `ended` nunca chegar (mídia travada), a fase avança
+// assim mesmo. Não corta a reprodução normal de 10,24 s.
+export const VICTORY_AUDIO_FALLBACK_SECONDS = 12;
 
 const MUSIC = 'assets/audio/music/';
 const AMBIENCE = 'assets/audio/ambience/';
@@ -135,6 +141,54 @@ export const AUDIO_TRACKS = Object.freeze({
   musicAzospirillum: Object.freeze({
     id: 'musicAzospirillum',
     src: `${MUSIC}music_azospirillum_growth_loop.ogg`,
+    kind: 'music',
+    loop: true,
+    defaultGain: 1,
+    preload: 'metadata',
+  }),
+  musicMycorrhiza: Object.freeze({
+    id: 'musicMycorrhiza',
+    src: `${MUSIC}music_mycorrhiza_network_loop.ogg`,
+    kind: 'music',
+    loop: true,
+    defaultGain: 1,
+    preload: 'metadata',
+  }),
+  musicPseudomonas: Object.freeze({
+    id: 'musicPseudomonas',
+    src: `${MUSIC}music_pseudomonas_iron_competition_loop.ogg`,
+    kind: 'music',
+    loop: true,
+    defaultGain: 1,
+    preload: 'metadata',
+  }),
+  musicBacillus: Object.freeze({
+    id: 'musicBacillus',
+    src: `${MUSIC}music_bacillus_biofilm_loop.ogg`,
+    kind: 'music',
+    loop: true,
+    defaultGain: 1,
+    preload: 'metadata',
+  }),
+  musicRhizoctonia: Object.freeze({
+    id: 'musicRhizoctonia',
+    src: `${MUSIC}music_rhizoctonia_threat_loop.ogg`,
+    kind: 'music',
+    loop: true,
+    defaultGain: 1,
+    preload: 'metadata',
+  }),
+  musicMeloidogyne: Object.freeze({
+    id: 'musicMeloidogyne',
+    src: `${MUSIC}music_meloidogyne_infestation_loop.ogg`,
+    kind: 'music',
+    loop: true,
+    defaultGain: 1,
+    preload: 'metadata',
+  }),
+  musicRalstonia: Object.freeze({
+    id: 'musicRalstonia',
+    src: `${MUSIC}music_ralstonia_vascular_wilt_loop.ogg`,
     kind: 'music',
     loop: true,
     defaultGain: 1,
@@ -276,24 +330,26 @@ export const DROP_TRACK_IDS = Object.freeze([
   'dropEco05', 'dropEco06', 'dropEco07', 'dropEco08',
 ]);
 
-// Mapeamento PROVISÓRIO de música por fase.
+// Mapeamento de música por fase.
 //
-// O Pacote 01 traz três temas editados. Fase 2 é Rhizobium e fase 3 é
-// Azospirillum porque é exatamente o organismo que cada uma ensina; as demais
-// usam o tema geral como música de exploração até os temas próprios existirem.
-// Não há tema inventado, e Rhizobium/Azospirillum não aparecem em fases onde
-// seriam biologicamente errados.
+// Cada fase usa o tema do organismo que ela ensina: Rhizobium na 2, Azospirillum
+// na 3, micorriza na 4, competição por ferro da Pseudomonas na 5, biofilme de
+// Bacillus na 6, ameaça de Rhizoctonia na 7, infestação de Meloidogyne na 8 e
+// murcha vascular por Ralstonia na 9.
+//
+// A fase 10 (ecossistema integrado) ainda não tem tema próprio e volta ao tema
+// geral — é o único fallback provisório que resta.
 export const PHASE_MUSIC = Object.freeze({
   0: 'musicTitle',
   1: 'musicTitle',
   2: 'musicRhizobium',
   3: 'musicAzospirillum',
-  4: 'musicTitle',
-  5: 'musicTitle',
-  6: 'musicTitle',
-  7: 'musicTitle',
-  8: 'musicTitle',
-  9: 'musicTitle',
+  4: 'musicMycorrhiza',
+  5: 'musicPseudomonas',
+  6: 'musicBacillus',
+  7: 'musicRhizoctonia',
+  8: 'musicMeloidogyne',
+  9: 'musicRalstonia',
   10: 'musicTitle',
 });
 

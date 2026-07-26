@@ -25,7 +25,7 @@ import { JETPACK_CONFIG, jetpackRechargeBonuses } from '../player-jetpack.js';
 import { initPlayerTuning } from '../render/player-skin-tuning.js';
 import { createSimulator } from './simulator.js';
 import { createGameAudio } from '../game-audio.js';
-import { PHASE_VICTORY_TOAST_SECONDS } from '../audio-manifest.js';
+import { PHASE_VICTORY_TOAST_SECONDS, VICTORY_AUDIO_FALLBACK_SECONDS } from '../audio-manifest.js';
 import {
   advanceGameplayFrame,
   createTutorialInputGate,
@@ -880,13 +880,34 @@ function maybeAdvanceCampaign() {
     // Uma vez por fase, no ponto exato da captura. `beginPhaseVictory` faz mais
     // que tocar o stinger: suprime a musica da fase, abaixa o ambiente e para as
     // gotas — antes a musica continuava audivel por baixo da vitoria.
-    gameAudio.beginPhaseVictory();
+    //
+    // Quem decide a hora de trocar de fase e o FIM REAL do arquivo (`ended`), nao
+    // um cronometro: os 3,4 s originais cortavam o stinger de 10,24 s logo no
+    // comeco. `transitionAt` continua valendo como espera quando nao ha audio.
+    const tocou = gameAudio.beginPhaseVictory({
+      onEnded: () => { campaign.victoryAudioFinished = true; },
+    });
+    campaign.waitingForVictoryAudio = tocou;
+    campaign.victoryAudioFinished = !tocou;
+    // Rede de seguranca: se o `ended` nunca chegar (midia travada), a fase avanca
+    // assim mesmo. Nao corta a reproducao normal.
+    campaign.victoryAudioDeadline = tocou
+      ? sim.state.time + VICTORY_AUDIO_FALLBACK_SECONDS
+      : 0;
     const vascular = report.phase >= 4 ? ` · transporte ${report.vascularTransport}%` : '';
     sim.state.toast = `Fase ${report.phase}: ${report.score} pontos · saúde ${report.rootHealth}% · infestação ${report.infestation}%${vascular}`;
     sim.state.toastTime = PHASE_VICTORY_TOAST_SECONDS;
   }
 
-  if (sim.state.time < campaign.transitionAt) return false;
+  // Com audio: espera o stinger terminar (ou o prazo de seguranca).
+  if (campaign.waitingForVictoryAudio) {
+    const noPrazo = sim.state.time < (campaign.victoryAudioDeadline || 0);
+    if (!campaign.victoryAudioFinished && noPrazo) return false;
+    campaign.waitingForVictoryAudio = false;
+  } else if (sim.state.time < campaign.transitionAt) {
+    // Sem audio: a espera curta de sempre.
+    return false;
+  }
 
   if (phaseLab.enabled) {
     campaign.transitionRequested = false;

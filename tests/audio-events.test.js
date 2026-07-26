@@ -220,12 +220,23 @@ test('depois do respawn, uma nova morte volta a tocar game over', () => {
 // ---------------------------------------------------------------------------
 
 test('o mapeamento de fase escolhe a música certa', () => {
-  assert.equal(musicTrackForPhase(1), 'musicTitle');
-  assert.equal(musicTrackForPhase(2), 'musicRhizobium');
-  assert.equal(musicTrackForPhase(3), 'musicAzospirillum');
-  // As demais caem no tema geral enquanto não têm faixa própria.
-  for (const fase of [4, 5, 6, 7, 8, 9, 10]) {
-    assert.equal(musicTrackForPhase(fase), 'musicTitle', `fase ${fase}`);
+  // Cada fase usa o tema do organismo que ela ensina.
+  const esperado = {
+    0: 'musicTitle',
+    1: 'musicTitle',
+    2: 'musicRhizobium',
+    3: 'musicAzospirillum',
+    4: 'musicMycorrhiza',
+    5: 'musicPseudomonas',
+    6: 'musicBacillus',
+    7: 'musicRhizoctonia',
+    8: 'musicMeloidogyne',
+    9: 'musicRalstonia',
+    // A fase 10 (ecossistema integrado) ainda não tem tema próprio.
+    10: 'musicTitle',
+  };
+  for (const [fase, id] of Object.entries(esperado)) {
+    assert.equal(musicTrackForPhase(Number(fase)), id, `fase ${fase}`);
   }
   // Fase desconhecida não quebra.
   assert.equal(musicTrackForPhase(99), 'musicTitle');
@@ -258,15 +269,24 @@ test('um FX desconhecido não derruba o jogo', () => {
 // VITÓRIA: tempo de transição e ausência de sobreposição
 // ---------------------------------------------------------------------------
 
-test('a espera da transição cabe o stinger de vitória', async () => {
-  const { PHASE_VICTORY_TRANSITION_SECONDS, PHASE_VICTORY_TOAST_SECONDS } =
-    await import('../src/audio-manifest.js');
-  // O arquivo tem ~10,24 s. Com os 3,4 s anteriores ele era cortado no começo.
-  assert.ok(PHASE_VICTORY_TRANSITION_SECONDS >= 7);
+test('a espera fixa é fallback; o stinger inteiro cabe no prazo de segurança', async () => {
+  const {
+    PHASE_VICTORY_TRANSITION_SECONDS,
+    PHASE_VICTORY_TOAST_SECONDS,
+    VICTORY_AUDIO_FALLBACK_SECONDS,
+  } = await import('../src/audio-manifest.js');
+
+  // Com áudio, quem decide o momento da troca é o `ended` do stinger. A espera
+  // fixa só vale quando não há som, e o prazo de segurança precisa ser maior que
+  // os 10,24 s do arquivo para não cortá-lo.
   assert.ok(PHASE_VICTORY_TOAST_SECONDS <= PHASE_VICTORY_TRANSITION_SECONDS);
+  assert.ok(
+    VICTORY_AUDIO_FALLBACK_SECONDS > 10.24,
+    `prazo de segurança curto demais: ${VICTORY_AUDIO_FALLBACK_SECONDS}s`,
+  );
 });
 
-test('o goal-system agenda a transição usando a constante, não 3,4 s', async () => {
+test('o goal-system agenda a espera de fallback', async () => {
   const { PHASE_VICTORY_TRANSITION_SECONDS } = await import('../src/audio-manifest.js');
   const { createGoalSystem } = await import('../src/procgen/goal-system.js');
 
@@ -292,8 +312,11 @@ test('o goal-system agenda a transição usando a constante, não 3,4 s', async 
   assert.equal(
     Math.round((campaign.transitionAt - state.time) * 10) / 10,
     PHASE_VICTORY_TRANSITION_SECONDS,
-    `a espera precisa caber o stinger de vitória (veio ${campaign.transitionAt - state.time}s)`,
+    `a espera de fallback (veio ${campaign.transitionAt - state.time}s)`,
   );
+  // E os marcadores da espera pelo áudio nascem limpos.
+  assert.equal(campaign.waitingForVictoryAudio, false);
+  assert.equal(campaign.victoryAudioFinished, false);
 });
 
 test('o controlador expõe as chamadas que o app usa na vitória', () => {
