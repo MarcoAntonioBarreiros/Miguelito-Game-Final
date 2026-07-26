@@ -139,6 +139,41 @@ export const gameplayTutorialCards = {
     'Sequência de uso',
   ),
 
+  'power-jetpack': card(
+    'power-jetpack',
+    'Poder',
+    'Propulsão da Rizósfera',
+    'Mochila propulsora de energia limitada',
+    '▲',
+    '#8ef0c6',
+    [
+      page(
+        'Função no jogo',
+        'Raízes saudáveis transferem energia para a mochila. Segure PROPULSOR no ar para planar ou ganhar altura. A carga é limitada.',
+        [
+          'Funciona depois de um salto simples, de um salto duplo ou numa queda.',
+          'Não funciona no chão: é preciso estar no ar.',
+          'Solte o botão para economizar e usar em pulsos curtos.',
+        ],
+      ),
+      page(
+        'De onde vem a energia',
+        'A recarga acontece parado sobre uma raiz. A saúde da raiz decide até quanto ela enche o tanque; os organismos benéficos decidem a velocidade da recarga.',
+        [
+          'Abaixo de 70% de saúde a raiz não tem energia para ceder.',
+          'De 70% a 79% enche até metade; 100% enche o tanque inteiro.',
+          'Nódulos, Azospirillum, micorriza, Bacillus e Pseudomonas aceleram.',
+        ],
+      ),
+      page(
+        'Relação com a biologia',
+        'É uma metáfora de videogame. Ela representa que uma raiz vigorosa e bem colonizada sustenta mais atividade na rizosfera — não existe mochila propulsora no solo.',
+      ),
+    ],
+    ['Raiz saudável', 'Conexão', 'Carga', 'Propulsão'],
+    'Sequência de uso',
+  ),
+
   'power-pulse': card(
     'power-pulse',
     'Poder',

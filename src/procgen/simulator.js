@@ -1,5 +1,5 @@
 import { createPhysicsSystem } from '../physics.js';
-import { createPlayer, resetPlayer } from '../player.js';
+import { createPlayer, resetJetpackRuntime, resetPlayer } from '../player.js';
 import { applyPersistentUnlocks, unlockCampaignFeature } from './campaign-progression.js';
 import { createMicrobeArt } from '../data/microbes.js';
 import { createRoamingMicrobeEcology } from './microbe-roaming.js';
@@ -89,6 +89,14 @@ export function createSimulator() {
     cameraX: 0,
     shake: 0,
     respawnTimer: 0,
+    // Plataformas de segurança desligadas DE VEZ: as plataforminhas decorativas
+    // no fundo dos vãos não aparecem nem sustentam. O jogador pediu para
+    // tirá-las; a tecla T ainda permite religá-las para depuração.
+    //
+    // Os degraus de enforceTraversableRoute (safetyStep) NÃO obedecem a este
+    // estado: eles só existem onde a física provou que a travessia seria
+    // impossível, e as fases 3 e 4 precisam continuar vencíveis sem a mochila.
+    recoveryPlatformsDisabled: true,
   };
 
   const input = {
@@ -98,6 +106,8 @@ export function createSimulator() {
       Space: false, KeyW: false, ArrowUp: false,
       ShiftLeft: false, ShiftRight: false, KeyJ: false,
       KeyE: false,
+      // Propulsao da Rizosfera: comando proprio, nunca o botao de pulo.
+      KeyK: false, KeyC: false,
       // Seta para baixo cicla o inoculo carregado. A de cima nao serve: e pulo.
       ArrowDown: false,
     },
@@ -149,6 +159,11 @@ export function createSimulator() {
       player.healCooldown = 2;
       player.dashSuppressed = false;
       player.airJumpAvailable = player.canDoubleJump;
+      // A mochila volta VAZIA: o respawn não concede carga. O jogador recarrega
+      // normalmente na raiz do checkpoint, se ela tiver ao menos 70% de saúde.
+      player.jetpackEnergy = 0;
+      player.jetpackLockedUntilGround = false;
+      resetJetpackRuntime(player);
       if (state.campaign) applyPersistentUnlocks(player, state.campaign);
       player.invuln = 1.7;
       player.tutorialUnsafeUntil = state.time + .1;

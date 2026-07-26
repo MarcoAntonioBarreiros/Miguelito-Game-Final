@@ -23,6 +23,9 @@ const STATE_FALLBACK = Object.freeze({
   defeat: ['defeat', 'hurt', 'idle', 'run'],
   celebrate: ['celebrate', 'idle', 'run'],
   pulse: ['pulse', 'idle', 'run'],
+  // Ainda nao existe folha propria da mochila: cai na melhor pose aerea
+  // disponivel e o jato e desenhado a parte pelo renderer.
+  jetpack: ['jetpack', 'jump', 'fall', 'run', 'idle'],
 });
 
 function loadSheet(definition) {
@@ -108,6 +111,9 @@ export function createPlayerSprite(skin) {
     if (!player.alive || gameState === 'respawning') return 'defeat';
     if (player.invuln > 0) return 'hurt';
     if (player.dashTime > 0) return 'dash';
+    // A propulsao tem pose propria e vem antes de jump/fall: enquanto a mochila
+    // empurra, a leitura correta e "propulsionando", nao "subindo" ou "caindo".
+    if (player.jetpackActive) return 'jetpack';
     if (!player.onGround) return player.vy < 0 ? 'jump' : 'fall';
     if (Math.abs(player.vx) > 12) return 'run';
     return 'idle';

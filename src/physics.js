@@ -3,6 +3,18 @@ import { clamp, lerp, rects } from './core/math.js';
 import { microbeEncounters } from './data/microbes.js';
 import { recordPhaseObjectiveAction } from './procgen/campaign-objective-progress.js';
 import { unlockCampaignFeature } from './procgen/campaign-progression.js';
+import { cancelJetpack } from './player.js';
+import {
+  JETPACK_CONFIG,
+  applyJetpackThrust,
+  canActivateJetpack,
+  isJetpackRechargeRoot,
+  jetpackChargeCapFromRootHealth,
+  jetpackConsumptionStep,
+  jetpackRechargeMultiplierForRoot,
+  jetpackRechargeStep,
+  rootHealthForJetpack,
+} from './player-jetpack.js';
 
 export function createPhysicsSystem({ state, input, entities, hud, audio }) {
   function collectCampaignUnlock(ally, player) {
@@ -161,6 +173,52 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
     }
   }
 
+  // Recarga da mochila. Só acontece com os pés numa raiz elegível, parado, e
+  // depois de um atraso fixo de conexão — nunca no ar.
+  //
+  // A saúde da raiz define o TETO (jetpackChargeCapFromRootHealth); os
+  // organismos definem a VELOCIDADE (jetpackRechargeMultiplierForRoot). A saúde
+  // nunca entra na velocidade, e a raiz nunca DESCARREGA a mochila: se o tanque
+  // já está acima do teto daquela raiz, ele simplesmente fica onde está.
+  function updateJetpackRecharge(player, dt) {
+    if (!player.canJetpack) return;
+    const root = player.onGround ? player.supportPlatform : null;
+    const eligible = root && isJetpackRechargeRoot(root);
+    const stopped = Math.abs(player.vx) <= JETPACK_CONFIG.maximumRechargeHorizontalSpeed;
+
+    // Sair da raiz, saltar, cair, correr ou trocar de raiz zera a conexão.
+    if (!eligible || !stopped || root !== player.jetpackRechargeRoot) {
+      player.jetpackRechargeRoot = eligible && stopped ? root : null;
+      player.jetpackConnectionTime = 0;
+      if (!eligible) {
+        player.jetpackRechargeCap = 0;
+        player.jetpackRechargeMultiplier = 1;
+      }
+      if (!player.jetpackRechargeRoot) return;
+    }
+
+    player.jetpackConnectionTime += dt;
+    const cap = jetpackChargeCapFromRootHealth(rootHealthForJetpack(root));
+    player.jetpackRechargeCap = cap;
+    const multiplier = jetpackRechargeMultiplierForRoot({
+      root,
+      state,
+      systems: { inoculants: state.beneficialInoculants },
+    });
+    player.jetpackRechargeMultiplier = multiplier;
+
+    if (player.jetpackConnectionTime < JETPACK_CONFIG.connectionDelaySeconds) return;
+    // Raiz doente demais (abaixo de 70%): não recarrega, e também não tira o que
+    // a mochila já tem.
+    if (cap <= 0) return;
+    if (player.jetpackEnergy >= cap) return;
+    player.jetpackEnergy = Math.min(
+      player.jetpackEnergy + jetpackRechargeStep(dt, multiplier),
+      cap,
+      player.jetpackMaximumEnergy ?? 1,
+    );
+  }
+
   function update(dt) {
     state.time += dt;
     if (state.gameState !== 'play') return;
@@ -177,6 +235,9 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
     const left = keys.ArrowLeft || keys.KeyA;
     const right = keys.ArrowRight || keys.KeyD;
     const jump = keys.Space || keys.KeyW || keys.ArrowUp;
+    // Comando proprio da propulsao. Compartilhar o botao de pulo faria a mochila
+    // queimar combustivel toda vez que o jogador segurasse o pulo.
+    const jetpackHeld = Boolean(keys.KeyK || keys.KeyC);
     const jumpPressed = jump && !state.jumpHeldLast;
     state.jumpHeldLast = jump;
     if (jumpPressed) player.jumpBuffer = .12;
@@ -203,6 +264,19 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
       if (!target) player.vx *= Math.pow(.00002, dt);
       player.vy += 1180 * dt;
       player.vy = Math.min(player.vy, 720);
+      // Propulsão da Rizósfera: a gravidade do quadro já foi aplicada acima, e o
+      // empuxo entra por cima dela. Botão DEDICADO (nunca o de pulo), então
+      // segurar o pulo não gasta combustível por acidente.
+      if (jetpackHeld && canActivateJetpack(player, state)) {
+        player.jetpackActive = true;
+        applyJetpackThrust(player, dt);
+        player.jetpackEnergy = Math.max(0, player.jetpackEnergy - jetpackConsumptionStep(dt));
+        // Acabou o tanque: desliga e NÃO recarrega no ar.
+        if (player.jetpackEnergy <= 0) player.jetpackActive = false;
+      } else {
+        // Soltar o botão preserva a energia restante — é o que permite os pulsos.
+        player.jetpackActive = false;
+      }
       if (player.jumpBuffer > 0 && player.coyote > 0) {
         player.vy = -465 * jumpMultiplier;
         player.jumpBuffer = 0;
@@ -227,6 +301,11 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
     ) {
       player.dashTime = .16;
       player.dashCooldown = .82 * (player.dashCooldownMultiplier || 1);
+      // O Dash tem prioridade sobre a propulsão e trava a reativação até o
+      // próximo pouso — senão daria propulsor → dash → propulsor na mesma
+      // sequência aérea. A energia restante é PRESERVADA: o jogador não perde a
+      // reserva que conquistou, só não pode encadear os dois.
+      cancelJetpack(player, { lockUntilGround: true });
       recordPhaseObjectiveAction(state, 'performedDashCount');
       entities.burst(player.x + 16, player.y + 24, '#6ce7df', 16, 170);
       keys.ShiftLeft = keys.ShiftRight = keys.KeyJ = false;
@@ -236,11 +315,17 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
     const maxX = level.endX !== undefined ? level.endX : PLAYER_MAX_X;
     player.x = clamp(player.x, 0, maxX - player.w);
     player.onGround = false;
+    // Quem sustentou o pouso deste quadro. A recarga da mochila usa ESTA
+    // referência, não proximidade geométrica: pisar de raspão perto de uma raiz
+    // não pode valer como estar apoiado nela.
+    player.supportPlatform = null;
     player.y += player.vy * dt;
     for (const p of level.platforms) {
       // Toggle das plataformas de seguranca: quando desligadas, deixam de ser
       // solidas (o jogador passa direto por elas) sem regenerar a fase.
-      if (p.recovery && state.recoveryPlatformsDisabled) continue;
+      // O toggle nunca derruba os degraus da rede anti-softlock (safetyStep):
+      // eles so existem onde a fisica provou que a travessia seria impossivel.
+      if (p.recovery && !p.safetyStep && state.recoveryPlatformsDisabled) continue;
       if (p.mycorrhizaStructure || p.oneWay) {
         const previousFeet = prevY + player.h;
         const currentFeet = player.y + player.h;
@@ -253,6 +338,7 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
           player.y = p.y - player.h;
           player.vy = 0;
           player.onGround = true;
+          player.supportPlatform = p;
         }
         continue;
       }
@@ -262,6 +348,7 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
           player.y = p.y - player.h;
           player.vy = 0;
           player.onGround = true;
+          player.supportPlatform = p;
         } else if (prevY >= p.y + p.h - 8 && player.vy < 0) {
           player.y = p.y + p.h;
           player.vy = 0;
@@ -285,6 +372,10 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
         }
       }
     }
+    // Pousar libera a trava herdada do Dash/dano da sequência aérea anterior.
+    if (player.onGround) player.jetpackLockedUntilGround = false;
+    updateJetpackRecharge(player, dt);
+
     if (player.y > 760 || level.hazards.some(h => rects(player, h))) {
       entities.damagePlayer?.(player.maxVitality || 5, 'queda na zona hostil', { fatal: true, invuln: 0 });
       return;

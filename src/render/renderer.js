@@ -503,6 +503,7 @@ export function createRenderer({
     if (!sprite?.draw(ctx, player, time, state.gameState)) drawAstronautBody(player);
 
     drawFungalAttachment(player, time);
+    drawJetpack(player, time);
 
     if (player.canPhosphateSolubilization) {
       ctx.shadowBlur = 16;
@@ -521,6 +522,89 @@ export function createRenderer({
       ctx.fillText('DASH BLOQUEADO', 0, -36);
     }
     ctx.restore();
+  }
+
+  // Propulsão da Rizósfera. Tudo aqui é traço determinístico desenhado por
+  // quadro — nenhuma partícula física entra no nível, para não haver centenas de
+  // objetos vivos só por causa de um efeito. O colisor, o player.y, a câmera e o
+  // tamanho do personagem NÃO são tocados: é puramente visual.
+  function drawJetpack(player, time) {
+    if (!player.canJetpack) return;
+    const energy = Math.max(0, Math.min(1, player.jetpackEnergy || 0));
+    const coreX = -13;
+    const coreY = -2;
+
+    // Núcleo da mochila: apagado em 0, preenchendo de baixo para cima conforme a
+    // reserva, com pulso suave só no tanque cheio.
+    const pulse = energy >= .999 ? .82 + Math.sin(time * 4.2) * .18 : 1;
+    ctx.save();
+    ctx.globalAlpha = (.28 + energy * .72) * pulse;
+    ctx.fillStyle = energy <= 0 ? '#3c5a52' : '#8ef0c6';
+    ctx.shadowColor = '#8ef0c6';
+    ctx.shadowBlur = energy <= 0 ? 0 : 4 + energy * 12;
+    // O preenchimento cresce de baixo para cima: metade inferior acesa em 50%.
+    const coreHeight = 12;
+    const filled = coreHeight * energy;
+    ctx.fillRect(coreX - 3, coreY + coreHeight / 2 - filled, 6, Math.max(1, filled));
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = .5;
+    ctx.strokeStyle = '#8ef0c6';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(coreX - 3.5, coreY - coreHeight / 2, 7, coreHeight);
+    ctx.restore();
+
+    // Jato: intensidade CONSTANTE enquanto propulsiona. O tamanho não representa
+    // a energia restante — isso enganaria o jogador, que lê a reserva no núcleo.
+    if (player.jetpackActive) {
+      ctx.save();
+      const flicker = .78 + Math.sin(time * 38) * .22;
+      const length = 15 * flicker;
+      const gradient = ctx.createLinearGradient(coreX, coreY + 6, coreX, coreY + 6 + length);
+      gradient.addColorStop(0, 'rgba(190,255,232,.95)');
+      gradient.addColorStop(.45, 'rgba(112,229,214,.75)');
+      gradient.addColorStop(1, 'rgba(112,229,214,0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.moveTo(coreX - 4.5, coreY + 6);
+      ctx.lineTo(coreX + 4.5, coreY + 6);
+      ctx.lineTo(coreX, coreY + 6 + length);
+      ctx.closePath();
+      ctx.fill();
+      // Linhas de ar: três traços determinísticos pelo tempo, sem estado.
+      ctx.strokeStyle = 'rgba(214,255,244,.4)';
+      ctx.lineWidth = 1;
+      for (let index = 0; index < 3; index++) {
+        const offset = ((time * 170 + index * 13) % 26) - 6;
+        ctx.beginPath();
+        ctx.moveTo(coreX - 9 + index * 9, coreY + 8 + offset);
+        ctx.lineTo(coreX - 9 + index * 9, coreY + 13 + offset);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Recarga: traços subindo da raiz até a mochila. A quantidade acompanha o
+    // multiplicador (mais organismos = fluxo mais intenso), sem virar enxame.
+    const recharging = player.onGround
+      && player.jetpackConnectionTime >= 0
+      && player.jetpackRechargeRoot
+      && energy < (player.jetpackRechargeCap || 0);
+    if (recharging) {
+      const traces = Math.round(2 + (player.jetpackRechargeMultiplier || 1) * 2);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(142,240,198,.6)';
+      ctx.lineWidth = 1.4;
+      for (let index = 0; index < traces; index++) {
+        const phase = (time * 1.6 + index / traces) % 1;
+        const y = 24 - phase * 26;
+        ctx.globalAlpha = .12 + (1 - phase) * .5;
+        ctx.beginPath();
+        ctx.moveTo(coreX - 2 + Math.sin(phase * 6 + index) * 3, y);
+        ctx.lineTo(coreX - 2 + Math.sin(phase * 6 + index) * 3, y - 4);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 
   function drawAstronautBody(player) {

@@ -435,6 +435,38 @@
       color: #052128;
       box-shadow: 0 0 24px rgba(112,229,214,.5);
     }
+    /* Propulsor: o aro ao redor do botao E o indicador de energia — nao existe
+       barra grande no HUD. O preenchimento vem de --jetpack-ratio (0..1), que o
+       loop atualiza como variavel CSS; o HTML do botao nunca e reescrito. */
+    .touch-key.jetpack {
+      --jetpack-ratio: 0;
+      position: relative;
+      border-color: rgba(142,240,198,.55);
+    }
+    .touch-key.jetpack::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      pointer-events: none;
+      background: conic-gradient(
+        rgba(142,240,198,.95) calc(var(--jetpack-ratio) * 360deg),
+        rgba(142,240,198,.14) 0
+      );
+      -webkit-mask: radial-gradient(circle, transparent 0 58%, #000 60%);
+      mask: radial-gradient(circle, transparent 0 58%, #000 60%);
+      transition: opacity .18s ease;
+    }
+    .touch-key.jetpack.jetpack-empty { border-color: rgba(142,240,198,.22); color: rgba(226,255,244,.45); }
+    .touch-key.jetpack.jetpack-empty::after { opacity: .35; }
+    .touch-key.jetpack.jetpack-full { box-shadow: 0 0 18px rgba(142,240,198,.42); }
+    .touch-key.jetpack.jetpack-full::after { filter: brightness(1.15); }
+    .touch-key.jetpack.jetpack-active {
+      background: rgba(142,240,198,.78);
+      color: #04231b;
+    }
+    .touch-key.jetpack.jetpack-recharging::after { animation: jetpack-charge 1s ease-in-out infinite; }
+    @keyframes jetpack-charge { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.45); } }
     .action-stack { display: grid; gap: 7px; pointer-events: none; }
     .touch-label {
       display: block;
@@ -686,6 +718,10 @@
       <div class="action-stack">
         <button class="touch-key small" data-key="ArrowDown" data-mode="tap" aria-label="Trocar acao">↓ TROCAR</button>
         <button class="touch-key small" data-key="ShiftLeft" data-mode="tap" aria-label="Dash">DASH</button>
+        <!-- Propulsao da Rizosfera. Sem data-mode="tap": precisa ser HOLD, e so
+             aparece depois que a habilidade e desbloqueada. O aro em volta
+             mostra a energia restante via --jetpack-ratio. -->
+        <button class="touch-key small jetpack jetpack-empty" id="touch-jetpack" data-key="KeyK" aria-label="Propulsor" hidden>PROP</button>
       </div>
       <button class="touch-key small" data-key="KeyE" aria-label="Acao selecionada">E<span class="touch-label">AÇÃO</span></button>
       <button class="touch-key primary" data-key="Space" aria-label="Pular">↑<span class="touch-label">PULO</span></button>

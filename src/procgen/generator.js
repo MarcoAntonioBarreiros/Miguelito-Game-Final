@@ -109,6 +109,18 @@ function createSafeFallback(previous, chunk, primitives, rnd, index) {
   };
 }
 
+// Plataformas de recuperacao DECORATIVAS: continuam sendo geradas, mas nascem
+// desligadas (invisiveis e nao-solidas) — ver DEFAULT_RECOVERY_PLATFORMS_DISABLED
+// em simulator.js. Eram as plataforminhas soltas na parte de baixo dos vaos
+// (y 535-620) e o jogador pediu para tira-las.
+//
+// Por que nao parar de GERAR: (1) elas consomem numeros do gerador aleatorio, e
+// pular essas chamadas deslocaria a sequencia inteira da seed, mudando toda a
+// geometria ja validada; (2) a demonstracao de Azospirillum da fase 3 escolhe
+// justamente uma raiz de recuperacao como hospedeiro — e ao promove-la
+// generateAzospirillumRootLadders faz `host.recovery = false`, entao a raiz da
+// demonstracao volta a ser solida e visivel. Desligar na origem apagaria a
+// demonstracao junto.
 function createRecoveryRoots(previous, next, chunk, rnd, index) {
   const previousEnd = previous.x + previous.w;
   const gap = next.x - previousEnd;
@@ -415,8 +427,12 @@ export function enforceTraversableRoute(level, abilities = {}) {
     if (next.x <= prev.x + prev.w) continue;
     if (isThemedCrossing(prev, next)) continue;
     if (isInsideAzospirillumChallengeCorridor(level, prev, next)) continue;
+    // Só um degrau REALMENTE sólido conta como "já resolvido". As plataformas de
+    // recuperação decorativas nascem desligadas (não sustentam ninguém), então
+    // deixá-las contar aqui esconderia uma travessia impossível — a rede
+    // anti-softlock acharia que o vão já tinha apoio e não inseriria nada.
     const alreadyStepped = (level.platforms || []).some(p => (
-      p.recovery
+      p.safetyStep
       && p.x + p.w / 2 > prev.x + prev.w
       && p.x + p.w / 2 < next.x
     ));

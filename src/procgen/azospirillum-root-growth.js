@@ -641,7 +641,7 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     if (!player?.onGround) return null;
     const feetY = player.y + player.h;
     for (const platform of state.level.platforms || []) {
-      if (platform.recovery && state.recoveryPlatformsDisabled) continue;
+      if (platform.recovery && !platform.safetyStep && state.recoveryPlatformsDisabled) continue;
       const overlap = player.x + player.w > platform.x + 3 && player.x < platform.x + platform.w - 3;
       if (!overlap) continue;
       if (Math.abs(feetY - platform.y) > 8) continue;

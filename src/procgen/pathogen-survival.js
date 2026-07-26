@@ -1,3 +1,5 @@
+import { cancelJetpack, resetJetpackRuntime } from '../player.js';
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const HEART_PATH = 'M12 21s-7.3-4.7-9.4-9A5.3 5.3 0 0 1 12 6.6 5.3 5.3 0 0 1 21.4 12c-2.1 4.3-9.4 9-9.4 9Z';
@@ -213,6 +215,10 @@ export function createPathogenSurvival({ state, entities, ecology }) {
     player.infection = clamp((player.infection || 0) + (options.infection || 0), 0, 1);
     player.vx = options.knockbackX ?? (-player.facing * 250);
     player.vy = options.knockbackY ?? -245;
+    // Levar dano corta a propulsão e trava a reativação até pousar, mas NÃO
+    // mexe no vy depois do golpe (o knockback acima é preservado) e não zera a
+    // reserva: o jogador não perde a energia que conquistou por um encontrão.
+    cancelJetpack(player, { lockUntilGround: true });
     player.tutorialUnsafeUntil = Math.max(
       player.tutorialUnsafeUntil || 0,
       state.time + .24,
@@ -235,6 +241,10 @@ export function createPathogenSurvival({ state, entities, ecology }) {
       player.deathFlash = 1;
       player.vx = 0;
       player.vy = 0;
+      // Morrer zera a mochila por inteiro: energia, trava e conexão.
+      player.jetpackEnergy = 0;
+      player.jetpackLockedUntilGround = false;
+      resetJetpackRuntime(player);
       state.gameState = 'respawning';
       state.respawnTimer = .72;
       announce(`Miguelito foi vencido por ${source}. Retorno ao último biofilme ativo.`, 4.2, 0);

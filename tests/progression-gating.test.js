@@ -184,6 +184,9 @@ test('morte, checkpoint, reset e recarga preservam somente poderes obtidos', () 
     phosphateSolubilization: false,
     mycorrhizaStructures: true,
     azospirillumRoots: false,
+    // A Propulsao da Rizosfera nasce bloqueada: um save da fase 2 nao pode
+    // herdar um poder que so estreia na fase 5.
+    jetpack: false,
   });
 });
 
@@ -198,6 +201,7 @@ test('avanço de fase não concede automaticamente poderes não obtidos', () => 
     phosphateSolubilization: false,
     mycorrhizaStructures: false,
     azospirillumRoots: false,
+    jetpack: false,
   });
 });
 

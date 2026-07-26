@@ -153,15 +153,19 @@ test('halo sem ferro capturado não produz supressão máxima', () => {
 
 test('Fase 5 ensina fungo, Pseudomonas e somente depois a interação', () => {
   const manifest = getPhaseManifest(5);
-  const ids = manifest.presentations.map(item => item.id);
-  assert.deepEqual(ids, [
+  // A sequencia que este teste protege e a de BIOLOGIA. Apresentacoes de poder
+  // (a Propulsao da Rizosfera estreia nesta fase) nao entram na conta: elas sao
+  // mecanica de jogo e podem aparecer em qualquer ponto sem quebrar a ordem
+  // fungo -> Pseudomonas -> interacao.
+  const biologia = manifest.presentations.filter(item => !item.cardId.startsWith('power-'));
+  assert.deepEqual(biologia.map(item => item.id), [
     'presentation-opportunistic-fungus',
     'presentation-pseudomonas',
     'presentation-iron-competition',
   ]);
-  assert.ok(manifest.presentations[0].debutChunk < manifest.presentations[1].debutChunk);
-  assert.ok(manifest.presentations[1].debutChunk < manifest.presentations[2].debutChunk);
-  assert.deepEqual(manifest.presentations[2].prerequisitePresentationIds, [
+  assert.ok(biologia[0].debutChunk < biologia[1].debutChunk);
+  assert.ok(biologia[1].debutChunk < biologia[2].debutChunk);
+  assert.deepEqual(biologia[2].prerequisitePresentationIds, [
     'presentation-opportunistic-fungus',
     'presentation-pseudomonas',
   ]);

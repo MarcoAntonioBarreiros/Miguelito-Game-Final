@@ -33,6 +33,21 @@ function blankUnlocks(source = {}) {
   return Object.fromEntries(CAMPAIGN_UNLOCKS.map(feature => [feature, source[feature] === true]));
 }
 
+// Migracao de saves anteriores a Propulsao da Rizosfera.
+//
+// Um save antigo simplesmente NAO TEM a chave `jetpack`, o que e diferente de
+// te-la explicitamente em false (jogador que ainda nao coletou). Por isso a
+// checagem e por presenca da propriedade, nao por valor: quem ja passou da fase
+// 5 teria coletado a mochila se ela existisse, entao herda o desbloqueio; quem
+// parou antes comeca sem ela; e quem esta na propria fase 5 continua sem, ate
+// coletar — e o unico ponto em que nao da para inferir com seguranca.
+export function migrateJetpackUnlock(savedUnlocks, savedPhase) {
+  if (savedUnlocks && Object.hasOwn(savedUnlocks, 'jetpack')) {
+    return savedUnlocks.jetpack === true;
+  }
+  return Number.isInteger(savedPhase) && savedPhase > 5;
+}
+
 function randomCampaignSeed() {
   return `campanha-${Math.floor(Math.random() * 1000000)}`;
 }
@@ -93,6 +108,7 @@ export function createCampaign(seed = randomCampaignSeed(), { storage = null } =
   if (saved) {
     campaign.phase = validPhase(saved.phase);
     campaign.unlocks = blankUnlocks(saved.unlocks);
+    campaign.unlocks.jetpack = migrateJetpackUnlock(saved.unlocks, saved.phase);
     campaign.totalScore = Number.isFinite(saved.totalScore) ? saved.totalScore : 0;
     campaign.history = Array.isArray(saved.history) ? saved.history : [];
     campaign.pendingReport = saved.pendingReport ?? null;
@@ -359,6 +375,7 @@ export function applyPersistentUnlocks(player, campaign) {
   player.canDoubleJump = unlocks.doubleJump;
   player.canDash = unlocks.dash;
   player.canPhosphateSolubilization = unlocks.phosphateSolubilization;
+  player.canJetpack = unlocks.jetpack;
   player.airJumpAvailable = player.canDoubleJump;
 }
 

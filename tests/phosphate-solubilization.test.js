@@ -94,7 +94,14 @@ test('5-7. outras acoes continuam instantaneas, K nao dispara e touch usa TROCAR
   assert.equal(h.system.shotCount, 0);
   const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(index, /data-key="ArrowDown"[^>]*>↓ TROCAR/);
-  assert.doesNotMatch(index, /data-key="KeyK"/);
+  // K deixou de ser tecla morta: agora e o PROPULSOR (Propulsao da Rizosfera).
+  // O que este teste protege continua igual — K nao pode disparar o pulso de
+  // solubilizacao (verificado acima, com charge/shotCount em zero). O que muda e
+  // que o unico botao ligado a K precisa ser o do propulsor, em modo HOLD.
+  const botoesComK = index.match(/<button[^>]*data-key="KeyK"[^>]*>/g) || [];
+  assert.equal(botoesComK.length, 1, 'so o propulsor pode usar K');
+  assert.match(botoesComK[0], /id="touch-jetpack"/);
+  assert.doesNotMatch(botoesComK[0], /data-mode="tap"/, 'o propulsor precisa ser hold, nao tap');
   assert.match(index, /data-key="KeyE" aria-label=/);
   assert.doesNotMatch(index, /data-key="KeyE"[^>]*data-mode="tap"/);
   const selectionSource = readFileSync(new URL('../src/procgen/inoculum-selection.js', import.meta.url), 'utf8');

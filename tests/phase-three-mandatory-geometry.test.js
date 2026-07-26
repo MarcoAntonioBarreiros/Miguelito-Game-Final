@@ -329,10 +329,10 @@ test('fixture: alvo alcancavel sem Azo e alvo inalcancavel mesmo no alcance maxi
   );
 });
 
-test('fixture: uma recovery no corredor cria bypass — por isso ela e removida', () => {
+test('fixture: um degrau solido no corredor cria bypass — por isso ele e removido', () => {
   const host = { logicIndex: 0, x: 100, y: 500, w: 200, h: 60, type: 'root' };
   const target = { logicIndex: 1, x: 560, y: 280, w: 190, h: 58, type: 'root' };
-  const bypass = { logicIndex: 1, x: 340, y: 400, w: 110, h: 54, type: 'root', recovery: true };
+  const bypass = { logicIndex: 1, x: 340, y: 400, w: 110, h: 54, type: 'root' };
 
   assert.equal(
     canTraverseSubroute({ startPlatform: host, targetPlatform: target, platforms: [host, target], primitives: [SINGLE, DOUBLE] }),
@@ -342,7 +342,26 @@ test('fixture: uma recovery no corredor cria bypass — por isso ela e removida'
   assert.equal(
     canTraverseSubroute({ startPlatform: host, targetPlatform: target, platforms: [host, bypass, target], primitives: [SINGLE, DOUBLE] }),
     true,
-    'com o bypass o desafio se desmonta — e o motivo de limpar o corredor',
+    'com um apoio solido no meio o desafio se desmonta — e o motivo de limpar o corredor',
+  );
+});
+
+test('fixture: plataforma de recuperacao nao cria bypass — ela nasce desligada', () => {
+  // Protecao dupla desde que as plataformas de seguranca foram desligadas de
+  // vez: mesmo que uma sobrasse dentro do corredor, ela nao sustenta ninguem, e
+  // por isso nao vence a prova. A limpeza do corredor continua existindo como
+  // primeira barreira; esta e a segunda.
+  const host = { logicIndex: 0, x: 100, y: 500, w: 200, h: 60, type: 'root' };
+  const target = { logicIndex: 1, x: 560, y: 280, w: 190, h: 58, type: 'root' };
+  const recuperacao = { logicIndex: 1, x: 340, y: 400, w: 110, h: 54, type: 'root', recovery: true };
+
+  assert.equal(
+    canTraverseSubroute({
+      startPlatform: host, targetPlatform: target,
+      platforms: [host, recuperacao, target], primitives: [SINGLE, DOUBLE],
+    }),
+    false,
+    'uma plataforma de recuperacao desligada nao pode servir de degrau',
   );
 });
 

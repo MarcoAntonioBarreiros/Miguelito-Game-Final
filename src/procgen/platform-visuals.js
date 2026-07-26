@@ -342,7 +342,7 @@ export function createPlatformVisuals({ state }) {
     ctx.translate(-state.cameraX, 0);
     for (const platform of state.level.platforms || []) {
       if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
-      if (platform.recovery && state.recoveryPlatformsDisabled) continue;
+      if (platform.recovery && !platform.safetyStep && state.recoveryPlatformsDisabled) continue;
 
       if (platform.type === 'soil') drawSoil(ctx, platform);
       else drawRootVisual(ctx, platform);

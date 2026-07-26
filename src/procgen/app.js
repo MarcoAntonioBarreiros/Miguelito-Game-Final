@@ -21,6 +21,7 @@ import { applyPhaseLabResources } from './phase-lab-config.js';
 import { createPhaseLabSession } from './phase-lab.js';
 import { updateContextPanel } from './hud-context.js';
 import { computeEcologicalScore } from './ecological-score.js';
+import { JETPACK_CONFIG, jetpackRechargeBonuses } from '../player-jetpack.js';
 import { initPlayerTuning } from '../render/player-skin-tuning.js';
 import { createSimulator } from './simulator.js';
 import {
@@ -151,6 +152,31 @@ function objectiveLabel(req) {
   return OBJECTIVE_LABELS[req.key] || req.description || req.key;
 }
 
+// Telemetria da Propulsao da Rizosfera — no painel de debug existente (Tab), sem
+// criar painel novo nem poluir o HUD.
+function jetpackDebug(sim) {
+  const player = sim.state.player;
+  if (!player?.canJetpack) return '\nPropulsão: bloqueada nesta fase';
+  const root = player.jetpackRechargeRoot;
+  const bonuses = root
+    ? jetpackRechargeBonuses({
+        root, state: sim.state, systems: { inoculants: sim.beneficialInoculants },
+      })
+    : { rhizobium: 0, azospirillum: 0, mycorrhiza: 0, bacillus: 0, pseudomonas: 0 };
+  const healthPercent = root ? Math.round(clamp(root.rootHealth ?? 1, 0, 1) * 100) : null;
+  const pct = value => `${Math.round(value * 100)}%`;
+  return `\nPropulsão: desbloqueada ✓ · ${player.jetpackActive ? 'ATIVA' : 'inativa'}`
+    + ` · energia ${pct(player.jetpackEnergy)} · teto da raiz ${pct(player.jetpackRechargeCap)}`
+    + ` · ${player.jetpackLockedUntilGround ? 'BLOQUEADA até pousar' : 'liberada'}`
+    + `\nRecarga: raiz ${root ? `logicIndex ${root.logicIndex} (saúde ${healthPercent}%)` : '—'}`
+    + ` · conexão ${player.jetpackConnectionTime.toFixed(2)}s/${JETPACK_CONFIG.connectionDelaySeconds}s`
+    + ` · multiplicador ${player.jetpackRechargeMultiplier.toFixed(2)}×`
+    + ` [Rhizobium +${bonuses.rhizobium.toFixed(2)} · Azo +${bonuses.azospirillum.toFixed(2)}`
+    + ` · AM +${bonuses.mycorrhiza.toFixed(2)} · Bacillus +${bonuses.bacillus.toFixed(2)}`
+    + ` · Pseudomonas +${bonuses.pseudomonas.toFixed(2)}]`
+    + `\nVelocidade: vy ${Math.round(player.vy)} · vx ${Math.round(player.vx)}`;
+}
+
 // Telemetria da prova obrigatoria de Azospirillum — so no painel de debug (Tab),
 // sem poluir o HUD normal. Serve para conferir, em qualquer seed, se a prova esta
 // posicionada e dimensionada como deveria.
@@ -242,6 +268,39 @@ function renderObjectives(campaign, evaluator) {
 }
 const dashTouchButton = document.querySelector('[data-key="ShiftLeft"]');
 const selectionTouchButton = document.querySelector('[data-key="ArrowDown"]');
+const jetpackTouchButton = document.getElementById('touch-jetpack');
+
+// O botao PROPULSOR so existe depois do desbloqueio, e o aro dele e o unico
+// indicador de energia (nada de barra grande no HUD). Aqui so mudam CLASSES e a
+// variavel CSS — o HTML do botao nunca e reescrito a cada quadro.
+let lastJetpackClass = '';
+let lastJetpackRatio = -1;
+function updateJetpackTouchButton(player) {
+  if (!jetpackTouchButton) return;
+  const unlocked = Boolean(player?.canJetpack);
+  if (jetpackTouchButton.hidden === unlocked) jetpackTouchButton.hidden = !unlocked;
+  if (!unlocked) return;
+
+  const ratio = Math.max(0, Math.min(1, player.jetpackEnergy || 0));
+  if (Math.abs(ratio - lastJetpackRatio) > .004) {
+    jetpackTouchButton.style.setProperty('--jetpack-ratio', ratio.toFixed(3));
+    lastJetpackRatio = ratio;
+  }
+  const recharging = player.onGround
+    && player.jetpackConnectionTime > 0
+    && ratio < (player.jetpackRechargeCap || 0);
+  const nextClass = player.jetpackActive ? 'jetpack-active'
+    : recharging ? 'jetpack-recharging'
+    : ratio <= 0 ? 'jetpack-empty'
+    : ratio >= .999 ? 'jetpack-full'
+    : 'jetpack-partial';
+  if (nextClass === lastJetpackClass) return;
+  jetpackTouchButton.classList.remove(
+    'jetpack-empty', 'jetpack-partial', 'jetpack-full', 'jetpack-active', 'jetpack-recharging',
+  );
+  jetpackTouchButton.classList.add(nextClass);
+  lastJetpackClass = nextClass;
+}
 
 let campaignStorage = null;
 try { campaignStorage = window.sessionStorage; } catch (_) {}
@@ -898,6 +957,7 @@ function loop(now) {
     const center = { x: player.x + player.w/2, y: player.y + player.h };
     const nearbyRoot = (sim.state.level.platforms || []).find(p => p.type === 'root' && center.x >= p.x && center.x <= p.x + p.w && Math.abs(center.y - p.y) < 20) || null;
     updateContextPanel(sim.state, nearbyRoot, document.getElementById('hud-context'), sim);
+    updateJetpackTouchButton(player);
 
     if (showDebug) {
       const logicIndex = currentLogicIndex();
@@ -938,7 +998,8 @@ function loop(now) {
         + `\nTrichoderma: ${sim.trichodermaColonies.followerCount} seguindo / ${sim.trichodermaColonies.colonyCount} colônias / vigor médio ${vigor}%`
         + `\nHifas de ataque: ${sim.trichoderma.tipCount} pontas / ${sim.trichoderma.attackCount} alvos / ${sim.trichoderma.searchCount} em busca`
         + `\nInterações: ${sim.gameplay.cloudCount} nuvens / ${sim.gameplay.biofilmCount} biofilmes`
-        + azospirillumChallengeDebug(sim);
+        + azospirillumChallengeDebug(sim)
+        + jetpackDebug(sim);
     }
 
     requestAnimationFrame(loop);

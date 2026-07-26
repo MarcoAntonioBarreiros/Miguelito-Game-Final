@@ -23,6 +23,9 @@ export const ECOLOGY_ROAMING_TYPES = Object.freeze([
 export const PATHOGEN_SYSTEMS = Object.freeze(['rhizoctonia', 'meloidogyne', 'ralstonia']);
 export const CAMPAIGN_UNLOCKS = Object.freeze([
   'doubleJump', 'dash', 'phosphateSolubilization', 'mycorrhizaStructures', 'azospirillumRoots',
+  // Propulsao da Rizosfera. Estreia na fase 5: as fases 3 e 4 precisam continuar
+  // ensinando a raiz lateral e a ponte micorrizica SEM a mochila.
+  'jetpack',
 ]);
 export const TUTORIAL_MODES = Object.freeze(['guided', 'silent', 'disabled']);
 export const PRESENTATION_POLICIES = Object.freeze([
@@ -122,7 +125,7 @@ export const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
 });
 
 export const FINAL_TEST_KEYS = Object.freeze({
-  playerUnlock: Object.freeze(['doubleJump', 'dash', 'phosphateSolubilization']),
+  playerUnlock: Object.freeze(['doubleJump', 'dash', 'phosphateSolubilization', 'jetpack']),
   worldState: Object.freeze([
     'reachedFinalRoot', 'functionalBiofilmCount', 'activeMatureNoduleCount', 'totalFixationRate',
     'visibleLateralRootCount', 'mandatoryAzospirillumChallengeDeveloped',
@@ -438,11 +441,23 @@ const phases = [
         prerequisitePresentationIds: ['presentation-opportunistic-fungus', 'presentation-pseudomonas'],
         debutChunk: 13, moduleId: 'p5-interaction',
         pages: ['Competição por ferro', 'Vigor reduzido', 'Efeito no jogo', 'Sem eliminação direta'] },
+      // A mochila estreia no COMECO da fase 5 (debutChunk 0), antes de o fungo
+      // tomar conta: ela e mobilidade, nao resposta a patogeno. Fica por ultimo
+      // NO ARRAY de proposito — a sequencia pedagogica de biologia (fungo ->
+      // Pseudomonas -> interacao) e lida pelas tres primeiras posicoes, e quem
+      // decide a ordem real de aparicao e o debutChunk.
+      { id: 'presentation-jetpack', cardId: 'power-jetpack',
+        triggerIds: ['power-jetpack'], autoOpenTrigger: 'power-jetpack',
+        policy: 'event-immediate', suppressIndividualCards: false,
+        debutChunk: 0, moduleId: 'p5-fungus-intro',
+        pages: ['mecânica de gameplay', 'energia vem da raiz'] },
     ],
-    unlockEvents: [], pathogenDebuts: [],
+    unlockEvents: [
+      { feature: 'jetpack', eventChunk: 1, afterModule: 'p5-fungus-intro', practiceWindowChunks: 3, mandatory: false },
+    ], pathogenDebuts: [],
     segments: [
       { id: 'p5-fungus-intro', kind: 'fixed', from: 0, to: 5, tutorialMode: 'guided',
-        debutPresentationIds: ['presentation-opportunistic-fungus'], mechanicsRequired: [] },
+        debutPresentationIds: ['presentation-opportunistic-fungus', 'presentation-jetpack'], mechanicsRequired: [] },
       { id: 'p5-pseudo-intro', kind: 'fixed', from: 6, to: 11, tutorialMode: 'guided',
         debutPresentationIds: ['presentation-pseudomonas'], mechanicsRequired: ['inoculation'] },
       { id: 'p5-interaction', kind: 'fixed', from: 12, to: 14, tutorialMode: 'guided',

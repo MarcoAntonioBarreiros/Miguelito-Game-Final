@@ -39,10 +39,42 @@ const initialPlayer = {
   dashSuppressed: false,
   deathFlash: 0,
   deaths: 0,
+  // Propulsão da Rizósfera. A energia é normalizada (0..1) e NUNCA é restaurada
+  // sozinha ao pousar: ela só sobe recarregando sobre uma raiz elegível.
+  canJetpack: false,
+  jetpackActive: false,
+  jetpackEnergy: 0,
+  jetpackMaximumEnergy: 1,
+  jetpackRechargeCap: 0,
+  jetpackRechargeMultiplier: 1,
+  jetpackConnectionTime: 0,
+  jetpackRechargeRoot: null,
+  jetpackLockedUntilGround: false,
+  // Plataforma que de fato sustentou o último pouso. A recarga usa isto, não
+  // proximidade geométrica.
+  supportPlatform: null,
 };
 
 export function createPlayer() {
   return { ...initialPlayer };
+}
+
+// Zera só o RUNTIME da mochila (propulsão, conexão, multiplicadores). Não
+// desbloqueia nem bloqueia a habilidade, e não devolve energia: quem decide a
+// energia é a recarga sobre a raiz.
+export function resetJetpackRuntime(player) {
+  player.jetpackActive = false;
+  player.jetpackRechargeRoot = null;
+  player.jetpackConnectionTime = 0;
+  player.jetpackRechargeCap = 0;
+  player.jetpackRechargeMultiplier = 1;
+}
+
+// Desliga a propulsão em curso preservando a energia restante. `lockUntilGround`
+// impede reativação na mesma sequência aérea (usado pelo Dash e pelo dano).
+export function cancelJetpack(player, { lockUntilGround = false } = {}) {
+  player.jetpackActive = false;
+  if (lockUntilGround) player.jetpackLockedUntilGround = true;
 }
 
 export function resetPlayer(player, unlocks = null) {
@@ -53,5 +85,6 @@ export function resetPlayer(player, unlocks = null) {
   player.canDoubleJump = Boolean(unlocks.doubleJump);
   player.canDash = Boolean(unlocks.dash);
   player.canPhosphateSolubilization = Boolean(unlocks.phosphateSolubilization);
+  player.canJetpack = Boolean(unlocks.jetpack);
   player.airJumpAvailable = player.canDoubleJump;
 }
