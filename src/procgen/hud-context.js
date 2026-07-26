@@ -17,6 +17,69 @@ function circularGaugeMarkup({ label, symbol, valueText, pct, color }) {
   `;
 }
 
+// Painel da Ralstonia: aparece somente quando Miguelito esta sobre/perto de uma
+// raiz com foco ou visada por uma disseminacao. Numeros com leitura
+// interpretativa ao lado — "Porta aberta" ensina, "0.31" nao.
+function pct(value) {
+  return `${Math.round(Math.max(0, Math.min(1, value || 0)) * 100)}%`;
+}
+
+function ralstoniaBar(label, value, color) {
+  return `
+      <div class="context-item">
+        <span>${label}: <strong>${pct(value)}</strong></span>
+        <div class="context-bar"><div class="context-bar-fill" style="width: ${pct(value)}; background: ${color};"></div></div>
+      </div>
+    `;
+}
+
+function ralstoniaContextMarkup(sim, nearbyRoot) {
+  const snapshot = sim?.ralstoniaControl?.rootSnapshot?.(nearbyRoot);
+  if (!snapshot) return '';
+
+  const critico = snapshot.stage === 'critical';
+  const titulo = snapshot.hasFocus ? snapshot.stageLabel : 'raiz visada pela disseminação';
+  let html = `
+      <div class="context-item" style="margin-top: 10px; border-top: 1px solid rgba(255,150,110,0.35); padding-top: 6px;">
+        <span>Ralstonia: <strong style="color: ${critico ? '#ff8297' : '#ffb896'};">${titulo}</strong></span>
+      </div>
+    `;
+
+  const portaCor = snapshot.doorLabel === 'Entrada bloqueada' ? '#8ef0c6'
+    : snapshot.doorLabel === 'Porta fechando' ? '#7ed6cd'
+    : '#ff966e';
+  html += `
+      <div class="context-item">
+        <span>Porta de entrada: <strong>${pct(snapshot.opening)}</strong>
+          <em style="color: ${portaCor}; font-style: normal;">· ${snapshot.doorLabel || '—'}</em></span>
+        <div class="context-bar"><div class="context-bar-fill" style="width: ${pct(snapshot.opening)}; background: ${portaCor};"></div></div>
+      </div>
+    `;
+
+  if (snapshot.hasFocus) {
+    html += ralstoniaBar('Carga superficial', snapshot.surfaceLoad, '#e8c27e');
+    html += ralstoniaBar('Carga vascular', snapshot.vascularLoad, critico ? '#ff6f91' : '#e8905e');
+    html += ralstoniaBar('Transporte vascular', snapshot.transport, '#7ed6cd');
+    if (snapshot.azospirillumClosure > .01) html += ralstoniaBar('Fechamento por Azo', snapshot.azospirillumClosure, '#7ed6cd');
+    if (snapshot.bacillusControl > .01) html += ralstoniaBar('Barreira Bacillus', snapshot.bacillusControl, '#a8ffe6');
+    if (snapshot.pseudomonasControl > .01) html += ralstoniaBar('Supressão Pseudomonas', snapshot.pseudomonasControl, '#f4a261');
+    if (snapshot.contained) {
+      html += `<div class="context-item" style="color: #6ce7df;">Infecção contida — carga residual permanece</div>`;
+    }
+  }
+
+  if (Number.isFinite(snapshot.incomingSeconds)) {
+    html += `
+      <div class="context-item" style="color: #ff8297; font-weight: bold;">
+        Disseminação chegando: ${snapshot.incomingSeconds.toFixed(1)} s
+      </div>
+    `;
+    html += ralstoniaBar('Proteção da raiz', snapshot.incomingProtection, '#8ef0c6');
+  }
+
+  return html;
+}
+
 let lastRootData = { health: 100, status: 'Saudável', color: '#70e5d6' };
 
 export function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
@@ -42,6 +105,7 @@ export function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
     if (nearbyRoot.hasPhosphate) {
       html += `<div class="context-item" style="color: #c9a5ff; font-weight: bold; margin-top: 4px;">P Cristalizado Detectado</div>`;
     }
+    html += ralstoniaContextMarkup(sim, nearbyRoot);
   } else {
     html += `<div class="context-item"><span>Explorando o solo...</span></div>`;
   }

@@ -139,10 +139,10 @@ const OBJECTIVE_LABELS = {
   preservedRootCount: 'Preserve uma raiz saudável',
   pseudomonasIronReserve: 'Acumule reserva de ferro (Pseudomonas)',
   reachedFinalRoot: 'Alcance a raiz final',
-  preventedRalstoniaEntryCount: 'Impeça a entrada de Ralstonia no xilema',
+  preventedRalstoniaEntryCount: 'Impeça uma entrada de Ralstonia no xilema',
   containedVascularRalstoniaCount: 'Contenha uma infecção vascular',
-  activeCriticalRalstoniaCount: 'Elimine focos em murcha crítica',
-  blockedRalstoniaSpreadCount: 'Bloqueie a disseminação bacteriana',
+  activeCriticalRalstoniaCount: 'Não deixe focos em murcha crítica',
+  blockedRalstoniaSpreadCount: 'Bloqueie uma disseminação bacteriana',
   averageVascularTransport: 'Preserve o transporte vascular',
   preservedVascularRootCount: 'Preserve raízes com transporte funcional',
   recoveredRootCount: 'Recupere uma raiz danificada',
@@ -954,8 +954,24 @@ function loop(now) {
     if (rhizoctoniaControl.activeCount) {
       alerts.push({ text: `Rhizoctonia ${rhizoctoniaControl.controlledCount}/${rhizoctoniaControl.activeCount} contida${rhizoctoniaControl.activeCount > 1 ? 's' : ''}` });
     }
+    // Aviso de disseminacao vem primeiro: e o unico que tem contagem regressiva.
+    const disseminacao = ralstoniaControl.activeSpreadEvents[0];
+    if (disseminacao) {
+      const restante = disseminacao.state === 'warning'
+        ? disseminacao.warningRemaining
+        : (1 - disseminacao.travelProgress) * ralstoniaControl.config.spreadTravelSeconds;
+      alerts.push({
+        text: `Disseminação para raiz adiante · ${restante.toFixed(1)} s`,
+        grave: true,
+      });
+    }
     if (ralstoniaControl.focusCount) {
-      alerts.push({ text: `Ralstonia ${ralstoniaControl.focusCount} · transporte ${Math.round(ralstoniaControl.averageTransport * 100)}%` });
+      const contidos = ralstoniaControl.containedCount;
+      alerts.push({
+        text: `Ralstonia: ${ralstoniaControl.focusCount} foco${ralstoniaControl.focusCount > 1 ? 's' : ''}`
+          + `${contidos ? ` · ${contidos} contido${contidos > 1 ? 's' : ''}` : ''}`
+          + ` · transporte ${Math.round(ralstoniaControl.averageTransport * 100)}%`,
+      });
     }
     renderAlerts(alerts);
 
@@ -963,6 +979,11 @@ function loop(now) {
     renderObjectives(campaign, objectiveEvaluator);
     const center = { x: player.x + player.w/2, y: player.y + player.h };
     const nearbyRoot = (sim.state.level.platforms || []).find(p => p.type === 'root' && center.x >= p.x && center.x <= p.x + p.w && Math.abs(center.y - p.y) < 20) || null;
+    // `ralstoniaControl` vive no app, nao no simulador; o painel contextual
+    // recebe a referencia para poder mostrar porta, cargas e disseminacao.
+    if (!sim.ralstoniaControl) sim.ralstoniaControl = ralstoniaControl;
+    // Atalho do Phase Lab: window.__ralstoniaLab.spawnFocus({stage:'critical'}) etc.
+    if (!window.__ralstoniaLab) window.__ralstoniaLab = ralstoniaControl.lab;
     updateContextPanel(sim.state, nearbyRoot, document.getElementById('hud-context'), sim);
     updateJetpackTouchButton(player);
 
@@ -986,7 +1007,9 @@ function loop(now) {
         + `\nEcologia: ${sim.ecology.agents.length} organismos / ${sim.ecology.nicheCount} nichos`
         + `\nRhizoctonia: ${rhizoctoniaControl.activeCount} focos / ${rhizoctoniaControl.controlledCount} contidos por biocontrole`
         + `\nTrichoderma anti-Rhizoctonia: ${trichodermaRhizoctoniaControl.activeAttackCount} ataques · ${trichodermaRhizoctoniaControl.eliminatedCount} focos lisados · ${trichodermaRhizoctoniaControl.abortedCount} ataques interrompidos`
-        + `\nRalstonia: ${ralstoniaControl.focusCount} focos ativos / ${ralstoniaControl.neutralizedCount} neutralizados / ${ralstoniaControl.criticalCount} críticos · transporte médio ${Math.round(ralstoniaControl.averageTransport * 100)}%`
+        + `\nRalstonia: ${ralstoniaControl.focusCount} focos / ${ralstoniaControl.activeFocusCount} ativos / ${ralstoniaControl.pendingFocusCount} pendentes / ${ralstoniaControl.neutralizedCount} neutralizados / ${ralstoniaControl.criticalCount} críticos · transporte médio ${Math.round(ralstoniaControl.averageTransport * 100)}%`
+        + `\nRalstonia prevenidos=${ralstoniaControl.preventedCount} contidos=${ralstoniaControl.containedCount} disseminações=${ralstoniaControl.spreadEventCount} bloqueadas=${ralstoniaControl.blockedSpreadCount} sucedidas=${ralstoniaControl.successfulSpreadCount}`
+        + (ralstoniaControl.foci.length ? `\n${ralstoniaControl.debugLines().join('\n')}` : '')
         + `\nMeloidogyne: ${sim.meloidogyneLifecycle.eggMassCount} massas (${sim.meloidogyneLifecycle.eggCount} ovos) / ${sim.meloidogyneLifecycle.juvenileCount} J2 livres / ${sim.meloidogyneLifecycle.penetratingCount} penetrando`
         + `\nTrichoderma anti-Meloidogyne: ${trichodermaMeloidogyneControl.activeAttackCount} ataques (${trichodermaMeloidogyneControl.eggAttackCount} ovos / ${trichodermaMeloidogyneControl.juvenileAttackCount} J2) · ${trichodermaMeloidogyneControl.eggsDestroyed} ovos inviabilizados · ${trichodermaMeloidogyneControl.eggMassesNeutralized} massas neutralizadas · ${trichodermaMeloidogyneControl.juvenilesDestroyed} J2 lisados`
         + `\nGalhas: ${sim.meloidogyneLifecycle.gallCount} totais / ${sim.meloidogyneLifecycle.matureGallCount} maduras / ${sim.meloidogyneLifecycle.femaleCount} fêmeas / saúde radicular média ${rootHealth}%`

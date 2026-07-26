@@ -321,8 +321,19 @@ export function createMeloidogyneLifecycle({ state, entities }) {
     infestation = list.length ? clamp(pressure / list.length, 0, 1) : 0;
 
     for (const p of list) {
-      p.carbonAvailability = clamp(Math.min(p.carbonAvailability ?? 1, p.rootHealth * (p.vascularEfficiency ?? 1)), .05, 1);
-      p.nutrientEfficiency = clamp(Math.min(p.nutrientEfficiency ?? 1, p.rootHealth * (p.mycorrhizaEfficiency ?? 1)), .04, 1);
+      // DERIVADO, nao degradado. Com `Math.min(valor anterior, ...)` o campo so
+      // podia cair: quando a Ralstonia recuava e `vascularEfficiency` voltava a
+      // subir, carbono e nutricao ficavam presos no pior valor da partida.
+      // Agora sao recalculados do zero a partir da saude e dos multiplicadores
+      // publicados pelos patogenos, entao aliviar a pressao devolve funcao.
+      p.carbonAvailability = clamp(
+        p.rootHealth * (p.vascularEfficiency ?? 1) * (p.ralstoniaCarbonMultiplier ?? 1),
+        .05, 1,
+      );
+      p.nutrientEfficiency = clamp(
+        p.rootHealth * (p.mycorrhizaEfficiency ?? 1) * (p.ralstoniaNutrientMultiplier ?? 1),
+        .04, 1,
+      );
       if (standingOn(p) && p.rootHealth < .82) {
         const stress = 1 - p.rootHealth;
         state.player.hope = Math.max(0, state.player.hope - dt * stress * .16);

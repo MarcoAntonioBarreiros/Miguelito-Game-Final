@@ -420,8 +420,12 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
   function updateColony(colony, dt) {
     colony.age += dt;
     colony.growth = clamp(colony.growth + dt * .3, 0, 1);
+    // A recarga e derivada do combustivel-base vezes os multiplicadores que os
+    // patogenos publicam. Antes a Ralstonia fazia `rechargeIntensity *= ...`
+    // direto no campo: o valor-base era destruido e tirar a pressao nao
+    // devolvia nada (e o resultado dependia da ordem de update dos sistemas).
     const fuel = cloudIntensity(colony);
-    colony.rechargeIntensity = fuel;
+    colony.rechargeIntensity = clamp(fuel * clamp(colony.vascularEfficiencyMultiplier ?? 1, 0, 1), 0, 1);
     if (fuel > .02) {
       colony.vigor = clamp(colony.vigor + dt * (.025 + fuel * .105), 0, 1);
     }

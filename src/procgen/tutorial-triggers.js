@@ -366,6 +366,24 @@ export function createTutorialTriggers({
       && nearbyOpportunisticFungus
       && (sim.opportunisticFungus?.maximumIronLimitation || 0) >= .18;
     if (trigger('process-iron-competition', ironCompetitionVisible)) return;
+    // Gatilhos da Ralstonia. O runtime marca o marco (`didactics`) uma unica vez
+    // por fase; aqui o cartao so abre se o jogador estiver PERTO do foco — abrir
+    // uma explicacao de algo que aconteceu fora da tela confunde mais que ensina.
+    // Foco pendente nunca dispara: ele ainda nao existe para o jogador.
+    const ralstoniaDidactics = ralstoniaControl.didactics || {};
+    const visibleFocus = (ralstoniaControl.foci || []).find(focus => (
+      focus.activationState !== 'pending'
+      && !focus.neutralized
+      && nearPlatform(focus.root, TUTORIAL_PROXIMITY.rootProcess)
+    ));
+    if (trigger('process-ralstonia-entry', ralstoniaDidactics.entry && visibleFocus)) return;
+    if (trigger('process-vascular-obstruction', ralstoniaDidactics.obstruction && visibleFocus)) return;
+    if (trigger('process-ralstonia-containment', ralstoniaDidactics.containment && visibleFocus)) return;
+    const spreadVisible = (ralstoniaControl.activeSpreadEvents || []).some(event => (
+      nearPlatform(event.sourceRoot, 620) || nearPlatform(event.targetRoot, 620)
+    ));
+    if (trigger('process-ralstonia-spread', ralstoniaDidactics.spread && spreadVisible)) return;
+
     const mycoparasitismActive = (
       trichodermaRhizoctoniaControl.activeAttackCount > 0 && nearbyTargetedRhizoctonia
     ) || (sim.trichoderma.attackCount > 0 && nearbyOpportunisticFungus);

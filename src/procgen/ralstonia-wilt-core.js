@@ -66,19 +66,95 @@ export function ralstoniaEnteredVascular(focus, config = RALSTONIA_DEFAULTS) {
 // as de outros patógenos, que é o que torna a fase 10 integrada mais dura.
 export function ralstoniaWoundPressure(root) {
   if (!root) return 0;
-  const authored = clamp(finite(root.ralstoniaEntryWound), 0, 1);
   const basal = clamp(finite(root.rootGameplayDamage) || (1 - clamp(finite(root.rootHealth, 1), 0, 1)), 0, 1);
   const nematode = clamp(finite(root.meloidogyneBurden), 0, 1);
   const rhizoctonia = clamp(
     Math.max(finite(root.rhizoctoniaColonization), finite(root.rhizoctoniaPressure)),
     0, 1,
   );
-  // O marcador autoral manda: ele existe justamente para a estreia não depender
-  // de já haver Meloidogyne ou Rhizoctonia em cena.
-  return clamp(
-    Math.max(authored, basal * .55 + nematode * .45 + rhizoctonia * .45),
+  // Só lesão REAL, lida agora. A versão anterior fazia
+  // `Math.max(root.ralstoniaEntryWound, ...)` com um marcador autoral de .45
+  // gravado na raiz: a porta ficava permanentemente aberta e nem Azospirillum,
+  // nem recuperação da saúde, nem controlar Rhizoctonia/Meloidogyne conseguiam
+  // fechá-la. O valor inicial da estreia agora vive no FOCO (`woundOpening`) e
+  // cicatriza; aqui fica apenas o que a raiz sustenta de fato.
+  return clamp(basal * .62 + nematode * .5 + rhizoctonia * .5, 0, 1);
+}
+
+// Piso de lesão da raiz: para onde a porta tende enquanto a causa não é
+// controlada. É o mesmo número de `ralstoniaWoundPressure`, nomeado pelo papel
+// que exerce na dinâmica da porta.
+export function ralstoniaLesionFloor(root) {
+  return ralstoniaWoundPressure(root);
+}
+
+// Fechamento pelo Azospirillum. Ele NÃO ataca a bactéria: promove crescimento
+// radicular e cicatrização, então entra como taxa de fechamento da porta.
+// Colônia dormente, imatura ou sem vigor não fecha nada.
+export function ralstoniaAzospirillumClosure({ colonies = [], lateralRoots = [], root = null } = {}) {
+  if (!root) return 0;
+  let best = 0;
+  for (const colony of colonies) {
+    if (!colony || colony.type !== 'azospirillum') continue;
+    if (colony.platform !== root) continue;
+    if (colony.dormant === true) continue;
+    const growth = clamp(finite(colony.growth), 0, 1);
+    const vigor = clamp(finite(colony.vigor), 0, 1);
+    if (growth < .68 || vigor < .25) continue;
+    best = Math.max(best, clamp(vigor * (.55 + growth * .45), 0, 1));
+  }
+  for (const ladder of lateralRoots) {
+    if (!ladder || ladder.host !== root) continue;
+    const progress = ladder.developed === true ? 1 : clamp(finite(ladder.visibleProgress), 0, 1);
+    if (progress < .35) continue;
+    best = Math.max(best, clamp(.4 + progress * .5, 0, 1));
+  }
+  return best;
+}
+
+// Dinâmica da porta de entrada. Puro: recebe o estado, devolve o próximo valor
+// e as duas pressões, para o HUD poder explicar o que está acontecendo.
+export function ralstoniaWoundDynamics({
+  currentOpening = 0,
+  rootHealth = 1,
+  rootDamage = null,
+  meloidogynePressure = 0,
+  rhizoctoniaPressure = 0,
+  azospirillumClosure = 0,
+  dt = 0,
+  config = RALSTONIA_DEFAULTS,
+} = {}) {
+  const opening = clamp(finite(currentOpening), 0, 1);
+  const health = clamp(finite(rootHealth, 1), 0, 1);
+  const damage = clamp(
+    Number.isFinite(rootDamage) ? rootDamage : 1 - health,
     0, 1,
   );
+  const nematode = clamp(finite(meloidogynePressure), 0, 1);
+  const rhizoctonia = clamp(finite(rhizoctoniaPressure), 0, 1);
+  const azo = clamp(finite(azospirillumClosure), 0, 1);
+
+  // Lesão sustentada AGORA. Controlar a causa (Trichoderma sobre Rhizoctonia,
+  // controle de Meloidogyne, recuperação da saúde) derruba este piso, e é assim
+  // que a porta pode finalmente cicatrizar.
+  const lesionFloor = clamp(damage * .62 + nematode * .5 + rhizoctonia * .5, 0, 1);
+
+  // Abre só enquanto a porta está abaixo do que a lesão sustenta.
+  const openingPressure = Math.max(0, lesionFloor - opening) * config.woundOpeningRate;
+  // Fecha por cicatrização natural + Azospirillum + saúde acima de .55. Uma
+  // lesão ativa atrapalha o fechamento, mas nunca o proíbe por completo.
+  const closurePressure = (
+    config.woundBaseClosureRate
+    + azo * config.woundAzospirillumClosureRate
+    + Math.max(0, health - .55) * config.woundHealthClosureRate
+  ) * (1 - lesionFloor);
+
+  return {
+    nextOpening: clamp(opening + finite(dt) * (openingPressure - closurePressure), 0, 1),
+    openingPressure,
+    closurePressure,
+    lesionFloor,
+  };
 }
 
 // Força de controle combinada. A sinergia é um BÔNUS complementar (soma), nunca
@@ -104,6 +180,9 @@ export function ralstoniaControlStrength({ bacillus = 0, pseudomonas = 0, stage 
 export function ralstoniaNetGrowth({
   surfaceLoad = 0,
   vascularLoad = 0,
+  // `woundOpening` é a porta dinâmica do foco. `woundPressure` continua aceito
+  // como alias para não quebrar chamadores/testes anteriores.
+  woundOpening = null,
   woundPressure = 0,
   bacillusControl = 0,
   pseudomonasControl = 0,
@@ -111,36 +190,54 @@ export function ralstoniaNetGrowth({
 } = {}) {
   const surface = clamp(finite(surfaceLoad), 0, 1);
   const vascular = clamp(finite(vascularLoad), 0, 1);
-  const wound = clamp(finite(woundPressure), 0, 1);
+  const opening = clamp(
+    Number.isFinite(woundOpening) ? woundOpening : finite(woundPressure),
+    0, 1,
+  );
   const stage = ralstoniaStageForLoads({ surfaceLoad: surface, vascularLoad: vascular, config });
   const control = ralstoniaControlStrength({
     bacillus: bacillusControl, pseudomonas: pseudomonasControl, stage,
   });
 
-  // Superfície: cresce com a ferida disponível, cai com o controle.
-  const surfaceGrowth = .055 * (.35 + wound * .85);
-  const surfaceDecay = control * .085;
-  const surfaceRate = surfaceGrowth - surfaceDecay;
+  // Superfície: a população só prospera sobre uma porta aberta. Quando a porta
+  // fecha ela PERDE ADERÊNCIA por conta própria — é isso que permite prevenir
+  // com Azospirillum/recuperação, sem exigir Bacillus ou Pseudomonas.
+  const surfaceGrowth = config.baseSurfaceGrowth * opening * (1 - surface * .35);
+  const naturalSurfaceLoss = config.baseSurfaceLoss * (1 - opening) * (surface + .12);
+  const directSurfaceSuppression = control * .085;
+  const surfaceRate = surfaceGrowth - naturalSurfaceLoss - directSurfaceSuppression;
 
-  // Entrada no xilema: só acontece com população superficial E ferida aberta.
-  // É aqui que a barreira do Bacillus decide a fase.
-  const entryPressure = surface * wound;
-  const entryRate = vascular < config.vascularEntryThreshold
-    ? Math.max(0, entryPressure * .085 - control * .075)
+  // Entrada no xilema: exige população superficial E porta aberta. Porta
+  // praticamente cicatrizada zera a entrada, por mais bactéria que haja fora.
+  const entryPressure = surface * opening;
+  const sealed = opening <= config.woundSealThreshold;
+  const entryRate = (vascular < config.vascularEntryThreshold && !sealed)
+    ? Math.max(0, entryPressure * .030 - control * .075)
     : 0;
 
-  // Dentro do vaso a multiplicação é própria: não depende mais da ferida.
+  // Dentro do vaso a multiplicação é própria: não depende mais da porta.
   const vascularGrowth = vascular >= config.vascularEntryThreshold
-    ? vascular * .055 + .012
+    ? vascular * .038 + .006
     : 0;
+  // Coeficiente calibrado para dar um GRADIENTE em vez de um ponto sem volta:
+  // um organismo forte sozinho segura uma colonização inicial, a obstrução já
+  // pede os dois, e a murcha crítica só recua com Bacillus E Pseudomonas bem
+  // estabelecidos. Com .062 nem controle quase perfeito vencia o crescimento no
+  // estágio crítico — o foco virava irreversível e a fase, injogável.
   const vascularSuppression = vascular >= config.vascularEntryThreshold
-    ? control * .062
+    ? control * .075
     : 0;
   const vascularRate = entryRate + vascularGrowth - vascularSuppression;
 
   return {
     stage,
     control,
+    opening,
+    sealed,
+    surfaceGrowth,
+    naturalSurfaceLoss,
+    directSurfaceSuppression,
+    entryRate,
     surfaceRate,
     vascularRate,
     // O jogador "está segurando" quando o avanço no xilema parou de subir.

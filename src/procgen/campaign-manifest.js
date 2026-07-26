@@ -64,6 +64,44 @@ export const RALSTONIA_DEFAULTS = Object.freeze({
   introductoryVascularLoad: 0,
   containmentFocusSurfaceLoad: 0.24,
   containmentFocusVascularLoad: 0.13,
+
+  // ---- Ativacao por proximidade -----------------------------------------
+  // Um foco selecionado no inicio da fase nao pode adoecer a raiz enquanto
+  // Miguelito esta a 20 chunks de distancia: quando ele chegasse, a lesao ja
+  // estaria irreversivel e a licao de PREVENCAO seria impossivel de praticar.
+  activationDistance: 680,
+  activationGraceSeconds: 8,
+  spreadFocusGraceSeconds: 3,
+
+  // ---- Porta de entrada (woundOpening) ----------------------------------
+  // A porta e um estado do FOCO que evolui a cada quadro, nao um marcador
+  // eterno na raiz. Fecha com Azospirillum, saude e controle da causa da
+  // lesao; abre com dano real, Meloidogyne e Rhizoctonia.
+  woundOpeningRate: 0.35,
+  woundBaseClosureRate: 0.02,
+  woundAzospirillumClosureRate: 0.075,
+  woundHealthClosureRate: 0.05,
+  // Abaixo deste valor a raiz resiste a colonizacao (bloqueia disseminacao).
+  woundColonizationLimit: 0.18,
+  // Praticamente cicatrizada: entrada vascular vai a zero.
+  woundSealThreshold: 0.06,
+  preventionFocusWoundOpening: 0.35,
+  containmentFocusWoundOpening: 0.45,
+
+  // ---- Crescimento superficial ------------------------------------------
+  baseSurfaceGrowth: 0.16,
+  baseSurfaceLoss: 0.16,
+
+  // ---- Disseminacao ------------------------------------------------------
+  spreadTriggerThreshold: 0.42,
+  spreadTravelSeconds: 2.5,
+  spreadRetrySeconds: 8,
+  spreadTargetProtectionThreshold: 0.5,
+  spreadFocusInitialSurfaceLoad: 0.18,
+  // Geracao 0 = focos semeados; geracao 1 = nascidos de disseminacao. Na fase 9
+  // a cascata para na geracao 1; a fase 10 permite uma a mais.
+  maximumSpreadGeneration: 1,
+  spreadFirstOpportunitySeconds: 1.2,
 });
 
 export const NITROGEN_ROOT_DEFAULTS = Object.freeze({
@@ -724,10 +762,15 @@ const phases = [
     // Nao exige eliminar todos os focos nem zerar a carga vascular: exige provar
     // que o jogador sabe PREVENIR uma entrada e CONTER uma infeccao que ja
     // entrou — e que nenhuma murcha critica ficou solta no fim.
-    finalTest: { id: 'p9-test', goal: 'Prevenir uma entrada, conter uma infecção vascular e alcançar a raiz final sem foco crítico ativo.', requires: [
+    finalTest: { id: 'p9-test', goal: 'Prevenir uma entrada, conter uma infecção vascular, bloquear uma disseminação e alcançar a raiz final sem foco crítico ativo.', requires: [
       { type: 'worldState', key: 'preventedRalstoniaEntryCount', operator: '>=', value: 1 },
       { type: 'worldState', key: 'containedVascularRalstoniaCount', operator: '>=', value: 1 },
-      { type: 'worldState', key: 'activeCriticalRalstoniaCount', operator: '===', value: 0 },
+      { type: 'worldState', key: 'blockedRalstoniaSpreadCount', operator: '>=', value: 1 },
+      // `latch: false` = leitura do AGORA. Sem a flag esta condicao nasce
+      // satisfeita (zero focos criticos no primeiro quadro), trava, e o objetivo
+      // aparece verde antes de a fase comecar. O runtime garante pelo menos uma
+      // oportunidade de disseminacao bloqueavel e recuperavel.
+      { type: 'worldState', key: 'activeCriticalRalstoniaCount', operator: '===', value: 0, latch: false },
       { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
     ]}, notes: [],
   },

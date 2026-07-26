@@ -197,9 +197,13 @@ test('a pressao de ferimento soma as fontes de lesao do jogo', () => {
   assert.ok(ralstoniaWoundPressure(root({ rootHealth: .3 })) > .3, 'raiz debilitada tambem');
 });
 
-test('o marcador autoral basta sozinho — a estreia nao depende de outro patogeno', () => {
-  const r = root({ ralstoniaEntryWound: .45, rootHealth: 1 });
-  assert.ok(Math.abs(ralstoniaWoundPressure(r) - .45) < 1e-9);
+test('o marcador autoral NAO fica como maximo eterno da porta', () => {
+  // Antes `ralstoniaWoundPressure` fazia Math.max(root.ralstoniaEntryWound, ...):
+  // a porta ficava travada em .45 para sempre e nem Azospirillum, nem saude, nem
+  // controlar Rhizoctonia/Meloidogyne conseguiam fecha-la. O valor inicial da
+  // estreia agora vive no FOCO (woundOpening) e cicatriza.
+  const r = root({ ralstoniaEntryWound: .45, rootHealth: 1, rootGameplayDamage: 0 });
+  assert.equal(ralstoniaWoundPressure(r), 0, 'raiz integra nao tem porta, marcador legado ou nao');
 });
 
 // ============================================================================
@@ -219,14 +223,14 @@ test('a raiz final e as estruturas nunca recebem foco', () => {
 });
 
 function campoDeDisseminacao() {
-  const origem = root({ id: 'origem', x: 0, w: 200, ralstoniaEntryWound: .5 });
+  const origem = root({ id: 'origem', x: 0, w: 200, rootHealth: .2 });
   return {
     origem,
-    perto: root({ id: 'perto', x: 150, w: 200, ralstoniaEntryWound: .5 }),     // < minimo
-    boa: root({ id: 'boa', x: 500, w: 200, ralstoniaEntryWound: .5 }),          // na faixa
+    perto: root({ id: 'perto', x: 150, w: 200, rootHealth: .2 }),     // < minimo
+    boa: root({ id: 'boa', x: 500, w: 200, rootHealth: .2 }),          // na faixa
     integra: root({ id: 'integra', x: 620, w: 200 }),                            // sem ferida
-    longe: root({ id: 'longe', x: 2000, w: 200, ralstoniaEntryWound: .5 }),      // > maximo
-    finalRoot: root({ id: 'final', x: 560, w: 200, final: true, ralstoniaEntryWound: .9 }),
+    longe: root({ id: 'longe', x: 2000, w: 200, rootHealth: .2 }),      // > maximo
+    finalRoot: root({ id: 'final', x: 560, w: 200, final: true, rootHealth: .1 }),
   };
 }
 
@@ -257,7 +261,7 @@ test('a disseminacao nunca escolhe a raiz final nem uma ja contaminada', () => {
 test('a mesma seed escolhe sempre o mesmo alvo (sem Math.random)', () => {
   const escolher = () => {
     const c = campoDeDisseminacao();
-    const outra = root({ id: 'outra', x: 700, w: 200, ralstoniaEntryWound: .5 });
+    const outra = root({ id: 'outra', x: 700, w: 200, rootHealth: .2 });
     return selectRalstoniaSpreadTarget({
       source: { root: c.origem },
       roots: [c.boa, outra],

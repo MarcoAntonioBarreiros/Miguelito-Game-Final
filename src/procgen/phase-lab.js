@@ -23,6 +23,38 @@ import {
 
 const clone = value => JSON.parse(JSON.stringify(value));
 
+const RALSTONIA_FIELDS = Object.freeze([
+  'maximumFocusCount', 'activationDistance', 'activationGraceSeconds',
+  'vascularEntryThreshold', 'obstructionThreshold', 'criticalThreshold',
+  'containmentHoldSeconds', 'neutralizationHoldSeconds',
+  'woundOpeningRate', 'woundAzospirillumClosureRate', 'woundColonizationLimit',
+  'preventionFocusWoundOpening', 'containmentFocusWoundOpening',
+  'spreadTriggerThreshold', 'spreadWarningSeconds', 'spreadTravelSeconds',
+  'spreadRetrySeconds', 'spreadTargetProtectionThreshold', 'maximumSpreadGeneration',
+]);
+
+const RALSTONIA_LABELS = Object.freeze({
+  maximumFocusCount: 'Máximo de focos',
+  activationDistance: 'Distância de ativação (px)',
+  activationGraceSeconds: 'Graça após ativar (s)',
+  vascularEntryThreshold: 'Limiar de entrada vascular',
+  obstructionThreshold: 'Limiar de obstrução',
+  criticalThreshold: 'Limiar de murcha crítica',
+  containmentHoldSeconds: 'Contenção: hold (s)',
+  neutralizationHoldSeconds: 'Prevenção: hold (s)',
+  woundOpeningRate: 'Porta: taxa de abertura',
+  woundAzospirillumClosureRate: 'Porta: fechamento por Azo',
+  woundColonizationLimit: 'Porta: limite de colonização',
+  preventionFocusWoundOpening: 'Porta inicial (prevenção)',
+  containmentFocusWoundOpening: 'Porta inicial (contenção)',
+  spreadTriggerThreshold: 'Disseminação: limiar vascular',
+  spreadWarningSeconds: 'Disseminação: aviso (s)',
+  spreadTravelSeconds: 'Disseminação: viagem (s)',
+  spreadRetrySeconds: 'Disseminação: retry (s)',
+  spreadTargetProtectionThreshold: 'Disseminação: proteção mínima',
+  maximumSpreadGeneration: 'Disseminação: geração máxima',
+});
+
 const MELOIDOGYNE_FIELDS = Object.freeze([
   'focusSpacingChunks', 'maxFoci', 'maxGenerations',
   'maxSimultaneousEggMasses', 'senescenceSeconds', 'completedCycleScar',
@@ -255,6 +287,9 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
         <label>Senescência (s)<input data-meloidogyne="senescenceSeconds" type="number" min="2" step="2"></label>
         <label>Cicatriz do ciclo<input data-meloidogyne="completedCycleScar" type="number" min="0" max="0.3" step="0.01"></label>
       </div></fieldset>
+      <fieldset><legend>Ralstonia (murcha vascular)</legend><div class="resources">
+        ${RALSTONIA_FIELDS.map(key => `<label>${RALSTONIA_LABELS[key] || key}<input data-ralstonia="${key}" type="number" step="0.01"></label>`).join('')}
+      </div></fieldset>
       <label>Objetivo final <input data-field="finalGoal"></label>
       <label>Condicoes finais (JSON) <textarea data-field="finalConditions"></textarea></label>
       <div class="phase-lab-status" role="status"></div>
@@ -280,8 +315,10 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
       panel.querySelector('[data-field="segments"]').value = JSON.stringify(next.segments, null, 2);
       panel.querySelector('[data-field="finalConditions"]').value = JSON.stringify(next.finalConditions, null, 2);
       panel.querySelector('[data-organisms]').innerHTML = checkboxMarkup(ECOLOGY_ROAMING_TYPES, next.allowedOrganisms || []);
+      // Ralstonia entra na lista: ela ja e uma fase jogavel (fase 9), nao mais
+      // um patogeno excluido do MVP.
       panel.querySelector('[data-pathogens]').innerHTML = checkboxMarkup(
-        PATHOGEN_SYSTEMS.filter(type => type !== 'ralstonia'), next.allowedPathogens || [],
+        PATHOGEN_SYSTEMS, next.allowedPathogens || [],
       );
       for (const key of ['exudates', 'crystals', 'checkpoints']) {
         panel.querySelector(`[data-resource="${key}"]`).value = next.resources?.[key] ?? '';
@@ -309,6 +346,9 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
       }
       for (const key of PHOSPHATE_FIELDS) {
         panel.querySelector(`[data-phosphate="${key}"]`).value = next.phosphateSolubilization?.[key] ?? '';
+      }
+      for (const key of RALSTONIA_FIELDS) {
+        panel.querySelector(`[data-ralstonia="${key}"]`).value = next.ralstonia?.[key] ?? '';
       }
     }
     function read() {
@@ -363,6 +403,14 @@ export function createPhaseLabSession({ windowObject = globalThis.window } = {})
           ...Object.fromEntries(
             PHOSPHATE_FIELDS
               .map(key => [key, Number(panel.querySelector(`[data-phosphate="${key}"]`).value)]),
+          ),
+        },
+        ralstonia: {
+          ...config.ralstonia,
+          ...Object.fromEntries(
+            RALSTONIA_FIELDS
+              .filter(key => panel.querySelector(`[data-ralstonia="${key}"]`).value !== '')
+              .map(key => [key, Number(panel.querySelector(`[data-ralstonia="${key}"]`).value)]),
           ),
         },
         finalGoal: value('finalGoal'),

@@ -10,6 +10,7 @@ import {
   PSEUDOMONAS_IRON_CONTROL_DEFAULTS,
   PHOSPHATE_SOLUBILIZATION_DEFAULTS,
   MELOIDOGYNE_DEFAULTS,
+  RALSTONIA_DEFAULTS,
   campaignManifest,
   getProceduralPoolAt,
   validateCampaignManifest,
@@ -114,6 +115,9 @@ export function createDefaultPhaseLabConfig(phase = 1) {
     },
     meloidogyne: {
       ...(base.meloidogyne || MELOIDOGYNE_DEFAULTS),
+    },
+    ralstonia: {
+      ...(base.ralstonia || RALSTONIA_DEFAULTS),
     },
     finalGoal: base.finalTest.goal,
     finalConditions: clone(base.finalTest.requires),
@@ -230,6 +234,19 @@ export function buildPhaseLabManifest(config) {
     Object.keys(MELOIDOGYNE_DEFAULTS).map(key => [key, Number(meloidogyneInput[key])]),
   );
 
+  // A doenca vascular e o coracao da fase 9: precisa ser calibravel aqui.
+  const ralstoniaInput = config.ralstonia || base.ralstonia || RALSTONIA_DEFAULTS;
+  const ralstonia = Object.fromEntries(
+    Object.keys(RALSTONIA_DEFAULTS).map(key => [
+      key,
+      typeof RALSTONIA_DEFAULTS[key] === 'boolean'
+        ? Boolean(ralstoniaInput[key])
+        : Number.isFinite(Number(ralstoniaInput[key]))
+          ? Number(ralstoniaInput[key])
+          : RALSTONIA_DEFAULTS[key],
+    ]),
+  );
+
   return {
     ...clone(base),
     totalChunks,
@@ -248,6 +265,7 @@ export function buildPhaseLabManifest(config) {
     pseudomonasIronControl,
     phosphateSolubilization,
     meloidogyne,
+    ralstonia,
     finalTest: {
       ...clone(base.finalTest),
       goal: String(config.finalGoal || base.finalTest.goal).trim(),

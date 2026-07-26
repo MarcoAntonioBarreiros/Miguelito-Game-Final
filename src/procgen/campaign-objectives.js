@@ -123,6 +123,15 @@ export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
         progress.attemptId,
       );
 
+      // Condicao AO VIVO: le o AGORA e nunca trava. Sem isso, um requisito do
+      // tipo "nenhum foco critico ativo" nasce satisfeito (no frame 0 a
+      // contagem e zero), trava, e a fase comeca com o objetivo verde.
+      // Aceita as duas grafias: `live: true` e `latch: false`.
+      if (condition.live === true || condition.latch === false) {
+        progress.latchedConditions.delete(conditionId);
+        return { condition, conditionId, actual, passed: currentPassed };
+      }
+
       if (currentPassed) progress.latchedConditions.add(conditionId);
 
       const passed = progress.latchedConditions.has(conditionId) || currentPassed;
