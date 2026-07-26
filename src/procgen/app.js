@@ -1,4 +1,4 @@
-import { generateLevel, enforceTraversableRoute } from './generator.js';
+import { generateLevel, auditTraversableRoute } from './generator.js';
 import { generateCampaignEncounters } from './campaign-encounters.js';
 import { generateUnderdevelopedNitrogenRoots } from './nitrogen-root.js';
 import { generateAzospirillumRootLadders } from './azospirillum-root-growth.js';
@@ -495,14 +495,38 @@ function prepareLevel() {
     config: getPhaseManifest(campaign.phase)?.nitrogenRoot,
   });
   traceGeometry('generateUnderdevelopedNitrogenRoots');
-  // Rede de seguranca global anti-softlock: repara qualquer vao que fique
-  // intransponivel com as habilidades ja desbloqueadas, sem tocar nos desafios
-  // que exigem a mecanica-tema de proposito.
-  enforceTraversableRoute(levelData, {
-    doubleJump: Boolean(campaign.unlocks?.doubleJump),
-    dash: Boolean(campaign.unlocks?.dash),
-  });
-  traceGeometry('enforceTraversableRoute');
+  // O pipeline de campanha NUNCA insere plataformas depois dos desafios. A
+  // traversabilidade e auditada; travessias intencionais sao resolvidas pelas
+  // proprias mecanicas (raiz nitrogenada com FBN, ponte micorrizica, raiz
+  // lateral de Azospirillum, conclusao de bloco autoral).
+  //
+  // Aqui existia `enforceTraversableRoute`, que inseria um degrau `safetyStep`
+  // em qualquer vao que a fisica julgasse impossivel. Como ela rodava DEPOIS de
+  // `generateUnderdevelopedNitrogenRoots`, o vao proposital da raiz nitrogenada
+  // era lido como falha e recebia um bloco solido embaixo da raiz
+  // subdesenvolvida: o portao da FBN ficava atravessavel sem nodulo nenhum.
+  levelData.routeAudit = auditTraversableRoute(
+    levelData,
+    {
+      doubleJump: Boolean(campaign.unlocks?.doubleJump),
+      dash: Boolean(campaign.unlocks?.dash),
+    },
+    {
+      abilitiesUnlockedDuringPhase: Object.fromEntries(
+        (getPhaseManifest(campaign.phase)?.unlockEvents || [])
+          .filter(event => event.feature === 'doubleJump' || event.feature === 'dash')
+          .map(event => [event.feature, true]),
+      ),
+      // Capacidades que as primitivas de salto nao modelam, mas o jogador tem.
+      mycorrhizaStructuresAvailable: Boolean(campaign.unlocks?.mycorrhizaStructures)
+        || (getPhaseManifest(campaign.phase)?.unlockEvents || [])
+          .some(event => event.feature === 'mycorrhizaStructures'),
+      jetpackAvailable: Boolean(campaign.unlocks?.jetpack)
+        || (getPhaseManifest(campaign.phase)?.unlockEvents || [])
+          .some(event => event.feature === 'jetpack'),
+    },
+  );
+  traceGeometry('auditTraversableRoute');
   // Inclui encontros e recursos criados depois do desafio, preservando os
   // offsets capturados antes dele para as entidades que ja existiam.
   routeAnchors.capture();

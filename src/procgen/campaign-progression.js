@@ -140,7 +140,8 @@ function tuningForPhase(phase) {
   if (phase === 9) return { hardChance: .20, enemyChance: .20, skillRequirementChance: .74, comboRequirementChance: .10 };
   // Fase 10 (Ecossistema integrado): gauntlet das mecanicas ja dominadas — mais
   // chunks 'hard' e uma fracao exigindo o combo salto duplo + dash. A rede de
-  // seguranca (enforceTraversableRoute) garante que continua vencivel.
+  // rota e auditada (auditTraversableRoute) sem inserir plataforma nenhuma:
+  // cada travessia intencional e resolvida pela propria mecanica da fase.
   if (phase === 10) return { hardChance: .34, enemyChance: .26, skillRequirementChance: .82, comboRequirementChance: .30 };
   return {
     hardChance: Math.min(.23, .15 + (phase - 4) * .012),

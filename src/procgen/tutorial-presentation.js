@@ -9,7 +9,8 @@ export function platformHasActiveTutorialCollision(platform, state) {
   if (platform.destroyed || platform.removed || platform.disappearing || platform.vanishing) return false;
   if (platform.disabled || platform.enabled === false || platform.active === false) return false;
   if (platform.colliderActive === false || platform.collisionActive === false || platform.solid === false) return false;
-  if (platform.recovery && !platform.safetyStep && state?.recoveryPlatformsDisabled) return false;
+  // Recovery desligada nao e plataforma solida — nem quando marcada safetyStep.
+  if (platform.recovery && state?.recoveryPlatformsDisabled) return false;
   if (platform.mature === false || platform.developed === false) return false;
   return true;
 }

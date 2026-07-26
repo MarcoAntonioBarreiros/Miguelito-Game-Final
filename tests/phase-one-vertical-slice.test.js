@@ -173,6 +173,14 @@ test('portão do módulo abre apenas após ação real e preserva o progresso lo
   assert.equal(intro.completed, true);
   assert.equal(intro.targetPlatform.fixedObjective, false);
 
+  // A raiz de SAIDA do modulo volta a rota na conclusao, nao so depois de morrer.
+  // Antes ela era retirada do array na geracao e devolvida apenas num caminho
+  // muito especifico (morte depois do checkpoint + respawn sobre o alvo). Numa
+  // partida sem morte o chunk ficava ausente e o vao seguinte era intransponivel
+  // — quem cobria isso era o degrau global `safetyStep`, que nao existe mais.
+  assert.equal(intro.recoveryPlatformUnlocked, true, 'concluir o modulo devolve a raiz de saida');
+  assert.equal(state.level.platforms.includes(intro.recoveryPlatform), true);
+
   renderedLabels.length = 0;
   runtime.render(ctx);
   assert.equal(
@@ -190,9 +198,13 @@ test('portão do módulo abre apenas após ação real e preserva o progresso lo
   state.player.alive = false;
   state.gameState = 'respawning';
   runtime.update();
-  assert.equal(intro.recoveryPlatformPending, true);
-  assert.equal(intro.recoveryPlatformUnlocked, false);
-  assert.equal(state.level.platforms.includes(intro.recoveryPlatform), false);
+  // Morrer depois do checkpoint nao muda mais nada: a raiz de saida ja esta la,
+  // e o caminho antigo nao pode duplica-la no array.
+  assert.equal(intro.recoveryPlatformUnlocked, true);
+  assert.equal(
+    state.level.platforms.filter(platform => platform === intro.recoveryPlatform).length, 1,
+    'a raiz de saida entra na rota uma unica vez',
+  );
 
   state.player.x = state.currentCheckpoint.x;
   state.player.y = state.currentCheckpoint.y;
@@ -200,7 +212,9 @@ test('portão do módulo abre apenas após ação real e preserva o progresso lo
   state.gameState = 'play';
   runtime.update();
   assert.equal(intro.recoveryPlatformUnlocked, true);
-  assert.equal(state.level.platforms.includes(intro.recoveryPlatform), true);
+  assert.equal(
+    state.level.platforms.filter(platform => platform === intro.recoveryPlatform).length, 1,
+  );
 
   state.level.biofilms.length = 0;
   state.player.x = intro.gateX + 20;

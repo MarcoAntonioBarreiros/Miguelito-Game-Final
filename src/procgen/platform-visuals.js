@@ -342,7 +342,14 @@ export function createPlatformVisuals({ state }) {
     ctx.translate(-state.cameraX, 0);
     for (const platform of state.level.platforms || []) {
       if (platform.mycorrhizaStructure || platform.azospirillumStructure) continue;
-      if (platform.recovery && !platform.safetyStep && state.recoveryPlatformsDisabled) continue;
+      // Recovery desligada e recovery desligada, sem excecao. A versao anterior
+      // tinha `&& !platform.safetyStep`, e por isso um degrau da antiga rede
+      // anti-softlock continuava visivel mesmo com o toggle ativo. Defesa contra
+      // niveis salvos antigos, uso do Phase Lab e residuos.
+      //
+      // Uma recovery PROMOVIDA (ex.: hospedeiro da escada de Azospirillum)
+      // recebe `recovery = false` e por isso continua aqui, visivel e normal.
+      if (platform.recovery && state.recoveryPlatformsDisabled) continue;
 
       if (platform.type === 'soil') drawSoil(ctx, platform);
       else drawRootVisual(ctx, platform);

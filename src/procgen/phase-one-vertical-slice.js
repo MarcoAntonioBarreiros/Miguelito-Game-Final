@@ -165,11 +165,42 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
     return 'complete o objetivo ecológico indicado';
   }
 
+  // A raiz de saida do bloco autoral (chunk final de p1-intro) e retirada do
+  // array na geracao e devolvida AQUI, quando o modulo e concluido.
+  //
+  // Antes ela so voltava numa situacao muito especifica (morrer depois do
+  // checkpoint e renascer sobre o alvo). Numa partida sem morte o chunk ficava
+  // ausente e o vao de ~415px entre a saida do bloco e a plataforma seguinte era
+  // intransponivel — quem cobria isso silenciosamente era o degrau global
+  // `safetyStep`, que agora nao existe mais. O portao passa a ser resolvido pela
+  // propria mecanica da fase: concluiu o modulo, a raiz de saida cresce.
+  function unlockRecoveryPlatform(block, mensagem) {
+    if (!block.recoveryPlatform || block.recoveryPlatformUnlocked) return;
+    block.recoveryPlatformUnlocked = true;
+    block.recoveryPlatformPending = false;
+    if (!state.level.platforms.includes(block.recoveryPlatform)) {
+      state.level.platforms.push(block.recoveryPlatform);
+      state.level.platforms.sort((left, right) => left.x - right.x);
+    }
+    if (mensagem) {
+      state.toast = mensagem;
+      state.toastTime = 5.2;
+    }
+    entities.burst(
+      block.recoveryPlatform.x + block.recoveryPlatform.w / 2,
+      block.recoveryPlatform.y - 18,
+      '#ffd56f',
+      30,
+      145,
+    );
+  }
+
   function completeBlock(block) {
     block.completed = true;
     block.completedAt = state.time;
     block.deathsAtCompletion = state.player.deaths || 0;
     block.targetPlatform.fixedObjective = false;
+    unlockRecoveryPlatform(block, null);
     state.toast = block.kind === 'final'
       ? 'Prova final concluída: a raiz de saída recebeu um biofilme funcional.'
       : 'Módulo concluído: recrutamento, inoculação e biofilme confirmados.';
@@ -206,20 +237,9 @@ export function createFixedBlockRuntime({ state, evaluator, entities, ecology = 
       && Math.hypot(state.player.x - checkpoint.x, state.player.y - checkpoint.y) < 110;
     if (!respawnedAtCheckpoint || !checkpointIsOnTarget(block)) return;
 
-    block.recoveryPlatformUnlocked = true;
-    block.recoveryPlatformPending = false;
-    if (!state.level.platforms.includes(block.recoveryPlatform)) {
-      state.level.platforms.push(block.recoveryPlatform);
-      state.level.platforms.sort((left, right) => left.x - right.x);
-    }
-    state.toast = 'Checkpoint demonstrado: uma raiz de apoio surgiu para a segunda tentativa.';
-    state.toastTime = 5.2;
-    entities.burst(
-      block.recoveryPlatform.x + block.recoveryPlatform.w / 2,
-      block.recoveryPlatform.y - 18,
-      '#ffd56f',
-      30,
-      145,
+    unlockRecoveryPlatform(
+      block,
+      'Checkpoint demonstrado: uma raiz de apoio surgiu para a segunda tentativa.',
     );
   }
 

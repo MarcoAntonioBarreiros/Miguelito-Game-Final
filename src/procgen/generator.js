@@ -354,6 +354,19 @@ function anyPrimitivePasses(from, to, prims) {
   return prims.some(p => validateChunk(from, to, p, 'normal'));
 }
 
+// Igual ao anterior, mas com CÓPIAS das plataformas.
+//
+// `validateChunk` monta um mini-nível com os objetos que recebe e roda o
+// simulador de verdade sobre eles — e o simulador mexe em campos das plataformas
+// (a saúde radicular afunda a raiz, por exemplo). Passar os objetos reais fazia a
+// checagem deslocar o `y` das plataformas auditadas. Numa AUDITORIA isso é
+// inaceitável: ela precisa olhar sem tocar.
+function anyPrimitivePassesReadOnly(from, to, prims) {
+  const copyFrom = { ...from };
+  const copyTo = { ...to };
+  return prims.some(p => validateChunk({ ...copyFrom }, { ...copyTo }, p, 'normal'));
+}
+
 function isThemedCrossing(prev, next) {
   return Boolean(
     next.signatureChallenge
@@ -386,7 +399,7 @@ export function isInsideAzospirillumChallengeCorridor(level, previous, next) {
   return inside(previous) && inside(next);
 }
 
-function buildSafetyStep(prev, next, prims, logicIndex) {
+function buildDebugSafetyStep(prev, next, prims, logicIndex) {
   const previousEnd = prev.x + prev.w;
   const gap = next.x - previousEnd;
   const width = clamp(gap * .5, 96, 150);
@@ -414,35 +427,181 @@ function buildSafetyStep(prev, next, prims, logicIndex) {
   return null;
 }
 
-export function enforceTraversableRoute(level, abilities = {}) {
+
+// Travessia INTENCIONAL: o vão existe porque a mecânica da fase o criou, e a
+// própria mecânica o resolve. Reconhecida por METADADOS, nunca por número de fase.
+//
+// Reconhece:
+//   - portão da raiz nitrogenada (fase 2 e onde mais nitrogenRoot aparecer);
+//   - corredor obrigatório de Azospirillum;
+//   - ponte micorrízica e sua estreia;
+//   - desafios-assinatura;
+//   - portões de fósforo;
+//   - blocos autorais (fase 1, tutoriais das fases 5 e 6);
+//   - estruturas que só surgem depois de uma ação biológica.
+export function isIntentionalDynamicCrossing(level, previous, next) {
+  if (isThemedCrossing(previous, next)) {
+    return { mechanic: 'themedCrossing', expectedBlockedUntilDeveloped: false };
+  }
+  if (isInsideAzospirillumChallengeCorridor(level, previous, next)) {
+    return { mechanic: 'azospirillumCorridor', expectedBlockedUntilDeveloped: true };
+  }
+
+  // Portão da raiz nitrogenada: a plataforma-alvo foi REMOVIDA de propósito e só
+  // a própria raiz, ao se desenvolver com FBN, devolve a passagem. Casa pelos
+  // metadados registrados em `level.nitrogenRoots`.
+  for (const root of level.nitrogenRoots || []) {
+    const gapStart = root.leftPlatform.x + root.leftPlatform.w;
+    const gapEnd = root.rightPlatform.x;
+    const relacionado = (
+      (previous === root.leftPlatform && next === root.rightPlatform)
+      || previous === root.targetPlatform || next === root.targetPlatform
+      || (previous.x + previous.w <= gapEnd && next.x >= gapStart)
+      || previous.logicIndex === root.hostLogicIndex
+      || next.logicIndex === root.targetLogicIndex
+    );
+    if (relacionado) {
+      return {
+        mechanic: 'nitrogenRoot',
+        expectedBlockedUntilDeveloped: true,
+        nitrogenRootId: root.id,
+        blockedGapWidth: root.blockedGapWidth,
+      };
+    }
+  }
+
+  // Blocos autorais (fase 1 e tutoriais autorais): a saída do bloco é liberada
+  // pela própria conclusão do módulo, não por um degrau global.
+  for (const block of level.fixedBlocks || []) {
+    if (!block.recoveryPlatform) continue;
+    if (previous === block.targetPlatform || previous.fixedBlockId === block.id
+      || next.fixedBlockId === block.id
+      || (block.recoveryPlatform.logicIndex === next.logicIndex - 1
+        && previous.logicIndex <= block.recoveryPlatform.logicIndex)) {
+      return {
+        mechanic: 'fixedBlockExit',
+        expectedBlockedUntilDeveloped: true,
+        fixedBlockId: block.id,
+      };
+    }
+  }
+  if (previous.authored || next.authored
+    || previous.authoredPhaseFive || next.authoredPhaseFive
+    || previous.authoredPhaseSix || next.authoredPhaseSix
+    || previous.fungalChallenge || next.fungalChallenge
+    || previous.phosphateGate || next.phosphateGate) {
+    return { mechanic: 'authoredGeometry', expectedBlockedUntilDeveloped: false };
+  }
+  return null;
+}
+
+// AUDITORIA da rota. NÃO modifica nada: não cria plataforma, não muda x/y/w/h,
+// não toca em checkpoints, recursos ou RNG. Só olha e relata.
+//
+// Substitui a antiga `enforceTraversableRoute`, que inseria um degrau
+// (`safetyStep`) dentro de qualquer vão que a física julgasse impossível — e por
+// isso preenchia justamente os portões intencionais, como o da raiz nitrogenada
+// subdesenvolvida da fase 2.
+export function auditTraversableRoute(level, abilities = {}, options = {}) {
+  const result = { ordinaryFailures: [], intentionalCrossings: [], warnings: [] };
   const prims = executablePrimitives(level, abilities);
-  if (!prims.length) return [];
+  if (!prims.length) {
+    result.warnings.push({ reason: 'noExecutablePrimitives' });
+    return result;
+  }
+  // Habilidades liberadas DURANTE a fase: um vão depois do desbloqueio não é
+  // falha. A rotina antiga só recebia os unlocks do início e por isso lia como
+  // impossível um trecho que o jogador atravessaria mais tarde.
+  const grantedDuring = options.abilitiesUnlockedDuringPhase || {};
+  const primsAfterUnlock = Object.keys(grantedDuring).length
+    ? executablePrimitives(level, { ...abilities, ...grantedDuring })
+    : prims;
+
   const route = (level.platforms || [])
     .filter(p => !p.recovery && !p.final && Number.isInteger(p.logicIndex) && p.logicIndex >= 0)
     .sort((a, b) => a.logicIndex - b.logicIndex || a.x - b.x);
-  const inserted = [];
+
   for (let i = 1; i < route.length; i++) {
-    const prev = route[i - 1];
+    const previous = route[i - 1];
     const next = route[i];
-    if (next.x <= prev.x + prev.w) continue;
-    if (isThemedCrossing(prev, next)) continue;
-    if (isInsideAzospirillumChallengeCorridor(level, prev, next)) continue;
-    // Só um degrau REALMENTE sólido conta como "já resolvido". As plataformas de
-    // recuperação decorativas nascem desligadas (não sustentam ninguém), então
-    // deixá-las contar aqui esconderia uma travessia impossível — a rede
-    // anti-softlock acharia que o vão já tinha apoio e não inseriria nada.
-    const alreadyStepped = (level.platforms || []).some(p => (
-      p.safetyStep
-      && p.x + p.w / 2 > prev.x + prev.w
-      && p.x + p.w / 2 < next.x
-    ));
-    if (alreadyStepped) continue;
-    if (anyPrimitivePasses(prev, next, prims)) continue;
-    const step = buildSafetyStep(prev, next, prims, next.logicIndex);
-    if (step) {
-      level.platforms.push(step);
-      inserted.push(step);
+    if (next.x <= previous.x + previous.w) continue;
+    if (anyPrimitivePassesReadOnly(previous, next, prims)) continue;
+
+    const base = {
+      previousPlatformId: previous.id ?? null,
+      nextPlatformId: next.id ?? null,
+      previousLogicIndex: previous.logicIndex,
+      nextLogicIndex: next.logicIndex,
+      gapWidth: Math.round(next.x - (previous.x + previous.w)),
+    };
+
+    const intentional = isIntentionalDynamicCrossing(level, previous, next);
+    if (intentional) {
+      result.intentionalCrossings.push({ ...base, reason: 'intentionalMechanic', ...intentional });
+      continue;
     }
+    if (primsAfterUnlock !== prims && anyPrimitivePassesReadOnly(previous, next, primsAfterUnlock)) {
+      result.intentionalCrossings.push({
+        ...base,
+        reason: 'passableAfterInPhaseUnlock',
+        mechanic: 'inPhaseUnlock',
+        expectedBlockedUntilDeveloped: true,
+      });
+      continue;
+    }
+    // Capacidades do jogador que o conjunto de primitivas NÃO modela.
+    //
+    // As primitivas cobrem salto, salto duplo e dash. Mas a partir da fase 4 o
+    // jogador constrói PONTES MICORRÍZICAS sobre vãos, e a partir da fase 5 tem a
+    // Propulsão da Rizósfera. Um vão pensado para uma dessas duas é lido como
+    // impossível por uma checagem que só conhece pulos — e era esse falso
+    // negativo que a rotina antiga "resolvia" enfiando um degrau no meio.
+    if (options.mycorrhizaStructuresAvailable) {
+      result.intentionalCrossings.push({
+        ...base,
+        reason: 'bridgeableByPlayer',
+        mechanic: 'mycorrhizaBridge',
+        expectedBlockedUntilDeveloped: true,
+      });
+      continue;
+    }
+    if (options.jetpackAvailable) {
+      result.intentionalCrossings.push({
+        ...base,
+        reason: 'passableWithPropulsion',
+        mechanic: 'jetpack',
+        expectedBlockedUntilDeveloped: false,
+      });
+      continue;
+    }
+    result.ordinaryFailures.push({ ...base, reason: 'impassableOrdinaryGap', mechanic: null });
+  }
+  return result;
+}
+
+// FERRAMENTA DE DEPURAÇÃO. Insere degraus dentro de vãos impossíveis.
+//
+// NUNCA é chamada no gameplay normal, no build publicado nem na campanha: era
+// exatamente essa inserção pós-desafio que colocava um bloco embaixo da raiz
+// nitrogenada subdesenvolvida da fase 2 e neutralizava o portão da FBN. Existe
+// só para o Phase Lab, para inspecionar um vão suspeito sem regenerar a fase.
+export function insertDebugSafetySteps(level, abilities = {}) {
+  const prims = executablePrimitives(level, abilities);
+  if (!prims.length) return [];
+  const audit = auditTraversableRoute(level, abilities);
+  const inserted = [];
+  const route = (level.platforms || [])
+    .filter(p => !p.recovery && !p.final && Number.isInteger(p.logicIndex) && p.logicIndex >= 0)
+    .sort((a, b) => a.logicIndex - b.logicIndex || a.x - b.x);
+
+  for (const failure of audit.ordinaryFailures) {
+    const previous = route.find(p => p.logicIndex === failure.previousLogicIndex);
+    const next = route.find(p => p.logicIndex === failure.nextLogicIndex);
+    if (!previous || !next) continue;
+    const step = buildDebugSafetyStep(previous, next, prims, next.logicIndex);
+    if (!step) continue;
+    level.platforms.push(step);
+    inserted.push(step);
   }
   if (inserted.length) {
     level.safetySteps = [...(level.safetySteps || []), ...inserted];

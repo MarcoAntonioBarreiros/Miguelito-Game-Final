@@ -24,7 +24,7 @@ import {
   decorateCampaignLevel,
   prepareCampaignGeneration,
 } from '../src/procgen/campaign-progression.js';
-import { enforceTraversableRoute, generateLevel } from '../src/procgen/generator.js';
+import { auditTraversableRoute, generateLevel } from '../src/procgen/generator.js';
 import { generateUnderdevelopedNitrogenRoots } from '../src/procgen/nitrogen-root.js';
 import { generateAzospirillumRootLadders } from '../src/procgen/azospirillum-root-growth.js';
 import { applySignatureChallenge } from '../src/procgen/signature-challenge.js';
@@ -1028,7 +1028,7 @@ function gerarFaseNove(seedName) {
     encounters: level.microbeEncounters,
     config: getPhaseManifest(campaign.phase).nitrogenRoot,
   });
-  enforceTraversableRoute(level, {
+  auditTraversableRoute(level, {
     doubleJump: Boolean(campaign.unlocks.doubleJump),
     dash: Boolean(campaign.unlocks.dash),
   });

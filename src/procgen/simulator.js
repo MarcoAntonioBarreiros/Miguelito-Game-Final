@@ -89,13 +89,19 @@ export function createSimulator() {
     cameraX: 0,
     shake: 0,
     respawnTimer: 0,
-    // Plataformas de segurança desligadas DE VEZ: as plataforminhas decorativas
-    // no fundo dos vãos não aparecem nem sustentam. O jogador pediu para
-    // tirá-las; a tecla T ainda permite religá-las para depuração.
+    // Plataformas de recuperação desligadas DE VEZ: as plataforminhas
+    // decorativas no fundo dos vãos não aparecem nem sustentam. O jogador pediu
+    // para tirá-las; a tecla T ainda permite religá-las para depuração.
     //
-    // Os degraus de enforceTraversableRoute (safetyStep) NÃO obedecem a este
-    // estado: eles só existem onde a física provou que a travessia seria
-    // impossível, e as fases 3 e 4 precisam continuar vencíveis sem a mochila.
+    // Não existe exceção: toda plataforma com `recovery === true` fica inativa,
+    // inclusive um eventual `safetyStep` residual. O pipeline de campanha não
+    // cria mais nenhum, e as travessias intencionais das fases 1–4 são
+    // resolvidas pelas próprias mecânicas (conclusão do bloco autoral, FBN na
+    // raiz nitrogenada, ponte micorrízica, raiz lateral de Azospirillum).
+    //
+    // Uma recovery promovida por uma mecânica recebe `recovery = false` e volta
+    // a ser desenhada e sólida — é assim que o hospedeiro da escada de
+    // Azospirillum continua funcionando.
     recoveryPlatformsDisabled: true,
   };
 

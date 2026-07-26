@@ -13,7 +13,7 @@ import {
   prepareCampaignGeneration,
 } from '../src/procgen/campaign-progression.js';
 import {
-  enforceTraversableRoute,
+  auditTraversableRoute,
   generateLevel,
 } from '../src/procgen/generator.js';
 import {
@@ -36,7 +36,7 @@ const STAGES = [
   'applySignatureChallenge',
   'generateAzospirillumRootLadders',
   'generateUnderdevelopedNitrogenRoots',
-  'enforceTraversableRoute',
+  'auditTraversableRoute',
 ];
 
 function route(level) {
@@ -117,11 +117,11 @@ function prepareRealPhaseThree({ injectLogicAnchoredEntity = false } = {}) {
   });
   recordRouteGeometryStage(level, 'generateUnderdevelopedNitrogenRoots');
 
-  enforceTraversableRoute(level, {
+  auditTraversableRoute(level, {
     doubleJump: Boolean(campaign.unlocks.doubleJump),
     dash: Boolean(campaign.unlocks.dash),
   });
-  recordRouteGeometryStage(level, 'enforceTraversableRoute');
+  recordRouteGeometryStage(level, 'auditTraversableRoute');
   anchors.capture();
   anchors.synchronize();
 
@@ -159,7 +159,7 @@ test('Azo nao altera y da rota e nao cria queda artificial depois do desafio', (
 
   const challenge = level.signatureChallenge;
   const signature = snapshotByStage(level, 'applySignatureChallenge');
-  const final = snapshotByStage(level, 'enforceTraversableRoute');
+  const final = snapshotByStage(level, 'auditTraversableRoute');
   const targetAtSignature = signature.get(challenge.chunk);
   const nextAtSignature = signature.get(challenge.chunk + 1);
   const targetAtEnd = final.get(challenge.chunk);
@@ -175,7 +175,7 @@ test('nenhuma plataforma normal restante muda de y apos applySignatureChallenge'
   for (const stage of [
     'generateAzospirillumRootLadders',
     'generateUnderdevelopedNitrogenRoots',
-    'enforceTraversableRoute',
+    'auditTraversableRoute',
   ]) {
     const current = snapshotByStage(level, stage);
     for (const [logicIndex, platform] of current) {

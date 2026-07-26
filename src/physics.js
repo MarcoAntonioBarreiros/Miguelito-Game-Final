@@ -321,11 +321,12 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
     player.supportPlatform = null;
     player.y += player.vy * dt;
     for (const p of level.platforms) {
-      // Toggle das plataformas de seguranca: quando desligadas, deixam de ser
-      // solidas (o jogador passa direto por elas) sem regenerar a fase.
-      // O toggle nunca derruba os degraus da rede anti-softlock (safetyStep):
-      // eles so existem onde a fisica provou que a travessia seria impossivel.
-      if (p.recovery && !p.safetyStep && state.recoveryPlatformsDisabled) continue;
+      // Toggle das plataformas de recuperacao: quando desligadas, deixam de ser
+      // solidas (o jogador passa direto por elas) sem regenerar a fase. Sem
+      // excecao — o `&& !p.safetyStep` que existia aqui mantinha solido um
+      // degrau da antiga rede anti-softlock. Uma recovery promovida recebe
+      // `recovery = false` e volta a sustentar normalmente.
+      if (p.recovery && state.recoveryPlatformsDisabled) continue;
       if (p.mycorrhizaStructure || p.oneWay) {
         const previousFeet = prevY + player.h;
         const currentFeet = player.y + player.h;

@@ -13,7 +13,8 @@ import {
   prepareCampaignGeneration,
 } from '../src/procgen/campaign-progression.js';
 import {
-  enforceTraversableRoute,
+  auditTraversableRoute,
+  insertDebugSafetySteps,
   generateLevel,
   isInsideAzospirillumChallengeCorridor,
 } from '../src/procgen/generator.js';
@@ -72,7 +73,7 @@ function prepareFaseTres(seedName, { withAnchors = false } = {}) {
     config: getPhaseManifest(campaign.phase).nitrogenRoot,
   });
 
-  const safetySteps = enforceTraversableRoute(level, {
+  const safetySteps = insertDebugSafetySteps(level, {
     doubleJump: Boolean(campaign.unlocks.doubleJump),
     dash: Boolean(campaign.unlocks.dash),
   });
@@ -365,9 +366,9 @@ test('fixture: plataforma de recuperacao nao cria bypass — ela nasce desligada
   );
 });
 
-// --- FASE 12: enforceTraversableRoute nao insere degrau no corredor -----------
+// --- FASE 12: a ferramenta de debug nao insere degrau no corredor ------------
 
-test('enforceTraversableRoute nao insere degrau de seguranca dentro do corredor', () => {
+test('insertDebugSafetySteps nao insere degrau de seguranca dentro do corredor', () => {
   for (let s = 0; s < 30; s++) {
     const { level, safetySteps } = prefixo(s);
     const c = level.azospirillumChallenge;
