@@ -221,18 +221,47 @@ export const organismTutorialCards = {
     'Rs',
     '#e8c27e',
     [
-      page('Quem é?', 'Ralstonia representa o complexo de espécies associado à murcha bacteriana de numerosas plantas hospedeiras.'),
       page(
-        'Função biológica',
-        'A bactéria entra principalmente pelas raízes e ferimentos, alcança o xilema, multiplica-se e contribui para a obstrução do transporte de água.',
+        'Contaminação e ferimentos',
+        'Ralstonia é uma BACTÉRIA — o complexo de espécies associado à murcha bacteriana. Ela sobrevive no solo e na água e não perfura uma raiz íntegra: entra por ferimentos.',
+        [
+          'Lesões de nematoide e feridas de Rhizoctonia abrem a porta.',
+          'Por ser bactéria, Trichoderma não é o controle apropriado — ele age sobre fungos.',
+          'Enquanto está só na superfície, ainda dá para impedir a entrada.',
+        ],
       ),
       page(
-        'Função no jogo',
-        'A infecção reduz transporte, carbono, nutrição, FBN e estabilidade. Em estágio crítico, a raiz pode ceder e ferir Miguelito.',
+        'Entrada e colonização do xilema',
+        'Alcançando o xilema, a bactéria se multiplica dentro dos vasos condutores. Esse é o ponto sem volta: a partir dele não existe cura no jogo.',
+        [
+          'A entrada acontece uma vez; depois dela o objetivo muda.',
+          'A carga vascular pode ser reduzida, mas nunca volta a zero.',
+        ],
       ),
       page(
-        'Como controlar',
-        'A prevenção precoce com Bacillus e Pseudomonas é mais eficiente. Depois da colonização vascular, o controle apenas desacelera a doença.',
+        'Obstrução e murcha',
+        'A massa bacteriana e seus exopolissacarídeos entopem o vaso. A água para de subir e a raiz murcha — não por falta de água no solo, mas por encanamento obstruído.',
+        [
+          'Transporte menor derruba FBN, recuperação e estabilidade.',
+          'Em murcha crítica a raiz cede e pode ferir Miguelito.',
+        ],
+      ),
+      page(
+        'Prevenção e contenção',
+        'Prevenir é muito mais eficiente do que remediar. Bacillus e Pseudomonas fazem coisas diferentes, e as duas ajudam nas duas etapas.',
+        [
+          'Bacillus: barreira LOCAL sobre o ferimento — impede a entrada.',
+          'Pseudomonas: supressão e contenção — segura o avanço no xilema.',
+          'Conter não é eliminar: a raiz segue infectada, porém funcional.',
+        ],
+      ),
+      page(
+        'Disseminação e bloqueio',
+        'Uma raiz muito colonizada extravasa bactéria e pode contaminar outra raiz ferida por perto. A chegada é anunciada antes de acontecer.',
+        [
+          'Só raiz com ferimento aberto é contaminada.',
+          'Proteger o alvo durante o aviso bloqueia a disseminação.',
+        ],
       ),
     ],
     ['Sobrevivência no ambiente', 'Entrada pela raiz', 'Colonização do xilema', 'Multiplicação', 'Murcha', 'Disseminação'],

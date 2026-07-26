@@ -113,7 +113,9 @@ export function updateContextPanel(state, nearbyRoot, contextDiv, sim) {
       mobileGaugesHtml += circularGaugeMarkup({ label: 'Antibiose', symbol: 'A', valueText: `${Math.round(aPct)}%`, pct: aPct, color: '#b9f36f' });
     }
 
-    if (phase >= 9) {
+    // Qualidade Ecologica e o objetivo do ecossistema integrado, que agora e a
+    // fase 10 — na fase 9 (Ralstonia) o painel fala de transporte vascular.
+    if (phase >= 10) {
       const score = Math.round(Number(s.level?.ecologicalScore || 0) * 100);
       html += `
         <div class="context-item" style="margin-top: 10px; border-top: 1px solid rgba(126,214,205,0.3); padding-top: 6px;">

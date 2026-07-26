@@ -134,10 +134,14 @@ function tuningForPhase(phase) {
   if (phase === 1) return { hardChance: .08, enemyChance: .12, skillRequirementChance: .56, comboRequirementChance: 0 };
   if (phase === 2) return { hardChance: .10, enemyChance: .14, skillRequirementChance: .60, comboRequirementChance: 0 };
   if (phase === 3) return { hardChance: .14, enemyChance: .18, skillRequirementChance: .68, comboRequirementChance: 0 };
-  // Fase 9 (Ecossistema integrado): gauntlet das mecanicas ja dominadas — mais
+  // Fase 9 (Ralstonia): a dificuldade esta na DOENCA, nao na plataforma. Se a
+  // travessia tambem virasse gauntlet, o jogador erraria o pulo em vez de
+  // aprender prevencao — entao ela fica proxima do ritmo das fases anteriores.
+  if (phase === 9) return { hardChance: .20, enemyChance: .20, skillRequirementChance: .74, comboRequirementChance: .10 };
+  // Fase 10 (Ecossistema integrado): gauntlet das mecanicas ja dominadas — mais
   // chunks 'hard' e uma fracao exigindo o combo salto duplo + dash. A rede de
   // seguranca (enforceTraversableRoute) garante que continua vencivel.
-  if (phase === 9) return { hardChance: .34, enemyChance: .26, skillRequirementChance: .82, comboRequirementChance: .30 };
+  if (phase === 10) return { hardChance: .34, enemyChance: .26, skillRequirementChance: .82, comboRequirementChance: .30 };
   return {
     hardChance: Math.min(.23, .15 + (phase - 4) * .012),
     enemyChance: Math.min(.28, .18 + (phase - 4) * .01),

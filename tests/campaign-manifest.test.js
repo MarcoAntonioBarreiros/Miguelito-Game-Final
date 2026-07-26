@@ -22,9 +22,14 @@ const cloneManifest = () => JSON.parse(JSON.stringify(campaignManifest));
 
 test('manifesto completo valida contra os cartões reais', () => {
   assert.deepEqual(validateCampaignManifest({ knownCardIds: tutorialCardIds }), []);
-  assert.equal(campaignManifest.length, 10);
+  // 11 entradas: prologo (0) + fases 1..10. A Ralstonia ganhou fase propria (9)
+  // e o ecossistema integrado passou a ser a fase 10.
+  assert.equal(campaignManifest.length, 11);
   assert.equal(getPhaseManifest(0)?.id, 'prologue');
   assert.equal(getPhaseManifest(9)?.id, 'phase-9');
+  assert.equal(getPhaseManifest(9)?.title, 'Ralstonia e murcha vascular');
+  assert.equal(getPhaseManifest(10)?.id, 'phase-10');
+  assert.equal(getPhaseManifest(10)?.title, 'Ecossistema integrado');
 });
 
 test('segmentos cobrem os chunks e expõem o modo tutorial esperado', () => {
@@ -53,12 +58,27 @@ test('unlock do chunk N só fica disponível a partir do chunk N+1', () => {
   assert.equal(getAvailableUnlocksAt(7, 4).phosphateSolubilization, true);
 });
 
-test('Ralstonia permanece fora do MVP', () => {
-  for (let phase = 0; phase <= 9; phase++) {
+test('Ralstonia so aparece depois de ter fase propria', () => {
+  // A regra deixou de ser "nunca aparece" e passou a ser "nao aparece antes de
+  // ser ensinada": ate a fase 8 nenhuma ocorrencia; na 9 (fase dela) so a partir
+  // do chunk de estreia; na 10 (integrada) desde o inicio, porque ja foi
+  // ensinada.
+  for (let phase = 0; phase <= 8; phase++) {
     for (let chunk = 0; chunk < 40; chunk++) {
-      assert.equal(getPathogensAt(phase, chunk).includes('ralstonia'), false);
+      assert.equal(
+        getPathogensAt(phase, chunk).includes('ralstonia'), false,
+        `fase ${phase}, chunk ${chunk}: Ralstonia antes de ser ensinada`,
+      );
     }
   }
+
+  const estreia = getPhaseManifest(9).pathogenDebuts.find(d => d.pathogen === 'ralstonia').fromChunk;
+  assert.ok(estreia > 0, 'a estreia nao pode ser no primeiro chunk: o warmup vem antes');
+  for (let chunk = 0; chunk < estreia; chunk++) {
+    assert.equal(getPathogensAt(9, chunk).includes('ralstonia'), false, `fase 9, chunk ${chunk}`);
+  }
+  assert.equal(getPathogensAt(9, estreia).includes('ralstonia'), true, 'estreia na fase 9');
+  assert.equal(getPathogensAt(10, 0).includes('ralstonia'), true, 'fase 10 ja comeca com ela');
 });
 
 test('primeiro encontro é proximidade, não criação distante', () => {

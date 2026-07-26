@@ -40,8 +40,16 @@ test('a travessia de combo vence um vao alto E largo que o salto comum nao vence
   );
 });
 
-test('a fase 9 habilita combos integrados e e mais dificil', () => {
-  const profile = getPhaseProfile({ phase: 9, unlocks: { doubleJump: true, dash: true } });
-  assert.ok(profile.comboRequirementChance > 0, 'a fase 9 precisa pedir combos');
-  assert.ok(profile.hardChance >= 0.3, 'a fase 9 e o gauntlet integrado');
+test('a fase 10 habilita combos integrados e e mais dificil', () => {
+  // O gauntlet integrado passou a ser a fase 10: a 9 agora e a fase didatica da
+  // Ralstonia, onde a dificuldade esta na doenca e nao na travessia.
+  const profile = getPhaseProfile({ phase: 10, unlocks: { doubleJump: true, dash: true } });
+  assert.ok(profile.comboRequirementChance > 0, 'a fase 10 precisa pedir combos');
+  assert.ok(profile.hardChance >= 0.3, 'a fase 10 e o gauntlet integrado');
+
+  const ralstonia = getPhaseProfile({ phase: 9, unlocks: { doubleJump: true, dash: true } });
+  assert.ok(
+    ralstonia.hardChance < profile.hardChance,
+    'a fase da Ralstonia nao pode ser mais dura de plataforma que o gauntlet',
+  );
 });

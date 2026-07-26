@@ -33,7 +33,39 @@ export const PRESENTATION_POLICIES = Object.freeze([
 ]);
 export const SEGMENT_KINDS = Object.freeze(['fixed', 'procedural', 'final']);
 export const DERIVED_TRIGGER_BEHAVIORS = Object.freeze(['guide-only', 'open-in-guided']);
-export const MVP_EXCLUDED_PATHOGENS = Object.freeze(['ralstonia']);
+// Ralstonia saiu da exclusao: ela tem fase propria (fase 9) e entra no
+// ecossistema integrado (fase 10). A lista continua existindo para qualquer
+// patogeno futuro que ainda nao tenha fase didatica.
+export const MVP_EXCLUDED_PATHOGENS = Object.freeze([]);
+// Murcha vascular bacteriana. Os limiares separam as duas licoes da fase: abaixo
+// de vascularEntryThreshold ainda da para PREVENIR (o foco pode ser
+// neutralizado); a partir dele so resta CONTER — a carga nunca volta a zero.
+export const RALSTONIA_DEFAULTS = Object.freeze({
+  enabled: true,
+
+  maximumFocusCount: 3,
+  maximumSpreadEventsPerFocus: 1,
+
+  surfaceNeutralizationThreshold: 0.045,
+  vascularEntryThreshold: 0.08,
+  vascularColonizationThreshold: 0.30,
+  obstructionThreshold: 0.58,
+  criticalThreshold: 0.82,
+
+  containmentHoldSeconds: 4,
+  neutralizationHoldSeconds: 2.5,
+
+  minimumVascularFloorAfterEntry: 0.12,
+  maximumSpreadDistance: 850,
+  minimumSpreadDistance: 260,
+  spreadWarningSeconds: 4.5,
+
+  introductoryFocusSurfaceLoad: 0.20,
+  introductoryVascularLoad: 0,
+  containmentFocusSurfaceLoad: 0.24,
+  containmentFocusVascularLoad: 0.13,
+});
+
 export const NITROGEN_ROOT_DEFAULTS = Object.freeze({
   enabled: true,
   count: 1,
@@ -120,6 +152,10 @@ export const PRESENTATION_TRIGGER_CHAINS = Object.freeze({
   'organism-rhizoctonia': Object.freeze([
     'organism-rhizoctonia', 'process-root-health', 'process-root-recovery', 'process-root-collapse',
   ]),
+  'organism-ralstonia': Object.freeze([
+    'organism-ralstonia', 'process-ralstonia-entry', 'process-vascular-obstruction',
+    'process-ralstonia-containment', 'process-ralstonia-spread',
+  ]),
   'organism-meloidogyne-j2': Object.freeze(['organism-meloidogyne-j2', 'structure-gall']),
   'organism-meloidogyne-female': Object.freeze(['organism-meloidogyne-female', 'structure-egg-mass']),
 });
@@ -133,6 +169,10 @@ export const FINAL_TEST_KEYS = Object.freeze({
     'functionalMycorrhizaPathCount', 'pseudomonasIronReserve',
     'neutralizedOpportunisticFungusCount', 'neutralizedRhizoctoniaCount', 'recoveredRootCount', 'brokenCrystalCount',
     'neutralizedEggMassCount', 'preservedRootCount', 'ecologicalScore',
+    // Fase 9 (Ralstonia): prevencao, contencao, murcha critica e disseminacao.
+    'preventedRalstoniaEntryCount', 'containedVascularRalstoniaCount',
+    'activeCriticalRalstoniaCount', 'blockedRalstoniaSpreadCount',
+    'averageVascularTransport', 'preservedVascularRootCount',
     'deployedExudateCount', 'bacillusColonyCount',
     'opportunisticFungusVigor', 'solubilizedPhosphateDepositCount',
     'mycorrhizalPhosphateTransported', 'rootPhosphateStock',
@@ -608,9 +648,97 @@ const phases = [
     ]}, notes: [],
   },
 
+  // Fase 9: Ralstonia. A murcha vascular ganha fase propria porque a licao dela e
+  // diferente de tudo o que veio antes — aqui PREVENIR vale muito mais do que
+  // remediar, e depois da entrada no xilema nao existe cura, so contencao.
+  // Jogar isso direto no ecossistema integrado (a antiga fase 9) seria ensinar
+  // pelo fracasso.
   {
-    id: 'phase-9', phase: 9, totalChunks: 40,
+    id: 'phase-9', phase: 9, totalChunks: 36,
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    ralstonia: { ...RALSTONIA_DEFAULTS },
+    title: 'Ralstonia e murcha vascular', theme: 'doença vascular',
+    mission: 'Proteja ferimentos antes da entrada bacteriana e contenha a infecção vascular para preservar o transporte da raiz.',
+    // O manifesto limita a dois grupos conceituais por fase (invariante do
+    // projeto, validada em validateCampaignManifest). Os cinco conceitos da
+    // Ralstonia cabem em dois: a cadeia da doenca e a do controle.
+    newConcepts: [
+      'ferimento→Ralstonia→xilema→obstrução',
+      'Bacillus/Pseudomonas→prevenção≠cura',
+    ],
+    newCommand: null,
+    presentations: [
+      { id: 'presentation-ralstonia', cardId: 'organism-ralstonia',
+        triggerIds: [
+          'organism-ralstonia',
+          'process-ralstonia-entry',
+          'process-vascular-obstruction',
+          'process-ralstonia-containment',
+          'process-ralstonia-spread',
+        ],
+        autoOpenTrigger: 'organism-ralstonia',
+        policy: 'mandatory-first-appearance', suppressIndividualCards: true,
+        // Sem roamingType: Ralstonia e um foco ancorado numa raiz, nao um
+        // organismo que vagueia pela rizosfera (mesmo padrao de Rhizoctonia e
+        // Meloidogyne).
+        debutChunk: 3,
+        moduleId: 'p9-surface-intro', debutZoneId: 'p9-ralstonia-debut', tetherUntilSeen: true,
+        derivedTriggerBehavior: 'guide-only',
+        pageUnlocks: [
+          { triggerId: 'organism-ralstonia', pages: [0] },
+          { triggerId: 'process-ralstonia-entry', pages: [1] },
+          { triggerId: 'process-vascular-obstruction', pages: [2] },
+          { triggerId: 'process-ralstonia-containment', pages: [3] },
+          { triggerId: 'process-ralstonia-spread', pages: [4] },
+        ],
+        pages: [
+          'Contaminação e ferimentos',
+          'Entrada e colonização do xilema',
+          'Obstrução e murcha',
+          'Prevenção e contenção',
+          'Disseminação e bloqueio',
+        ] },
+    ],
+    unlockEvents: [],
+    pathogenDebuts: [
+      { pathogen: 'ralstonia', fromChunk: 3, presentationId: 'presentation-ralstonia' },
+    ],
+    // Os focos entram aos poucos: primeiro so superficial (da para prevenir),
+    // depois um que ja entrou no xilema (so da para conter), e so entao a
+    // disseminacao. Tudo de uma vez seria caos, nao licao.
+    segments: [
+      { id: 'p9-warmup', kind: 'procedural', from: 0, to: 2, tutorialMode: 'silent',
+        mechanicsRequired: ['doubleJump', 'dash', 'inoculation'] },
+      { id: 'p9-surface-intro', kind: 'fixed', from: 3, to: 8, tutorialMode: 'guided',
+        debutPresentationIds: ['presentation-ralstonia'],
+        mechanicsRequired: ['inoculation'] },
+      { id: 'p9-vascular-intro', kind: 'fixed', from: 9, to: 14, tutorialMode: 'guided',
+        mechanicsRequired: ['inoculation'] },
+      { id: 'p9-spread-intro', kind: 'fixed', from: 15, to: 20, tutorialMode: 'guided',
+        mechanicsRequired: ['inoculation'] },
+      { id: 'p9-practice', kind: 'procedural', from: 21, to: 31, tutorialMode: 'silent',
+        mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
+      { id: 'p9-final', kind: 'final', from: 32, to: 35, tutorialMode: 'silent',
+        mechanicsRequired: ['inoculation', 'doubleJump', 'dash'] },
+    ],
+    // Nao exige eliminar todos os focos nem zerar a carga vascular: exige provar
+    // que o jogador sabe PREVENIR uma entrada e CONTER uma infeccao que ja
+    // entrou — e que nenhuma murcha critica ficou solta no fim.
+    finalTest: { id: 'p9-test', goal: 'Prevenir uma entrada, conter uma infecção vascular e alcançar a raiz final sem foco crítico ativo.', requires: [
+      { type: 'worldState', key: 'preventedRalstoniaEntryCount', operator: '>=', value: 1 },
+      { type: 'worldState', key: 'containedVascularRalstoniaCount', operator: '>=', value: 1 },
+      { type: 'worldState', key: 'activeCriticalRalstoniaCount', operator: '===', value: 0 },
+      { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
+    ]}, notes: [],
+  },
+
+  // Fase 10: o antigo ecossistema integrado (era a fase 9). Agora recebe tambem
+  // a Ralstonia — e so aqui, porque a fase 9 ja ensinou a mecanica. Os
+  // ferimentos abertos por Rhizoctonia e Meloidogyne viram porta de entrada.
+  {
+    id: 'phase-10', phase: 10, totalChunks: 40,
+    nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
+    ralstonia: { ...RALSTONIA_DEFAULTS, maximumFocusCount: 2 },
     title: 'Ecossistema integrado', theme: 'síntese',
     mission: 'Proteja, controle, recupere e atravesse usando tudo o que aprendeu.',
     newConcepts: [], newCommand: null,
@@ -618,18 +746,19 @@ const phases = [
     pathogenDebuts: [
       { pathogen: 'rhizoctonia', fromChunk: 0, presentationId: null },
       { pathogen: 'meloidogyne', fromChunk: 0, presentationId: null },
+      { pathogen: 'ralstonia', fromChunk: 0, presentationId: null },
     ],
     segments: [
-      { id: 'p9-integrated', kind: 'procedural', from: 0, to: 35, tutorialMode: 'silent',
+      { id: 'p10-integrated', kind: 'procedural', from: 0, to: 35, tutorialMode: 'silent',
         mechanicsRequired: ['doubleJump', 'dash', 'inoculation'] },
-      { id: 'p9-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent',
+      { id: 'p10-final', kind: 'final', from: 36, to: 39, tutorialMode: 'silent',
         mechanicsRequired: ['doubleJump', 'dash', 'inoculation'] },
     ],
-    finalTest: { id: 'p9-test', goal: 'Concluir o desafio integrado com pontuação mínima.', requires: [
+    finalTest: { id: 'p10-test', goal: 'Concluir o desafio integrado com pontuação mínima.', requires: [
       { type: 'worldState', key: 'ecologicalScore', operator: '>=', value: 1 },
       { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
     ]},
-    notes: ['Ralstonia fica para expansão pós-piloto.', 'Nenhum cartão holográfico automático nesta fase.'],
+    notes: ['Nenhum cartão holográfico automático nesta fase.'],
   },
 ];
 

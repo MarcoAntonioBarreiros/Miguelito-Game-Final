@@ -98,6 +98,71 @@ export const structureTutorialCards = {
     ['Captura de Fe³⁺', 'Reserva de ferro', 'Limitação fúngica', 'Travessia controlada'],
   ),
 
+  // Processos da murcha vascular. Sao gatilhos DERIVADOS: com
+  // suppressIndividualCards + derivedTriggerBehavior 'guide-only', encontra-los
+  // no mundo desbloqueia a pagina correspondente do cartao da Ralstonia em vez
+  // de abrir um cartao proprio.
+  'process-ralstonia-entry': card(
+    'process-ralstonia-entry',
+    'Interação ecológica',
+    'Entrada pelo ferimento',
+    'Como a bactéria alcança o interior da raiz',
+    '↧',
+    '#e8c27e',
+    [
+      page('Porta de entrada', 'Ralstonia não perfura uma raiz íntegra. Ela entra por ferimentos: lesões de nematoide, feridas de Rhizoctonia, rupturas de crescimento ou danos mecânicos.'),
+      page('Multiplicação na superfície', 'Antes de entrar, a população cresce sobre o tecido. É nessa janela que a prevenção funciona — depois dela, não há como desfazer.'),
+      page('Barreira antes da porta', 'Um biofilme de Bacillus sobre o ferimento e a supressão da Pseudomonas reduzem a população superficial e podem impedir a entrada.'),
+    ],
+    ['Ferimento', 'Contaminação', 'Multiplicação', 'Entrada'],
+  ),
+
+  'process-vascular-obstruction': card(
+    'process-vascular-obstruction',
+    'Interação ecológica',
+    'Obstrução do xilema',
+    'Por que a planta murcha sem perder as folhas',
+    '⊘',
+    '#c98f6a',
+    [
+      page('Dentro do vaso', 'No xilema a bactéria se multiplica e produz exopolissacarídeos — uma massa viscosa que ocupa o vaso condutor.'),
+      page('Transporte interrompido', 'A água deixa de subir. A murcha não vem de falta de água no solo, mas do encanamento entupido por dentro.'),
+      page('Efeito no jogo', 'A raiz obstruída perde transporte: a fixação de nitrogênio cai, a recuperação trava e a plataforma fica instável.'),
+    ],
+    ['Colonização', 'Exopolissacarídeo', 'Obstrução', 'Murcha'],
+  ),
+
+  'process-ralstonia-containment': card(
+    'process-ralstonia-containment',
+    'Interação ecológica',
+    'Contenção vascular',
+    'Conter não é curar',
+    '◑',
+    '#6ce7df',
+    [
+      page('Não existe cura', 'Depois que a bactéria entra no xilema, nenhum organismo do jogo a elimina. O objetivo muda: de impedir para conter.'),
+      page('Segurar o avanço', 'Bacillus e Pseudomonas sustentados fazem o crescimento líquido cair a zero. A carga para de subir e recua um pouco — mas nunca zera.'),
+      page('O que se preserva', 'Uma infecção contida mantém parte do transporte, da saúde e da estabilidade. A raiz segue infectada e funcional.'),
+      page('Se o controle sai', 'Retirar os organismos devolve o crescimento. Contenção é um estado mantido, não um troféu permanente.'),
+    ],
+    ['Entrada', 'Controle', 'Crescimento zero', 'Contida'],
+  ),
+
+  'process-ralstonia-spread': card(
+    'process-ralstonia-spread',
+    'Interação ecológica',
+    'Disseminação bacteriana',
+    'De uma raiz doente para a vizinha ferida',
+    '⇢',
+    '#f1dfa8',
+    [
+      page('Exsudação bacteriana', 'Uma raiz muito colonizada extravasa bactéria para o solo ao redor — o fluxo leitoso característico da murcha.'),
+      page('Quem é alcançado', 'Só uma raiz com ferimento aberto é contaminada. Raiz íntegra resiste, mesmo exposta.'),
+      page('Janela de defesa', 'A chegada é anunciada antes de acontecer. Proteger o alvo nessa janela bloqueia a contaminação.'),
+    ],
+    ['Colonização alta', 'Exsudação', 'Deslocamento', 'Nova entrada'],
+  ),
+
   'structure-arbuscule': card(
     'structure-arbuscule',
     'Estrutura biológica',

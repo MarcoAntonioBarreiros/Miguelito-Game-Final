@@ -206,7 +206,13 @@ test('avanço de fase não concede automaticamente poderes não obtidos', () => 
 });
 
 test('a última fase do manifesto encerra a progressão sem criar uma fase inexistente', () => {
-  const campaign = campaignAtPhase(9, 'campaign-end', { normalProgression: false });
+  // A campanha passou a terminar na fase 10 (ecossistema integrado); a 9 e a
+  // fase da Ralstonia e ainda avanca.
+  const ralstonia = campaignAtPhase(9, 'campaign-ralstonia', { normalProgression: false });
+  assert.equal(advanceCampaignPhase(ralstonia), true, 'a fase 9 ainda avanca para a 10');
+  assert.equal(ralstonia.phase, 10);
+
+  const campaign = campaignAtPhase(10, 'campaign-end', { normalProgression: false });
   assert.equal(advanceCampaignPhase(campaign), false);
-  assert.equal(campaign.phase, 9);
+  assert.equal(campaign.phase, 10);
 });
