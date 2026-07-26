@@ -71,6 +71,13 @@ export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     }
     if (key === 'pseudomonasIronReserve') return systems.pseudomonas?.ironReserve || 0;
     if (key === 'opportunisticFungusVigor') return systems.opportunisticFungus?.controlledFungalVigor ?? 1;
+    // Marco REAL de controle fungico: a rede existiu, esteve vigorosa e foi
+    // mantida sob o limiar. O vigor instantaneo continua no HUD, mas nao decide
+    // mais o objetivo — sem fungo em cena ele valia 0 e a fase ja nascia com o
+    // requisito cumprido.
+    if (key === 'controlledOpportunisticFungusCount') {
+      return systems.opportunisticFungus?.controlledOpportunisticFungusCount || 0;
+    }
     if (key === 'neutralizedOpportunisticFungusCount') return systems.trichoderma?.eliminatedCount || 0;
     if (key === 'neutralizedRhizoctoniaCount') return systems.trichoderma?.eliminatedCount || 0;
     if (key === 'recoveredRootCount') {

@@ -3,6 +3,10 @@ import { organismSprites } from '../render/organism-sprites.js';
 import { getPhaseManifest } from './campaign-manifest.js';
 
 const TAU = Math.PI * 2;
+// Limiar e tempo de sustentação do marco de controle fúngico (fase 5).
+export const FUNGUS_CONTROL_THRESHOLD = 0.45;
+export const FUNGUS_CONTROL_HOLD_SECONDS = 2.0;
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 export const MAX_HYPHAL_SEGMENTS_PER_FOCUS = 140;
@@ -167,6 +171,8 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
   const networks = new Map();
   let contactIntensity = 0;
   let maximumIronLimitation = 0;
+  // Marco persistente: quantas redes fúngicas foram realmente controladas.
+  let controlledOpportunisticFungusCount = 0;
   let damageCooldown = 0;
   let contactAnnounced = false;
 
@@ -229,6 +235,13 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
       activated: false,
       activatedAt: null,
       reachedLesions: 1,
+      // Marco de CONTROLE. O objetivo da fase 5 não pode ser satisfeito por um
+      // valor instantâneo: a rede precisa ter existido de fato, ter estado
+      // vigorosa, e só então ter sido mantida abaixo do limiar por um tempo.
+      wasActive: false,
+      maximumObservedVigor: 0,
+      controlHold: 0,
+      everControlled: false,
     };
     const availableTargets = Math.max(1, network.lesions.length - 1);
     const tipCount = Math.min(4, availableTargets);
@@ -371,6 +384,27 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     network.spores = network.spores.filter(spore => spore.life > 0);
   }
 
+  // O contador só sobe quando o controle é REAL e sustentado:
+  //   1. a rede existiu e esteve vigorosa (> .65);
+  //   2. o vigor caiu para <= .45;
+  //   3. e ficou lá por FUNGUS_CONTROL_HOLD_SECONDS.
+  // Uma rede que nasce com vigor baixo nunca conta.
+  function updateControlMilestone(network, vigor, dt) {
+    const atual = clamp(vigor ?? 1, 0, 1);
+    network.maximumObservedVigor = Math.max(network.maximumObservedVigor || 0, atual);
+    if (atual > .65) network.wasActive = true;
+
+    if (network.wasActive && atual <= FUNGUS_CONTROL_THRESHOLD) {
+      network.controlHold = (network.controlHold || 0) + dt;
+      if (network.controlHold >= FUNGUS_CONTROL_HOLD_SECONDS && !network.everControlled) {
+        network.everControlled = true;
+        controlledOpportunisticFungusCount++;
+      }
+    } else {
+      network.controlHold = 0;
+    }
+  }
+
   function updateNetwork(network, dt, target, settings) {
     const limitation = clamp(
       network.agents.reduce((sum, agent) => sum + (agent.ironLimitation || 0), 0)
@@ -382,6 +416,7 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     network.response = response;
     for (const agent of network.agents) agent.fungalVigor = response.vigor;
     maximumIronLimitation = Math.max(maximumIronLimitation, limitation);
+    updateControlMilestone(network, response.vigor, dt);
 
     const distanceToPlayer = Math.hypot(
       network.anchor.x - target.x,
@@ -662,6 +697,7 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     networks.clear();
     contactIntensity = 0;
     maximumIronLimitation = 0;
+    controlledOpportunisticFungusCount = 0;
     damageCooldown = 0;
     contactAnnounced = false;
   }
@@ -682,9 +718,19 @@ export function createOpportunisticFungus({ state, entities, ecology }) {
     get networks() { return networks; },
     get contactIntensity() { return contactIntensity; },
     get maximumIronLimitation() { return maximumIronLimitation; },
+    // Leitura de HUD/telemetria: o vigor do foco MENOS controlado.
+    //
+    // Antes era `Math.min(...)` com fallback 0. Duas consequências: sem fungo
+    // nenhum o valor era 0 e o objetivo `vigor <= .45` nascia concluído; e com
+    // vários focos bastava controlar um para o número despencar. Agora a
+    // ausência de fungo é 100% (nada a controlar) e o número mostrado é o pior
+    // foco ativo.
     get controlledFungalVigor() {
-      const values = [...networks.values()].map(network => network.response?.vigor ?? 1);
-      return values.length ? Math.min(...values) : 0;
+      const values = [...networks.values()]
+        .filter(network => network.response)
+        .map(network => clamp(network.response.vigor ?? 1, 0, 1));
+      return values.length ? Math.max(...values) : 1;
     },
+    get controlledOpportunisticFungusCount() { return controlledOpportunisticFungusCount; },
   };
 }

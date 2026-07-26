@@ -34,6 +34,7 @@ import {
   canRalstoniaFocusSpread,
   chooseRalstoniaSpreadTarget,
   ralstoniaArrivalProtection,
+  ralstoniaSpreadOpening,
   isRalstoniaSpreadTargetEligible,
 } from '../src/procgen/ralstonia-spread.js';
 import { ralstoniaAzospirillumClosure, ralstoniaWoundDynamics } from '../src/procgen/ralstonia-wilt-core.js';
@@ -1164,4 +1165,357 @@ test('CENARIO F/G — bloqueio e sucesso da disseminacao no mesmo runtime', () =
   assert.equal(g.system.successfulSpreadCount, 1);
   g.step(120);
   assert.ok(g.system.spreadEventCount <= 2, 'sem cascata infinita');
+});
+
+// ---------------------------------------------------------------------------
+// 13. JANELAS ESTRITAS, RESERVA DE ALVO E OPORTUNIDADE GARANTIDA (100 seeds)
+// ---------------------------------------------------------------------------
+
+function segmentoDaFaseNove(id) {
+  return getPhaseManifest(9).segments.find(segment => segment.id === id);
+}
+
+test('100 seeds: os dois focos ficam nas janelas declaradas e o alvo é reservado', { timeout: 600000 }, () => {
+  const surface = segmentoDaFaseNove('p9-surface-intro');
+  const vascular = segmentoDaFaseNove('p9-vascular-intro');
+  const problemas = [];
+  let promovidas = 0;
+
+  for (let i = 0; i < 100; i++) {
+    const seedName = `janelas-${i}`;
+    const { level, campaign } = gerarFaseNove(seedName);
+    const { system } = sistemaSobre(level, campaign);
+
+    const prevencao = system.foci.find(f => f.role === 'prevention');
+    const contencao = system.foci.find(f => f.role === 'containment');
+    if (!prevencao) { problemas.push(`${seedName}: sem foco de prevenção`); continue; }
+    if (!contencao) { problemas.push(`${seedName}: sem foco de contenção`); continue; }
+
+    if (prevencao.rootLogicIndex < surface.from || prevencao.rootLogicIndex > surface.to) {
+      problemas.push(`${seedName}: prevenção no chunk ${prevencao.rootLogicIndex}, fora de ${surface.from}-${surface.to}`);
+    }
+    // A regressão que motivou isto: a contenção ia parar nos chunks 17–19.
+    if (contencao.rootLogicIndex < vascular.from || contencao.rootLogicIndex > vascular.to) {
+      problemas.push(`${seedName}: contenção no chunk ${contencao.rootLogicIndex}, fora de ${vascular.from}-${vascular.to}`);
+    }
+    if (contencao.rootLogicIndex <= prevencao.rootLogicIndex) {
+      problemas.push(`${seedName}: contenção não vem depois da prevenção`);
+    }
+    if (prevencao.root === contencao.root) problemas.push(`${seedName}: focos na mesma raiz`);
+    if (prevencao.root.ralstoniaPromotedRoot || contencao.root.ralstoniaPromotedRoot) promovidas++;
+
+    // Papéis distinguíveis.
+    assert.ok(prevencao.roleLabel && contencao.roleLabel, 'cada foco declara o próprio papel');
+    assert.notEqual(prevencao.shortRoleLabel, contencao.shortRoleLabel);
+
+    // Alvo de disseminação RESERVADO na geração, com porta real.
+    const alvo = contencao.reservedSpreadTarget;
+    if (!alvo) { problemas.push(`${seedName}: sem alvo de disseminação reservado`); continue; }
+    if (alvo.final) problemas.push(`${seedName}: alvo reservado é a raiz final`);
+    if (alvo.recovery) problemas.push(`${seedName}: alvo reservado é raiz de recuperação`);
+    if (alvo === contencao.root) problemas.push(`${seedName}: alvo reservado é a própria origem`);
+    if (ralstoniaSpreadOpening(alvo) <= 0.12) {
+      problemas.push(`${seedName}: alvo reservado sem porta de entrada real`);
+    }
+  }
+
+  console.log(`    janelas/reserva em 100 seeds: ${promovidas} seed(s) precisaram promover solo a raiz`);
+  assert.deepEqual(problemas, [], problemas.slice(0, 8).join('\n'));
+});
+
+test('100 seeds: toda partida tem uma disseminação bloqueável', { timeout: 900000 }, () => {
+  const janela = segmentoDaFaseNove('p9-spread-intro');
+  const problemas = [];
+  let bloqueadas = 0;
+  let cascatas = 0;
+
+  for (let i = 0; i < 100; i++) {
+    const seedName = `oportunidade-${i}`;
+    const { level, campaign } = gerarFaseNove(seedName);
+    const inoculants = { colonies: [] };
+    const pseudomonas = { colonyStates: new Map() };
+    const state = {
+      time: 0, gameState: 'play', tutorialOpen: false, cameraX: 0,
+      campaign,
+      player: { x: -9000, y: 0, w: 26, h: 34, soil: 20, hope: 20 },
+      level: { ...level, biofilms: [] },
+      discoveredMicrobes: new Set(),
+    };
+    const system = createRalstoniaVascularWilt({
+      state, entities: { burst() {}, damagePlayer() {} }, inoculants, pseudomonas,
+    });
+    system.initialize();
+    const step = seconds => {
+      for (let f = 0; f < Math.round(seconds / DT); f++) { state.time += DT; system.update(DT); }
+    };
+    const goTo = root => {
+      state.player.x = root.x + root.w / 2 - state.player.w / 2;
+      state.player.y = root.y - state.player.h;
+    };
+
+    const contencao = system.foci.find(f => f.role === 'containment');
+    goTo(contencao.root); step(1); step(12);
+
+    const entrada = (state.level.platforms || [])
+      .filter(p => !p.recovery && !p.final && (p.logicIndex ?? -1) >= janela.from)
+      .sort((a, b) => a.logicIndex - b.logicIndex)[0] || contencao.root;
+    goTo(entrada);
+    step(C.spreadFirstOpportunitySeconds + 4);
+
+    const evento = system.activeSpreadEvents[0];
+    if (!evento) { problemas.push(`${seedName}: nenhuma oportunidade de disseminação`); continue; }
+    if (evento.targetRoot.final) problemas.push(`${seedName}: alvo é a raiz final`);
+
+    // O jogador protege o alvo a tempo.
+    state.level.biofilms.push({
+      functional: true, platform: evento.targetRoot,
+      x: evento.targetRoot.x + evento.targetRoot.w / 2, y: evento.targetRoot.y,
+      radius: 90, protectionStrength: 1,
+    });
+    step(C.spreadWarningSeconds + C.spreadTravelSeconds + 2);
+    if (system.blockedSpreadCount >= 1) bloqueadas++;
+    else problemas.push(`${seedName}: proteção total não bloqueou a chegada`);
+
+    // E nada de cascata infinita depois disso.
+    step(180);
+    if (system.spreadEventCount > C.maximumPedagogicalSpreadAttempts + 2) {
+      cascatas++;
+      problemas.push(`${seedName}: ${system.spreadEventCount} eventos — cascata`);
+    }
+  }
+
+  console.log(`    disseminação em 100 seeds: ${bloqueadas} bloqueáveis, ${cascatas} cascatas`);
+  assert.equal(bloqueadas, 100, 'toda seed precisa oferecer um bloqueio possível');
+  assert.deepEqual(problemas, [], problemas.slice(0, 8).join('\n'));
+});
+
+test('a janela de disseminação não é queimada com o foco ainda em warning', () => {
+  const b = bench();
+  const janela = segmentoDaFaseNove('p9-spread-intro');
+  const contencao = focusOfRole(b.system, 'containment');
+
+  // O jogador alcança a região da terceira lição e, no caminho, o foco vascular
+  // acabou de entrar em `warning` (a graça ainda corre). Era exatamente aqui que
+  // a versão anterior marcava `spreadWindowReached = true` e queimava a única
+  // oportunidade: nenhum evento abria, e o objetivo de bloquear disseminação
+  // ficava impossível pelo resto da partida.
+  b.goTo(contencao.root);
+  b.step(DT);
+  assert.equal(contencao.activationState, 'warning');
+
+  b.goTo(b.platforms[janela.from]);
+  b.step(2);
+  assert.equal(b.system.spreadEventCount, 0, 'nada abre enquanto a doença está congelada');
+  assert.equal(b.system.pedagogicalSpreadAttempts, 0, 'e nenhuma tentativa foi gasta');
+
+  // Passada a graça, a oportunidade continua disponível.
+  b.step(C.activationGraceSeconds + C.spreadFirstOpportunitySeconds + 3);
+  assert.equal(contencao.activationState, 'active');
+  assert.equal(b.system.spreadEventCount, 1, 'a oportunidade não tinha sido perdida');
+});
+
+test('falhar em bloquear libera uma nova tentativa, até o limite', () => {
+  const b = bench();
+  const janela = segmentoDaFaseNove('p9-spread-intro');
+  const contencao = prepararFocoAtivo(b, 'containment');
+  b.goTo(b.platforms[janela.from]);
+  b.step(C.spreadFirstOpportunitySeconds + 3);
+  assert.equal(b.system.spreadEventCount, 1);
+  assert.equal(b.system.pedagogicalSpreadAttempts, 1);
+
+  // Deixa chegar sem proteger.
+  b.step(C.spreadWarningSeconds + C.spreadTravelSeconds + 2);
+  assert.equal(b.system.blockedSpreadCount, 0);
+
+  // Segunda chance.
+  b.step(C.spreadRetrySeconds + 4);
+  assert.ok(b.system.spreadEventCount >= 2, 'uma nova oportunidade aparece');
+  assert.ok(
+    b.system.pedagogicalSpreadAttempts <= C.maximumPedagogicalSpreadAttempts,
+    'sem tentativas infinitas',
+  );
+
+  b.step(400);
+  assert.ok(
+    b.system.pedagogicalSpreadAttempts <= C.maximumPedagogicalSpreadAttempts,
+    `no máximo ${C.maximumPedagogicalSpreadAttempts} tentativas pedagógicas`,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 14. FERRO E HUD
+// ---------------------------------------------------------------------------
+
+test('foco em warning não consome ferro; ativo consome', () => {
+  const b = bench();
+  const focus = focusOfRole(b.system, 'prevention');
+  b.goTo(focus.root);
+  b.step(DT);
+  assert.equal(focus.activationState, 'warning');
+  const entry = b.addPseudomonas(focus.root, { vigor: 1, ironReserve: .7 });
+  const antes = entry.ironReserve;
+  b.step(3);
+  assert.equal(entry.ironReserve, antes, 'durante o aviso a reserva não é gasta');
+
+  focus.activationGraceRemaining = 0;
+  b.step(2);
+  assert.ok(entry.ironReserve < antes, 'com o foco ativo a reserva passa a ser usada');
+});
+
+test('o HUD do alvo mostra a Pseudomonas real, não zero', () => {
+  const b = bench();
+  const focus = prepararFocoAtivo(b, 'containment');
+  b.system.lab.setFocus(focus, { vascularLoad: .9 });
+  b.system.lab.forceSpread(focus);
+  b.step(DT * 2);
+  const evento = b.system.spreadEvents[0];
+  assert.ok(evento);
+
+  const semProtecao = b.system.rootSnapshot(evento.targetRoot);
+  b.addPseudomonas(evento.targetRoot, { vigor: 1, ironReserve: .7 });
+  const comProtecao = b.system.rootSnapshot(evento.targetRoot);
+
+  assert.ok(
+    comProtecao.incomingProtection > semProtecao.incomingProtection,
+    'a Pseudomonas no alvo precisa aparecer na proteção mostrada',
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 15. ANIMAÇÃO E ESTADO VISUAL
+// ---------------------------------------------------------------------------
+
+function ctxEspiao() {
+  const chamadas = [];
+  let profundidade = 0;
+  let minima = 0;
+  const alvo = {
+    save() { profundidade++; chamadas.push(['save']); },
+    restore() { profundidade--; minima = Math.min(minima, profundidade); chamadas.push(['restore']); },
+    measureText: text => ({ width: String(text).length * 7 }),
+    createLinearGradient: () => ({ addColorStop() {} }),
+    createRadialGradient: () => ({ addColorStop() {} }),
+    ellipse: (...args) => chamadas.push(['ellipse', ...args]),
+    arc: (...args) => chamadas.push(['arc', ...args]),
+    fillText: (...args) => chamadas.push(['fillText', ...args]),
+    roundRect: (...args) => chamadas.push(['roundRect', ...args]),
+    translate: (...args) => chamadas.push(['translate', ...args]),
+  };
+  const ctx = new Proxy(alvo, { get: (t, k) => t[k] ?? (() => {}) });
+  return {
+    ctx, chamadas,
+    get profundidade() { return profundidade; },
+    get minima() { return minima; },
+  };
+}
+
+test('a sprite principal não impede o desenho da população', () => {
+  const b = bench();
+  const focus = prepararFocoAtivo(b);
+  b.step(2);
+
+  b.state.cameraX = focus.root.x - 300;
+  const espiao = ctxEspiao();
+  b.system.render(espiao.ctx);
+  // A população procedural desenha elipses/roundRects mesmo com sprite ausente:
+  // o que não pode acontecer é o render sair depois de uma única figura.
+  const desenhos = espiao.chamadas.filter(c => c[0] === 'roundRect' || c[0] === 'ellipse' || c[0] === 'arc');
+  assert.ok(desenhos.length >= 3, `esperava vários elementos desenhados, veio ${desenhos.length}`);
+  assert.equal(espiao.profundidade, 0, 'a pilha do canvas fecha equilibrada');
+  assert.equal(espiao.minima, 0, 'nenhum restore() órfão desempilha a câmera');
+});
+
+test('a bactéria superficial se move dentro da raiz, sem mexer na âncora', () => {
+  const b = bench();
+  const focus = prepararFocoAtivo(b);
+  const ancora = focus.offsetX;
+  const posicoes = [];
+  for (let i = 0; i < 5; i++) { b.step(.4); posicoes.push(focus.visualX); }
+
+  assert.equal(focus.offsetX, ancora, 'a âncora não muda: só o visual se desloca');
+  assert.ok(new Set(posicoes.map(x => Math.round(x))).size > 1, 'a posição visual varia');
+  for (const x of posicoes) {
+    assert.ok(x >= focus.root.x, 'não sai pela esquerda da raiz');
+    assert.ok(x <= focus.root.x + focus.root.w, 'não sai pela direita da raiz');
+  }
+});
+
+test('a entrada no xilema tem progresso visual próprio', () => {
+  const b = bench();
+  const focus = prepararFocoAtivo(b);
+  assert.equal(focus.entryVisualProgress, 0, 'antes da entrada, zero');
+  b.system.lab.setFocus(focus, { vascularLoad: C.vascularEntryThreshold + .02 });
+  b.step(DT * 2);
+  assert.ok(focus.entryVisualProgress > 0 && focus.entryVisualProgress < 1, 'a animação está correndo');
+  b.step(1.5);
+  assert.equal(focus.entryVisualProgress, 1, 'e termina');
+});
+
+test('o foco de contenção nasce com a entrada já concluída', () => {
+  const b = bench();
+  const focus = focusOfRole(b.system, 'containment');
+  assert.equal(focus.entryVisualProgress, 1, 'ele já começa dentro do xilema');
+});
+
+test('foco pendente desenha marcador de região quando o jogador se aproxima', () => {
+  const b = bench();
+  const focus = focusOfRole(b.system, 'containment');
+  assert.equal(focus.activationState, 'pending');
+
+  // Longe: nada é desenhado para este foco.
+  b.state.cameraX = focus.root.x - 200;
+  const longe = ctxEspiao();
+  b.system.render(longe.ctx);
+  const textosLonge = longe.chamadas.filter(c => c[0] === 'fillText').map(c => c[1]);
+  assert.equal(
+    textosLonge.some(t => String(t).includes('adiante')), false,
+    'não revela focos do mapa inteiro',
+  );
+
+  // Perto: o marcador aparece.
+  b.goTo(b.platforms[Math.max(0, focus.rootLogicIndex - 1)]);
+  b.state.cameraX = focus.root.x - 300;
+  const perto = ctxEspiao();
+  b.system.render(perto.ctx);
+  const textosPerto = perto.chamadas.filter(c => c[0] === 'fillText').map(c => c[1]);
+  assert.ok(
+    textosPerto.some(t => String(t).includes('Infecção vascular adiante')),
+    'o segundo foco deixa de ser invisível sem explicação',
+  );
+  assert.equal(perto.profundidade, 0);
+});
+
+test('o estado contido continua mostrando infecção residual', () => {
+  const b = bench();
+  const focus = prepararFocoAtivo(b, 'containment');
+  b.addPseudomonas(focus.root, { vigor: 1, ironReserve: .7 });
+  b.step(60);
+  assert.equal(focus.contained, true);
+  assert.ok(focus.vascularLoad >= C.minimumVascularFloorAfterEntry, 'a carga residual permanece');
+
+  b.state.cameraX = focus.root.x - 300;
+  const espiao = ctxEspiao();
+  b.system.render(espiao.ctx);
+  const elipses = espiao.chamadas.filter(c => c[0] === 'ellipse');
+  assert.ok(elipses.length > 0, 'ainda há células dentro do vaso — contido não é curado');
+  assert.equal(espiao.profundidade, 0);
+});
+
+test('a disseminação desenha bactérias ao longo da curva', () => {
+  const b = bench();
+  const focus = prepararFocoAtivo(b, 'containment');
+  b.system.lab.setFocus(focus, { vascularLoad: .9 });
+  b.system.lab.forceSpread(focus);
+  b.step(DT * 2);
+  const evento = b.system.spreadEvents[0];
+  evento.state = 'traveling';
+  evento.travelProgress = .5;
+
+  b.state.cameraX = focus.root.x - 300;
+  const espiao = ctxEspiao();
+  b.system.render(espiao.ctx);
+  const translacoes = espiao.chamadas.filter(c => c[0] === 'translate');
+  // Uma translação é a câmera; as demais orientam as bactérias na trajetória.
+  assert.ok(translacoes.length > 1, 'as bactérias viajam orientadas, não como círculos parados');
+  assert.equal(espiao.profundidade, 0, 'a pilha fecha equilibrada durante a viagem');
 });

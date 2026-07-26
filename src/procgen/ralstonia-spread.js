@@ -90,7 +90,14 @@ export function isRalstoniaSpreadTargetEligible(root, {
 export function ralstoniaSpreadOpening(root) {
   if (!root) return 0;
   return clamp(
-    Math.max(ralstoniaWoundPressure(root), finite(root.ralstoniaWoundOpening)),
+    Math.max(
+      ralstoniaWoundPressure(root),
+      finite(root.ralstoniaWoundOpening),
+      // Lesão suscetível criada proceduralmente quando a raiz-alvo reservada
+      // nasceu íntegra. É moderada e cicatrizável: Azospirillum, recuperação da
+      // saúde, Bacillus ou Pseudomonas fecham/protegem essa porta.
+      finite(root.ralstoniaExposureWound),
+    ),
     0, 1,
   );
 }

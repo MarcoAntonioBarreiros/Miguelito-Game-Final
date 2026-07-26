@@ -39,9 +39,15 @@ function ralstoniaContextMarkup(sim, nearbyRoot) {
 
   const critico = snapshot.stage === 'critical';
   const titulo = snapshot.hasFocus ? snapshot.stageLabel : 'raiz visada pela disseminação';
+  const papel = snapshot.shortRoleLabel
+    ? `<em style="font-style: normal; opacity: .8;"> · ${snapshot.shortRoleLabel}</em>`
+    : '';
   let html = `
       <div class="context-item" style="margin-top: 10px; border-top: 1px solid rgba(255,150,110,0.35); padding-top: 6px;">
-        <span>Ralstonia: <strong style="color: ${critico ? '#ff8297' : '#ffb896'};">${titulo}</strong></span>
+        <span>Ralstonia: <strong style="color: ${critico ? '#ff8297' : '#ffb896'};">${titulo}</strong>${papel}</span>
+      </div>
+      <div class="context-item" style="color: ${critico ? '#ff8297' : '#7ed6cd'}; font-size: 10px;">
+        ${snapshot.reading || ''}
       </div>
     `;
 
@@ -74,7 +80,9 @@ function ralstoniaContextMarkup(sim, nearbyRoot) {
         Disseminação chegando: ${snapshot.incomingSeconds.toFixed(1)} s
       </div>
     `;
-    html += ralstoniaBar('Proteção da raiz', snapshot.incomingProtection, '#8ef0c6');
+    html += ralstoniaBar('Proteção atual', snapshot.incomingProtection, '#8ef0c6');
+    html += `<div class="context-item" style="color: ${(snapshot.incomingProtection || 0) >= .5 ? '#8ef0c6' : '#ff8297'}; font-size: 10px;">`
+      + `${(snapshot.incomingProtection || 0) >= .5 ? 'Raiz protegida' : 'Raiz vulnerável'}</div>`;
   }
 
   return html;

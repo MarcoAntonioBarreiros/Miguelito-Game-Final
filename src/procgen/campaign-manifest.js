@@ -102,6 +102,13 @@ export const RALSTONIA_DEFAULTS = Object.freeze({
   // a cascata para na geracao 1; a fase 10 permite uma a mais.
   maximumSpreadGeneration: 1,
   spreadFirstOpportunitySeconds: 1.2,
+  // Falhar em bloquear a primeira disseminacao nao pode tornar o objetivo
+  // impossivel: o runtime concede ate tres oportunidades pedagogicas.
+  maximumPedagogicalSpreadAttempts: 3,
+  // Lesao procedural minima criada numa raiz-alvo que nasceu integra, para a
+  // disseminacao poder acontecer em TODAS as seeds. E moderada e cicatrizavel —
+  // nada da ferida autoral permanente de .45 que travava a porta para sempre.
+  exposureWoundOpening: 0.28,
 });
 
 export const NITROGEN_ROOT_DEFAULTS = Object.freeze({
@@ -212,7 +219,7 @@ export const FINAL_TEST_KEYS = Object.freeze({
     'activeCriticalRalstoniaCount', 'blockedRalstoniaSpreadCount',
     'averageVascularTransport', 'preservedVascularRootCount',
     'deployedExudateCount', 'bacillusColonyCount',
-    'opportunisticFungusVigor', 'solubilizedPhosphateDepositCount',
+    'opportunisticFungusVigor', 'controlledOpportunisticFungusCount', 'solubilizedPhosphateDepositCount',
     'mycorrhizalPhosphateTransported', 'rootPhosphateStock',
     'performedDoubleJumpCount', 'performedDashCount', 'performedPhosphatePulseCount',
   ]),
@@ -548,7 +555,7 @@ const phases = [
       // era dificil demais na pratica. 0,45 mantem o forrageamento de ferro como
       // meta real e alcancavel — a colonia madura passa bem desse ponto.
       { type: 'worldState', key: 'pseudomonasIronReserve', operator: '>=', value: .45 },
-      { type: 'worldState', key: 'opportunisticFungusVigor', operator: '<=', value: .45 },
+      { type: 'worldState', key: 'controlledOpportunisticFungusCount', operator: '>=', value: 1 },
       { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
     ]}, notes: [],
   },
@@ -770,7 +777,12 @@ const phases = [
       // satisfeita (zero focos criticos no primeiro quadro), trava, e o objetivo
       // aparece verde antes de a fase comecar. O runtime garante pelo menos uma
       // oportunidade de disseminacao bloqueavel e recuperavel.
-      { type: 'worldState', key: 'activeCriticalRalstoniaCount', operator: '===', value: 0, latch: false },
+      // `latch: false` = leitura do AGORA; `displayMode: 'final-status'` diz ao
+      // painel que isto e um STATUS, nao uma conquista: comeca neutro, fica
+      // estavel enquanto nao houver critico, vermelho quando houver, e so pode
+      // aparecer verde quando a fase termina.
+      { type: 'worldState', key: 'activeCriticalRalstoniaCount', operator: '===', value: 0,
+        latch: false, displayMode: 'final-status' },
       { type: 'worldState', key: 'reachedFinalRoot', operator: '===', value: true },
     ]}, notes: [],
   },

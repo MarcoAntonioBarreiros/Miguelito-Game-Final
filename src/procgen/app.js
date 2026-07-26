@@ -136,13 +136,14 @@ const OBJECTIVE_LABELS = {
   mycorrhizalPhosphateTransported: 'Transporte fósforo pela micorriza',
   neutralizedEggMassCount: 'Neutralize uma massa de ovos de Meloidogyne',
   opportunisticFungusVigor: 'Reduza o vigor do fungo oportunista',
+  controlledOpportunisticFungusCount: 'Reduza e mantenha o vigor de um fungo oportunista sob controle',
   preservedRootCount: 'Preserve uma raiz saudável',
   pseudomonasIronReserve: 'Acumule reserva de ferro (Pseudomonas)',
   reachedFinalRoot: 'Alcance a raiz final',
   preventedRalstoniaEntryCount: 'Impeça uma entrada de Ralstonia no xilema',
-  containedVascularRalstoniaCount: 'Contenha uma infecção vascular',
-  activeCriticalRalstoniaCount: 'Não deixe focos em murcha crítica',
-  blockedRalstoniaSpreadCount: 'Bloqueie uma disseminação bacteriana',
+  containedVascularRalstoniaCount: 'Contenha uma infecção que já alcançou os vasos',
+  activeCriticalRalstoniaCount: 'Chegue à raiz final sem murcha crítica ativa',
+  blockedRalstoniaSpreadCount: 'Bloqueie uma disseminação para outra raiz',
   averageVascularTransport: 'Preserve o transporte vascular',
   preservedVascularRootCount: 'Preserve raízes com transporte funcional',
   recoveredRootCount: 'Recupere uma raiz danificada',
@@ -207,6 +208,29 @@ function azospirillumChallengeDebug(sim) {
     + ` · emergência ${renewable?.emergencyActive ? 'ativa' : '—'}`;
 }
 
+// Um requisito com `displayMode: 'final-status'` nao e conquista acumulativa: e
+// um STATUS que precisa valer no momento da conclusao. Mostra-lo verde no
+// primeiro quadro (quando ainda nao existe nenhum foco) faz o jogador acreditar
+// que ja cumpriu algo — foi exatamente a queixa "um objetivo ja vem concluido".
+function finalStatusClass(condition, result) {
+  if (condition.key !== 'activeCriticalRalstoniaCount') {
+    return result?.passed ? 'stable' : 'violated';
+  }
+  const criticos = Number(result?.actual) || 0;
+  if (criticos > 0) return 'violated';
+  if (levelData?.goal?.completed) return 'completed';
+  return ralstoniaControl.challengeStarted ? 'stable' : 'pending-status';
+}
+
+function finalStatusNote(condition, result) {
+  if (condition.key !== 'activeCriticalRalstoniaCount') return '';
+  const criticos = Number(result?.actual) || 0;
+  if (criticos > 0) return `Murcha crítica ativa: ${criticos}`;
+  if (levelData?.goal?.completed) return 'Concluído sem murcha crítica';
+  if (!ralstoniaControl.challengeStarted) return '';
+  return 'Situação estável: nenhum foco crítico';
+}
+
 function renderObjectives(campaign, evaluator) {
   const listDiv = document.getElementById('objective-list');
   const finalTest = getPhaseManifest(campaign.phase)?.finalTest;
@@ -220,10 +244,16 @@ function renderObjectives(campaign, evaluator) {
   let html = '';
   for (const [index, req] of finalTest.requires.entries()) {
     const isCompleted = evaluation.results[index]?.passed === true;
+    const classe = req.displayMode === 'final-status'
+      ? finalStatusClass(req, evaluation.results[index])
+      : (isCompleted ? 'completed' : '');
+    const nota = req.displayMode === 'final-status'
+      ? finalStatusNote(req, evaluation.results[index])
+      : '';
     html += `
-      <div class="objective-item ${isCompleted ? 'completed' : ''}">
+      <div class="objective-item ${classe}">
         <div class="circle"></div>
-        <div class="text">${objectiveLabel(req)}</div>
+        <div class="text">${objectiveLabel(req)}${nota ? `<span class="note">${nota}</span>` : ''}</div>
       </div>
     `;
   }

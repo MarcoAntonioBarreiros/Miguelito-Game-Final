@@ -107,6 +107,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
 
   let random = createRandom(`${state.campaign?.seed || state.level?.seed || 'ralstonia'}:ralstonia-foci`);
   let spreadWindowReached = false;
+  let pedagogicalSpreadAttempts = 0;
 
   function announce(text, duration = 5, cooldown = 2.3) {
     if (state.time - lastToastAt < cooldown) return;
@@ -148,12 +149,21 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     ));
   }
 
-  // Escolha determinística dentro de um conjunto. Expande a janela em degraus
-  // quando a geração não produziu raiz elegível ali — nunca cai em coordenada
-  // fixa nem inventa plataforma.
-  function pickRoot(window, { minimumLogicIndex = -1, exclude = new Set(), salt = 0 } = {}) {
+  // Escolha determinística dentro de um conjunto.
+  //
+  // A janela do manifesto é um LIMITE, não uma sugestão: o foco de prevenção
+  // pertence a p9-surface-intro e o de contenção a p9-vascular-intro. A versão
+  // anterior expandia a busca em degraus até 40 chunks quando o portão de
+  // recursos empurrava o mínimo para frente — e o foco vascular ia parar no
+  // chunk 17 ou 19, longe da lição que deveria ensinar.
+  //
+  // Quando o portão de recursos não pode ser satisfeito dentro da janela, o
+  // recurso é GARANTIDO antes da raiz (ver `ensureResourceBefore`) em vez de o
+  // foco ser deslocado.
+  function pickRoot(window, { minimumLogicIndex = -1, exclude = new Set(), salt = 0, strict = false } = {}) {
     if (!window) return null;
-    for (const expansion of [0, 3, 6, 12, 40]) {
+    const expansions = strict ? [0] : [0, 3, 6, 12, 40];
+    for (const expansion of expansions) {
       const widened = {
         from: Math.max(0, window.from - expansion),
         to: window.to + expansion,
@@ -165,11 +175,56 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       ));
       const roll = clamp(random(), 0, .999);
       const index = Math.floor(roll * ordered.length);
-      // Um pequeno desvio determinístico por `salt` evita que os dois papéis
-      // caiam sempre na mesma posição relativa da janela.
       return ordered[(index + salt) % ordered.length];
     }
     return null;
+  }
+
+  // Escolha ESTRITA: fica dentro do segmento, e prefere respeitar o portão de
+  // recursos. Se o portão não couber na janela, devolve a raiz mais tardia do
+  // segmento e sinaliza que o recurso precisa ser garantido antes dela.
+  function pickRootInSegment(segmentId, { minimumLogicIndex = -1, exclude = new Set(), salt = 0 } = {}) {
+    const window = segmentWindow(segmentId);
+    if (!window) return { root: null, needsResourceGuarantee: false };
+    const comPortao = pickRoot(window, { minimumLogicIndex, exclude, salt, strict: true });
+    if (comPortao) return { root: comPortao, needsResourceGuarantee: false };
+    const semPortao = pickRoot(window, { exclude, salt, strict: true });
+    if (semPortao) return { root: semPortao, needsResourceGuarantee: true };
+    // A janela não tem NENHUMA raiz elegível: promove um bloco de solo do próprio
+    // segmento. É o mesmo recurso que a raiz nitrogenada já usa — o tipo é
+    // visual, promover é gratuito, e nenhuma plataforma sai do lugar. Melhor do
+    // que empurrar a lição de prevenção para o meio da janela de contenção.
+    const promovida = promoteSoilInSegment(window, exclude);
+    if (promovida) return { root: promovida, needsResourceGuarantee: true, promoted: true };
+
+    // Nem solo promovível existe: aí sim expande, registrando a exceção.
+    const expandido = pickRoot(window, { exclude, salt });
+    return { root: expandido, needsResourceGuarantee: true, outOfSegment: Boolean(expandido) };
+  }
+
+  // Promove o bloco de solo mais largo do segmento a raiz. Só muda `type`.
+  function promoteSoilInSegment(window, exclude = new Set()) {
+    const candidatas = (state.level.platforms || []).filter(platform => (
+      platform.type === 'soil'
+      && !exclude.has(platform)
+      && !platform.final
+      && !platform.recovery
+      && !platform.safetyStep
+      && !platform.mycorrhizaStructure
+      && !platform.azospirillumStructure
+      && !platform.azospirillumLadderStep
+      && !platform.nitrogenRootCollider
+      && !platform.signatureChallenge
+      && Number.isInteger(platform.logicIndex)
+      && platform.logicIndex >= window.from
+      && platform.logicIndex <= window.to
+      && platform.w >= 120
+    ));
+    if (!candidatas.length) return null;
+    const escolhida = candidatas.sort((a, b) => b.w - a.w || a.logicIndex - b.logicIndex)[0];
+    escolhida.type = 'root';
+    escolhida.ralstoniaPromotedRoot = true;
+    return escolhida;
   }
 
   // Recursos disponíveis antes de um chunk: usado para não colocar o foco de
@@ -281,6 +336,16 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       id: `ralstonia-${nextId++}`,
       root,
       role,
+      roleLabel: {
+        prevention: 'Foco superficial — ainda é possível impedir a entrada',
+        containment: 'Infecção vascular — contenha o avanço',
+        spread: 'Foco nascido de disseminação',
+      }[role] || 'Foco de Ralstonia',
+      shortRoleLabel: {
+        prevention: 'Foco superficial',
+        containment: 'Infecção vascular',
+        spread: 'Foco disseminado',
+      }[role] || 'Foco',
       // Ancoragem: a posição é derivada da raiz a cada quadro. Guardar só um x
       // absoluto deixava o foco flutuando quando a raiz colapsava ou deslocava.
       platformId: root.id ?? root.platformId ?? null,
@@ -329,6 +394,13 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       // apresentação
       age: 0,
       phase: hashRoot(root, 61) * TAU,
+      // Animação. Tudo determinístico pela seed (hashRoot), nunca Math.random.
+      surfaceMotionPhase: hashRoot(root, 79) * TAU,
+      surfaceMotionDirection: hashRoot(root, 83) < .5 ? -1 : 1,
+      surfaceTravel: 0,
+      entryVisualProgress: clamp(vascularLoad, 0, 1) >= CONFIG.vascularEntryThreshold ? 1 : 0,
+      visualX: root.x + offsetX,
+      roleBadgeTimer: 0,
       oozeTimer: .2 + hashRoot(root, 73) * .5,
       stressTimer: 2.4 + hashRoot(root, 89) * 2.2,
       announcedEntry: false,
@@ -342,6 +414,55 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     return focus;
   }
 
+  // Garante um recurso ANTES de um chunk usando a infraestrutura normal de
+  // encontros: nada de coordenada fixa, nada de mover o que já existe. Só
+  // acrescenta o encontro ancorado numa raiz anterior, quando ele falta.
+  function ensureResourceBefore(organism, beforeLogicIndex) {
+    const encounters = state.level.microbeEncounters || (state.level.microbeEncounters = []);
+    const jaExiste = encounters.some(entry => (
+      (entry.id || entry.type) === organism
+      && (entry.logicIndex ?? chunkIndexAtX(entry.x)) < beforeLogicIndex
+    ));
+    if (jaExiste) return null;
+
+    const anfitria = eligibleRoots()
+      .filter(root => (root.logicIndex ?? -1) < beforeLogicIndex && (root.logicIndex ?? -1) >= 1)
+      .sort((a, b) => (b.logicIndex ?? 0) - (a.logicIndex ?? 0))[0];
+    if (!anfitria) return null;
+
+    const encontro = {
+      id: organism,
+      x: anfitria.x + anfitria.w * (.3 + hashRoot(anfitria, 211) * .4),
+      y: anfitria.y - 46,
+      r: 168,
+      territory: 900,
+      collect: false,
+      logicIndex: anfitria.logicIndex,
+      source: 'ralstonia-guarantee',
+      requiresSeenCardId: null,
+    };
+    encounters.push(encontro);
+    return encontro;
+  }
+
+  function ensureExudateBefore(beforeLogicIndex) {
+    const exudates = state.level.exudates || (state.level.exudates = []);
+    if (exudates.some(node => (node.logicIndex ?? chunkIndexAtX(node.x)) < beforeLogicIndex)) return null;
+    const anfitria = eligibleRoots()
+      .filter(root => (root.logicIndex ?? -1) < beforeLogicIndex && (root.logicIndex ?? -1) >= 1)
+      .sort((a, b) => (b.logicIndex ?? 0) - (a.logicIndex ?? 0))[0];
+    if (!anfitria) return null;
+    const node = {
+      logicIndex: anfitria.logicIndex,
+      x: anfitria.x + anfitria.w * .5,
+      y: anfitria.y - 52,
+      taken: false,
+      source: 'ralstonia-guarantee',
+    };
+    exudates.push(node);
+    return node;
+  }
+
   function selectFocusRoots() {
     const count = desiredFocusCount();
     if (!count) return;
@@ -349,27 +470,32 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     const used = new Set();
 
     if (teaching) {
-      // FOCO DE PREVENÇÃO — janela p9-surface-intro, nunca antes de existir uma
-      // forma de prevenir na rota.
-      const preventionRoot = pickRoot(segmentWindow('p9-surface-intro'), {
+      // FOCO DE PREVENÇÃO — janela p9-surface-intro (chunks 3–8), sem sair dela.
+      const prevencao = pickRootInSegment('p9-surface-intro', {
         minimumLogicIndex: preventionAvailableFrom(),
         exclude: used,
       });
+      const preventionRoot = prevencao.root;
       if (preventionRoot) {
         used.add(preventionRoot);
-        createFocus({
+        // Recurso garantido ANTES da raiz em vez de empurrar o foco para frente.
+        if (prevencao.needsResourceGuarantee) {
+          ensureResourceBefore('bacillus', preventionRoot.logicIndex);
+          ensureExudateBefore(preventionRoot.logicIndex);
+        }
+        const focus = createFocus({
           root: preventionRoot,
           role: 'prevention',
           surfaceLoad: CONFIG.introductoryFocusSurfaceLoad,
           vascularLoad: CONFIG.introductoryVascularLoad,
           woundOpening: CONFIG.preventionFocusWoundOpening,
         });
+        focus.outOfSegment = Boolean(prevencao.outOfSegment);
       }
 
-      // FOCO DE CONTENÇÃO — janela p9-vascular-intro, sempre POSTERIOR ao de
-      // prevenção e depois de Pseudomonas + ferro acessíveis. Começa acima do
-      // limiar de entrada: só dá para conter, nunca para prevenir.
-      const containmentRoot = pickRoot(segmentWindow('p9-vascular-intro'), {
+      // FOCO DE CONTENÇÃO — janela p9-vascular-intro (chunks 9–14), posterior ao
+      // de prevenção. Começa acima do limiar de entrada: só dá para conter.
+      const contencao = pickRootInSegment('p9-vascular-intro', {
         minimumLogicIndex: Math.max(
           containmentAvailableFrom(),
           (preventionRoot?.logicIndex ?? -1) + 1,
@@ -377,25 +503,29 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
         exclude: used,
         salt: 1,
       });
+      const containmentRoot = contencao.root;
       if (containmentRoot) {
         used.add(containmentRoot);
-        createFocus({
+        if (contencao.needsResourceGuarantee) {
+          ensureResourceBefore('pseudomonas', containmentRoot.logicIndex);
+          ensureExudateBefore(containmentRoot.logicIndex);
+        }
+        const focus = createFocus({
           root: containmentRoot,
           role: 'containment',
           surfaceLoad: CONFIG.containmentFocusSurfaceLoad,
           vascularLoad: CONFIG.containmentFocusVascularLoad,
           woundOpening: CONFIG.containmentFocusWoundOpening,
         });
+        focus.outOfSegment = Boolean(contencao.outOfSegment);
+        reserveSpreadTarget(focus);
       }
     }
 
-    // FOCOS DE PRÁTICA — no restante da fase. Também nascem `pending`: só
-    // começam a doença quando o jogador chega na região.
+    // FOCOS DE PRÁTICA — no restante da fase. Também nascem `pending`.
     //
-    // Na fase de ensino sobra SEMPRE uma vaga sob `maximumFocusCount`. Sem essa
-    // reserva os focos semeados enchiam o teto e uma disseminação bem-sucedida
-    // nunca podia criar o foco superficial — a terceira lição ficava sem a metade
-    // "falhei em bloquear e nasceu um novo foco".
+    // Na fase de ensino sobra SEMPRE uma vaga sob `maximumFocusCount`, para uma
+    // disseminação bem-sucedida poder criar o foco superficial.
     const seededCap = teaching
       ? Math.min(count, Math.max(1, CONFIG.maximumFocusCount - 1))
       : count;
@@ -418,6 +548,48 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     }
   }
 
+  // RESERVA do alvo didático da disseminação, feita na geração — não na hora do
+  // evento. Se nenhuma raiz da janela tiver lesão natural suficiente, uma raiz
+  // estruturalmente válida recebe um marcador de vulnerabilidade moderado e
+  // cicatrizável (`ralstoniaExposureWound`), para a lição acontecer em TODAS as
+  // seeds sem depender da sorte da geração.
+  function reserveSpreadTarget(sourceFocus) {
+    if (!sourceFocus?.root) return null;
+    const janela = segmentWindow('p9-spread-intro');
+    const candidatas = eligibleRoots().filter(root => (
+      root !== sourceFocus.root
+      && !foci.some(focus => focus.root === root)
+      && (root.logicIndex ?? -1) > (sourceFocus.rootLogicIndex ?? -1)
+      && (!janela || (root.logicIndex ?? -1) <= janela.to + 6)
+    ));
+    if (!candidatas.length) return null;
+
+    const dentroDaFaixa = candidatas.filter(root => {
+      const distancia = Math.abs((root.x + root.w / 2) - (sourceFocus.root.x + sourceFocus.root.w / 2));
+      return distancia >= CONFIG.minimumSpreadDistance && distancia <= CONFIG.maximumSpreadDistance;
+    });
+    const pool = dentroDaFaixa.length ? dentroDaFaixa : candidatas;
+
+    // Prefere quem já tem porta real; senão abre uma pequena lesão suscetível.
+    const ordenadas = pool.slice().sort((a, b) => {
+      const naJanelaA = janela && (a.logicIndex ?? -1) >= janela.from ? 0 : 1;
+      const naJanelaB = janela && (b.logicIndex ?? -1) >= janela.from ? 0 : 1;
+      if (naJanelaA !== naJanelaB) return naJanelaA - naJanelaB;
+      const portaDelta = ralstoniaSpreadOpening(b) - ralstoniaSpreadOpening(a);
+      if (Math.abs(portaDelta) > 1e-6) return portaDelta;
+      return (a.logicIndex ?? 0) - (b.logicIndex ?? 0);
+    });
+    const alvo = ordenadas[0];
+    if (!alvo) return null;
+
+    if (ralstoniaSpreadOpening(alvo) <= 0.12) {
+      alvo.ralstoniaExposureWound = CONFIG.exposureWoundOpening;
+    }
+    sourceFocus.reservedSpreadTarget = alvo;
+    sourceFocus.reservedSpreadTargetPlatformId = alvo.id ?? alvo.platformId ?? null;
+    return alvo;
+  }
+
   function seedFoci() {
     foci.length = 0;
     spreadEvents.length = 0;
@@ -432,6 +604,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     successfulSpreadCount = 0;
     spreadEventCount = 0;
     spreadWindowReached = false;
+    pedagogicalSpreadAttempts = 0;
     didactics.entry = false;
     didactics.obstruction = false;
     didactics.containment = false;
@@ -484,9 +657,12 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       if (!near) return;
       focus.activationState = 'warning';
       focus.activatedAt = state.time;
+      focus.roleBadgeTimer = 6;
       announce(
-        'Ralstonia detectada nesta região: a bactéria explora ferimentos e coloniza os vasos. Feche a porta de entrada antes que ela chegue ao xilema.',
-        6, .1,
+        focus.role === 'containment'
+          ? 'A bactéria já entrou no xilema desta raiz. Agora o objetivo é conter o avanço, não eliminar completamente a infecção.'
+          : 'Foco superficial: feche a porta, forme uma barreira ou reduza a população antes da entrada no xilema.',
+        6.2, .1,
       );
       return;
     }
@@ -742,6 +918,31 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     root.ralstoniaWoundOpening = focus.woundOpening;
   }
 
+  // MOVIMENTO VISUAL. Não toca em `offsetX` (a âncora): calcula `visualX`, um
+  // deslocamento suave dentro de uma faixa segura da raiz. Enquanto a infecção é
+  // superficial a bactéria patrulha a superfície; ao entrar no xilema, a
+  // animação de entrada roda uma vez e depois o movimento passa a ser interno.
+  function updateVisualMotion(focus, dt) {
+    const root = focus.root;
+    const margem = Math.min(28, root.w * .16);
+    const amplitude = Math.min(root.w * .18, 35);
+    const velocidade = .55 + (focus.surfaceLoad || 0) * .5;
+
+    focus.surfaceMotionPhase += dt * velocidade * focus.surfaceMotionDirection;
+    focus.surfaceTravel = Math.sin(focus.surfaceMotionPhase + focus.phase);
+    focus.visualX = clamp(
+      focus.x + focus.surfaceTravel * amplitude,
+      root.x + margem,
+      root.x + root.w - margem,
+    );
+
+    // Animação da entrada: ~1s, disparada na transição para o xilema.
+    if (focus.everEnteredVascular && focus.entryVisualProgress < 1) {
+      focus.entryVisualProgress = clamp(focus.entryVisualProgress + dt, 0, 1);
+    }
+    if (focus.roleBadgeTimer > 0) focus.roleBadgeTimer = Math.max(0, focus.roleBadgeTimer - dt);
+  }
+
   function updateFocus(focus, dt, pseudomonasByFocus) {
     if (!focus.root || !(state.level.platforms || []).includes(focus.root)) return;
     focus.age += dt;
@@ -750,6 +951,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     if (Number.isFinite(focus.offsetX)) {
       focus.x = focus.root.x + focus.offsetX + (focus.root.supportOffset || 0);
     }
+    updateVisualMotion(focus, dt);
 
     updateActivation(focus, dt);
 
@@ -799,6 +1001,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     if (!wasVascular && focus.everEnteredVascular) {
       didactics.entry = true;
       focus.announcedEntry = true;
+      focus.entryVisualProgress = 0;
       announce('Entrada de Ralstonia: a bactéria atravessou uma região lesionada e alcançou os vasos da raiz.', 5.2, 1.1);
     }
     if (focus.vascularLoad >= CONFIG.obstructionThreshold) didactics.obstruction = true;
@@ -894,51 +1097,87 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     ));
   }
 
-  // Garantia pedagógica da estreia (seção 21): ao entrar na região da terceira
-  // lição, UM foco vascular ativo recebe a primeira janela curta. Nenhuma
-  // coordenada é criada — o alvo continua sendo escolhido proceduralmente.
+  // GARANTIA PEDAGÓGICA da terceira lição.
+  //
+  // A versão anterior marcava `spreadWindowReached = true` no primeiro quadro em
+  // que o jogador entrava na região — antes de confirmar que havia foco vascular
+  // ATIVO e alvo válido. Se o foco ainda estava `pending` (o normal: o jogador
+  // chega na região de disseminação antes de o foco de contenção ativar), a
+  // única oportunidade era queimada em silêncio e o objetivo de bloquear
+  // disseminação virava impossível.
+  //
+  // Agora a janela só é considerada alcançada quando existem, ao mesmo tempo:
+  // foco ativado, capaz de disseminar, e alvo válido reservado ou escolhível.
+  function findSpreadCandidate() {
+    return foci.find(focus => (
+      !focus.neutralized
+      && focus.everEnteredVascular
+      && focus.activationState === 'active'
+      && focus.spreadGeneration < CONFIG.maximumSpreadGeneration
+      && !hasActiveEvent(focus)
+    )) || null;
+  }
+
+  function spreadTargetAvailableFor(focus) {
+    if (focus.reservedSpreadTarget
+      && (state.level.platforms || []).includes(focus.reservedSpreadTarget)
+      && !foci.some(other => other.root === focus.reservedSpreadTarget && !other.neutralized)
+      && !targetedRoots().has(focus.reservedSpreadTarget)) {
+      return focus.reservedSpreadTarget;
+    }
+    return chooseRalstoniaSpreadTarget({
+      sourceRoot: focus.root,
+      roots: eligibleRoots(),
+      config: CONFIG,
+      random: createRandom(`${state.campaign?.seed || 'ralstonia'}:probe:${focus.id}`),
+      occupiedRoots: occupiedRoots(),
+      targetedRoots: targetedRoots(),
+    });
+  }
+
   function ensureSpreadOpportunity() {
     if (phaseNumber() !== 9) return;
     const window = segmentWindow('p9-spread-intro');
     if (!window) return;
     if (playerChunkIndex() < window.from) return;
-
-    if (!spreadWindowReached) {
-      spreadWindowReached = true;
-      const candidate = foci.find(focus => (
-        !focus.neutralized
-        && focus.everEnteredVascular
-        && focus.activationState !== 'pending'
-      ));
-      if (candidate) {
-        candidate.pedagogicalSpread = true;
-        candidate.spreadTimer = Math.min(candidate.spreadTimer, CONFIG.spreadFirstOpportunitySeconds);
-      }
-      return;
-    }
-
-    // Oportunidade RECUPERÁVEL: se o jogador deixou o primeiro evento passar e
-    // ainda não bloqueou nenhum, o foco vascular ganha uma segunda chance depois
-    // de `spreadRetrySeconds`. Sem isso o objetivo de bloquear disseminação
-    // poderia ficar impossível numa partida em que o primeiro aviso escapou.
     if (blockedSpreadCount > 0) return;
+    if (pedagogicalSpreadAttempts >= CONFIG.maximumPedagogicalSpreadAttempts) return;
+    // Já existe um evento rolando: deixa o jogador jogar.
     if (spreadEvents.some(event => event.state === 'warning' || event.state === 'traveling')) return;
-    const retry = foci.find(focus => (
-      !focus.neutralized
-      && focus.everEnteredVascular
-      && focus.activationState === 'active'
-      && focus.spreadEventsUsed > 0
-      && focus.spreadBudgetBonus < 1
-      && focus.spreadCooldown <= 0
-    ));
-    if (!retry) return;
-    retry.spreadBudgetBonus = 1;
-    retry.pedagogicalSpread = true;
-    retry.spreadTimer = CONFIG.spreadRetrySeconds;
+
+    const candidate = findSpreadCandidate();
+    // Ainda pending ou em warning: NÃO queima a janela — tenta de novo depois.
+    if (!candidate) return;
+    if (candidate.spreadCooldown > 0) return;
+    // Já armado e esperando o próprio timer: não rearma (rearmar a cada quadro
+    // reiniciava o relógio e, pior, gastava as três tentativas em três quadros).
+    if (candidate.pedagogicalSpread) return;
+    const alvo = spreadTargetAvailableFor(candidate);
+    if (!alvo) return;
+
+    spreadWindowReached = true;
+    candidate.pedagogicalSpread = true;
+    // Cada tentativa pedagógica libera uma cota extra: falhar em bloquear a
+    // primeira não pode tornar o objetivo impossível.
+    candidate.spreadBudgetBonus = Math.max(
+      candidate.spreadBudgetBonus,
+      pedagogicalSpreadAttempts,
+    );
+    candidate.spreadTimer = pedagogicalSpreadAttempts === 0
+      ? CONFIG.spreadFirstOpportunitySeconds
+      : CONFIG.spreadRetrySeconds;
   }
 
   function openSpreadEvent(focus) {
-    const target = chooseRalstoniaSpreadTarget({
+    // A reserva feita na geração tem prioridade no evento didático: é a raiz que
+    // o jogador consegue alcançar e proteger a tempo.
+    const reservado = focus.reservedSpreadTarget
+      && (state.level.platforms || []).includes(focus.reservedSpreadTarget)
+      && !foci.some(other => other.root === focus.reservedSpreadTarget && !other.neutralized)
+      && !targetedRoots().has(focus.reservedSpreadTarget)
+      ? focus.reservedSpreadTarget
+      : null;
+    const target = reservado || chooseRalstoniaSpreadTarget({
       sourceRoot: focus.root,
       roots: eligibleRoots(),
       config: CONFIG,
@@ -968,14 +1207,43 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       blocked: false,
       completed: false,
     };
+    if (reservado) {
+      focus.reservedSpreadTarget = null;
+      focus.reservedSpreadTargetPlatformId = null;
+    }
     spreadEvents.push(event);
     focus.spreadEventsUsed++;
+    // A tentativa pedagógica só é gasta quando o evento realmente abre.
+    if (focus.pedagogicalSpread) pedagogicalSpreadAttempts++;
     focus.pedagogicalSpread = false;
     spreadEventCount++;
     target.ralstoniaSpreadIncoming = CONFIG.spreadWarningSeconds;
     didactics.spread = true;
     announce('Disseminação bacteriana: proteja a raiz marcada antes da chegada.', 5.4, .9);
     return event;
+  }
+
+  // Pressão POTENCIAL da Pseudomonas numa raiz, com a mesma conta de alcance,
+  // vigor e reserva de ferro usada na passada global — mas sem consumir nada.
+  // O HUD e a chegada usam este helper, então o número mostrado ao jogador é o
+  // mesmo que decide o bloqueio. Antes o HUD passava `pseudomonas: 0` e mostrava
+  // uma proteção menor do que a real.
+  function pseudomonasPotential(root, atX = root.x + root.w / 2) {
+    let best = 0;
+    for (const entry of pseudomonas?.colonyStates?.values() || []) {
+      const colony = entry.colony;
+      if (!colony || colony.dormant || colony.vigor <= .04) continue;
+      const sameRoot = colony.platform === root;
+      const distance = Math.hypot(colony.x - atX, colony.y - root.y);
+      const range = sameRoot ? 310 : 215;
+      if (distance >= range) continue;
+      const reserve = clamp((entry.ironReserve || 0) / .7, 0, 1);
+      best = Math.max(best, clamp(
+        (1 - distance / range) * colony.vigor * (.35 + reserve * .65) * (sameRoot ? 1.2 : .78),
+        0, 1,
+      ));
+    }
+    return best;
   }
 
   function resolveArrival(event) {
@@ -987,22 +1255,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       root: target,
     });
     const bacillus = bacillusStrength(probe);
-    // Pseudomonas do alvo: reusa a mesma leitura de alcance/vigor/ferro, sem
-    // consumir ferro (a chegada é um instante, não um quadro de pressão).
-    let pseudo = 0;
-    for (const entry of pseudomonas?.colonyStates?.values() || []) {
-      const colony = entry.colony;
-      if (!colony || colony.dormant || colony.vigor <= .04) continue;
-      const sameRoot = colony.platform === target;
-      const distance = Math.hypot(colony.x - probe.x, colony.y - target.y);
-      const range = sameRoot ? 310 : 215;
-      if (distance >= range) continue;
-      const reserve = clamp((entry.ironReserve || 0) / .7, 0, 1);
-      pseudo = Math.max(pseudo, clamp(
-        (1 - distance / range) * colony.vigor * (.35 + reserve * .65) * (sameRoot ? 1.2 : .78),
-        0, 1,
-      ));
-    }
+    const pseudo = pseudomonasPotential(target, probe.x);
 
     const opening = ralstoniaSpreadOpening(target);
     const verdict = ralstoniaArrivalProtection({
@@ -1023,12 +1276,15 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       state.player.soil += 1.4;
       state.player.hope += 1.9;
       entities.burst(probe.x, target.y - 6, '#8ef0c6', 26, 145);
+      entities.burst(probe.x, target.y - 14, '#a8ffe6', 18, 95);
       announce(
         verdict.sealed
           ? 'Disseminação bloqueada: a raiz estava cicatrizada e a bactéria não encontrou porta de entrada.'
           : 'Disseminação bloqueada: a proteção biológica impediu a colonização da nova raiz.',
         5, .9,
       );
+      // A raiz resistiu: a lesão suscetível criada para a lição cicatriza.
+      delete target.ralstoniaExposureWound;
       releaseTarget(event);
       return;
     }
@@ -1052,6 +1308,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       born.activatedAt = state.time;
       successfulSpreadCount++;
       entities.burst(probe.x, target.y - 6, '#e8c27e', 24, 130);
+      entities.burst(probe.x, target.y - 2, '#d8b674', 16, 70);
       announce('A disseminação chegou: nasceu um novo foco superficial. Ainda dá para prevenir a entrada nesta raiz.', 5.4, .9);
     }
     releaseTarget(event);
@@ -1108,8 +1365,11 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     if (!initialized) seedFoci();
 
     // Uma passada global de ferro antes dos focos: consumo único por colônia.
+    // Só foco ATIVO gera demanda contínua e consome ferro. Em `warning` a doença
+    // está congelada e o jogador ainda está lendo o cartão: gastar reserva ali
+    // punia quem parou para entender.
     const activeFoci = foci.filter(focus => (
-      !focus.neutralized && focus.activationState !== 'pending'
+      !focus.neutralized && focus.activationState === 'active'
     ));
     const pseudomonasByFocus = resolvePseudomonasControl(activeFoci, dt);
 
@@ -1132,42 +1392,155 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
   // G. RENDERIZAÇÃO
   // ---------------------------------------------------------------------------
 
+  // Uma célula pequena de Ralstonia. Usa a sprite quando existe; senão desenha o
+  // bacilo procedural. Nunca desenha "a sprite grande" repetida.
+  function drawCell(ctx, x, y, { height = 26, phase = 0, alpha = .8, scale = 1, flip = false }) {
+    if (organismSprites.draw(ctx, 'ralstonia', {
+      x, y, height: height * scale, time: state.time, phase,
+      alpha, anchorY: .5, flipX: flip,
+    })) return;
+    const rod = 2.2 * scale;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.sin(phase + state.time * .6) * .5);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#e8c27e';
+    ctx.strokeStyle = 'rgba(107,69,44,.8)';
+    ctx.lineWidth = .7;
+    ctx.beginPath();
+    ctx.roundRect(-rod, -1.2 * scale, rod * 2, 2.4 * scale, 1.2 * scale);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // População + movimento.
+  //
+  // A versão anterior tinha `if (organismSprites.draw(...)) return;` no topo:
+  // quando a folha de sprites carregava, a bactéria virava UMA figura parada em
+  // `focus.x` e todo o resto — os bacilos menores, a entrada, o interior do vaso
+  // — nunca era desenhado. A sprite agora é a célula principal e convive com a
+  // população ao redor.
   function drawBacteria(ctx, focus) {
     const root = focus.root;
     const surface = clamp(focus.surfaceLoad, 0, 1);
     const vascular = clamp(focus.vascularLoad, 0, 1);
-    if (organismSprites.draw(ctx, 'ralstonia', {
-      x: focus.x,
-      y: root.y + 2,
-      height: 58 + surface * 12,
+    const entrando = focus.everEnteredVascular && focus.entryVisualProgress < 1;
+    const alphaBase = focus.neutralized ? .38 : .72 + surface * .28;
+
+    // Célula principal. Enquanto está fora, patrulha a superfície; durante a
+    // animação de entrada, encolhe e desce para dentro do tecido.
+    const t = clamp(focus.entryVisualProgress, 0, 1);
+    const mergulho = entrando ? t * Math.min(root.h * .55, 26) : 0;
+    const escala = entrando ? 1 - t * .55 : 1;
+    organismSprites.draw(ctx, 'ralstonia', {
+      x: focus.visualX ?? focus.x,
+      y: root.y + 2 + mergulho,
+      height: (58 + surface * 12) * escala,
       time: state.time,
       phase: focus.phase,
-      alpha: focus.neutralized ? .38 : .72 + surface * .28,
+      alpha: entrando ? alphaBase * (1 - t * .8) : alphaBase,
       anchorY: .88,
-      flipX: Math.sin(focus.phase) < 0,
-    })) return;
-    const count = 5 + Math.floor(surface * 11 + vascular * 9);
-    for (let i = 0; i < count; i++) {
-      const angle = focus.phase + i * 2.399 + state.time * (.18 + (i % 3) * .04);
-      const spread = 8 + (i % 5) * (3 + surface * 4);
-      const depth = vascular > .05
-        ? 4 + (i % 6) / 5 * Math.min(root.h - 10, 18 + vascular * 34)
-        : -3 + Math.sin(angle) * 3;
-      const x = focus.x + Math.cos(angle) * spread * (1 + vascular * .7);
-      const y = root.y + depth;
-      const rod = 2.4 + vascular * 1.5;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(angle * .7);
-      ctx.fillStyle = focus.neutralized ? 'rgba(168,255,230,.25)' : i % 2 ? '#e8c27e' : '#f1dfa8';
-      ctx.strokeStyle = focus.neutralized ? 'rgba(168,255,230,.3)' : 'rgba(107,69,44,.8)';
-      ctx.lineWidth = .7;
-      ctx.beginPath();
-      ctx.roundRect(-rod, -1.2, rod * 2, 2.4, 1.2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
+      flipX: (focus.surfaceMotionDirection || 1) < 0,
+    }) || drawCell(ctx, focus.visualX ?? focus.x, root.y - 12, {
+      height: 44, phase: focus.phase, alpha: alphaBase, scale: 2.4,
+    });
+
+    // População superficial: 2 a 5 células menores, fases e direções diferentes.
+    if (!focus.neutralized || focus.age < 6) {
+      const quantidade = 2 + Math.round(surface * 3);
+      const margem = Math.min(26, root.w * .16);
+      for (let i = 0; i < quantidade; i++) {
+        const fase = focus.phase + i * 1.87;
+        const direcao = i % 2 ? 1 : -1;
+        const passeio = Math.sin(state.time * (.35 + i * .07) * direcao + fase);
+        const x = clamp(
+          focus.x + passeio * Math.min(root.w * .3, 62),
+          root.x + margem,
+          root.x + root.w - margem,
+        );
+        const y = root.y - 6 - Math.abs(Math.sin(fase + state.time * .5)) * 7;
+        drawCell(ctx, x, y, {
+          height: 20 + (i % 3) * 4,
+          phase: fase,
+          alpha: (focus.neutralized ? .3 : .62) + surface * .3,
+          scale: .8 + (i % 3) * .12,
+          flip: direcao < 0,
+        });
+      }
     }
+
+    // Duas células acompanhando a bactéria principal para dentro da abertura.
+    if (entrando) {
+      for (let i = 0; i < 2; i++) {
+        const atraso = clamp(t - i * .18, 0, 1);
+        drawCell(
+          ctx,
+          (focus.visualX ?? focus.x) + (i ? 9 : -9),
+          root.y - 4 + atraso * Math.min(root.h * .5, 22),
+          {
+            height: 18,
+            phase: focus.phase + i * 2.1,
+            alpha: (1 - atraso) * .85,
+            scale: 1 - atraso * .5,
+          },
+        );
+      }
+    }
+  }
+
+  // MOVIMENTO VASCULAR: células dentro do vaso, recortadas pelo bloco. O ritmo
+  // conta o estágio — fluxo lento em `vascular`, grupos irregulares em
+  // `obstructed`, pulsos congestionados em `critical`, quase parado em
+  // `contained`. Nada de Math.random por quadro: posição vem de fase + índice.
+  function drawVascularMotion(ctx, focus) {
+    const root = focus.root;
+    const vascular = clamp(focus.vascularLoad, 0, 1);
+    if (focus.neutralized || vascular < CONFIG.vascularEntryThreshold) return;
+
+    const estagio = focus.state;
+    const quantidade = Math.min(14, 2 + Math.round(vascular * 12));
+    const velocidade = estagio === 'contained' ? .12
+      : estagio === 'critical' ? .95
+      : estagio === 'obstructed' ? .5
+      : .32;
+    const cor = estagio === 'critical' ? 'rgba(255,150,150,'
+      : estagio === 'contained' ? 'rgba(140,230,220,'
+      : 'rgba(240,214,160,';
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(root.x, root.y, root.w, root.h, 14);
+    ctx.clip();
+
+    for (let i = 0; i < quantidade; i++) {
+      const faseCelula = focus.phase + i * 2.399;
+      // Percorre o vaso da esquerda para a direita, com volta contínua.
+      let avanco = (state.time * velocidade + i / quantidade) % 1;
+      if (estagio === 'obstructed') {
+        // Interrupções: a célula trava por trechos.
+        avanco = avanco < .5 ? avanco : .5 + (avanco - .5) * .35;
+      }
+      const x = root.x + 10 + avanco * Math.max(20, root.w - 20);
+      const faixa = Math.min(root.h - 16, 10 + vascular * 30);
+      const y = root.y + 10 + ((i % 4) / 3) * faixa
+        + Math.sin(faseCelula + state.time * velocidade * 2) * 2.2;
+      const brilho = estagio === 'critical' ? .55 + Math.abs(Math.sin(state.time * 3 + faseCelula)) * .35 : .5;
+      ctx.fillStyle = `${cor}${brilho.toFixed(2)})`;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 2.6 + vascular * 1.4, 1.4 + vascular * .8, faseCelula, 0, TAU);
+      ctx.fill();
+    }
+
+    // Contido: brilho de controle sobre a carga residual, que continua visível.
+    if (focus.contained) {
+      ctx.strokeStyle = 'rgba(108,231,223,.5)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.roundRect(root.x + 3, root.y + 3, root.w - 6, root.h - 6, 12);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function drawVascularBlockage(ctx, focus) {
@@ -1315,6 +1688,57 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     ctx.restore();
   }
 
+  // Selo de papel, temporário: diz de cara se este foco ainda dá para PREVENIR ou
+  // se já é caso de CONTER. Some depois de alguns segundos; o painel contextual
+  // continua com a informação.
+  function drawRoleBadge(ctx, focus) {
+    if (focus.roleBadgeTimer <= 0 || focus.neutralized) return;
+    const alpha = clamp(focus.roleBadgeTimer / 1.2, 0, 1);
+    const x = focus.visualX ?? focus.x;
+    const y = focus.root.y - 46;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = '800 11px Inter,system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = focus.role === 'containment' ? 'rgba(255,150,110,.95)' : 'rgba(240,214,160,.95)';
+    ctx.fillText(focus.shortRoleLabel || 'Foco', x, y);
+    ctx.restore();
+  }
+
+  // Marcador de REGIÃO para foco ainda pendente. Só aparece quando Miguelito
+  // está perto (dois chunks ou ~1,5 tela): o foco de contenção era invisível até
+  // ativar, e o jogador não tinha como saber que havia uma segunda lição adiante.
+  function drawPendingMarker(ctx, focus) {
+    if (focus.activationState !== 'pending') return;
+    const distancia = distanceToRoot(focus.root);
+    const perto = distancia <= W * 1.5
+      || playerChunkIndex() >= (focus.rootLogicIndex ?? Infinity) - 2;
+    if (!perto) return;
+
+    const root = focus.root;
+    const x = root.x + root.w / 2;
+    const y = root.y - 34;
+    const pulso = .55 + Math.abs(Math.sin(state.time * 1.6 + focus.phase)) * .35;
+
+    ctx.save();
+    ctx.globalAlpha = pulso;
+    ctx.strokeStyle = focus.role === 'containment' ? 'rgba(255,150,110,.85)' : 'rgba(240,214,160,.8)';
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([5, 6]);
+    ctx.beginPath();
+    ctx.roundRect(root.x - 2, root.y - 6, root.w + 4, root.h + 8, 14);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '700 10px Inter,system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = focus.role === 'containment' ? 'rgba(255,178,150,.95)' : 'rgba(245,226,190,.95)';
+    ctx.fillText(
+      focus.role === 'containment' ? 'Infecção vascular adiante' : 'Contaminação superficial adiante',
+      x, y,
+    );
+    ctx.restore();
+  }
+
   function drawSpreadEvent(ctx, event) {
     if (event.state !== 'warning' && event.state !== 'traveling') return;
     const source = event.sourceRoot;
@@ -1357,18 +1781,36 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     ctx.fillStyle = 'rgba(255,196,180,.95)';
     ctx.fillText(`${remaining.toFixed(1)}s`, x1, target.y - 12);
 
-    // Partículas viajando: a bactéria não teleporta.
+    // Bactérias viajando ao longo da curva — não círculos, e não teleporte.
     if (event.state === 'traveling') {
       const t = event.travelProgress;
+      const ctrlX = (x0 + x1) / 2;
+      const ctrlY = Math.min(y0, y1) - 58;
+      const ponto = p => ({
+        x: (1 - p) * (1 - p) * x0 + 2 * (1 - p) * p * ctrlX + p * p * x1,
+        y: (1 - p) * (1 - p) * y0 + 2 * (1 - p) * p * ctrlY + p * p * y1,
+      });
       for (let i = 0; i < 4; i++) {
-        const p = clamp(t - i * .07, 0, 1);
-        const mx = (1 - p) * (1 - p) * x0 + 2 * (1 - p) * p * ((x0 + x1) / 2) + p * p * x1;
-        const my = (1 - p) * (1 - p) * y0
-          + 2 * (1 - p) * p * (Math.min(y0, y1) - 58)
-          + p * p * y1;
-        ctx.fillStyle = `rgba(232,194,126,${.85 - i * .18})`;
+        const p = clamp(t - i * .075, 0, 1);
+        const atual = ponto(p);
+        const seguinte = ponto(clamp(p + .04, 0, 1));
+        const angulo = Math.atan2(seguinte.y - atual.y, seguinte.x - atual.x);
+        ctx.save();
+        ctx.translate(atual.x, atual.y);
+        ctx.rotate(angulo);
+        ctx.translate(-atual.x, -atual.y);
+        drawCell(ctx, atual.x, atual.y, {
+          height: 20 - i * 2,
+          phase: i * 1.7,
+          alpha: .9 - i * .18,
+          scale: .95 - i * .12,
+          flip: x1 < x0,
+        });
+        ctx.restore();
+        // Exsudato bacteriano de apoio.
+        ctx.fillStyle = `rgba(232,194,126,${.35 - i * .07})`;
         ctx.beginPath();
-        ctx.arc(mx, my, 3 - i * .5, 0, TAU);
+        ctx.arc(atual.x, atual.y + 4, 2 - i * .3, 0, TAU);
         ctx.fill();
       }
     }
@@ -1382,11 +1824,16 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     ctx.translate(-state.cameraX, 0);
     for (const event of spreadEvents) drawSpreadEvent(ctx, event);
     for (const focus of foci) {
-      if (focus.activationState === 'pending') continue;
       if (focus.root.x + focus.root.w < state.cameraX - 100 || focus.root.x > state.cameraX + W + 100) continue;
+      if (focus.activationState === 'pending') {
+        drawPendingMarker(ctx, focus);
+        continue;
+      }
       drawVascularBlockage(ctx, focus);
+      drawVascularMotion(ctx, focus);
       drawBacteria(ctx, focus);
       drawStatus(ctx, focus);
+      drawRoleBadge(ctx, focus);
     }
     ctx.restore();
   }
@@ -1407,12 +1854,27 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     )) || null;
   }
 
+  // Leitura interpretativa: o que o jogador PODE fazer agora nesta raiz.
+  function readingFor(focus) {
+    if (focus.neutralized) return 'Foco neutralizado';
+    if (focus.state === 'critical') return 'Murcha crítica';
+    if (focus.contained) return 'Infecção contida';
+    if (focus.everEnteredVascular) return 'A bactéria já entrou — contenha';
+    if (focus.woundOpening <= CONFIG.woundSealThreshold) return 'Entrada bloqueada';
+    if (focus.woundOpening <= CONFIG.woundColonizationLimit) return 'Porta fechando';
+    return 'Ainda é possível impedir a entrada';
+  }
+
   function rootSnapshot(root) {
     const focus = focusForRoot(root);
     const incoming = incomingEventForRoot(root);
     if (!focus && !incoming) return null;
     const snapshot = {
       hasFocus: Boolean(focus),
+      role: focus ? focus.role : null,
+      roleLabel: focus ? focus.roleLabel : null,
+      shortRoleLabel: focus ? focus.shortRoleLabel : null,
+      reading: focus ? readingFor(focus) : 'Raiz visada pela disseminação',
       stage: focus ? focusState(focus) : null,
       stageLabel: focus ? stageLabel(focus) : null,
       doorLabel: focus ? ralstoniaDoorLabel(focus.woundOpening, CONFIG) : null,
@@ -1440,7 +1902,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       });
       snapshot.incomingProtection = ralstoniaArrivalProtection({
         bacillus: bacillusStrength({ root, x: root.x + root.w / 2 }),
-        pseudomonas: 0,
+        pseudomonas: pseudomonasPotential(root),
         azospirillumClosure: azo,
         rootHealth: root.rootHealth ?? 1,
         opening: ralstoniaSpreadOpening(root),
@@ -1494,6 +1956,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       delete root.ralstoniaCarbonMultiplier;
       delete root.ralstoniaNutrientMultiplier;
       delete root.ralstoniaSpreadIncoming;
+      delete root.ralstoniaExposureWound;
       delete root.vascularEfficiency;
       delete root.mycorrhizaEfficiency;
       delete root.recoveryBlocked;
@@ -1526,6 +1989,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     successfulSpreadCount = 0;
     spreadEventCount = 0;
     spreadWindowReached = false;
+    pedagogicalSpreadAttempts = 0;
     didactics.entry = false;
     didactics.obstruction = false;
     didactics.containment = false;
@@ -1636,6 +2100,13 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     get foci() { return foci; },
     get spreadEvents() { return spreadEvents; },
     get didactics() { return didactics; },
+    // A fase "começou" quando o jogador viu ao menos um foco ou um evento. Antes
+    // disso, o status de murcha crítica é neutro — não verde.
+    get challengeStarted() {
+      return foci.some(focus => focus.activationState !== 'pending')
+        || spreadEvents.length > 0;
+    },
+    get pedagogicalSpreadAttempts() { return pedagogicalSpreadAttempts; },
     get config() { return CONFIG; },
     rootSnapshot,
     debugLines,

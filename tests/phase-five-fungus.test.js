@@ -171,7 +171,7 @@ test('Fase 5 ensina fungo, Pseudomonas e somente depois a interação', () => {
   ]);
   assert.deepEqual(manifest.finalTest.requires.map(condition => condition.key), [
     'pseudomonasIronReserve',
-    'opportunisticFungusVigor',
+    'controlledOpportunisticFungusCount',
     'reachedFinalRoot',
   ]);
   assert.equal(manifest.totalChunks, 20);
@@ -337,4 +337,135 @@ test('pipeline real do Phase Lab 5 mantém a rota natural e reúne ferro, Pseudo
   assert.equal(interactionIron.platform.logicIndex, interactionFungus.logicIndex);
   assert.ok(Math.abs(interactionIron.x - interactionFungus.x) < 8);
   assert.ok(Math.abs(interactionIron.x - interactionPseudomonas.x) < 8);
+});
+
+// ============================================================================
+// MARCO DE CONTROLE FÚNGICO
+// ============================================================================
+//
+// O objetivo da fase 5 era `opportunisticFungusVigor <= .45`, e
+// `controlledFungalVigor` devolvia 0 quando não havia rede nenhuma: sem fungo em
+// cena o requisito nascia cumprido. Agora o marco exige que a rede tenha
+// existido, estado vigorosa, e sido mantida sob o limiar por tempo real.
+
+import {
+  FUNGUS_CONTROL_HOLD_SECONDS,
+  FUNGUS_CONTROL_THRESHOLD,
+} from '../src/procgen/opportunistic-fungus.js';
+
+// Bancada mínima: exercita só a regra do marco, sem montar o nível.
+function bancadaDeControle() {
+  let contador = 0;
+  const redes = new Map();
+
+  function atualizar(chave, vigor, dt) {
+    let rede = redes.get(chave);
+    if (!rede) {
+      rede = { wasActive: false, maximumObservedVigor: 0, controlHold: 0, everControlled: false, response: null };
+      redes.set(chave, rede);
+    }
+    rede.response = { vigor };
+    rede.maximumObservedVigor = Math.max(rede.maximumObservedVigor, vigor);
+    if (vigor > .65) rede.wasActive = true;
+    if (rede.wasActive && vigor <= FUNGUS_CONTROL_THRESHOLD) {
+      rede.controlHold += dt;
+      if (rede.controlHold >= FUNGUS_CONTROL_HOLD_SECONDS && !rede.everControlled) {
+        rede.everControlled = true;
+        contador++;
+      }
+    } else {
+      rede.controlHold = 0;
+    }
+    return rede;
+  }
+
+  return {
+    atualizar,
+    get contador() { return contador; },
+    get vigorDeHud() {
+      const valores = [...redes.values()].filter(r => r.response).map(r => r.response.vigor);
+      return valores.length ? Math.max(...valores) : 1;
+    },
+    reiniciar() { redes.clear(); contador = 0; },
+  };
+}
+
+test('sem fungo: vigor de HUD é 1 e o marco é zero', () => {
+  const b = bancadaDeControle();
+  assert.equal(b.vigorDeHud, 1, 'ausência de fungo = nada a controlar, não vigor zero');
+  assert.equal(b.contador, 0);
+});
+
+test('rede recém-criada com vigor alto não conta', () => {
+  const b = bancadaDeControle();
+  b.atualizar('a', 1, 1 / 60);
+  assert.equal(b.contador, 0);
+  assert.equal(b.vigorDeHud, 1);
+});
+
+test('queda momentânea abaixo do limiar não conta', () => {
+  const b = bancadaDeControle();
+  b.atualizar('a', 1, 1);
+  b.atualizar('a', .3, .5);
+  assert.equal(b.contador, 0, 'meio segundo não é controle sustentado');
+  b.atualizar('a', .9, .1);
+  assert.equal(b.contador, 0);
+});
+
+test('controle sustentado por 2 segundos conta uma vez', () => {
+  const b = bancadaDeControle();
+  b.atualizar('a', 1, 1);
+  for (let t = 0; t < FUNGUS_CONTROL_HOLD_SECONDS + .2; t += 1 / 60) b.atualizar('a', .3, 1 / 60);
+  assert.equal(b.contador, 1);
+  // Voltar a subir não conta de novo.
+  b.atualizar('a', .95, .5);
+  for (let t = 0; t < FUNGUS_CONTROL_HOLD_SECONDS + .2; t += 1 / 60) b.atualizar('a', .2, 1 / 60);
+  assert.equal(b.contador, 1, 'everControlled impede a contagem dupla');
+});
+
+test('rede que nasce fraca não conta: precisa ter estado vigorosa', () => {
+  const b = bancadaDeControle();
+  for (let t = 0; t < 10; t += 1 / 60) b.atualizar('fraca', .2, 1 / 60);
+  assert.equal(b.contador, 0);
+});
+
+test('com dois focos, o HUD mostra o MENOS controlado', () => {
+  const b = bancadaDeControle();
+  b.atualizar('a', .30, 1 / 60);
+  b.atualizar('b', .90, 1 / 60);
+  assert.equal(b.vigorDeHud, .90, 'Math.max, não Math.min');
+});
+
+test('controlar só um dos dois: o marco conta, o HUD segue mostrando o pior', () => {
+  const b = bancadaDeControle();
+  b.atualizar('a', 1, 1);
+  b.atualizar('b', 1, 1);
+  for (let t = 0; t < FUNGUS_CONTROL_HOLD_SECONDS + .2; t += 1 / 60) {
+    b.atualizar('a', .25, 1 / 60);
+    b.atualizar('b', .90, 1 / 60);
+  }
+  assert.equal(b.contador, 1, 'um foco controlado é um marco');
+  assert.equal(b.vigorDeHud, .90, 'o outro continua alto no HUD');
+});
+
+test('reiniciar a fase zera o contador', () => {
+  const b = bancadaDeControle();
+  b.atualizar('a', 1, 1);
+  for (let t = 0; t < FUNGUS_CONTROL_HOLD_SECONDS + .2; t += 1 / 60) b.atualizar('a', .3, 1 / 60);
+  assert.equal(b.contador, 1);
+  b.reiniciar();
+  assert.equal(b.contador, 0);
+  assert.equal(b.vigorDeHud, 1);
+});
+
+test('o teste final da fase 5 usa o marco, não o vigor instantâneo', () => {
+  const requisitos = getPhaseManifest(5).finalTest.requires.map(c => c.key);
+  assert.ok(
+    requisitos.includes('controlledOpportunisticFungusCount'),
+    'o objetivo passa a exigir controle real',
+  );
+  assert.equal(
+    requisitos.includes('opportunisticFungusVigor'), false,
+    'o vigor instantâneo sai do teste final — ele nascia satisfeito sem fungo',
+  );
 });
