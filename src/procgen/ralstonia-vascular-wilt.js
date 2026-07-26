@@ -438,6 +438,13 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     ctx.restore();
   }
 
+  // Estado do foco, desenhado sobre a raiz.
+  //
+  // ATENCAO: esta funcao roda DENTRO do save()/translate() de render(). Ela
+  // precisa fechar exatamente os save() que abrir. A versao anterior chamava
+  // ctx.restore() sem nenhum save() proprio: isso desempilhava a translacao da
+  // camera, e todo sistema desenhado DEPOIS da Ralstonia (os beneficios) perdia
+  // a referencia e flutuava em coordenadas de tela.
   function drawStatus(ctx, focus) {
     if (focus.neutralized && focus.age > 10) return;
     const root = focus.root;
@@ -446,6 +453,31 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     const width = Math.min(132, Math.max(96, root.w * .62));
     const vascular = clamp(focus.vascularLoad, 0, 1);
     const control = clamp(focus.bacillusControl * .68 + focus.pseudomonasControl * .42, 0, 1);
+    const left = x - width / 2;
+
+    ctx.save();
+
+    // Trilho: quanto do xilema esta comprometido.
+    ctx.fillStyle = 'rgba(6,20,24,.72)';
+    ctx.fillRect(left, y, width, 5);
+    ctx.fillStyle = focus.neutralized ? 'rgba(142,240,198,.7)'
+      : vascular >= .82 ? '#ff6f91'
+      : vascular >= .58 ? '#e8905e'
+      : vascular >= .08 ? '#e8c27e'
+      : 'rgba(232,194,126,.6)';
+    ctx.fillRect(left, y, width * Math.max(vascular, focus.neutralized ? 0 : .04), 5);
+
+    // Controle sustentado por Bacillus + Pseudomonas: a marca que mostra ao
+    // jogador que a contencao esta funcionando.
+    if (control > .02) {
+      ctx.fillStyle = 'rgba(108,231,223,.85)';
+      ctx.fillRect(left, y + 5.5, width * control, 2);
+    }
+
+    ctx.font = '700 9px Inter,system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = focus.neutralized ? 'rgba(168,255,230,.9)' : 'rgba(245,226,190,.92)';
+    ctx.fillText(stageLabel(focus), x, y - 4);
 
     ctx.restore();
   }
