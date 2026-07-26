@@ -528,29 +528,99 @@ export function createRenderer({
   // quadro — nenhuma partícula física entra no nível, para não haver centenas de
   // objetos vivos só por causa de um efeito. O colisor, o player.y, a câmera e o
   // tamanho do personagem NÃO são tocados: é puramente visual.
+  // Cápsula (retângulo de pontas arredondadas) desenhada com arcos. ctx.roundRect
+  // resolveria em uma linha, mas não existe em todo navegador que o jogo suporta.
+  function capsulePath(x, y, w, h, r) {
+    const radius = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + w - radius, y);
+    ctx.arcTo(x + w, y, x + w, y + radius, radius);
+    ctx.lineTo(x + w, y + h - radius);
+    ctx.arcTo(x + w, y + h, x + w - radius, y + h, radius);
+    ctx.lineTo(x + radius, y + h);
+    ctx.arcTo(x, y + h, x, y + h - radius, radius);
+    ctx.lineTo(x, y + radius);
+    ctx.arcTo(x, y, x + radius, y, radius);
+    ctx.closePath();
+  }
+
   function drawJetpack(player, time) {
     if (!player.canJetpack) return;
     const energy = Math.max(0, Math.min(1, player.jetpackEnergy || 0));
+    // Sobre a mochila, um pouco acima do centro do corpo — no quadril o medidor
+    // ficava solto, sem parecer parte do equipamento.
     const coreX = -13;
-    const coreY = -2;
+    const coreY = -6;
 
-    // Núcleo da mochila: apagado em 0, preenchendo de baixo para cima conforme a
-    // reserva, com pulso suave só no tanque cheio.
-    const pulse = energy >= .999 ? .82 + Math.sin(time * 4.2) * .18 : 1;
+    // Medidor da mochila: uma cápsula de combustível, não um retângulo solto.
+    // O nível sobe de baixo para cima e as marcas correspondem aos TETOS que as
+    // raízes entregam (50/70/80%), então o desenho ensina a regra: parar num
+    // traço significa que aquela raiz não dava mais que aquilo.
+    const capsuleW = 8;
+    const capsuleH = 19;
+    const radius = capsuleW / 2;
+    const left = coreX - capsuleW / 2;
+    const top = coreY - capsuleH / 2;
+    const innerTop = top + 1.5;
+    const innerH = capsuleH - 3;
+    const pulse = energy >= .999 ? .88 + Math.sin(time * 4.2) * .12 : 1;
+
     ctx.save();
-    ctx.globalAlpha = (.28 + energy * .72) * pulse;
-    ctx.fillStyle = energy <= 0 ? '#3c5a52' : '#8ef0c6';
+
+    // Corpo escuro da cápsula (sem depender de roundRect, que nem todo browser
+    // antigo expõe).
+    capsulePath(left, top, capsuleW, capsuleH, radius);
+    ctx.fillStyle = 'rgba(4,26,24,.85)';
+    ctx.fill();
+
+    // Líquido: recorta pela cápsula e preenche a fração de baixo para cima.
+    if (energy > 0) {
+      ctx.save();
+      capsulePath(left + 1, innerTop, capsuleW - 2, innerH, radius - 1);
+      ctx.clip();
+      const filled = innerH * energy;
+      const fillTop = innerTop + innerH - filled;
+      const gradient = ctx.createLinearGradient(0, innerTop + innerH, 0, fillTop);
+      gradient.addColorStop(0, '#3fd9a4');
+      gradient.addColorStop(1, '#c8ffe8');
+      ctx.fillStyle = gradient;
+      ctx.globalAlpha = pulse;
+      ctx.fillRect(left, fillTop, capsuleW, filled + 1);
+      // Menisco: uma linha clara no topo do líquido dá leitura imediata do nível.
+      ctx.globalAlpha = .9 * pulse;
+      ctx.fillStyle = '#eafff6';
+      ctx.fillRect(left, fillTop, capsuleW, 1.2);
+      ctx.restore();
+    }
+
+    // Marcas dos tetos das raízes.
+    ctx.globalAlpha = .4;
+    ctx.fillStyle = '#0a2f2a';
+    for (const marca of [.5, .7, .8]) {
+      const y = innerTop + innerH * (1 - marca);
+      ctx.fillRect(left + 1.5, y, capsuleW - 3, .9);
+    }
+
+    // Contorno: acende junto com a carga.
+    ctx.globalAlpha = .35 + energy * .5;
+    capsulePath(left, top, capsuleW, capsuleH, radius);
+    ctx.strokeStyle = energy <= 0 ? '#4d7a70' : '#8ef0c6';
+    ctx.lineWidth = 1.1;
     ctx.shadowColor = '#8ef0c6';
-    ctx.shadowBlur = energy <= 0 ? 0 : 4 + energy * 12;
-    // O preenchimento cresce de baixo para cima: metade inferior acesa em 50%.
-    const coreHeight = 12;
-    const filled = coreHeight * energy;
-    ctx.fillRect(coreX - 3, coreY + coreHeight / 2 - filled, 6, Math.max(1, filled));
+    ctx.shadowBlur = energy <= 0 ? 0 : 3 + energy * 9 * pulse;
+    ctx.stroke();
     ctx.shadowBlur = 0;
-    ctx.globalAlpha = .5;
-    ctx.strokeStyle = '#8ef0c6';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(coreX - 3.5, coreY - coreHeight / 2, 7, coreHeight);
+
+    // Bico inferior: identifica de que lado sai o jato.
+    ctx.globalAlpha = .5 + energy * .35;
+    ctx.fillStyle = energy <= 0 ? '#4d7a70' : '#8ef0c6';
+    ctx.beginPath();
+    ctx.moveTo(left + 1.5, top + capsuleH);
+    ctx.lineTo(left + capsuleW - 1.5, top + capsuleH);
+    ctx.lineTo(left + capsuleW / 2, top + capsuleH + 2.6);
+    ctx.closePath();
+    ctx.fill();
     ctx.restore();
 
     // Jato: intensidade CONSTANTE enquanto propulsiona. O tamanho não representa
@@ -558,16 +628,18 @@ export function createRenderer({
     if (player.jetpackActive) {
       ctx.save();
       const flicker = .78 + Math.sin(time * 38) * .22;
-      const length = 15 * flicker;
-      const gradient = ctx.createLinearGradient(coreX, coreY + 6, coreX, coreY + 6 + length);
-      gradient.addColorStop(0, 'rgba(190,255,232,.95)');
-      gradient.addColorStop(.45, 'rgba(112,229,214,.75)');
+      const length = 16 * flicker;
+      // O jato sai do BICO da cápsula, não de um ponto solto no corpo.
+      const nozzleY = top + capsuleH + 2;
+      const gradient = ctx.createLinearGradient(coreX, nozzleY, coreX, nozzleY + length);
+      gradient.addColorStop(0, 'rgba(230,255,246,.98)');
+      gradient.addColorStop(.35, 'rgba(112,229,214,.8)');
       gradient.addColorStop(1, 'rgba(112,229,214,0)');
       ctx.fillStyle = gradient;
       ctx.beginPath();
-      ctx.moveTo(coreX - 4.5, coreY + 6);
-      ctx.lineTo(coreX + 4.5, coreY + 6);
-      ctx.lineTo(coreX, coreY + 6 + length);
+      ctx.moveTo(coreX - 4, nozzleY);
+      ctx.lineTo(coreX + 4, nozzleY);
+      ctx.lineTo(coreX, nozzleY + length);
       ctx.closePath();
       ctx.fill();
       // Linhas de ar: três traços determinísticos pelo tempo, sem estado.
@@ -576,8 +648,8 @@ export function createRenderer({
       for (let index = 0; index < 3; index++) {
         const offset = ((time * 170 + index * 13) % 26) - 6;
         ctx.beginPath();
-        ctx.moveTo(coreX - 9 + index * 9, coreY + 8 + offset);
-        ctx.lineTo(coreX - 9 + index * 9, coreY + 13 + offset);
+        ctx.moveTo(coreX - 9 + index * 9, nozzleY + 3 + offset);
+        ctx.lineTo(coreX - 9 + index * 9, nozzleY + 8 + offset);
         ctx.stroke();
       }
       ctx.restore();
