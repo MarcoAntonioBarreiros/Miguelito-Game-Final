@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { RALSTONIA_DEFAULTS as C } from '../src/procgen/campaign-manifest.js';
 import {
-  RALSTONIA_DEFAULTS as C,
   RALSTONIA_STATES,
   isRalstoniaRootEligible,
   ralstoniaControlStrength,

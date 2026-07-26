@@ -1,6 +1,13 @@
 import { W } from '../core/constants.js';
 import { organismSprites } from '../render/organism-sprites.js';
-import { getPhaseManifest } from './campaign-manifest.js';
+import { RALSTONIA_DEFAULTS, getPhaseManifest } from './campaign-manifest.js';
+import {
+  RALSTONIA_STATE_LABELS,
+  ralstoniaNetGrowth,
+  ralstoniaStageForLoads,
+  ralstoniaVascularEfficiency,
+  ralstoniaWoundPressure,
+} from './ralstonia-wilt-core.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -13,13 +20,17 @@ function hashRoot(root, salt = 0) {
   return value - Math.floor(value);
 }
 
+function focusState(focus) {
+  return ralstoniaStageForLoads({
+    surfaceLoad: focus.surfaceLoad,
+    vascularLoad: focus.vascularLoad,
+    contained: focus.contained,
+    neutralized: focus.neutralized,
+  });
+}
+
 function stageLabel(focus) {
-  if (focus.neutralized) return 'foco superficial neutralizado';
-  if (focus.vascularLoad < .08) return 'contaminação da superfície';
-  if (focus.vascularLoad < .3) return 'entrada por tecido lesionado';
-  if (focus.vascularLoad < .58) return 'colonização vascular';
-  if (focus.vascularLoad < .82) return 'obstrução do xilema';
-  return 'murcha vascular crítica';
+  return RALSTONIA_STATE_LABELS[focusState(focus)] || 'contaminação superficial';
 }
 
 function rootEligible(root) {
@@ -40,6 +51,13 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
   let neutralizedCount = 0;
   let criticalCount = 0;
   let averageTransport = 1;
+  // Contadores dos objetivos da fase 9. `prevented` e `contained` sao marcos:
+  // uma vez conquistados nao voltam atras, senao o objetivo piscaria.
+  let preventedCount = 0;
+  let containedCount = 0;
+
+  // Limiares e tempos vem do manifesto da fase; RALSTONIA_DEFAULTS e o fallback.
+  const CONFIG = { ...RALSTONIA_DEFAULTS, ...(getPhaseManifest(state.campaign?.phase)?.ralstonia || {}) };
 
   function announce(text, duration = 5, cooldown = 2.3) {
     if (state.time - lastToastAt < cooldown) return;
@@ -70,6 +88,8 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     neutralizedCount = 0;
     criticalCount = 0;
     averageTransport = 1;
+    preventedCount = 0;
+    containedCount = 0;
 
     const count = desiredFocusCount();
     if (!count) {
@@ -102,11 +122,36 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
         root.x + 25,
         root.x + root.w - 25,
       );
-      const initialSurface = .16 + score * .1;
-      const initialVascular = (root.rootDamage || 0) > .14 ? .055 : 0;
+      // A fase 9 precisa ensinar as DUAS licoes, e elas exigem focos diferentes:
+      // o primeiro nasce so na superficie (da para PREVENIR) e o segundo ja
+      // entrou no xilema (so da para CONTER). Sem isso, fechar o objetivo de
+      // contencao exigiria deixar uma infeccao entrar de proposito.
+      const ensina = (state.campaign?.phase || 0) === 9;
+      const indice = foci.length;
+      const focoDeContencao = ensina && indice === 1;
+      const initialSurface = focoDeContencao
+        ? CONFIG.containmentFocusSurfaceLoad
+        : ensina && indice === 0
+          ? CONFIG.introductoryFocusSurfaceLoad
+          : .16 + score * .1;
+      const initialVascular = focoDeContencao
+        ? CONFIG.containmentFocusVascularLoad
+        : ensina && indice === 0
+          ? CONFIG.introductoryVascularLoad
+          : (root.rootGameplayDamage || 0) > .14 ? .055 : 0;
+      // A raiz do tutorial precisa de uma porta de entrada propria: assim a
+      // estreia nao depende de ja haver Meloidogyne ou Rhizoctonia em cena.
+      if (ensina && indice <= 1 && !Number.isFinite(root.ralstoniaEntryWound)) {
+        root.ralstoniaEntryWound = .45;
+      }
       foci.push({
         id: `ralstonia-${nextId++}`,
         root,
+        // Ancoragem: a posicao e derivada da raiz a cada quadro. Guardar so um x
+        // absoluto deixava o foco flutuando quando a raiz colapsava ou deslocava.
+        platformId: root.id ?? root.platformId ?? null,
+        rootLogicIndex: root.logicIndex ?? -1,
+        offsetX: x - root.x,
         x,
         surfaceLoad: initialSurface,
         vascularLoad: initialVascular,
@@ -119,6 +164,11 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
         announcedVascular: false,
         announcedCritical: false,
         neutralized: false,
+        contained: false,
+        everEnteredVascular: initialVascular >= CONFIG.vascularEntryThreshold,
+        containHold: 0,
+        neutralizeHold: 0,
+        state: 'surface',
         dormant: false,
         bacillusControl: 0,
         pseudomonasControl: 0,
@@ -173,18 +223,12 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     return clamp(best, 0, 1);
   }
 
-  function woundPressure(root) {
-    return clamp(
-      (root.rootDamage || 0) * .8
-      + (root.meloidogyneBurden || 0) * .7
-      + (root.rhizoctoniaColonization || 0) * .48,
-      0,
-      1.5,
-    );
-  }
+  const woundPressure = ralstoniaWoundPressure;
 
+  // Prevencao: so vale para um foco que NUNCA entrou no xilema. Depois da
+  // entrada nao existe cura — o maximo e conter.
   function neutralize(focus) {
-    if (focus.neutralized) return;
+    if (focus.neutralized || focus.everEnteredVascular) return;
     focus.neutralized = true;
     focus.surfaceLoad = 0;
     focus.vascularLoad = 0;
@@ -193,11 +237,25 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     focus.root.ralstoniaVascularLoad = 0;
     focus.root.ralstoniaWilt = 0;
     focus.root.vascularEfficiency = Math.max(focus.root.vascularEfficiency || 0, .92);
+    focus.state = 'neutralized';
     neutralizedCount++;
+    preventedCount++;
     state.player.soil += 2.2;
     state.player.hope += 2.8;
     entities.burst(focus.x, focus.root.y - 5, '#a8ffe6', 28, 150);
     announce('Infecção superficial neutralizada antes da colonização vascular.', 4.4, .8);
+  }
+
+  // Contencao: a infeccao ja entrou, mas o controle sustentado zerou o avanco.
+  // A carga NAO volta a zero — fica no piso e a raiz segue infectada e funcional.
+  function contain(focus) {
+    if (focus.contained || focus.neutralized) return;
+    focus.contained = true;
+    containedCount++;
+    state.player.soil += 1.8;
+    state.player.hope += 2.4;
+    entities.burst(focus.x, focus.root.y - 5, '#6ce7df', 24, 130);
+    announce('Infecção vascular contida: o avanço parou. A raiz segue infectada, porém funcional.', 5.2, 1);
   }
 
   function applyRootEffects(focus, dt) {
@@ -214,9 +272,11 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     root.ralstoniaWilt = wilt;
     root.ralstoniaStage = stageLabel(focus);
     root.ralstoniaDamage = bacterialDamage;
+    // PRESSAO, nao saude. Quem calcula rootHealth/rootDamage e
+    // root-health-gameplay.js — dois donos escrevendo no mesmo campo no mesmo
+    // frame se sobrescreviam e o valor final dependia da ordem de update.
+    root.ralstoniaDamagePressure = bacterialDamage;
     root.vascularEfficiency = efficiency;
-    root.rootDamage = clamp(Math.max(root.rootDamage || 0, bacterialDamage), 0, .94);
-    root.rootHealth = clamp(Math.min(root.rootHealth ?? 1, 1 - root.rootDamage), .06, 1);
     root.carbonAvailability = clamp(Math.min(root.carbonAvailability ?? 1, efficiency * (1 - vascular * .18)), .05, 1);
     root.nutrientEfficiency = clamp(Math.min(root.nutrientEfficiency ?? 1, efficiency * (1 - vascular * .12)), .04, 1);
     root.mycorrhizaEfficiency = efficiency;
@@ -231,12 +291,17 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
 
     for (const site of state.level.rhizobiumNodules || []) {
       if (site.platform !== root) continue;
-      const rawFixation = site.fixationRate || 0;
+      // Multiplicar fixationRate/activity a cada frame destruia o valor-base de
+      // forma acumulativa e irreversivel: tirar a pressao nao devolvia nada.
+      // Agora o base fica intacto e o efetivo e derivado dele.
+      if (!Number.isFinite(site.baseFixationRate)) site.baseFixationRate = site.fixationRate || 0;
+      if (!Number.isFinite(site.baseActivity)) site.baseActivity = site.activity || 0;
+      const rawFixation = site.baseFixationRate;
       const adjustedFixation = rawFixation * efficiency;
       const lostFixation = Math.max(0, rawFixation - adjustedFixation);
       site.vascularEfficiency = efficiency;
-      site.activity *= efficiency;
-      site.fixationRate = adjustedFixation;
+      site.effectiveActivity = site.baseActivity * efficiency;
+      site.effectiveFixationRate = adjustedFixation;
       state.player.soil = Math.max(0, state.player.soil - dt * .022 * lostFixation);
       state.player.hope = Math.max(0, state.player.hope - dt * .013 * lostFixation);
     }
@@ -264,11 +329,12 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     if (vascular < .86) return;
     focus.stressTimer -= dt;
     if (focus.stressTimer > 0) return;
-    focus.stressTimer = 3.6 + Math.random() * 1.8;
+    focus.stressCycle = (focus.stressCycle || 0) + 1;
+    focus.stressTimer = 3.6 + hashRoot(focus.root, 149 + focus.stressCycle) * 1.8;
     entities.damagePlayer?.(1, 'colapso de raiz com murcha vascular', {
       infection: 0,
       invuln: 1.1,
-      knockbackX: (Math.random() < .5 ? -1 : 1) * 135,
+      knockbackX: (hashRoot(focus.root, 167 + (focus.stressCycle || 0)) < .5 ? -1 : 1) * 135,
       knockbackY: -185,
     });
     entities.burst(state.player.x + state.player.w / 2, focus.root.y - 2, '#b78a63', 18, 115);
@@ -283,29 +349,59 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       return;
     }
 
+    // Posicao sempre derivada da raiz (ancoragem).
+    if (Number.isFinite(focus.offsetX)) {
+      focus.x = focus.root.x + focus.offsetX + (focus.root.supportOffset || 0);
+    }
+
     const wound = woundPressure(focus.root);
     const bacillus = bacillusStrength(focus);
     const pseudo = pseudomonasStrength(focus, dt);
     focus.bacillusControl = bacillus;
     focus.pseudomonasControl = pseudo;
 
-    const earlyControl = clamp(bacillus * .82 + pseudo * .48, 0, 1.3);
-    const surfaceGrowth = (.011 + wound * .018 + focus.surfaceLoad * .006) * (1 - pseudo * .4);
-    const surfaceRetreat = earlyControl * (.016 + bacillus * .018);
-    focus.surfaceLoad = clamp(focus.surfaceLoad + dt * (surfaceGrowth - surfaceRetreat), 0, 1);
+    // O crescimento vem do nucleo puro e testado: e la que moram as regras de
+    // prevencao (superficie pode zerar) e contencao (xilema nunca zera).
+    const growth = ralstoniaNetGrowth({
+      surfaceLoad: focus.surfaceLoad,
+      vascularLoad: focus.vascularLoad,
+      woundPressure: wound,
+      bacillusControl: bacillus,
+      pseudomonasControl: pseudo,
+      config: CONFIG,
+    });
 
-    const entryProtection = clamp(bacillus * .82 + pseudo * .28, 0, .93);
-    const entryRate = focus.surfaceLoad * (.012 + wound * .043) * (1 - entryProtection);
-    const vascularResistance = focus.vascularLoad < .35 ? pseudo * .0045 + bacillus * .0018 : 0;
-    const vascularGrowth = focus.vascularLoad > 0
-      ? (.0065 + focus.surfaceLoad * .012 + wound * .01 + focus.vascularLoad * .004) * (1 - pseudo * .3 - bacillus * .13)
-      : 0;
-    focus.vascularLoad = clamp(focus.vascularLoad + dt * (entryRate + vascularGrowth - vascularResistance), 0, 1);
+    focus.surfaceLoad = clamp(focus.surfaceLoad + dt * growth.surfaceRate, 0, 1);
+    const piso = focus.everEnteredVascular ? CONFIG.minimumVascularFloorAfterEntry : 0;
+    focus.vascularLoad = clamp(focus.vascularLoad + dt * growth.vascularRate, piso, 1);
+    if (focus.vascularLoad >= CONFIG.vascularEntryThreshold) focus.everEnteredVascular = true;
 
-    if (focus.vascularLoad < .045 && focus.surfaceLoad <= .012 && earlyControl > .36) {
-      neutralize(focus);
-      return;
+    // PREVENCAO: superficie praticamente zerada, sem nunca ter entrado, e o
+    // controle mantido por neutralizationHoldSeconds.
+    if (!focus.everEnteredVascular
+      && focus.surfaceLoad <= CONFIG.surfaceNeutralizationThreshold
+      && growth.control > .3) {
+      focus.neutralizeHold += dt;
+      if (focus.neutralizeHold >= CONFIG.neutralizationHoldSeconds) {
+        neutralize(focus);
+        return;
+      }
+    } else {
+      focus.neutralizeHold = 0;
     }
+
+    // CONTENCAO: ja entrou, mas o avanco parou e o controle se manteve por
+    // containmentHoldSeconds. Sair do controle devolve o crescimento.
+    if (focus.everEnteredVascular && growth.holdingVascular && growth.control > .25) {
+      focus.containHold += dt;
+      if (focus.containHold >= CONFIG.containmentHoldSeconds) contain(focus);
+    } else {
+      focus.containHold = 0;
+      // Voltou a crescer: deixa de estar contido (o estado e mantido, nao dado).
+      if (focus.contained && growth.vascularRate > 0) focus.contained = false;
+    }
+
+    focus.state = focusState(focus);
 
     if (focus.vascularLoad >= .08 && !focus.announcedEntry) {
       focus.announcedEntry = true;
@@ -325,9 +421,11 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
 
     focus.oozeTimer -= dt;
     if (focus.oozeTimer <= 0 && (focus.surfaceLoad > .1 || focus.vascularLoad > .18)) {
-      focus.oozeTimer = .3 + Math.random() * .55;
+      focus.oozeCycle = (focus.oozeCycle || 0) + 1;
+      const jitter = hashRoot(focus.root, 131 + focus.oozeCycle);
+      focus.oozeTimer = .3 + jitter * .55;
       entities.burst(
-        focus.x + (Math.random() - .5) * 22,
+        focus.x + (jitter - .5) * 22,
         focus.root.y - 3,
         focus.vascularLoad > .55 ? '#d8b674' : '#f3d49a',
         3 + Math.floor(focus.vascularLoad * 5),
@@ -347,7 +445,7 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
       if (focus.neutralized) continue;
       active++;
       transportSum += focus.vascularEfficiency;
-      if (focus.vascularLoad >= .82) criticalCount++;
+      if (focus.vascularLoad >= CONFIG.criticalThreshold) criticalCount++;
     }
     averageTransport = active ? transportSum / active : 1;
   }
@@ -518,12 +616,23 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
     neutralizedCount = 0;
     criticalCount = 0;
     averageTransport = 1;
+    preventedCount = 0;
+    containedCount = 0;
   }
 
   return {
     get focusCount() { return foci.filter(focus => !focus.neutralized).length; },
     get neutralizedCount() { return neutralizedCount; },
+    get preventedCount() { return preventedCount; },
+    get containedCount() { return containedCount; },
     get criticalCount() { return criticalCount; },
+    get preservedVascularRootCount() {
+      return foci.filter(focus => (
+        (focus.vascularEfficiency ?? 1) >= .65
+        && (focus.root?.rootHealth ?? 1) >= .55
+        && focus.state !== 'critical'
+      )).length;
+    },
     get averageTransport() { return averageTransport; },
     get foci() { return foci; },
     initialize,

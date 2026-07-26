@@ -139,6 +139,12 @@ const OBJECTIVE_LABELS = {
   preservedRootCount: 'Preserve uma raiz saudável',
   pseudomonasIronReserve: 'Acumule reserva de ferro (Pseudomonas)',
   reachedFinalRoot: 'Alcance a raiz final',
+  preventedRalstoniaEntryCount: 'Impeça a entrada de Ralstonia no xilema',
+  containedVascularRalstoniaCount: 'Contenha uma infecção vascular',
+  activeCriticalRalstoniaCount: 'Elimine focos em murcha crítica',
+  blockedRalstoniaSpreadCount: 'Bloqueie a disseminação bacteriana',
+  averageVascularTransport: 'Preserve o transporte vascular',
+  preservedVascularRootCount: 'Preserve raízes com transporte funcional',
   recoveredRootCount: 'Recupere uma raiz danificada',
   rootPhosphateStock: 'Entregue fósforo à raiz-alvo',
   solubilizedPhosphateDepositCount: 'Solubilize o depósito de fosfato',
@@ -349,6 +355,7 @@ const objectiveEvaluator = createCampaignObjectiveEvaluator({
     trichoderma: trichodermaRhizoctoniaControl,
     meloidogyneControl: trichodermaMeloidogyneControl,
     phosphate: sim.phosphateSolubilization,
+    ralstonia: ralstoniaControl,
   },
 });
 const fixedBlockRuntime = createFixedBlockRuntime({

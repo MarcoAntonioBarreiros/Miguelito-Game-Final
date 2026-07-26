@@ -86,6 +86,15 @@ export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
     if (key === 'preservedRootCount') {
       return (state.level.platforms || []).filter(root => root.type === 'root' && (root.rootHealth ?? 1) >= .75).length;
     }
+    // Fase 9 (Ralstonia). Prevencao e contencao sao marcos acumulados pelo
+    // sistema; murcha critica e uma leitura do AGORA (tem de estar zerada no
+    // fim, e o jogador pode reduzir um foco critico de volta).
+    if (key === 'preventedRalstoniaEntryCount') return systems.ralstonia?.preventedCount || 0;
+    if (key === 'containedVascularRalstoniaCount') return systems.ralstonia?.containedCount || 0;
+    if (key === 'activeCriticalRalstoniaCount') return systems.ralstonia?.criticalCount || 0;
+    if (key === 'blockedRalstoniaSpreadCount') return systems.ralstonia?.blockedSpreadCount || 0;
+    if (key === 'averageVascularTransport') return systems.ralstonia?.averageTransport ?? 1;
+    if (key === 'preservedVascularRootCount') return systems.ralstonia?.preservedVascularRootCount || 0;
     if (key === 'ecologicalScore') return Number(state.level.ecologicalScore || 0);
     return undefined;
   }

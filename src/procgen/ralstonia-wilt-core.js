@@ -10,12 +10,14 @@
 // bactéria está no xilema e não existe cura — só contenção. Nenhuma função aqui
 // devolve um foco vascular ao estado "neutralizado".
 
+// O bundler do projeto e simples: traduz `import { A, B }` para uma
+// desestruturacao. Nada de `import { X as Y }` (viraria `const { X as Y }`, que
+// nao e sintaxe valida) nem de `export { X }`. Por isso o import e direto e os
+// limiares continuam morando no manifesto — quem precisa deles importa de la.
 import { RALSTONIA_DEFAULTS } from './campaign-manifest.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const finite = (value, fallback = 0) => (Number.isFinite(value) ? value : fallback);
-
-export { RALSTONIA_DEFAULTS };
 
 export const RALSTONIA_STATES = Object.freeze([
   'surface', 'entering', 'vascular', 'obstructed', 'critical', 'contained', 'neutralized',
