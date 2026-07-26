@@ -24,6 +24,7 @@ import { computeEcologicalScore } from './ecological-score.js';
 import { JETPACK_CONFIG, jetpackRechargeBonuses } from '../player-jetpack.js';
 import { initPlayerTuning } from '../render/player-skin-tuning.js';
 import { createSimulator } from './simulator.js';
+import { createGameAudio } from '../game-audio.js';
 import {
   advanceGameplayFrame,
   createTutorialInputGate,
@@ -73,6 +74,26 @@ const HUD_ICONS = Object.freeze({
 // ou disparou e a folha nao estava pronta e caiu no fallback — e olhando a tela
 // as duas sao identicas. Esta linha separa as duas sem precisar de tentativa e
 // erro.
+// Linha de audio no painel do Tab. Separa "nao desbloqueou ainda" de "esta
+// mudo" de "o arquivo falhou" — tres causas que na tela soam identicas.
+function audioDiagnostico() {
+  const info = gameAudio.debugSnapshot();
+  if (!info.available) return 'Áudio: indisponível neste navegador';
+  const ambientes = info.ambienceLayers.length
+    ? info.ambienceLayers.map(id => id.replace('ambience', '').toLowerCase()).join('/')
+    : 'nenhum';
+  const proxima = info.nextDropIn === null
+    ? 'tocando'
+    : `${info.nextDropIn.toFixed(1)} s`;
+  return `Áudio: ${info.unlocked ? 'unlocked' : 'locked'} · ${info.contextState}`
+    + `${info.muted ? ' · MUDO' : ''} · ${info.musicTrackId || '—'}`
+    + `${info.crossfadingTo ? ` → ${info.crossfadingTo}` : ''}`
+    + `\nAmbientes: ${ambientes} · rootFlow ${Math.round(info.internalRootFlow * 1000) / 10}%`
+    + `\nGota: ${info.currentDrop || '—'} · próxima em ${proxima}`
+    + `\nÚltimo FX: ${info.lastFx || '—'}`
+    + `${info.errors.length ? `\nErros: ${info.errors.slice(-2).join(' | ')}` : ''}`;
+}
+
 function spriteDiagnostico() {
   const skin = renderer?.playerSkin;
   if (!skin) return 'Sprite: —';
@@ -347,7 +368,20 @@ initPlayerTuning((() => { try { return window.localStorage; } catch (_) { return
 const phaseLab = createPhaseLabSession({ windowObject: window });
 if (phaseLab.enabled) campaignStorage = null;
 
-let sim = createSimulator();
+let sim = null;
+
+// O controlador nasce ANTES do simulador e recebe getters preguiçosos: ele
+// precisa ler `sim.state` durante o jogo, mas o simulador precisa recebê-lo na
+// construção. Sem os getters isso seria dependência circular.
+const gameAudio = createGameAudio({
+  documentRef: document,
+  windowRef: window,
+  getState: () => sim?.state,
+  getCampaign: () => campaign,
+});
+gameAudio.init();
+
+sim = createSimulator({ audio: gameAudio });
 const campaign = createCampaign(phaseLab.enabled ? phaseLab.config.seed : undefined, { storage: campaignStorage });
 if (phaseLab.enabled) phaseLab.configureCampaign(campaign);
 sim.state.campaign = campaign;
@@ -654,6 +688,10 @@ function initGame({ announce = false } = {}) {
   trichodermaMeloidogyneControl.reset();
   ralstoniaControl.reset();
   sim.state.campaign = campaign;
+  // Nao reinicia audio: `setPhase` compara a faixa mapeada com a que ja toca e
+  // so faz crossfade quando muda. Reset da campanha nao recria contexto nem
+  // duplica ambientes.
+  gameAudio.setPhase(campaign.phase);
   Object.assign(sim.state.level, levelData);
   sim.state.player.x = 100;
   sim.state.player.y = 400;
@@ -759,12 +797,39 @@ function buildPhaseReport() {
   };
 }
 
+// Alterna o som. Unico ponto: o botao mobile chama esta mesma API, para nao
+// existirem dois listeners disputando o mesmo controle.
+function toggleGameAudio() {
+  const muted = gameAudio.toggleMute();
+  updateSoundButton();
+  sim.state.toast = muted ? 'Som desativado' : 'Som ativado';
+  sim.state.toastTime = 1.6;
+  return muted;
+}
+
+function updateSoundButton() {
+  const button = document.querySelector('[data-mobile-action="toggle-sound"]');
+  if (!button) return;
+  const muted = gameAudio.isMuted();
+  button.textContent = muted ? '\u00d7' : '\u266b';
+  button.setAttribute('aria-pressed', muted ? 'true' : 'false');
+}
+
+window.miguelitoAudio = {
+  toggle: toggleGameAudio,
+  isMuted: () => gameAudio.isMuted(),
+  debug: () => gameAudio.debugSnapshot(),
+};
+
 function maybeAdvanceCampaign() {
   if (!campaign.transitionRequested) return false;
 
   if (!campaign.transitionCaptured) {
     const report = buildPhaseReport();
     recordPhaseResult(campaign, report);
+    // Uma vez por fase, no ponto exato da captura — nao por objetivo e nao a
+    // cada quadro. Nao altera o tempo de transicao da campanha.
+    gameAudio.playStinger('phaseVictory', { gain: 1 });
     const vascular = report.phase >= 4 ? ` · transporte ${report.vascularTransport}%` : '';
     sim.state.toast = `Fase ${report.phase}: ${report.score} pontos · saúde ${report.rootHealth}% · infestação ${report.infestation}%${vascular}`;
     sim.state.toastTime = 3.4;
@@ -783,8 +848,13 @@ function maybeAdvanceCampaign() {
     campaign.transitionRequested = false;
     sim.state.gameState = 'end';
     sim.state.mission = 'Campanha concluída';
+    // Fim de campanha: o resultado longo entra sozinho, nunca junto do curto.
+    gameAudio.stopStinger(.5);
+    gameAudio.playStinger('campaignVictory', { gain: 1 });
     return true;
   }
+  // Fase seguinte: o stinger sai por fade e a musica nova entra por crossfade.
+  gameAudio.stopStinger(.6);
   prepareLevel();
   initGame({ announce: true });
   return true;
@@ -805,6 +875,16 @@ function toggleRecoveryPlatforms() {
     : 'Plataformas de segurança religadas.';
   sim.state.toastTime = 3.2;
 }
+// Botao de som: um unico listener, chamando a mesma API da tecla M.
+const soundToggleButton = document.querySelector('[data-mobile-action="toggle-sound"]');
+soundToggleButton?.addEventListener('click', event => {
+  event.preventDefault();
+  toggleGameAudio();
+  soundToggleButton.blur();
+});
+// Reflete o estado persistido antes de qualquer interacao.
+updateSoundButton();
+
 recoveryToggleButton?.addEventListener('click', event => {
   event.preventDefault();
   toggleRecoveryPlatforms();
@@ -854,6 +934,7 @@ window.addEventListener('keydown', event => {
   keys[event.code] = true;
   if (event.code === 'KeyR' && !event.repeat) startNewCampaign();
   if (event.code === 'KeyT' && !event.repeat) toggleRecoveryPlatforms();
+  if (event.code === 'KeyM' && !event.repeat) toggleGameAudio();
   if (event.code === BIOLOGICAL_PARALLAX_KEY && !event.repeat) toggleBiologicalParallax();
   if (event.code === 'Tab') {
     event.preventDefault();
@@ -943,6 +1024,7 @@ function loop(now) {
         cameraView.update(frameDt);
       },
     });
+    gameAudio.update(dt);
     if (advanced) tutorialManager?.updateAutomaticPresentation?.(dt);
     renderWorld();
     updateTouchAbilityVisibility();
@@ -1058,6 +1140,7 @@ function loop(now) {
         + `\nPoderes: salto ${campaign.unlocks.doubleJump ? '✓' : '—'} / dash ${campaign.unlocks.dash ? '✓' : '—'} / solubilizacao P ${campaign.unlocks.phosphateSolubilization ? '✓' : '—'} / pontes AM ${campaign.unlocks.mycorrhizaStructures ? '✓' : '—'} / raízes Azo ${campaign.unlocks.azospirillumRoots ? '✓' : '—'}`
         + `\nCâmera: ${cameraView.zoom.toFixed(2)}× [roda ou +/− | 0=restaurar]`
         + `\n${spriteDiagnostico()}`
+        + `\n${audioDiagnostico()}`
         + `\nEcologia: ${sim.ecology.agents.length} organismos / ${sim.ecology.nicheCount} nichos`
         + `\nRhizoctonia: ${rhizoctoniaControl.activeCount} focos / ${rhizoctoniaControl.controlledCount} contidos por biocontrole`
         + `\nTrichoderma anti-Rhizoctonia: ${trichodermaRhizoctoniaControl.activeAttackCount} ataques · ${trichodermaRhizoctoniaControl.eliminatedCount} focos lisados · ${trichodermaRhizoctoniaControl.abortedCount} ataques interrompidos`

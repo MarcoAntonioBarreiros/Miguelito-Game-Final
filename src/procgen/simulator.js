@@ -23,6 +23,7 @@ import { createMeloidogyneLifecycle } from './meloidogyne-lifecycle.js';
 import { createGoalSystem } from './goal-system.js';
 import { createEcologicalGameplay } from './ecological-gameplay.js';
 import { createPathogenSurvival } from './pathogen-survival.js';
+import { createNoopAudio } from '../game-audio.js';
 import { createInoculumSelection } from './inoculum-selection.js';
 import { createPhosphateSolubilization } from './phosphate-solubilization.js';
 import {
@@ -75,7 +76,7 @@ export function restoreExudatesAhead(level, fromX) {
   return restored;
 }
 
-export function createSimulator() {
+export function createSimulator({ audio: audioController = null } = {}) {
   const state = {
     time: 0,
     gameState: 'play',
@@ -192,7 +193,10 @@ export function createSimulator() {
     showEnd: () => {},
   };
 
-  const audio = { toneNow: () => {} };
+  // Audio injetado pelo app; nos testes Node entra o adaptador silencioso. O
+  // simulador nunca toca em `window` ou `document` — quem faz isso e o
+  // controlador, criado no app.
+  const audio = audioController || createNoopAudio();
 
   const ecology = createRoamingMicrobeEcology({ state, entities });
   const mycorrhiza = createMycorrhizaGrowth({ state, entities });
@@ -226,7 +230,7 @@ export function createSimulator() {
   const azospirillumRootSafety = createAzospirillumRootSafety({ state, rootGrowth: azospirillumRootGrowth });
   const azospirillumNitrogen = createAzospirillumNitrogen({ state, inoculants: beneficialInoculants });
   const meloidogyneLifecycle = createMeloidogyneLifecycle({ state, entities });
-  const pathogenSurvival = createPathogenSurvival({ state, entities, ecology });
+  const pathogenSurvival = createPathogenSurvival({ state, entities, ecology, audio });
   // A raiz viva volta a exsudar: exsudato deixa de ser recurso estritamente
   // finito e a prova obrigatoria da fase 3 nunca fica sem como ser resolvida.
   const renewableExudates = createRenewableExudates({ state });
@@ -401,6 +405,7 @@ export function createSimulator() {
   }
 
   const simulator = {
+    audio,
     state, input, entities, ecology, mycorrhiza, mycorrhizaStructures,
     trichoderma, recruitment, trichodermaColonies, beneficialInoculants,
     pseudomonasSiderophores, opportunisticFungus, bacillusBioprotection, bacillusBioprotectionSafety,

@@ -282,13 +282,23 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
         player.jumpBuffer = 0;
         player.coyote = 0;
         entities.burst(player.x + 16, player.y + 48, '#d9ffc1', 8, 80);
+        // O FX toca aqui, no ramo que REALMENTE salta — nunca no keydown, senão
+        // apertar sem poder pular (ou o repeat do teclado) soaria igual.
+        if (audio.canPlayJump?.(state.time) !== false) {
+          audio.playFx?.('playerJump', { gain: 1, rate: 1 });
+        }
       } else if (player.jumpBuffer > 0 && player.canDoubleJump && player.airJumpAvailable) {
         player.vy = -445 * jumpMultiplier;
         player.jumpBuffer = 0;
         player.airJumpAvailable = false;
         recordPhaseObjectiveAction(state, 'performedDoubleJumpCount');
         entities.burst(player.x + 16, player.y + 39, '#72e8dd', 22, 165);
-        audio.toneNow(330, .11, 'triangle', .07);
+        // Mesmo arquivo, um pouco mais agudo e leve: o salto duplo é reconhecível
+        // sem precisar de um segundo som. O tom sintetizado antigo saiu — ele
+        // brigaria com a música real.
+        if (audio.canPlayJump?.(state.time) !== false) {
+          audio.playFx?.('playerJump', { gain: 0.95, rate: 1.07 });
+        }
       }
     }
 

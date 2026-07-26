@@ -144,7 +144,12 @@ function rootBacillusDefense(state, root, x) {
   return defense;
 }
 
-export function createPathogenSurvival({ state, entities, ecology }) {
+export function createPathogenSurvival({ state, entities, ecology, audio = null }) {
+  // Marcadores de som. `healthLost` toca UMA vez por queda a 1 coração (não a
+  // cada contato), e `gameOver` uma vez por morte — nunca uma sequência de dois
+  // ou três efeitos empilhados no mesmo instante.
+  let criticalHealthAnnounced = false;
+  let gameOverPlayed = false;
   const rootMemory = new WeakMap();
   let lastToastAt = -Infinity;
   let attachToastShown = false;
@@ -224,6 +229,16 @@ export function createPathogenSurvival({ state, entities, ecology }) {
       state.time + .24,
     );
     state.shake = Math.max(state.shake || 0, damage > 1 ? .42 : .3);
+    const fatal = player.vitality <= 0 || options.fatal;
+    if (!fatal) {
+      // Só o arcade. O alternativo de 6s fica guardado para comparação.
+      audio?.playFx?.('playerDamage', { gain: damage > 1 ? 1 : .9 });
+      if (player.vitality === 1 && !criticalHealthAnnounced) {
+        criticalHealthAnnounced = true;
+        audio?.playFx?.('healthLost', { gain: 1 });
+      }
+    }
+    if (player.vitality > 1) criticalHealthAnnounced = false;
     entities.burst(
       player.x + player.w / 2,
       player.y + player.h / 2,
@@ -245,6 +260,10 @@ export function createPathogenSurvival({ state, entities, ecology }) {
       player.jetpackEnergy = 0;
       player.jetpackLockedUntilGround = false;
       resetJetpackRuntime(player);
+      if (!gameOverPlayed) {
+        gameOverPlayed = true;
+        audio?.playFx?.('gameOver', { gain: 1 });
+      }
       state.gameState = 'respawning';
       state.respawnTimer = .72;
       announce(`Miguelito foi vencido por ${source}. Retorno ao último biofilme ativo.`, 4.2, 0);
@@ -399,7 +418,13 @@ export function createPathogenSurvival({ state, entities, ecology }) {
 
     if (state.gameState === 'respawning') {
       state.respawnTimer = Math.max(0, (state.respawnTimer || 0) - dt);
-      if (state.respawnTimer <= 0) entities.respawn('death');
+      if (state.respawnTimer <= 0) {
+        // Renascer libera o game over para a próxima morte — e nunca reinicia a
+        // música: quem cuida da mixagem de volta é o `update()` do controlador.
+        gameOverPlayed = false;
+        criticalHealthAnnounced = false;
+        entities.respawn('death');
+      }
       updateDom();
       return;
     }

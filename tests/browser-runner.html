@@ -301,6 +301,72 @@
     record('phase-lab-runtime');
     lab.iframe.remove();
 
+    // ---- ÁUDIO ------------------------------------------------------------
+    //
+    // Instância PRÓPRIA: os fluxos anteriores já enviaram teclas e ponteiro para
+    // o jogo `built`, e qualquer uma dessas interações desbloqueia o áudio. Para
+    // observar o estado inicial é preciso um jogo que ninguém tocou ainda.
+    const audioGame = await loadGame('/dist/index.html', 'test=1');
+    const audioApi = audioGame.win.miguelitoAudio;
+    assert(audioApi, 'window.miguelitoAudio deve existir');
+    const antesDaInteracao = audioApi.debug();
+    assert(antesDaInteracao.available === true, 'o controlador de áudio precisa estar disponível');
+    assert(antesDaInteracao.unlocked === false, 'o jogo abre silencioso, antes da primeira interação');
+    assert(antesDaInteracao.musicTrackId === null, 'nenhuma música antes de interagir');
+    record('audio starts locked and silent');
+
+    // Primeira interação: desbloqueia, escolhe a música da fase e liga ambientes.
+    audioGame.win.dispatchEvent(new audioGame.win.KeyboardEvent('keydown', { code: 'Space', bubbles: true }));
+    await waitFor(() => audioApi.debug().unlocked === true, 'a primeira interação deve desbloquear o áudio');
+    const depoisDaInteracao = audioApi.debug();
+    assert(depoisDaInteracao.musicTrackId, 'uma música precisa ter sido escolhida');
+    assert(depoisDaInteracao.ambienceLayers.length === 5, 'as cinco camadas de ambiente entram juntas');
+    record('first interaction unlocks audio');
+
+    // Os arquivos precisam existir de verdade: 404 aqui é erro de caminho.
+    for (const caminho of [
+      'assets/audio/music/music_title_menino_da_rizosfera_loop.ogg',
+      'assets/audio/music/music_rhizobium_symbiosis_loop.ogg',
+      'assets/audio/music/music_azospirillum_growth_loop.ogg',
+      'assets/audio/ambience/ambience_cave_base_loop.ogg',
+      'assets/audio/ambience/drops/gota_eco_01.ogg',
+      'assets/audio/fx/fx_player_jump.ogg',
+    ]) {
+      const resposta = await audioGame.win.fetch(caminho, { method: 'HEAD' });
+      assert(resposta.ok, `404 em ${caminho}`);
+    }
+    record('audio assets respond without 404');
+
+    // Mute pela tecla M, e de volta.
+    const mudoAntes = audioApi.isMuted();
+    audioGame.win.dispatchEvent(new audioGame.win.KeyboardEvent('keydown', { code: 'KeyM', bubbles: true }));
+    await wait(60);
+    assert(audioApi.isMuted() !== mudoAntes, 'M deve alternar o mute');
+    const botaoSom = audioGame.win.document.querySelector('[data-mobile-action="toggle-sound"]');
+    assert(botaoSom, 'o botão de som precisa existir na barra de ferramentas');
+    assert(
+      botaoSom.getAttribute('aria-pressed') === String(audioApi.isMuted()),
+      'aria-pressed precisa refletir o estado do som',
+    );
+    audioGame.win.dispatchEvent(new audioGame.win.KeyboardEvent('keydown', { code: 'KeyM', bubbles: true }));
+    await wait(60);
+    assert(audioApi.isMuted() === mudoAntes, 'M de novo restaura o estado anterior');
+    record('mute toggles with M and updates the button');
+
+    // Reset (R) não pode duplicar contexto, ambientes nem scheduler.
+    const faixaAntesDoReset = audioApi.debug().musicTrackId;
+    audioGame.win.dispatchEvent(new audioGame.win.KeyboardEvent('keydown', { code: 'KeyR', bubbles: true }));
+    await wait(200);
+    const depoisDoReset = audioApi.debug();
+    assert(depoisDoReset.available === true, 'o áudio sobrevive ao reset');
+    assert(depoisDoReset.ambienceLayers.length === 5, 'o reset não duplica camadas de ambiente');
+    assert(
+      depoisDoReset.musicTrackId === faixaAntesDoReset,
+      'o reset volta para a fase 1: a mesma música continua, sem reiniciar',
+    );
+    record('reset does not duplicate audio');
+    audioGame.iframe.remove();
+
     await wait(100);
     assert(errors.length === 0, `console/page errors: ${errors.join('; ')}`);
     built.iframe.remove();
