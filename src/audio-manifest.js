@@ -13,10 +13,28 @@
 // copia `assets/` inteiro para `dist/assets/`, e barra invertida do Windows
 // quebraria a URL no navegador.
 
-export const AUDIO_STORAGE_KEY = 'miguelito:audio:v1';
+export const AUDIO_STORAGE_KEY = 'miguelito:audio:v2';
+export const AUDIO_STORAGE_VERSION = 2;
+// Chave da versão anterior, lida uma vez para migrar quem já abriu o jogo.
+export const AUDIO_STORAGE_KEY_V1 = 'miguelito:audio:v1';
 
 // Volumes por barramento. `master` multiplica todos.
+//
+// A primeira mixagem deixava a caverna quase inaudível e as gotas na frente de
+// tudo. O ambiente subiu, as gotas caíram bastante, e o stinger ganhou barramento
+// próprio para a vitória não depender do volume dos efeitos comuns.
 export const AUDIO_DEFAULTS = Object.freeze({
+  master: 1,
+  music: 0.35,
+  ambience: 0.28,
+  drops: 0.055,
+  fx: 0.35,
+  stinger: 0.55,
+});
+
+// Valores da v1, usados só para reconhecer quem NUNCA personalizou o volume.
+// Quem mexeu no slider (quando existir) mantém a própria escolha.
+export const AUDIO_DEFAULTS_V1 = Object.freeze({
   master: 1,
   music: 0.35,
   ambience: 0.20,
@@ -29,17 +47,17 @@ export const AUDIO_DEFAULTS = Object.freeze({
 // como detalhe. `internalRootFlow` é dinâmico (sobe quando Miguelito está sobre
 // uma raiz), por isso nasce baixo.
 export const AMBIENCE_LAYER_GAINS = Object.freeze({
-  caveBase: 0.75,
-  caveActivity: 0.25,
-  rhizosphereBase: 0.55,
-  rhizosphereDetail: 0.22,
-  internalRootFlow: 0.025,
+  caveBase: 0.85,
+  caveActivity: 0.35,
+  rhizosphereBase: 0.65,
+  rhizosphereDetail: 0.28,
+  internalRootFlow: 0.035,
 });
 
 // Alvos do fluxo interno da raiz.
 export const INTERNAL_ROOT_FLOW = Object.freeze({
   onRoot: 0.10,
-  offRoot: 0.025,
+  offRoot: 0.035,
   phaseNineBonus: 0.03,
   maximum: 0.12,
   rampSeconds: 0.5,
@@ -48,14 +66,17 @@ export const INTERNAL_ROOT_FLOW = Object.freeze({
 // Janela entre gotas e variações permitidas. A variação é estética e usa um RNG
 // próprio do controlador — nunca o RNG da campanha, que decide geometria.
 export const DROP_SCHEDULE = Object.freeze({
-  minimumSeconds: 4,
-  maximumSeconds: 16,
-  gainMinimum: 0.80,
-  gainMaximum: 1.10,
-  panMinimum: -0.45,
-  panMaximum: 0.45,
-  rateMinimum: 0.96,
-  rateMaximum: 1.04,
+  minimumSeconds: 7,
+  maximumSeconds: 20,
+  // A primeira gota espera: cair logo no primeiro segundo, junto com o fade-in
+  // da música, soava como um erro de reprodução.
+  firstDelaySeconds: 5,
+  gainMinimum: 0.65,
+  gainMaximum: 0.85,
+  panMinimum: -0.40,
+  panMaximum: 0.40,
+  rateMinimum: 0.97,
+  rateMaximum: 1.03,
 });
 
 export const MUSIC_CROSSFADE_SECONDS = 1.5;
@@ -66,7 +87,23 @@ export const DUCK_LEVELS = Object.freeze({
   tutorial: 0.65,
   respawning: 0.45,
   end: 0.35,
+  // Durante a vitória o ambiente fica discreto, mas não some: o silêncio total
+  // faria a transição parecer um travamento.
+  victoryAmbience: 0.60,
 });
+
+// Fade da supressão da música quando a fase termina.
+export const MUSIC_SUPPRESSION_SECONDS = 0.5;
+// Fade do stinger ao entrar na próxima fase.
+export const STINGER_FADE_SECONDS = 0.5;
+
+// Espera entre concluir a fase e carregar a próxima.
+//
+// Eram 3,4 s — e o stinger de vitória tem 10,24 s, então ele era cortado logo no
+// começo. 7,5 s deixa a frase musical respirar sem parar o jogo por muito tempo.
+// O arquivo NÃO foi editado; só a espera mudou.
+export const PHASE_VICTORY_TRANSITION_SECONDS = 7.5;
+export const PHASE_VICTORY_TOAST_SECONDS = 7.0;
 
 const MUSIC = 'assets/audio/music/';
 const AMBIENCE = 'assets/audio/ambience/';
@@ -162,7 +199,9 @@ export const AUDIO_TRACKS = Object.freeze({
     src: `${FX}fx_player_jump.ogg`,
     kind: 'fx',
     loop: false,
-    defaultGain: 1,
+    // ~7 dB abaixo do original. O salto é a ação mais repetida do jogo: em
+    // ganho 1 ele cansava depois de poucos minutos. O arquivo não foi tocado.
+    defaultGain: 0.45,
     preload: 'auto',
   }),
   playerDamage: Object.freeze({
@@ -263,6 +302,39 @@ export const FALLBACK_MUSIC_ID = 'musicTitle';
 export function musicTrackForPhase(phase) {
   const key = Number.isFinite(phase) ? phase : 0;
   return PHASE_MUSIC[key] || FALLBACK_MUSIC_ID;
+}
+
+// Migração v1 → v2.
+//
+// Sem isso, quem já abriu o jogo continuaria com `ambience: 0.20` e
+// `drops: 0.15` gravados no localStorage, e os novos padrões não teriam efeito
+// nenhum. A regra é conservadora: só sobe o que estava EXATAMENTE no default
+// antigo — um valor personalizado é escolha do jogador e permanece.
+export function migrateAudioSettings(stored) {
+  if (!stored || typeof stored !== 'object') return { ...AUDIO_DEFAULTS, muted: false, version: AUDIO_STORAGE_VERSION };
+  if (stored.version === AUDIO_STORAGE_VERSION) {
+    return { ...AUDIO_DEFAULTS, ...stored, version: AUDIO_STORAGE_VERSION };
+  }
+
+  const numero = (valor, padrao) => (Number.isFinite(valor) ? valor : padrao);
+  const noPadraoAntigo = (valor, antigo) => (
+    Number.isFinite(valor) && Math.abs(valor - antigo) < 1e-9
+  );
+
+  return {
+    version: AUDIO_STORAGE_VERSION,
+    muted: Boolean(stored.muted),
+    master: numero(stored.master, AUDIO_DEFAULTS.master),
+    music: numero(stored.music, AUDIO_DEFAULTS.music),
+    fx: numero(stored.fx, AUDIO_DEFAULTS.fx),
+    ambience: noPadraoAntigo(stored.ambience, AUDIO_DEFAULTS_V1.ambience)
+      ? AUDIO_DEFAULTS.ambience
+      : numero(stored.ambience, AUDIO_DEFAULTS.ambience),
+    drops: noPadraoAntigo(stored.drops, AUDIO_DEFAULTS_V1.drops)
+      ? AUDIO_DEFAULTS.drops
+      : numero(stored.drops, AUDIO_DEFAULTS.drops),
+    stinger: numero(stored.stinger, AUDIO_DEFAULTS.stinger),
+  };
 }
 
 export function audioTracksOfKind(kind) {

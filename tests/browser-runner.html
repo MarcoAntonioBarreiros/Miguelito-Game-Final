@@ -30,7 +30,7 @@
       if (predicate()) return;
       await wait(25);
     }
-    throw new Error(message);
+    throw new Error(typeof message === 'function' ? message() : message);
   }
 
   async function loadGame(pathname, query = 'test=1', viewport = {}) {
@@ -313,15 +313,41 @@
     assert(antesDaInteracao.available === true, 'o controlador de áudio precisa estar disponível');
     assert(antesDaInteracao.unlocked === false, 'o jogo abre silencioso, antes da primeira interação');
     assert(antesDaInteracao.musicTrackId === null, 'nenhuma música antes de interagir');
-    record('audio starts locked and silent');
+    // O botão não pode fingir que o som está tocando enquanto está bloqueado.
+    const botaoInicial = audioGame.win.document.querySelector('[data-mobile-action="toggle-sound"]');
+    assert(botaoInicial, 'o botão de som precisa existir');
+    assert(
+      botaoInicial.getAttribute('title') === 'Clique para ativar o som',
+      `botão bloqueado deve convidar a ativar, veio "${botaoInicial.getAttribute('title')}"`,
+    );
+    assert(botaoInicial.getAttribute('aria-pressed') === 'false', 'bloqueado não é "pressionado"');
+    record('audio starts locked and the button says so');
 
-    // Primeira interação: desbloqueia, escolhe a música da fase e liga ambientes.
+    // Primeira interação em qualquer lugar do jogo: desbloqueia e começa a tocar,
+    // sem precisar ligar e desligar o botão.
     audioGame.win.dispatchEvent(new audioGame.win.KeyboardEvent('keydown', { code: 'Space', bubbles: true }));
-    await waitFor(() => audioApi.debug().unlocked === true, 'a primeira interação deve desbloquear o áudio');
+    await waitFor(
+      () => audioApi.debug().unlocked === true,
+      () => `a primeira interação deve desbloquear o áudio (estado: ${JSON.stringify(audioApi.debug())})`,
+    );
+    await waitFor(() => audioApi.debug().musicTrackId !== null, 'a música da fase deve começar sozinha');
     const depoisDaInteracao = audioApi.debug();
-    assert(depoisDaInteracao.musicTrackId, 'uma música precisa ter sido escolhida');
+    assert(depoisDaInteracao.contextState === 'running', 'o contexto precisa estar rodando');
     assert(depoisDaInteracao.ambienceLayers.length === 5, 'as cinco camadas de ambiente entram juntas');
-    record('first interaction unlocks audio');
+    assert(depoisDaInteracao.musicSuppression === 1, 'a música não nasce suprimida');
+    assert(audioApi.uiState().audible === true, 'o áudio precisa estar audível');
+    await waitFor(
+      () => botaoInicial.getAttribute('title') === 'Desligar som',
+      'o botão precisa refletir o som ligado depois do desbloqueio',
+    );
+    record('first interaction unlocks audio without touching the button');
+
+    // Os efeitos curtos são precarregados: o primeiro salto não pode sair mudo.
+    await waitFor(
+      () => audioApi.debug().fxLoaded.includes('playerJump'),
+      'playerJump precisa estar precarregado',
+    );
+    record('short fx are preloaded at unlock');
 
     // Os arquivos precisam existir de verdade: 404 aqui é erro de caminho.
     for (const caminho of [
@@ -339,6 +365,7 @@
 
     // Mute pela tecla M, e de volta.
     const mudoAntes = audioApi.isMuted();
+    assert(mudoAntes === false, 'depois do desbloqueio o som fica LIGADO, não mudo');
     audioGame.win.dispatchEvent(new audioGame.win.KeyboardEvent('keydown', { code: 'KeyM', bubbles: true }));
     await wait(60);
     assert(audioApi.isMuted() !== mudoAntes, 'M deve alternar o mute');
@@ -366,6 +393,38 @@
     );
     record('reset does not duplicate audio');
     audioGame.iframe.remove();
+
+    // O BOTÃO como primeira interação: antes o `pointerdown` desbloqueava e o
+    // `click` mutava no mesmo gesto — o jogador clicava e continuava sem som.
+    const botaoGame = await loadGame('/dist/index.html', 'test=1');
+    const botaoApi = botaoGame.win.miguelitoAudio;
+    const botao = botaoGame.win.document.querySelector('[data-mobile-action="toggle-sound"]');
+    assert(botaoApi.uiState().unlocked === false, 'instância nova começa bloqueada');
+
+    botao.click();
+    await waitFor(() => botaoApi.uiState().unlocked === true, 'o clique no botão deve desbloquear');
+    assert(botaoApi.isMuted() === false, 'o primeiro clique ATIVA — não muta no mesmo gesto');
+    await waitFor(
+      () => botaoApi.debug().musicTrackId !== null,
+      () => `e a música começa (estado: ${JSON.stringify(botaoApi.debug())})`,
+    );
+    record('first button click activates sound');
+
+    botao.click();
+    // `toggleGameAudio` é assíncrono: o estado vira antes de o botão redesenhar.
+    await waitFor(
+      () => botaoApi.isMuted() === true && botao.getAttribute('aria-pressed') === 'true',
+      () => `o segundo clique deve mutar e marcar o botão (mudo=${botaoApi.isMuted()}, pressed=${botao.getAttribute('aria-pressed')})`,
+    );
+
+    botao.click();
+    await waitFor(
+      () => botaoApi.isMuted() === false && botao.getAttribute('aria-pressed') === 'false',
+      () => `o terceiro clique deve restaurar (mudo=${botaoApi.isMuted()}, pressed=${botao.getAttribute('aria-pressed')})`,
+    );
+    await waitFor(() => botaoApi.uiState().audible === true, 'desmutar devolve o som de verdade');
+    record('button cycles activate → mute → unmute');
+    botaoGame.iframe.remove();
 
     await wait(100);
     assert(errors.length === 0, `console/page errors: ${errors.join('; ')}`);

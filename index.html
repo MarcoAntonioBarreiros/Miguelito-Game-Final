@@ -331,6 +331,16 @@
       background: #ff6f91;
       box-shadow: 0 0 8px rgba(255, 111, 145, 0.6);
     }
+    /* Som ainda bloqueado: o botão não pode parecer ligado. */
+    .mobile-tool.audio-locked {
+      opacity: 0.55;
+      border-style: dashed;
+    }
+    .mobile-tool:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
     .objective-item .note {
       display: block;
       font-size: 9.5px;
@@ -731,7 +741,7 @@
     <button class="mobile-tool" data-mobile-action="fullscreen" aria-label="Tela cheia">⛶</button>
     <button class="mobile-tool" data-mobile-action="toggle-recovery" aria-label="Ligar/desligar plataformas de segurança (tecla T)" aria-pressed="false">⛨</button>
     <button class="mobile-tool" data-mobile-action="toggle-parallax" aria-label="Ligar/desligar paralaxe biológico (tecla P)" aria-pressed="true">P</button>
-    <button class="mobile-tool" data-mobile-action="toggle-sound" aria-label="Ligar ou desligar o som (tecla M)" aria-pressed="false">♫</button>
+    <button class="mobile-tool" data-mobile-action="toggle-sound" aria-label="Ligar ou desligar o som (tecla M)" aria-pressed="false" title="Clique para ativar o som">♪</button>
     <button class="mobile-tool zoom-step" data-camera-action="out" aria-label="Afastar câmera">−</button>
     <button class="mobile-tool zoom-value" data-camera-action="reset" data-camera-readout aria-label="Restaurar zoom padrão">1.45×</button>
     <button class="mobile-tool zoom-step" data-camera-action="in" aria-label="Aproximar câmera">+</button>

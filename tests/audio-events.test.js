@@ -253,3 +253,59 @@ test('um FX desconhecido não derruba o jogo', () => {
   const b = bancada();
   assert.doesNotThrow(() => b.sim.audio.playFx('naoExiste'));
 });
+
+// ---------------------------------------------------------------------------
+// VITÓRIA: tempo de transição e ausência de sobreposição
+// ---------------------------------------------------------------------------
+
+test('a espera da transição cabe o stinger de vitória', async () => {
+  const { PHASE_VICTORY_TRANSITION_SECONDS, PHASE_VICTORY_TOAST_SECONDS } =
+    await import('../src/audio-manifest.js');
+  // O arquivo tem ~10,24 s. Com os 3,4 s anteriores ele era cortado no começo.
+  assert.ok(PHASE_VICTORY_TRANSITION_SECONDS >= 7);
+  assert.ok(PHASE_VICTORY_TOAST_SECONDS <= PHASE_VICTORY_TRANSITION_SECONDS);
+});
+
+test('o goal-system agenda a transição usando a constante, não 3,4 s', async () => {
+  const { PHASE_VICTORY_TRANSITION_SECONDS } = await import('../src/audio-manifest.js');
+  const { createGoalSystem } = await import('../src/procgen/goal-system.js');
+
+  // Direto no sistema de chegada: montar a campanha inteira só para observar o
+  // agendamento traria dependências que não têm nada a ver com o áudio.
+  const campaign = { phase: 1, transitionRequested: false, transitionAt: 0, transitionCaptured: true };
+  const state = {
+    time: 42,
+    gameState: 'play',
+    shake: 0,
+    campaign,
+    player: { x: 500, y: 460, w: 26, h: 34, alive: true },
+    level: {
+      goal: { x: 500, y: 460, w: 40, h: 40, completed: false },
+      platforms: [], particles: [],
+    },
+    toast: '', toastTime: 0,
+  };
+  const goal = createGoalSystem({ state, entities: { burst() {} } });
+  goal.update(1 / 60);
+
+  assert.equal(campaign.transitionRequested, true, 'a chegada pede a transição');
+  assert.equal(
+    Math.round((campaign.transitionAt - state.time) * 10) / 10,
+    PHASE_VICTORY_TRANSITION_SECONDS,
+    `a espera precisa caber o stinger de vitória (veio ${campaign.transitionAt - state.time}s)`,
+  );
+});
+
+test('o controlador expõe as chamadas que o app usa na vitória', () => {
+  const audio = createNoopAudio();
+  for (const metodo of ['beginPhaseVictory', 'endPhaseVictory', 'stopStinger', 'getUiState', 'ensureExpectedMediaPlayback']) {
+    assert.equal(typeof audio[metodo], 'function', `método ausente no adaptador: ${metodo}`);
+  }
+});
+
+test('o salto usa o ganho reduzido do manifesto, e o dano não foi mexido', () => {
+  assert.equal(AUDIO_TRACKS.playerJump.defaultGain, 0.45, 'salto ~7 dB abaixo');
+  assert.equal(AUDIO_TRACKS.playerDamage.defaultGain, 1, 'dano segue no volume');
+  assert.equal(AUDIO_TRACKS.gameOver.defaultGain, 1);
+  assert.equal(AUDIO_TRACKS.phaseVictory.defaultGain, 1);
+});

@@ -18,6 +18,8 @@ import {
   AMBIENCE_LAYERS,
   DROP_TRACK_IDS,
   PHASE_MUSIC,
+  PHASE_VICTORY_TOAST_SECONDS,
+  PHASE_VICTORY_TRANSITION_SECONDS,
   musicTrackForPhase,
 } from '../src/audio-manifest.js';
 import { campaignManifest } from '../src/procgen/campaign-manifest.js';
@@ -113,11 +115,30 @@ test('toda fase da campanha tem música mapeada', () => {
 });
 
 test('os volumes-padrão e a chave de persistência estão declarados', () => {
-  assert.equal(AUDIO_STORAGE_KEY, 'miguelito:audio:v1');
-  for (const chave of ['master', 'music', 'ambience', 'drops', 'fx']) {
+  // v2: a chave mudou junto com a nova mixagem, para os valores antigos gravados
+  // no navegador passarem pela migração em vez de sobrescrever os novos padrões.
+  assert.equal(AUDIO_STORAGE_KEY, 'miguelito:audio:v2');
+  for (const chave of ['master', 'music', 'ambience', 'drops', 'fx', 'stinger']) {
     assert.ok(Number.isFinite(AUDIO_DEFAULTS[chave]), `volume ${chave} ausente`);
     assert.ok(AUDIO_DEFAULTS[chave] >= 0 && AUDIO_DEFAULTS[chave] <= 1);
   }
+});
+
+test('a mixagem mantém a hierarquia: música > ambiente > gotas', () => {
+  assert.ok(AUDIO_DEFAULTS.music > AUDIO_DEFAULTS.ambience);
+  assert.ok(AUDIO_DEFAULTS.ambience > AUDIO_DEFAULTS.drops);
+});
+
+test('a espera da vitória cabe o stinger de ~10 s', () => {
+  // O arquivo tem 10,24 s; 3,4 s cortavam a frase logo no começo.
+  assert.ok(
+    PHASE_VICTORY_TRANSITION_SECONDS >= 7,
+    `transição curta demais: ${PHASE_VICTORY_TRANSITION_SECONDS}s`,
+  );
+  assert.ok(
+    PHASE_VICTORY_TOAST_SECONDS <= PHASE_VICTORY_TRANSITION_SECONDS,
+    'a mensagem some antes ou junto com a transição',
+  );
 });
 
 test('todos os arquivos declarados existem no disco', () => {

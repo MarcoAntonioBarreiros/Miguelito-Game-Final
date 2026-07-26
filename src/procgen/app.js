@@ -25,6 +25,7 @@ import { JETPACK_CONFIG, jetpackRechargeBonuses } from '../player-jetpack.js';
 import { initPlayerTuning } from '../render/player-skin-tuning.js';
 import { createSimulator } from './simulator.js';
 import { createGameAudio } from '../game-audio.js';
+import { PHASE_VICTORY_TOAST_SECONDS } from '../audio-manifest.js';
 import {
   advanceGameplayFrame,
   createTutorialInputGate,
@@ -454,6 +455,7 @@ let biologicalParallaxEnabled = true;
 // (e pelo botao (i) no celular) para quando eu precisar dele numa partida real.
 let showDebug = phaseLab.enabled;
 debugDiv.classList.toggle('hidden', !showDebug);
+let soundButtonUnlocked = false;
 let lastTime = performance.now();
 let lastToast = '';
 let loopErrorCount = 0;
@@ -797,27 +799,75 @@ function buildPhaseReport() {
   };
 }
 
-// Alterna o som. Unico ponto: o botao mobile chama esta mesma API, para nao
-// existirem dois listeners disputando o mesmo controle.
-function toggleGameAudio() {
-  const muted = gameAudio.toggleMute();
+// Alterna o som. Unico ponto: o botao mobile e a tecla M chamam esta mesma API.
+//
+// O PRIMEIRO acionamento com o audio ainda bloqueado apenas DESBLOQUEIA e liga.
+// Antes o `pointerdown` desbloqueava e o `click` seguinte chamava toggleMute():
+// o primeiro clique ativava e mutava no mesmo gesto, e o jogador via o botao
+// aceso sem som nenhum.
+async function toggleGameAudio() {
+  const estado = gameAudio.getUiState();
+  if (!estado.available) {
+    updateSoundButton();
+    return false;
+  }
+
+  if (!estado.unlocked) {
+    const ok = await gameAudio.unlock();
+    if (ok && estado.muted) await gameAudio.setMuted(false);
+    updateSoundButton();
+    sim.state.toast = ok ? 'Som ativado' : 'Não foi possível ativar o som';
+    sim.state.toastTime = 1.8;
+    return gameAudio.isMuted();
+  }
+
+  const muted = await gameAudio.toggleMute();
   updateSoundButton();
   sim.state.toast = muted ? 'Som desativado' : 'Som ativado';
   sim.state.toastTime = 1.6;
   return muted;
 }
 
+// O botao reflete os quatro estados reais, nao so `isMuted()`.
 function updateSoundButton() {
   const button = document.querySelector('[data-mobile-action="toggle-sound"]');
   if (!button) return;
-  const muted = gameAudio.isMuted();
-  button.textContent = muted ? '\u00d7' : '\u266b';
-  button.setAttribute('aria-pressed', muted ? 'true' : 'false');
+  const estado = gameAudio.getUiState();
+
+  if (!estado.available) {
+    button.textContent = '\u2014';
+    button.setAttribute('aria-pressed', 'false');
+    button.setAttribute('title', 'Áudio indisponível');
+    button.disabled = true;
+    return;
+  }
+  button.disabled = false;
+
+  if (!estado.unlocked) {
+    // Bloqueado: nao pode fingir que o som esta tocando.
+    button.textContent = '\u266a';
+    button.setAttribute('aria-pressed', 'false');
+    button.setAttribute('title', 'Clique para ativar o som');
+    button.classList.add('audio-locked');
+    return;
+  }
+  button.classList.remove('audio-locked');
+
+  if (estado.muted) {
+    button.textContent = '\u00d7';
+    button.setAttribute('aria-pressed', 'true');
+    button.setAttribute('title', 'Ativar som');
+    return;
+  }
+  button.textContent = '\u266b';
+  button.setAttribute('aria-pressed', 'false');
+  button.setAttribute('title', 'Desligar som');
 }
 
 window.miguelitoAudio = {
   toggle: toggleGameAudio,
   isMuted: () => gameAudio.isMuted(),
+  uiState: () => gameAudio.getUiState(),
   debug: () => gameAudio.debugSnapshot(),
 };
 
@@ -827,12 +877,13 @@ function maybeAdvanceCampaign() {
   if (!campaign.transitionCaptured) {
     const report = buildPhaseReport();
     recordPhaseResult(campaign, report);
-    // Uma vez por fase, no ponto exato da captura — nao por objetivo e nao a
-    // cada quadro. Nao altera o tempo de transicao da campanha.
-    gameAudio.playStinger('phaseVictory', { gain: 1 });
+    // Uma vez por fase, no ponto exato da captura. `beginPhaseVictory` faz mais
+    // que tocar o stinger: suprime a musica da fase, abaixa o ambiente e para as
+    // gotas — antes a musica continuava audivel por baixo da vitoria.
+    gameAudio.beginPhaseVictory();
     const vascular = report.phase >= 4 ? ` · transporte ${report.vascularTransport}%` : '';
     sim.state.toast = `Fase ${report.phase}: ${report.score} pontos · saúde ${report.rootHealth}% · infestação ${report.infestation}%${vascular}`;
-    sim.state.toastTime = 3.4;
+    sim.state.toastTime = PHASE_VICTORY_TOAST_SECONDS;
   }
 
   if (sim.state.time < campaign.transitionAt) return false;
@@ -850,11 +901,12 @@ function maybeAdvanceCampaign() {
     sim.state.mission = 'Campanha concluída';
     // Fim de campanha: o resultado longo entra sozinho, nunca junto do curto.
     gameAudio.stopStinger(.5);
-    gameAudio.playStinger('campaignVictory', { gain: 1 });
+    gameAudio.beginPhaseVictory({ campaign: true });
     return true;
   }
-  // Fase seguinte: o stinger sai por fade e a musica nova entra por crossfade.
-  gameAudio.stopStinger(.6);
+  // Fase seguinte: o stinger sai por fade, o ambiente volta, a musica nova entra
+  // por crossfade e as gotas so retornam depois de alguns segundos.
+  gameAudio.endPhaseVictory();
   prepareLevel();
   initGame({ announce: true });
   return true;
@@ -879,9 +931,15 @@ function toggleRecoveryPlatforms() {
 const soundToggleButton = document.querySelector('[data-mobile-action="toggle-sound"]');
 soundToggleButton?.addEventListener('click', event => {
   event.preventDefault();
+  event.stopPropagation();
   toggleGameAudio();
   soundToggleButton.blur();
 });
+// O botao trata o desbloqueio sozinho, no `click`. Sem isto o `pointerdown` do
+// listener global desbloquearia primeiro e o `click` chegaria ja desbloqueado,
+// virando um mute imediato.
+soundToggleButton?.addEventListener('pointerdown', event => event.stopPropagation());
+soundToggleButton?.addEventListener('touchstart', event => event.stopPropagation(), { passive: true });
 // Reflete o estado persistido antes de qualquer interacao.
 updateSoundButton();
 
@@ -1025,6 +1083,11 @@ function loop(now) {
       },
     });
     gameAudio.update(dt);
+    // O desbloqueio pode vir de qualquer clique no jogo: o botao acompanha.
+    if (gameAudio.isUnlocked() !== soundButtonUnlocked) {
+      soundButtonUnlocked = gameAudio.isUnlocked();
+      updateSoundButton();
+    }
     if (advanced) tutorialManager?.updateAutomaticPresentation?.(dt);
     renderWorld();
     updateTouchAbilityVisibility();

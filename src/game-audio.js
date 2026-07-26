@@ -19,8 +19,11 @@
 
 import {
   AMBIENCE_LAYERS,
+  AMBIENCE_LAYER_GAINS,
   AUDIO_DEFAULTS,
   AUDIO_STORAGE_KEY,
+  AUDIO_STORAGE_KEY_V1,
+  AUDIO_STORAGE_VERSION,
   AUDIO_TRACKS,
   DROP_SCHEDULE,
   DROP_TRACK_IDS,
@@ -28,6 +31,9 @@ import {
   INTERNAL_ROOT_FLOW,
   MUSIC_CROSSFADE_SECONDS,
   MUSIC_FIRST_FADE_SECONDS,
+  MUSIC_SUPPRESSION_SECONDS,
+  STINGER_FADE_SECONDS,
+  migrateAudioSettings,
   musicTrackForPhase,
 } from './audio-manifest.js';
 
@@ -47,6 +53,11 @@ export function createNoopAudio() {
     setMuted() {},
     isMuted() { return false; },
     isUnlocked() { return false; },
+    getUiState() { return { available: false, unlocked: false, muted: false, audible: false }; },
+    beginPhaseVictory() {},
+    endPhaseVictory() {},
+    ensureExpectedMediaPlayback() { return Promise.resolve(false); },
+    stopStinger() {},
     suspend() {},
     resume() {},
     destroy() {},
@@ -57,6 +68,8 @@ export function createNoopAudio() {
         musicTrackId: null, crossfadingTo: null, musicPhase: null,
         ambienceLayers: [], internalRootFlow: 0,
         currentDrop: null, nextDropIn: null, lastFx: null, errors: [],
+        initialized: false, audible: false, musicSuppression: 1,
+        activeStinger: null, storageVersion: AUDIO_STORAGE_VERSION,
       };
     },
   };
@@ -64,10 +77,18 @@ export function createNoopAudio() {
 
 function readStoredSettings(windowRef) {
   try {
-    const raw = windowRef?.localStorage?.getItem(AUDIO_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : null;
+    const atual = windowRef?.localStorage?.getItem(AUDIO_STORAGE_KEY);
+    if (atual) {
+      const parsed = JSON.parse(atual);
+      if (parsed && typeof parsed === 'object') return migrateAudioSettings(parsed);
+    }
+    // Sem v2: tenta migrar a v1 de quem já abriu o jogo antes.
+    const antigo = windowRef?.localStorage?.getItem(AUDIO_STORAGE_KEY_V1);
+    if (antigo) {
+      const parsed = JSON.parse(antigo);
+      if (parsed && typeof parsed === 'object') return migrateAudioSettings(parsed);
+    }
+    return null;
   } catch {
     // localStorage indisponível (modo privado, iframe restrito): segue sem persistir.
     return null;
@@ -104,6 +125,8 @@ export function createGameAudio({
     ambience: Number.isFinite(stored?.ambience) ? stored.ambience : AUDIO_DEFAULTS.ambience,
     drops: Number.isFinite(stored?.drops) ? stored.drops : AUDIO_DEFAULTS.drops,
     fx: Number.isFinite(stored?.fx) ? stored.fx : AUDIO_DEFAULTS.fx,
+    stinger: Number.isFinite(stored?.stinger) ? stored.stinger : AUDIO_DEFAULTS.stinger,
+    version: AUDIO_STORAGE_VERSION,
   };
 
   let context = null;
@@ -143,10 +166,22 @@ export function createGameAudio({
 
   let stingerElement = null;
   let stingerGain = null;
+  let stingerBusGain = null;
   let stingerId = null;
 
   let duck = 1;
   let duckTarget = 1;
+  // Supressão exclusiva da MÚSICA. Vai a 0 durante a vitória de fase, sem mexer
+  // no ambiente nem no stinger — antes a música da fase continuava audível por
+  // baixo da vitória.
+  let musicSuppression = 1;
+  let musicSuppressionTarget = 1;
+  let victoryActive = false;
+  let phaseVictoryPlaying = false;
+  let campaignVictoryPlaying = false;
+  let lastVictoryPhase = null;
+  let lastPlaybackError = null;
+  const fxLoadPromises = new Map();
 
   function note(message) {
     if (errors.length > 12) errors.shift();
@@ -195,7 +230,12 @@ export function createGameAudio({
     ambienceGain = context.createGain();
     dropGain = context.createGain();
     fxGain = context.createGain();
-    for (const bus of [musicGain, ambienceGain, dropGain, fxGain]) bus.connect(masterGain);
+    // Barramento PRÓPRIO para os stingers: a vitória precisa poder tocar com a
+    // música da fase suprimida, sem depender do volume dos efeitos comuns.
+    stingerBusGain = context.createGain();
+    for (const bus of [musicGain, ambienceGain, dropGain, fxGain, stingerBusGain]) {
+      bus.connect(masterGain);
+    }
 
     applyBusVolumes();
 
@@ -225,7 +265,7 @@ export function createGameAudio({
     try {
       const source = context.createMediaElementSource(stingerElement);
       source.connect(stingerGain);
-      stingerGain.connect(fxGain);
+      stingerGain.connect(stingerBusGain);
     } catch (error) {
       note(`deck de stinger falhou: ${error?.message || error}`);
     }
@@ -237,11 +277,13 @@ export function createGameAudio({
   function applyBusVolumes() {
     if (!context) return;
     const muted = settings.muted ? 0 : 1;
+    const ambienteVitoria = victoryActive ? DUCK_LEVELS.victoryAmbience : 1;
     setGain(masterGain, settings.master * muted);
-    setGain(musicGain, settings.music * duck);
-    setGain(ambienceGain, settings.ambience * duck);
+    setGain(musicGain, settings.music * duck * musicSuppression, MUSIC_SUPPRESSION_SECONDS);
+    setGain(ambienceGain, settings.ambience * duck * ambienteVitoria);
     setGain(dropGain, settings.drops * duck);
     setGain(fxGain, settings.fx);
+    setGain(stingerBusGain, settings.stinger);
   }
 
   function setGain(node, value, seconds = 0.08) {
@@ -275,22 +317,74 @@ export function createGameAudio({
     }
   }
 
-  function unlock() {
-    if (destroyed || unlocked) return;
+  // Desbloqueio REAL: espera o `resume()` resolver e confirma `running` antes de
+  // marcar `unlocked`. A versão anterior marcava `unlocked = true` na primeira
+  // linha e disparava mídia sem esperar nada — se o navegador recusasse, o jogo
+  // ficava "desbloqueado" e mudo, e a única saída era ligar e desligar o botão.
+  async function unlock() {
+    if (destroyed) return false;
     if (!initialized) init();
-    if (!context) return;
-    unlocked = true;
-    removeUnlockListeners();
-    try {
-      const resumed = context.resume?.();
-      if (resumed?.catch) resumed.catch(error => note(`resume falhou: ${error?.message || error}`));
-    } catch (error) {
-      note(`resume falhou: ${error?.message || error}`);
+    if (!context) {
+      note('AudioContext indisponível');
+      return false;
     }
-    startAmbience();
-    const phase = currentPhase();
-    setPhase(phase, { immediate: true });
-    scheduleNextDrop(1.5);
+
+    // Já desbloqueado e rodando: nada a fazer, e nada é duplicado.
+    if (unlocked && context.state === 'running') return true;
+
+    try {
+      if (context.state !== 'running') await context.resume();
+      if (context.state !== 'running') {
+        note(`AudioContext permaneceu em ${context.state}`);
+        return false;
+      }
+
+      const primeiraVez = !unlocked;
+      unlocked = true;
+      removeUnlockListeners();
+
+      await startAmbience();
+      await setPhase(currentPhase(), { immediate: true, forcePlayback: true });
+      preloadShortFx();
+      if (primeiraVez) scheduleNextDrop(DROP_SCHEDULE.firstDelaySeconds);
+      applyBusVolumes();
+      note('Áudio desbloqueado');
+      return true;
+    } catch (error) {
+      unlocked = false;
+      lastPlaybackError = `${error?.message || error}`;
+      note(`Falha ao desbloquear áudio: ${lastPlaybackError}`);
+      return false;
+    }
+  }
+
+  // Repara uma reprodução que falhou: reconfirma o contexto, garante que os
+  // ambientes previstos e a música da fase estão tocando, sem reiniciar nada que
+  // já esteja numa posição válida e sem criar um segundo MediaElementSource.
+  async function ensureExpectedMediaPlayback() {
+    if (destroyed || !context) return false;
+    if (context.state !== 'running') {
+      try { await context.resume(); } catch (error) {
+        note(`resume falhou: ${error?.message || error}`);
+        return false;
+      }
+    }
+    if (context.state !== 'running') return false;
+    if (!unlocked) return false;
+
+    await startAmbience();
+    for (const node of ambienceNodes.values()) {
+      if (node.element.paused) play(node.element, node.track.id);
+    }
+    const deck = decks[activeDeck];
+    if (currentMusicId && deck?.element?.paused) {
+      play(deck.element, currentMusicId);
+    } else if (!currentMusicId) {
+      await setPhase(currentPhase(), { immediate: true, forcePlayback: true });
+    }
+    preloadShortFx();
+    applyBusVolumes();
+    return true;
   }
 
   function currentPhase() {
@@ -323,18 +417,36 @@ export function createGameAudio({
     return { element, gain, track };
   }
 
-  function play(element) {
+  // Reprodução com erro VISÍVEL. O `.catch(() => {})` de antes engolia a recusa
+  // do navegador: o jogo ficava mudo e o debug não dizia por quê.
+  async function safePlay(element, trackId) {
     try {
-      const promise = element.play?.();
-      if (promise?.catch) promise.catch(() => {});
-    } catch {
-      // Chamada antes do desbloqueio: silêncio é o comportamento correto.
+      const result = element.play?.();
+      if (result && typeof result.then === 'function') await result;
+      return true;
+    } catch (error) {
+      lastPlaybackError = `${trackId}: ${error?.message || error}`;
+      note(`Falha ao tocar ${lastPlaybackError} (contexto ${context?.state}, mudo ${settings.muted}, unlocked ${unlocked})`);
+      return false;
     }
+  }
+
+  // Versão sem espera. O erro continua sendo REGISTRADO (nada de
+  // `catch(() => {})`), só não bloqueia quem chamou.
+  //
+  // É a que os caminhos quentes usam: `element.play()` de uma faixa longa em
+  // streaming só resolve quando a reprodução realmente começa, e esperar por isso
+  // dentro do `unlock()` deixava o desbloqueio pendurado enquanto o navegador
+  // carregava 3,7 MB de OGG.
+  function play(element, trackId = 'mídia') {
+    const resultado = safePlay(element, trackId);
+    if (resultado?.catch) resultado.catch(() => {});
+    return resultado;
   }
 
   // ---- ambiente -----------------------------------------------------------
 
-  function startAmbience() {
+  async function startAmbience() {
     if (!context) return;
     for (const id of AMBIENCE_LAYERS) {
       if (ambienceNodes.has(id)) continue;
@@ -342,7 +454,7 @@ export function createGameAudio({
       if (!track) continue;
       const node = makeMediaNode(track, ambienceGain, track.defaultGain);
       ambienceNodes.set(id, node);
-      play(node.element);
+      play(node.element, id);
     }
   }
 
@@ -363,17 +475,22 @@ export function createGameAudio({
 
   // ---- música e crossfade -------------------------------------------------
 
-  function setPhase(phase, { immediate = false } = {}) {
+  async function setPhase(phase, { immediate = false, forcePlayback = false } = {}) {
     if (destroyed) return;
     musicPhase = phase;
     if (!unlocked || !context) return;
     const trackId = musicTrackForPhase(phase);
-    // Mesma faixa: NÃO reinicia nem volta ao começo.
-    if (trackId === currentMusicId) return;
-    crossfadeTo(trackId, immediate ? MUSIC_FIRST_FADE_SECONDS : MUSIC_CROSSFADE_SECONDS);
+    // Mesma faixa: NÃO reinicia nem volta ao começo — a menos que o deck esteja
+    // parado porque a reprodução foi recusada no primeiro unlock.
+    if (trackId === currentMusicId) {
+      const deck = decks[activeDeck];
+      if (forcePlayback && deck?.element?.paused) play(deck.element, trackId);
+      return;
+    }
+    await crossfadeTo(trackId, immediate ? MUSIC_FIRST_FADE_SECONDS : MUSIC_CROSSFADE_SECONDS);
   }
 
-  function crossfadeTo(trackId, seconds) {
+  async function crossfadeTo(trackId, seconds) {
     const track = AUDIO_TRACKS[trackId];
     if (!track || !decks.length) return;
     const incoming = decks[1 - activeDeck];
@@ -386,7 +503,12 @@ export function createGameAudio({
     }
     incoming.element.currentTime = 0;
     setGain(incoming.gain, 0, 0.01);
-    play(incoming.element);
+    // O estado da faixa é assumido AQUI, antes de a mídia terminar de carregar:
+    // esperar o `play()` de um streaming longo pendurava o unlock inteiro.
+    activeDeck = 1 - activeDeck;
+    currentMusicId = trackId;
+    crossfadingTo = trackId;
+    play(incoming.element, trackId);
     setGain(incoming.gain, track.defaultGain, seconds);
 
     if (outgoing.trackId) {
@@ -397,16 +519,25 @@ export function createGameAudio({
       }, seconds * 1000 + 120));
     }
 
-    activeDeck = 1 - activeDeck;
-    currentMusicId = trackId;
-    crossfadingTo = trackId;
     addTimer(setTimeout(() => { crossfadingTo = null; }, seconds * 1000 + 60));
   }
 
   // ---- efeitos ------------------------------------------------------------
 
+  // Carrega os efeitos curtos assim que o contexto está rodando. Sem isso, o
+  // PRIMEIRO salto (ou o primeiro dano) só disparava o fetch e saía sem som.
+  function preloadShortFx() {
+    if (!context) return;
+    for (const track of Object.values(AUDIO_TRACKS)) {
+      if (track.kind !== 'fx' || track.preload !== 'auto') continue;
+      loadFxBuffer(track);
+    }
+  }
+
   function loadFxBuffer(track) {
-    if (fxBuffers.has(track.id) || fxPending.has(track.id) || fxFailed.has(track.id)) return;
+    if (fxBuffers.has(track.id) || fxFailed.has(track.id)) return fxLoadPromises.get(track.id) || null;
+    // Uma promessa por arquivo: nada de fetch duplicado.
+    if (fxLoadPromises.has(track.id)) return fxLoadPromises.get(track.id);
     const promise = windowRef.fetch(assetUrl(track.src))
       .then(response => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -418,9 +549,12 @@ export function createGameAudio({
         // Um arquivo que falha não pode derrubar o jogo — e não é buscado de novo.
         fxPending.delete(track.id);
         fxFailed.add(track.id);
-        note(`${track.id}: ${error?.message || error}`);
+        lastPlaybackError = `${track.id}: ${error?.message || error}`;
+        note(lastPlaybackError);
       });
     fxPending.set(track.id, promise);
+    fxLoadPromises.set(track.id, promise);
+    return promise;
   }
 
   function playFx(id, { gain = 1, rate = 1, pan = 0 } = {}) {
@@ -430,7 +564,25 @@ export function createGameAudio({
     if (track.kind === 'stinger') return playStinger(id, { gain });
 
     const buffer = fxBuffers.get(id);
-    if (!buffer) { loadFxBuffer(track); return false; }
+    if (!buffer) {
+      // Ainda carregando: tenta uma vez, com janela curta. Um som que chegasse
+      // 300 ms depois do salto seria pior que silêncio.
+      const promise = loadFxBuffer(track);
+      if (promise?.then) {
+        const limite = new Promise(resolve => addTimer(setTimeout(resolve, 100)));
+        Promise.race([promise, limite]).then(() => {
+          if (fxBuffers.has(id)) emitBuffer(id, { gain, rate, pan });
+        });
+      }
+      return false;
+    }
+    return emitBuffer(id, { gain, rate, pan });
+  }
+
+  function emitBuffer(id, { gain = 1, rate = 1, pan = 0 } = {}) {
+    const track = AUDIO_TRACKS[id];
+    const buffer = fxBuffers.get(id);
+    if (!track || !buffer || !context || settings.muted) return false;
 
     try {
       const source = context.createBufferSource();
@@ -478,6 +630,39 @@ export function createGameAudio({
     }
   }
 
+  // Vitória de fase: a música da fase some por fade, o ambiente fica discreto e
+  // as gotas param. O stinger toca no barramento próprio, sem competir.
+  function beginPhaseVictory({ campaign = false } = {}) {
+    if (destroyed) return false;
+    if (campaign) {
+      if (campaignVictoryPlaying) return false;
+      campaignVictoryPlaying = true;
+    } else {
+      if (phaseVictoryPlaying) return false;
+      phaseVictoryPlaying = true;
+      lastVictoryPhase = currentPhase();
+    }
+    victoryActive = true;
+    musicSuppressionTarget = 0;
+    applyBusVolumes();
+    return playStinger(campaign ? 'campaignVictory' : 'phaseVictory', { gain: 1 });
+  }
+
+  // Próxima fase: o stinger sai por fade, o ambiente volta e a música nova entra.
+  // As gotas só voltam depois de alguns segundos, para não caírem em cima do
+  // crossfade.
+  function endPhaseVictory() {
+    if (destroyed) return;
+    stopStinger(STINGER_FADE_SECONDS);
+    victoryActive = false;
+    phaseVictoryPlaying = false;
+    musicSuppressionTarget = 1;
+    dropActive = false;
+    currentDropId = null;
+    scheduleNextDrop(DROP_SCHEDULE.firstDelaySeconds);
+    applyBusVolumes();
+  }
+
   function stopStinger(seconds = 0.4) {
     if (!stingerElement || !stingerId) return;
     setGain(stingerGain, 0, seconds);
@@ -500,6 +685,7 @@ export function createGameAudio({
   function dropAllowed() {
     if (!unlocked || settings.muted || destroyed || !context) return false;
     if (documentRef.hidden) return false;
+    if (victoryActive) return false;
     const state = getState?.();
     const gameState = state?.gameState;
     return gameState !== 'end' && gameState !== 'respawning';
@@ -581,6 +767,11 @@ export function createGameAudio({
   function update(dt) {
     if (destroyed || !unlocked || !context) return;
     const passo = Number.isFinite(dt) ? clamp(dt, 0, 0.25) : 0;
+    if (Math.abs(musicSuppression - musicSuppressionTarget) > 0.002) {
+      const avanco = clamp(passo / MUSIC_SUPPRESSION_SECONDS, 0, 1);
+      musicSuppression += (musicSuppressionTarget - musicSuppression) * avanco;
+      applyBusVolumes();
+    }
     updateDuck(passo);
     updateInternalRootFlow(passo);
     updateDrops(passo);
@@ -592,16 +783,33 @@ export function createGameAudio({
     writeStoredSettings(windowRef, { ...settings });
   }
 
-  function setMuted(value) {
+  async function setMuted(value) {
     settings.muted = Boolean(value);
     applyBusVolumes();
     persist();
-    if (settings.muted) stopStinger(0.2);
+    if (settings.muted) {
+      stopStinger(0.2);
+      return settings.muted;
+    }
+    // Desmutar precisa REPARAR: se o primeiro unlock falhou, a música e os
+    // ambientes estão parados e só subir o ganho não traria som nenhum.
+    await ensureExpectedMediaPlayback();
+    return settings.muted;
   }
 
-  function toggleMute() {
-    setMuted(!settings.muted);
+  async function toggleMute() {
+    await setMuted(!settings.muted);
     return settings.muted;
+  }
+
+  // Estado para a interface distinguir bloqueado, ligado, mudo e indisponível.
+  function getUiState() {
+    return {
+      available: Boolean(context),
+      unlocked,
+      muted: settings.muted,
+      audible: Boolean(context) && unlocked && !settings.muted && context.state === 'running',
+    };
   }
 
   // ---- visibilidade -------------------------------------------------------
@@ -615,7 +823,10 @@ export function createGameAudio({
           if (documentRef.hidden) suspend();
         }, 220));
       } else {
-        resume();
+        // Voltar não garante que o `resume()` foi aceito: repara a reprodução.
+        const promessa = resume();
+        if (promessa?.then) promessa.then(() => ensureExpectedMediaPlayback());
+        else ensureExpectedMediaPlayback();
       }
     };
     documentRef.addEventListener('visibilitychange', handler);
@@ -630,13 +841,16 @@ export function createGameAudio({
     } catch { /* contexto já suspenso */ }
   }
 
-  function resume() {
-    if (!context || !unlocked) return;
+  async function resume() {
+    if (!context || !unlocked) return false;
     try {
-      const promise = context.resume?.();
-      if (promise?.catch) promise.catch(() => {});
-    } catch { /* nada a fazer */ }
+      if (context.state !== 'running') await context.resume?.();
+    } catch (error) {
+      note(`resume falhou: ${error?.message || error}`);
+      return false;
+    }
     applyBusVolumes();
+    return context.state === 'running';
   }
 
   // ---- destruição ---------------------------------------------------------
@@ -644,6 +858,9 @@ export function createGameAudio({
   function destroy() {
     if (destroyed) return;
     destroyed = true;
+    victoryActive = false;
+    phaseVictoryPlaying = false;
+    campaignVictoryPlaying = false;
     clearTimers();
     for (const [target, type, handler] of listeners) target.removeEventListener(type, handler);
     listeners.length = 0;
@@ -670,20 +887,39 @@ export function createGameAudio({
   function toneNow() {}
 
   function debugSnapshot() {
+    const camadaCaverna = ambienceNodes.get('ambienceCaveBase');
+    const deck = decks[activeDeck];
     return {
-      available: true,
+      available: Boolean(context),
+      initialized,
       unlocked,
       contextState: context?.state || 'closed',
       muted: settings.muted,
+      audible: getUiState().audible,
       musicTrackId: currentMusicId,
+      currentMusic: currentMusicId,
+      musicElementPaused: deck?.element ? Boolean(deck.element.paused) : null,
+      musicSuppression,
       crossfadingTo,
       musicPhase,
+      activeStinger: stingerId,
       ambienceLayers: [...ambienceNodes.keys()],
+      ambiencePlaying: [...ambienceNodes.entries()]
+        .filter(([, node]) => !node.element.paused)
+        .map(([id]) => id),
+      ambienceBus: settings.ambience,
+      caveBaseEffectiveGain: camadaCaverna
+        ? settings.ambience * AMBIENCE_LAYER_GAINS.caveBase
+        : 0,
       internalRootFlow: internalFlowGainNow,
+      dropBus: settings.drops,
       currentDrop: currentDropId,
       nextDropIn: dropActive ? null : Math.max(0, nextDropIn),
+      fxLoaded: [...fxBuffers.keys()],
       lastFx: lastFxId,
+      lastPlaybackError,
       stinger: stingerId,
+      storageVersion: settings.version,
       errors: [...errors],
     };
   }
@@ -700,6 +936,10 @@ export function createGameAudio({
     setMuted,
     isMuted: () => settings.muted,
     isUnlocked: () => unlocked,
+    getUiState,
+    beginPhaseVictory,
+    endPhaseVictory,
+    ensureExpectedMediaPlayback,
     suspend,
     resume,
     destroy,

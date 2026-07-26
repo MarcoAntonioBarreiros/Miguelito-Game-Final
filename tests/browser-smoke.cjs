@@ -83,10 +83,17 @@ async function runHeadlessRunner(baseUrl) {
     '--no-first-run',
     '--no-default-browser-check',
     '--disable-background-networking',
+    // Um KeyboardEvent criado por script NÃO é gesto de usuário: sem esta flag o
+    // AudioContext fica 'suspended' para sempre no headless e nada do áudio pode
+    // ser testado. É flag de ambiente de teste; o jogo continua exigindo
+    // interação real no navegador do jogador.
+    '--autoplay-policy=no-user-gesture-required',
     '--disable-gpu-shader-disk-cache',
     '--disable-features=CanvasOopRasterization,VizDisplayCompositor,SkiaGraphite,DawnGraphite',
     '--dump-dom',
-    '--virtual-time-budget=12000',
+    // O runner passou a carregar mais duas instâncias (áudio e botão de som):
+    // com 12 s de tempo virtual o orçamento acabava no meio dos fluxos antigos.
+    '--virtual-time-budget=20000',
     `--user-data-dir=${userDataDir}`,
     url,
   ], { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -102,7 +109,7 @@ async function runHeadlessRunner(baseUrl) {
     const timer = setTimeout(() => {
       spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
       resolve(124);
-    }, 25000);
+    }, 45000);
     child.on('close', exitCode => {
       clearTimeout(timer);
       resolve(exitCode);

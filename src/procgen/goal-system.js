@@ -1,4 +1,5 @@
 import { W } from '../core/constants.js';
+import { PHASE_VICTORY_TRANSITION_SECONDS } from '../audio-manifest.js';
 
 const TAU = Math.PI * 2;
 
@@ -39,7 +40,10 @@ export function createGoalSystem({ state, entities }) {
 
     if (state.campaign) {
       state.campaign.transitionRequested = true;
-      state.campaign.transitionAt = state.time + 3.4;
+      // 7,5 s: o stinger de vitória tem 10,24 s e era cortado logo no começo
+      // pelos 3,4 s anteriores. A constante mora no manifesto de áudio para o
+      // toast, a transição e o fade do stinger usarem o mesmo número.
+      state.campaign.transitionAt = state.time + PHASE_VICTORY_TRANSITION_SECONDS;
       state.campaign.transitionCaptured = false;
     }
 
