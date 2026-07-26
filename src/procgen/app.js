@@ -143,10 +143,36 @@ const OBJECTIVE_LABELS = {
   solubilizedPhosphateDepositCount: 'Solubilize o depósito de fosfato',
   totalFixationRate: 'Ative a fixação de nitrogênio',
   visibleLateralRootCount: 'Induza raízes laterais (Azospirillum)',
+  mandatoryAzospirillumChallengeDeveloped: 'Amadureça a raiz lateral obrigatória (Azospirillum)',
+  mandatoryAzospirillumChallengeTraversed: 'Cruze com a raiz lateral + salto duplo',
 };
 
 function objectiveLabel(req) {
   return OBJECTIVE_LABELS[req.key] || req.description || req.key;
+}
+
+// Telemetria da prova obrigatoria de Azospirillum — so no painel de debug (Tab),
+// sem poluir o HUD normal. Serve para conferir, em qualquer seed, se a prova esta
+// posicionada e dimensionada como deveria.
+function azospirillumChallengeDebug(sim) {
+  const challenge = sim.state.level.azospirillumChallenge;
+  const renewable = sim.renewableExudates;
+  if (!challenge) return '';
+  const mandatoryLadder = (sim.state.level.azospirillumRootLadders || [])
+    .find(ladder => ladder.mandatoryChallenge) || null;
+  const actualReach = mandatoryLadder
+    ? Math.round(challenge.hostPlatform.y - mandatoryLadder.endY)
+    : 0;
+  const nextInterval = renewable?.nextIntervalEstimate;
+  return `\nDesafio Azo (obrigatório): host ${challenge.hostLogicIndex} → alvo ${challenge.targetLogicIndex}`
+    + ` · ${challenge.interveningCount} blocos no meio (${challenge.interveningSoilCount} de solo)`
+    + ` · subida ${challenge.rise}px`
+    + ` · alcance exigido ${challenge.requiredReach}px / atual ${actualReach}px`
+    + ` · sem escada: inalcançável ✓ / com escada: alcançável ✓`
+    + ` · desenvolvido ${challenge.developed ? '✓' : '—'} / atravessado ${challenge.traversed ? '✓' : '—'}`
+    + `\nExsudatos renováveis: ${renewable?.activeCount ?? 0} ativos`
+    + ` · próximo em ${Number.isFinite(nextInterval) ? `${Math.max(0, nextInterval).toFixed(1)}s` : '—'}`
+    + ` · emergência ${renewable?.emergencyActive ? 'ativa' : '—'}`;
 }
 
 function renderObjectives(campaign, evaluator) {
@@ -911,7 +937,8 @@ function loop(now) {
         + (sim.rhizobiumNodulation.incompatibleCount ? ` / ${sim.rhizobiumNodulation.incompatibleCount} sem hospedeiro` : '')
         + `\nTrichoderma: ${sim.trichodermaColonies.followerCount} seguindo / ${sim.trichodermaColonies.colonyCount} colônias / vigor médio ${vigor}%`
         + `\nHifas de ataque: ${sim.trichoderma.tipCount} pontas / ${sim.trichoderma.attackCount} alvos / ${sim.trichoderma.searchCount} em busca`
-        + `\nInterações: ${sim.gameplay.cloudCount} nuvens / ${sim.gameplay.biofilmCount} biofilmes`;
+        + `\nInterações: ${sim.gameplay.cloudCount} nuvens / ${sim.gameplay.biofilmCount} biofilmes`
+        + azospirillumChallengeDebug(sim);
     }
 
     requestAnimationFrame(loop);

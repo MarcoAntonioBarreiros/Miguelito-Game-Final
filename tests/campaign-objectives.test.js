@@ -57,8 +57,10 @@ test('desbloqueios persistem, mas objetivos de salto duplo e Dash comecam incomp
 
   assert.equal(phase3.state.player.canDoubleJump, true);
   assert.equal(phase3.state.player.canDash, true);
-  const jumpRequirement = getPhaseManifest(3).finalTest.requires
-    .find(condition => condition.key === 'performedDoubleJumpCount');
+  // O contador de salto duplo e uma acao-por-tentativa: comeca em 0 mesmo com o
+  // poder ja desbloqueado. (A prova FINAL da fase 3 agora exige a travessia da
+  // raiz lateral obrigatoria; aqui exercitamos so o mecanismo do contador.)
+  const jumpRequirement = { type: 'worldState', key: 'performedDoubleJumpCount', operator: '>=', value: 1 };
   const jumpEvaluator = evaluatorFor(phase3);
   assert.equal(jumpEvaluator.evaluate([jumpRequirement]).passed, false);
 

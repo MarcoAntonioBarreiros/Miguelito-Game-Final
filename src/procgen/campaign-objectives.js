@@ -50,6 +50,22 @@ export function createCampaignObjectiveEvaluator({ state, systems = {} }) {
         root.developed === true || (root.visibleProgress || 0) > .06
       )).length;
     }
+    if (key === 'mandatoryAzospirillumChallengeDeveloped') {
+      const challenge = state.level.azospirillumChallenge;
+      // Sem desafio registrado (fase curta/edge): nao trava a fase — a
+      // demonstracao de raiz lateral vale como sinal de desenvolvimento.
+      if (!challenge) {
+        return (state.level.azospirillumRoots || []).some(root => root.developed === true);
+      }
+      return challenge.developed === true;
+    }
+    if (key === 'mandatoryAzospirillumChallengeTraversed') {
+      const challenge = state.level.azospirillumChallenge;
+      if (!challenge) {
+        return (ensurePhaseObjectiveProgress(state).performedDoubleJumpCount || 0) >= 1;
+      }
+      return challenge.traversed === true;
+    }
     if (key === 'functionalMycorrhizaPathCount') {
       return (state.level.platforms || []).filter(platform => platform.mycorrhizaStructure && platform.mature !== false).length;
     }

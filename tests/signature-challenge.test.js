@@ -4,7 +4,10 @@ import test from 'node:test';
 import { generateLevel } from '../src/procgen/generator.js';
 import { validateChunk } from '../src/procgen/agents.js';
 import { applyPhaseFourMycorrhizaIntro } from '../src/procgen/phase-four-mycorrhiza-intro.js';
-import { applySignatureChallenge } from '../src/procgen/signature-challenge.js';
+import { applySignatureChallenge, canTraverseSubroute } from '../src/procgen/signature-challenge.js';
+
+const SINGLE = { id: 'running-jump', requires: [] };
+const DOUBLE = { id: 'running-double-jump-late', requires: ['doubleJump'] };
 import { getPhaseManifest, setPhaseManifestOverride, clearPhaseManifestOverride } from '../src/procgen/campaign-manifest.js';
 import {
   buildPhaseLabManifest, createDefaultPhaseLabConfig, scalePhaseLabSegments,
@@ -12,10 +15,6 @@ import {
 import {
   campaignPhaseSeed, createCampaign, decorateCampaignLevel, prepareCampaignGeneration,
 } from '../src/procgen/campaign-progression.js';
-
-// Numeros medidos da fisica canonica, nao escolhidos.
-const SALTO_DUPLO = 180;
-const ESCADA_MINIMA = 96;
 
 function gera(phase, seedName, totalChunks = null) {
   if (totalChunks) {
@@ -34,18 +33,6 @@ function gera(phase, seedName, totalChunks = null) {
   level = decorateCampaignLevel(level, campaign, profile);
   const challenge = applySignatureChallenge(level, phase);
   return { level, challenge };
-}
-
-function maiorSubida(level) {
-  const rota = level.platforms
-    .filter(p => !p.recovery && !p.final && Number.isInteger(p.logicIndex))
-    .sort((a, b) => a.logicIndex - b.logicIndex);
-  let maior = 0;
-  for (const p of rota) {
-    const prev = rota.find(q => q.logicIndex === p.logicIndex - 1);
-    if (prev) maior = Math.max(maior, prev.y - p.y);
-  }
-  return maior;
 }
 
 test('o gerador procedural sozinho nunca exige a escada', () => {
@@ -68,31 +55,69 @@ test('o gerador procedural sozinho nunca exige a escada', () => {
   clearPhaseManifestOverride();
 });
 
-test('o desafio da escada aparece em toda seed e em todo tamanho de fase', () => {
-  for (const total of [12, 16, 20, 30, 40]) {
+function corridorNodes(level, challenge) {
+  return level.platforms
+    .filter(p => (
+      !p.recovery && !p.final && Number.isInteger(p.logicIndex)
+      && p.logicIndex >= challenge.hostLogicIndex
+      && p.logicIndex <= challenge.targetLogicIndex
+    ))
+    .sort((a, b) => a.logicIndex - b.logicIndex);
+}
+
+test('a prova obrigatoria de Azospirillum aparece em toda seed e em todo tamanho de fase', () => {
+  // Nao ha mais uma "maior subida" medida por logicIndex-1: o bloco anterior ao
+  // alvo pode ser SOLO. A prova e registrada em level.azospirillumChallenge com
+  // hospedeiro (ultima raiz), alvo e requiredReach.
+  for (const total of [12, 16, 20, 25, 30, 40]) {
     for (let s = 0; s < 6; s++) {
       const { level, challenge } = gera(3, `assinatura-${total}-${s}`, total);
       assert.ok(challenge, `fase de ${total} chunks, seed ${s}: nenhum desafio criado`);
       assert.equal(challenge.mechanic, 'azospirillumRoots');
-      assert.ok(
-        maiorSubida(level) > SALTO_DUPLO,
-        `fase de ${total} chunks, seed ${s}: a maior subida nao exige a escada`,
-      );
+      const c = level.azospirillumChallenge;
+      assert.ok(c, `fase de ${total} chunks, seed ${s}: sem level.azospirillumChallenge`);
+      assert.equal(c.hostPlatform.type, 'root', 'o hospedeiro precisa ser uma raiz');
+      assert.ok(!c.hostPlatform.recovery, 'o hospedeiro nao pode ser plataforma de recuperacao');
+      assert.ok(c.targetLogicIndex > c.hostLogicIndex, 'o alvo vem depois do hospedeiro');
+      assert.ok(c.requiredReach <= 340, `requiredReach ${c.requiredReach} passa do maximo`);
     }
   }
   clearPhaseManifestOverride();
 });
 
-test('o desafio permanece solucionavel com a escada mais fraca', () => {
-  // Sem nitrogenio a escada alcanca 96px; somado ao salto duplo da 276px. Uma
-  // subida acima disso seria intransponivel e criaria fase impossivel.
+test('a prova e inatingivel sem a raiz lateral e atingivel com ela + salto duplo', () => {
   for (const total of [12, 20, 40]) {
     for (let s = 0; s < 4; s++) {
       const { level } = gera(3, `solucionavel-${total}-${s}`, total);
-      const subida = maiorSubida(level);
+      const c = level.azospirillumChallenge;
+      assert.ok(c);
+      const corridor = corridorNodes(level, c);
+      // SEM escada (so salto simples + duplo, incluindo os blocos de solo do
+      // corredor): o alvo tem de ser inalcancavel.
       assert.ok(
-        subida <= ESCADA_MINIMA + SALTO_DUPLO,
-        `subida de ${Math.round(subida)}px passa do que a escada minima mais o salto duplo alcancam`,
+        !canTraverseSubroute({
+          startPlatform: c.hostPlatform,
+          targetPlatform: c.targetPlatform,
+          platforms: corridor,
+          primitives: [SINGLE, DOUBLE],
+        }),
+        `${total}/${s}: o alvo e alcancavel sem a raiz lateral`,
+      );
+      // COM a escada no requiredReach (degrau superior = plataforma de
+      // lancamento) + salto duplo: o alvo passa a ser alcancavel.
+      const launch = {
+        x: c.hostPlatform.x + c.hostPlatform.w / 2 - 45,
+        y: c.hostPlatform.y - c.requiredReach,
+        w: 90, h: 12, type: 'root', oneWay: true,
+      };
+      assert.ok(
+        canTraverseSubroute({
+          startPlatform: launch,
+          targetPlatform: c.targetPlatform,
+          platforms: [launch],
+          primitives: [DOUBLE],
+        }),
+        `${total}/${s}: nem com a escada no requiredReach o alvo e alcancavel`,
       );
     }
   }
@@ -148,7 +173,7 @@ test('o desafio da ponte fica antes do Dash, que venceria o vao sozinho', () => 
 // delas caia dentro do desafio em 12 de 12 seeds da fase 4: o vao de 330px
 // virava dois pulinhos, o salto duplo passava, a ponte nunca era necessaria e a
 // prova final nunca registrava. Aqui a verificacao e feita no nivel inteiro.
-test('nada sobra dentro do vao do desafio, em nenhuma fase', () => {
+test('nenhuma recuperacao sobra dentro do corredor do desafio, em nenhuma fase', () => {
   for (const phase of [3, 4]) {
     for (let s = 0; s < 8; s++) {
       const { level, challenge } = gera(phase, `vao-limpo-${phase}-${s}`);
@@ -157,19 +182,33 @@ test('nada sobra dentro do vao do desafio, em nenhuma fase', () => {
       const rota = level.platforms
         .filter(p => !p.recovery && !p.final && Number.isInteger(p.logicIndex))
         .sort((a, b) => a.logicIndex - b.logicIndex);
-      const alvo = rota.find(p => p.logicIndex === challenge.chunk);
-      const anterior = rota.find(p => p.logicIndex === challenge.chunk - 1);
-      assert.ok(alvo && anterior);
 
-      const inicio = anterior.x + anterior.w;
-      const fim = alvo.x;
-      const dentro = level.platforms.filter(p => {
+      let inicio;
+      let fim;
+      if (phase === 3) {
+        // Corredor = hospedeiro -> alvo. Blocos de SOLO da rota principal podem
+        // ficar no meio (sao intencionais); apenas plataformas de recuperacao
+        // nao podem criar bypass.
+        const c = level.azospirillumChallenge;
+        assert.ok(c);
+        inicio = c.hostPlatform.x + c.hostPlatform.w;
+        fim = c.targetPlatform.x;
+      } else {
+        const alvo = rota.find(p => p.logicIndex === challenge.chunk);
+        const anterior = rota.find(p => p.logicIndex === challenge.chunk - 1);
+        assert.ok(alvo && anterior);
+        inicio = anterior.x + anterior.w;
+        fim = alvo.x;
+      }
+
+      const recuperacaoDentro = level.platforms.filter(p => {
+        if (!p.recovery) return false;
         const centro = p.x + p.w / 2;
         return centro > inicio + 2 && centro < fim - 2;
       });
       assert.deepEqual(
-        dentro.map(p => ({ x: Math.round(p.x), recovery: Boolean(p.recovery) })), [],
-        `fase ${phase}, seed ${s}: sobrou plataforma dentro do vao do desafio`,
+        recuperacaoDentro.map(p => Math.round(p.x)), [],
+        `fase ${phase}, seed ${s}: sobrou recuperacao dentro do corredor do desafio`,
       );
     }
   }

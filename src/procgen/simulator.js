@@ -17,6 +17,7 @@ import { createRhizobiumNodulation } from './rhizobium-nodulation.js';
 import { createNitrogenRootDevelopment } from './nitrogen-root.js';
 import { createAzospirillumRootGrowth } from './azospirillum-root-growth.js';
 import { createAzospirillumRootSafety } from './azospirillum-root-safety.js';
+import { createRenewableExudates } from './renewable-exudates.js';
 import { createAzospirillumNitrogen } from './azospirillum-nitrogen.js';
 import { createMeloidogyneLifecycle } from './meloidogyne-lifecycle.js';
 import { createGoalSystem } from './goal-system.js';
@@ -57,9 +58,16 @@ function createEmptyLevel() {
 //
 // O jogo nao procedural sempre fez isso (src/data/level.js). Perdeu-se na
 // migracao para o procedural, e nao foi decisao de design.
+// Exsudatos RENOVAVEIS ficam de fora desta funcao de proposito: quem controla o
+// ciclo deles e o modulo de regeneracao (renewable-exudates.js), pelo tempo e
+// pela saude da raiz. Reativa-los aqui criaria dois donos do mesmo item — e,
+// pior, transformaria a morte numa forma de farmar exsudato instantaneo
+// (morrer -> renovavel volta -> coletar -> morrer). O respawn apenas devolve os
+// exsudatos INICIAIS adiante; o renovavel volta quando o cronometro dele mandar.
 export function restoreExudatesAhead(level, fromX) {
   let restored = 0;
   for (const exudate of level?.exudates || []) {
+    if (exudate.renewable) continue;
     if (!exudate.taken || !Number.isFinite(exudate.x) || exudate.x < fromX) continue;
     exudate.taken = false;
     restored++;
@@ -198,6 +206,9 @@ export function createSimulator() {
   const azospirillumNitrogen = createAzospirillumNitrogen({ state, inoculants: beneficialInoculants });
   const meloidogyneLifecycle = createMeloidogyneLifecycle({ state, entities });
   const pathogenSurvival = createPathogenSurvival({ state, entities, ecology });
+  // A raiz viva volta a exsudar: exsudato deixa de ser recurso estritamente
+  // finito e a prova obrigatoria da fase 3 nunca fica sem como ser resolvida.
+  const renewableExudates = createRenewableExudates({ state });
 
   // Um unico item selecionado por vez decide quem responde ao E: cada sistema
   // consulta a selecao antes de agir, em vez de disputar a tecla por ordem.
@@ -247,6 +258,7 @@ export function createSimulator() {
   state.ecologicalGameplay = gameplay;
   state.pathogenSurvival = pathogenSurvival;
   state.phosphateSolubilization = phosphateSolubilization;
+  state.renewableExudates = renewableExudates;
 
   const physics = createPhysicsSystem({ state, input, entities, hud, audio });
 
@@ -308,6 +320,7 @@ export function createSimulator() {
     meloidogyneLifecycle.reset();
     pathogenSurvival.reset();
     phosphateSolubilization.reset();
+    renewableExudates.reset();
   }
 
   function setInputs(newKeys) {
@@ -356,6 +369,12 @@ export function createSimulator() {
     if (mycorrhizaStructuresUnlocked) mycorrhizaStructures.update(dt);
 
     pathogenSurvival.update(dt);
+    // Roda depois das colonias/selecao: a garantia emergencial precisa enxergar
+    // o estado ja atualizado (inoculo carregado, colonia no hospedeiro).
+    renewableExudates.update(dt, {
+      inoculants: beneficialInoculants,
+      inoculumSelection,
+    });
     goal.update(dt);
     if (state.toastTime > 0) state.toastTime -= dt;
   }
@@ -365,7 +384,7 @@ export function createSimulator() {
     trichoderma, recruitment, trichodermaColonies, beneficialInoculants,
     pseudomonasSiderophores, opportunisticFungus, bacillusBioprotection, bacillusBioprotectionSafety,
     rhizobiumNodulation, nitrogenRootDevelopment, azospirillumRootGrowth, azospirillumRootSafety,
-    azospirillumNitrogen,
+    azospirillumNitrogen, renewableExudates,
     meloidogyneLifecycle, pathogenSurvival, goal, gameplay,
     phosphateSolubilization,
     inoculumSelection,

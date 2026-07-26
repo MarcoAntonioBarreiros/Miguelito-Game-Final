@@ -314,6 +314,10 @@ export function generateLevel(seedString) {
     primitives,
     endX,
     cameraMaxX: Math.max(0, endX - 1000),
+    // A seed viaja com o nivel: sistemas de runtime que precisam de aleatoriedade
+    // deterministica (regeneracao de exsudato, por exemplo) derivam dela em vez
+    // de usar Math.random().
+    seed: seedString,
   };
 }
 
@@ -346,6 +350,28 @@ function isThemedCrossing(prev, next) {
     || next.mycorrhizaStructure || prev.mycorrhizaStructure
     || next.mycorrhizaIntroDestination || prev.mycorrhizaIntroDestination,
   );
+}
+
+// O corredor da prova obrigatoria de Azospirillum vai do HOSPEDEIRO ao BLOCO
+// ALTO — e pode ter blocos de solo no meio. Olhar so o par imediatamente
+// anterior ao alvo nao basta: um degrau de seguranca inserido entre o hospedeiro
+// e um solo intermediario cria um caminho alternativo e desmonta a prova, do
+// mesmo jeito que a plataforma de recuperacao desmontava a ponte na fase 4.
+//
+// A supressao vale SO dentro do corredor registrado e SO depois de a travessia
+// com a raiz lateral ter sido validada (o desafio so e registrado quando ela
+// passa). Fora dele, a rede global anti-softlock continua inteira.
+export function isInsideAzospirillumChallengeCorridor(level, previous, next) {
+  const challenge = level?.azospirillumChallenge;
+  if (!challenge) return false;
+  const { corridorStartLogicIndex: start, corridorEndLogicIndex: end } = challenge;
+  if (!Number.isInteger(start) || !Number.isInteger(end)) return false;
+  const inside = platform => (
+    Number.isInteger(platform?.logicIndex)
+    && platform.logicIndex >= start
+    && platform.logicIndex <= end
+  );
+  return inside(previous) && inside(next);
 }
 
 function buildSafetyStep(prev, next, prims, logicIndex) {
@@ -388,6 +414,7 @@ export function enforceTraversableRoute(level, abilities = {}) {
     const next = route[i];
     if (next.x <= prev.x + prev.w) continue;
     if (isThemedCrossing(prev, next)) continue;
+    if (isInsideAzospirillumChallengeCorridor(level, prev, next)) continue;
     const alreadyStepped = (level.platforms || []).some(p => (
       p.recovery
       && p.x + p.w / 2 > prev.x + prev.w

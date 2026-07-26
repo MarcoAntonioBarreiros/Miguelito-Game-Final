@@ -1,5 +1,6 @@
 import { W } from '../core/constants.js';
 import { getPhaseManifest } from './campaign-manifest.js';
+import { ensurePhaseObjectiveProgress } from './campaign-objective-progress.js';
 import { createRandom } from './random.js';
 
 export const AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE = 'azospirillum-root-ladder';
@@ -262,6 +263,11 @@ export function generateAzospirillumRootLadders({
         sourceExudateLogicIndex: firstExudate,
         recapAccess: slot.recapAccess,
         knownSkill,
+        // Estas escadas de tempo-de-geracao sao a DEMONSTRACAO/pratica inicial
+        // (ensinam inoculacao, crescimento, degraus). A prova OBRIGATORIA e outra
+        // escada, criada em runtime sobre o hospedeiro registrado pelo desafio.
+        tutorialDemonstration: !knownSkill,
+        mandatoryChallenge: false,
         growthDurationSeconds: config.growthDurationSeconds,
         progress: 0,
         visibleProgress: 0,
@@ -294,11 +300,37 @@ function activeAzospirillumColony(inoculants, ladder) {
   )) || null;
 }
 
+// Margem para o degrau SUPERIOR da escada obrigatoria pousar em/acima do
+// requiredReach: os degraus sao interpolados, entao o topo real fica um pouco
+// abaixo do fim da escada. Somar um espacamento garante que o degrau de
+// lancamento chegue ao requiredReach validado pela fisica.
+const MANDATORY_TOP_STEP_MARGIN = RUNTIME_TARGET_STEP_SPACING;
+// Folga vertical minima entre o degrau de lancamento e o alvo, para o salto
+// duplo continuar OBRIGATORIO por mais nitrogenio que exista.
+const MANDATORY_TARGET_GAP = 70;
+
 export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
   let lastToastAt = -Infinity;
+  // Estado transitorio da travessia da prova obrigatoria (Fase 3).
+  let mandatoryAttempt = { touchedLadder: false, doubleJumpAfter: false, lastDoubleJumpCount: 0 };
+
+  function resetMandatoryAttempt() {
+    mandatoryAttempt = { touchedLadder: false, doubleJumpAfter: false, lastDoubleJumpCount: 0 };
+  }
 
   function ladders() {
     return state.level.azospirillumRootLadders || [];
+  }
+
+  function mandatoryChallenge() {
+    return state.level.azospirillumChallenge || null;
+  }
+
+  function isMandatoryHost(host) {
+    const challenge = mandatoryChallenge();
+    if (!challenge || !host) return false;
+    return host === challenge.hostPlatform
+      || (Number.isInteger(challenge.hostLogicIndex) && host.logicIndex === challenge.hostLogicIndex);
   }
 
   function removeStepCollider(step) {
@@ -322,10 +354,14 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     state.level.azospirillumRootLadders = [];
     state.level.azospirillumRoots = [];
     lastToastAt = -Infinity;
+    resetMandatoryAttempt();
   }
 
   function reset() {
     removeStepPlatforms();
+    // So os estados transitorios da tentativa sao limpos aqui; challenge.developed
+    // e challenge.traversed pertencem ao nivel e sao regidos pelo runtime.
+    resetMandatoryAttempt();
     for (const ladder of ladders()) {
       ladder.progress = 0;
       ladder.visibleProgress = 0;
@@ -442,6 +478,9 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     ladder.developed = ladder.progress >= 1 && ladder.steps.every(step => step.mature);
     ladder.mature = ladder.developed;
     ladder.paused = false;
+    if (ladder.developed && ladder.mandatoryChallenge && state.level.azospirillumChallenge) {
+      state.level.azospirillumChallenge.developed = true;
+    }
     if (ladder.developed && !ladder.announced) {
       ladder.announced = true;
       // Uma escada sem bloco alvo sobe reta: ganha altura, mas nao ha destino
@@ -529,6 +568,19 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     return RUNTIME_MIN_REACH + supply * (RUNTIME_MAX_REACH - RUNTIME_MIN_REACH);
   }
 
+  // Piso anti-softlock (Fase 7): na raiz OBRIGATORIA da fase 3, o alcance nunca
+  // pode cair abaixo do requiredReach validado — baixa fixacao momentanea de N
+  // nao pode tornar a prova impossivel. O nitrogenio ainda influencia raizes
+  // opcionais e o vigor; aqui ele so nao consegue encurtar a prova.
+  function mandatoryEffectiveReach(challenge) {
+    const required = Number.isFinite(challenge.requiredReach) ? challenge.requiredReach : RUNTIME_MIN_REACH;
+    const floor = required + MANDATORY_TOP_STEP_MARGIN;
+    // Mantem uma folga vertical ao alvo para o salto duplo seguir obrigatorio,
+    // por mais nitrogenio que exista.
+    const ceiling = Math.max(floor, (Number.isFinite(challenge.rise) ? challenge.rise : floor) - MANDATORY_TARGET_GAP);
+    return clamp(Math.max(reachFromStock(), floor), floor, ceiling);
+  }
+
   // A plataforma e a parede da raiz: a raiz lateral sai dela para cima. Havendo
   // bloco alcancavel, a escada inclina em direcao a ele; senao sobe reta.
   function destinationFor(host, reach) {
@@ -549,6 +601,7 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
   }
 
   function spawnLaddersFromColonies() {
+    const challenge = mandatoryChallenge();
     for (const colony of inoculants.colonies || []) {
       if (colony.type !== 'azospirillum' || colony.dormant) continue;
       if (colony.growth < .68 || colony.vigor <= .05) continue;
@@ -557,10 +610,81 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
       if (host.azospirillumStructure || host.mycorrhizaStructure) continue;
       if (ladders().some(ladder => ladder.host === host)) continue;
 
+      const mandatory = Boolean(challenge) && !challenge.traversed && isMandatoryHost(host);
+      if (mandatory) {
+        // Escada OBRIGATORIA sobre o hospedeiro registrado: sobe reta (raiz
+        // lateral nao precisa tocar o alvo) ate a altura de lancamento, e usa o
+        // requiredReach com piso anti-softlock. Nao concorre outra escada aqui.
+        const reach = mandatoryEffectiveReach(challenge);
+        const ladder = createRuntimeLadder(host, null, reach);
+        if (ladder) {
+          ladder.mandatoryChallenge = true;
+          ladder.challengeId = challenge.id;
+          ladder.targetPlatform = challenge.targetPlatform;
+          state.level.azospirillumRootLadders.push(ladder);
+        }
+        continue;
+      }
+
       const reach = reachFromStock();
       const ladder = createRuntimeLadder(host, destinationFor(host, reach), reach);
       if (ladder) state.level.azospirillumRootLadders.push(ladder);
     }
+  }
+
+  // Prova de fato (Fase 8): so conta como travessia quando Miguelito USA a escada
+  // obrigatoria (pisa num degrau dela), executa o salto duplo em seguida e pousa
+  // no bloco alvo. Estados transitorios sao limpos ao pousar em bloco nao
+  // relacionado (inclui o respawn, que devolve o jogador ao checkpoint).
+  function footPlatform() {
+    const player = state.player;
+    if (!player?.onGround) return null;
+    const feetY = player.y + player.h;
+    for (const platform of state.level.platforms || []) {
+      if (platform.recovery && state.recoveryPlatformsDisabled) continue;
+      const overlap = player.x + player.w > platform.x + 3 && player.x < platform.x + platform.w - 3;
+      if (!overlap) continue;
+      if (Math.abs(feetY - platform.y) > 8) continue;
+      return platform;
+    }
+    return null;
+  }
+
+  function mandatoryStepPlatform(platform) {
+    if (!platform?.azospirillumLadderStep || !platform.ladderId) return false;
+    return ladders().some(ladder => ladder.id === platform.ladderId && ladder.mandatoryChallenge);
+  }
+
+  function trackMandatoryTraversal() {
+    const challenge = mandatoryChallenge();
+    if (!challenge || challenge.traversed) return;
+    const player = state.player;
+    if (!player) return;
+
+    const doubleJumpCount = ensurePhaseObjectiveProgress(state).performedDoubleJumpCount || 0;
+    if (!player.onGround && mandatoryAttempt.touchedLadder && doubleJumpCount > mandatoryAttempt.lastDoubleJumpCount) {
+      mandatoryAttempt.doubleJumpAfter = true;
+    }
+    mandatoryAttempt.lastDoubleJumpCount = doubleJumpCount;
+
+    const foot = footPlatform();
+    if (!foot) return;
+    if (mandatoryStepPlatform(foot)) {
+      mandatoryAttempt.touchedLadder = true;
+      return;
+    }
+    const onTarget = foot === challenge.targetPlatform
+      || (foot.mandatoryAzospirillumTarget
+        && Number.isInteger(challenge.targetLogicIndex)
+        && foot.logicIndex === challenge.targetLogicIndex);
+    if (onTarget) {
+      if (mandatoryAttempt.touchedLadder && mandatoryAttempt.doubleJumpAfter) challenge.traversed = true;
+      return;
+    }
+    // Pousou num bloco nao relacionado (nem degrau, nem alvo): reinicia a
+    // tentativa. Cobre morte/respawn (volta ao checkpoint) e desistencias.
+    mandatoryAttempt.touchedLadder = false;
+    mandatoryAttempt.doubleJumpAfter = false;
   }
 
   function update(dt) {
@@ -569,6 +693,7 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     spawnLaddersFromColonies();
     for (const ladder of ladders()) updateLadder(ladder, dt);
     state.level.azospirillumRoots = ladders();
+    trackMandatoryTraversal();
   }
 
   function drawLadder(ctx, ladder) {
@@ -610,9 +735,14 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     if (ladder.progress === 0) {
       ctx.font = '700 12px Inter,system-ui';
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#f3ce68';
+      // A demonstracao inicial ENSINA; a prova obrigatoria e o objetivo. O texto
+      // precisa separar os dois, senao o jogador toma a demonstracao pela prova.
+      const demonstracao = ladder.tutorialDemonstration && !ladder.mandatoryChallenge;
+      ctx.fillStyle = demonstracao ? '#c9d8a8' : '#f3ce68';
       ctx.fillText(
-        'Inocule Azospirillum nesta raiz',
+        demonstracao
+          ? 'Teste o Azospirillum nesta raiz'
+          : 'Inocule Azospirillum nesta raiz',
         ladder.host.x + ladder.host.w / 2,
         ladder.host.y - 30,
       );

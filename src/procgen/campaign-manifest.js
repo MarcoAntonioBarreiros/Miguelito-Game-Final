@@ -125,7 +125,9 @@ export const FINAL_TEST_KEYS = Object.freeze({
   playerUnlock: Object.freeze(['doubleJump', 'dash', 'phosphateSolubilization']),
   worldState: Object.freeze([
     'reachedFinalRoot', 'functionalBiofilmCount', 'activeMatureNoduleCount', 'totalFixationRate',
-    'visibleLateralRootCount', 'functionalMycorrhizaPathCount', 'pseudomonasIronReserve',
+    'visibleLateralRootCount', 'mandatoryAzospirillumChallengeDeveloped',
+    'mandatoryAzospirillumChallengeTraversed',
+    'functionalMycorrhizaPathCount', 'pseudomonasIronReserve',
     'neutralizedOpportunisticFungusCount', 'neutralizedRhizoctoniaCount', 'recoveredRootCount', 'brokenCrystalCount',
     'neutralizedEggMassCount', 'preservedRootCount', 'ecologicalScore',
     'deployedExudateCount', 'bacillusColonyCount',
@@ -270,15 +272,31 @@ const phases = [
     nitrogenRoot: { ...NITROGEN_ROOT_DEFAULTS },
     azospirillumRootLadder: { ...AZOSPIRILLUM_ROOT_LADDER_DEFAULTS },
     azospirillumNitrogen: { ...AZOSPIRILLUM_NITROGEN_DEFAULTS },
-    // O procedural limita qualquer subida a 112px e o salto duplo alcanca 180px,
-    // entao a escada nunca era necessaria. 230px nao se vence pulando e se vence
-    // com a escada mais fraca (96px de alcance) somada ao salto duplo.
+    // A prova OBRIGATORIA de Azospirillum e um lancamento vertical: um bloco alto
+    // que o salto (simples + duplo) nao alcanca sozinho e que so a raiz lateral,
+    // usada como plataforma de lancamento, somada ao salto duplo, resolve.
+    //
+    // A janela e derivada do segmento p3-challenge (depois do desbloqueio do
+    // salto duplo), nunca de um fromChunk fixo: a demonstracao inicial de
+    // Azospirillum (p3-azo-intro/practice) ensina a mecanica, mas nao bloqueia o
+    // caminho; a prova combinada so aparece depois que o salto duplo existe.
+    //
+    // O hospedeiro e a ULTIMA plataforma de raiz anterior ao alvo, mesmo que
+    // existam blocos de solo entre os dois (Azospirillum so inocula em raiz). O
+    // alcance necessario da escada e calculado pela fisica, nao fixado em 230px.
     signatureChallenge: {
       enabled: true,
+      kind: 'vertical-launch',
       mechanic: 'azospirillumRoots',
-      rise: 230,
+      segmentId: 'p3-challenge',
+      afterUnlock: 'doubleJump',
+      preferredRise: 230,
+      minimumRise: 210,
+      maximumRise: 260,
+      requirePreviousRootHost: true,
+      allowInterveningSoil: true,
       minimumChunks: 10,
-      fromChunk: 9,
+      minimumWidth: 130,
     },
     title: 'Azospirillum e arquitetura radicular', theme: 'arquitetura',
     mission: 'Induza raízes laterais e use o salto duplo para alcançar novas rotas.',
@@ -313,9 +331,12 @@ const phases = [
       { id: 'p3-challenge', kind: 'procedural', from: 17, to: 21, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
       { id: 'p3-final', kind: 'final', from: 22, to: 24, tutorialMode: 'silent', mechanicsRequired: ['doubleJump', 'azospirillumRoots'] },
     ],
-    finalTest: { id: 'p3-test', goal: 'Induzir raiz lateral e usar salto duplo.', requires: [
-      { type: 'worldState', key: 'performedDoubleJumpCount', operator: '>=', value: 1 },
-      { type: 'worldState', key: 'visibleLateralRootCount', operator: '>=', value: 1 },
+    // A prova nao fecha mais so porque uma raiz lateral qualquer cresceu: exige a
+    // escada OBRIGATORIA (sobre o hospedeiro registrado) madura e a travessia de
+    // fato — subir pela escada e cruzar com salto duplo ate o bloco alto.
+    finalTest: { id: 'p3-test', goal: 'Amadurecer a raiz lateral obrigatória e cruzar com salto duplo.', requires: [
+      { type: 'worldState', key: 'mandatoryAzospirillumChallengeDeveloped', operator: '===', value: true },
+      { type: 'worldState', key: 'mandatoryAzospirillumChallengeTraversed', operator: '===', value: true },
     ]}, notes: [],
   },
 
