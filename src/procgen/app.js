@@ -15,6 +15,7 @@ import { applyPhaseSixTutorialEncounters, applyPhaseSixTutorialGeometry } from '
 import { applyPhaseSevenPhosphateGeometry } from './phosphate-solubilization.js';
 import {
   AZOSPIRILLUM_ROOT_LADDER_DEFAULTS,
+  campaignManifest,
   getPhaseManifest,
 } from './campaign-manifest.js';
 import { applyPhaseLabResources } from './phase-lab-config.js';
@@ -27,7 +28,7 @@ import { createSimulator } from './simulator.js';
 import { createGameAudio } from '../game-audio.js';
 import { createBiologicalAudio } from './biological-audio.js';
 import {
-  biologicalGroupsForPhaseManifest,
+  biologicalGroupsForProgress,
   PHASE_VICTORY_TOAST_SECONDS,
   VICTORY_AUDIO_FALLBACK_SECONDS,
 } from '../audio-manifest.js';
@@ -47,6 +48,9 @@ import { createRalstoniaVascularWilt } from './ralstonia-vascular-wilt.js';
 import {
   advanceCampaignPhase,
   campaignPhaseSeed,
+  // `campaignManifest` completo: o preload precisa da união das fases já
+  // alcançadas, não só da atual.
+
   createCampaign,
   decorateCampaignLevel,
   prepareCampaignGeneration,
@@ -723,10 +727,17 @@ function updateTouchAbilityVisibility() {
 // Não bloqueia nada: as promessas ficam soltas, e um som pedido antes de o
 // arquivo chegar tem lazy-load defensivo com janela de 80 ms.
 function preloadPhaseBiologicalAudio() {
-  const manifest = getPhaseManifest(campaign.phase);
-  for (const group of biologicalGroupsForPhaseManifest(manifest, campaign.unlocks)) {
-    gameAudio.preloadBiologicalGroup(group);
-  }
+  const organismos = (sim?.inoculumSelection?.options?.() || [])
+    .map(option => option.type || option.kind)
+    .filter(Boolean);
+  const grupos = biologicalGroupsForProgress({
+    manifests: campaignManifest,
+    phase: campaign.phase,
+    unlocks: campaign.unlocks,
+    availableOrganisms: organismos,
+  });
+  for (const group of grupos) gameAudio.preloadBiologicalGroup(group);
+  return grupos;
 }
 
 function initGame({ announce = false } = {}) {
@@ -771,6 +782,12 @@ function initGame({ announce = false } = {}) {
   // como toast e ao mesmo tempo ficava fixa no canto esquerdo — a mesma frase
   // duas vezes, uma delas para sempre. Agora aparece grande no centro, uma vez,
   // e sai.
+  // Segunda passada: agora o seletor de inóculo e os sistemas existem, então os
+  // organismos realmente disponíveis entram na conta. A primeira passada (logo
+  // após `setPhase`) roda cedo demais para enxergar isso, e o cache impede
+  // qualquer download repetido.
+  preloadPhaseBiologicalAudio();
+
   if (announce) showPhaseCard(`Fase ${campaign.phase}`, profile.title, phaseIntroText());
 }
 
@@ -1162,6 +1179,10 @@ function loop(now) {
     if (gameAudio.isUnlocked() !== soundButtonUnlocked) {
       soundButtonUnlocked = gameAudio.isUnlocked();
       updateSoundButton();
+      // Terceira passada: antes do desbloqueio o AudioContext pode nem existir,
+      // e `preloadBiologicalGroup` sai sem carregar nada. Assim que o jogador
+      // libera o som, os grupos da fase são buscados de imediato.
+      if (soundButtonUnlocked) preloadPhaseBiologicalAudio();
     }
     if (advanced) tutorialManager?.updateAutomaticPresentation?.(dt);
     renderWorld();

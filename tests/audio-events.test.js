@@ -77,7 +77,10 @@ test('o simulador aceita um controlador de áudio injetado', () => {
 test('sem áudio injetado, o simulador usa o adaptador silencioso', () => {
   const sim = createSimulator();
   assert.equal(typeof sim.audio.playFx, 'function');
-  assert.equal(sim.audio.playFx('playerJump'), false, 'silencioso, mas com a API completa');
+  assert.equal(
+    sim.audio.playFx('playerJump').state, 'suppressed',
+    'silencioso, mas com a API completa e o estado correto',
+  );
 });
 
 test('apertar salto no ar (sem poder saltar) não toca nada', () => {

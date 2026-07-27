@@ -27,6 +27,7 @@ import { W } from '../core/constants.js';
 import { organismSprites } from '../render/organism-sprites.js';
 import { RALSTONIA_DEFAULTS, getPhaseManifest } from './campaign-manifest.js';
 import { createRandom } from './random.js';
+import { publishControlSignal } from './biological-audio-signals.js';
 import {
   RALSTONIA_STATE_LABELS,
   isRalstoniaRootEligible,
@@ -681,13 +682,26 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
 
   function bacillusStrength(focus) {
     let best = 0;
+    let melhorFilme = null;
     for (const film of state.level.biofilms || []) {
       if (!film.functional || film.platform !== focus.root) continue;
       const radius = Math.max(24, film.radius || film.targetRadius || 0);
       const distance = Math.abs((film.x || 0) - focus.x);
       if (distance >= radius * 1.45) continue;
       const strength = clamp(film.protectionStrength || film.growth || .25, .18, 1);
-      best = Math.max(best, strength * (1 - distance / (radius * 1.45)));
+      const valor = strength * (1 - distance / (radius * 1.45));
+      if (valor > best) { best = valor; melhorFilme = film; }
+    }
+    // So publica para o audio. O valor devolvido e o mesmo de antes.
+    if (melhorFilme?.bacillusColonyId && best > 0) {
+      publishControlSignal(state, 'bacillusAntibiosis', {
+        colonyId: melhorFilme.bacillusColonyId,
+        targetId: focus.id,
+        targetType: 'ralstonia',
+        pressure: clamp(best, 0, 1),
+        x: melhorFilme.x,
+        y: melhorFilme.y,
+      });
     }
     return clamp(best, 0, 1);
   }
@@ -732,6 +746,14 @@ export function createRalstoniaVascularWilt({ state, entities, inoculants, pseud
         demand += pressure;
         bestPressure = Math.max(bestPressure, pressure);
         strengthByFocus.set(focus.id, Math.max(strengthByFocus.get(focus.id) || 0, pressure));
+        publishControlSignal(state, 'pseudomonasSuppression', {
+          colonyId: colony.id,
+          targetId: focus.id,
+          targetType: 'ralstonia',
+          pressure,
+          x: colony.x,
+          y: colony.y,
+        });
       }
 
       if (demand <= 0) continue;

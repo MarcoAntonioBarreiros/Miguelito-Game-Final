@@ -109,7 +109,17 @@ async function runHeadlessRunner(baseUrl) {
     const timer = setTimeout(() => {
       spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
       resolve(124);
-    }, 45000);
+    // Guarda contra um Chrome pendurado — não é o prazo esperado do teste.
+    //
+    // Eram 45 s, e isso virou uma fonte de falha intermitente: o mesmo código,
+    // rodado três vezes seguidas, completou em 10 s, 17 s e 51 s. A página em si
+    // termina rápido (o runner responde `status: pass` com todos os checks); o
+    // que varia é o agendamento de CPU da máquina. Um teto apertado transforma
+    // uma máquina ocupada em "o áudio quebrou", que é o pior tipo de falso
+    // negativo — manda investigar o lugar errado.
+    //
+    // 120 s continua curto o bastante para pegar um travamento de verdade.
+    }, 120000);
     child.on('close', exitCode => {
       clearTimeout(timer);
       resolve(exitCode);

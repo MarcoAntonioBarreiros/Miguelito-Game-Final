@@ -360,7 +360,10 @@ test('mutado, nenhum FX é disparado', async () => {
   b.audio.init();
   await b.audio.unlock();
   await b.audio.setMuted(true);
-  assert.equal(b.audio.playFx('playerJump'), false);
+  // Contrato novo: o pedido nao foi RECUSADO, so nao ha som (o jogador mutou).
+  // A diferenca importa porque quem chama marca a transicao em `suppressed` e
+  // nao repete o evento a cada quadro.
+  assert.equal(b.audio.playFx('playerJump').state, 'suppressed');
   assert.equal(b.audio.playStinger('phaseVictory'), false);
 });
 
@@ -562,7 +565,7 @@ test('disabled cria um controlador silencioso com a API completa', () => {
     assert.equal(typeof audio[metodo], 'function', `método ausente: ${metodo}`);
   }
   assert.equal(audio.isUnlocked(), false);
-  assert.equal(audio.playFx('playerJump'), false);
+  assert.equal(audio.playFx('playerJump').state, 'suppressed');
 });
 
 test('createNoopAudio expõe a mesma superfície', () => {
@@ -916,7 +919,7 @@ test('o primeiro salto encontra o buffer já carregado', async () => {
   b.audio.init();
   await b.audio.unlock();
   await flush();
-  assert.equal(b.audio.playFx('playerJump', { gain: 1, rate: 1 }), true, 'toca de imediato');
+  assert.equal(b.audio.playFx('playerJump', { gain: 1, rate: 1 }).state, 'played', 'toca de imediato');
 });
 
 // ---------------------------------------------------------------------------
@@ -972,7 +975,7 @@ test('o primeiro salto logo após o desbloqueio já encontra o buffer', async ()
   b.audio.init();
   await flush();
   await b.audio.unlock();
-  assert.equal(b.audio.playFx('playerJump', { gain: 1, rate: 1 }), true, 'toca de imediato');
+  assert.equal(b.audio.playFx('playerJump', { gain: 1, rate: 1 }).state, 'played', 'toca de imediato');
 });
 
 test('um efeito que demora além da janela não toca atrasado', async () => {
@@ -984,8 +987,9 @@ test('um efeito que demora além da janela não toca atrasado', async () => {
   b.audio.init();
   await b.audio.unlock();
 
-  // Salto com o buffer ainda a caminho: não toca agora.
-  assert.equal(b.audio.playFx('playerJump'), false);
+  // Salto com o buffer ainda a caminho: nao toca AGORA, mas o pedido foi aceito
+  // e fica na janela curta dos transitorios.
+  assert.equal(b.audio.playFx('playerJump').state, 'queued');
 
   // O buffer chega bem depois da janela de 80 ms.
   await new Promise(resolve => setTimeout(resolve, 140));
@@ -1119,4 +1123,110 @@ test('o callback de uma vitória antiga não vaza para a seguinte', async () => 
   stinger.emit('ended');
   assert.equal(segunda, 1);
   assert.equal(primeira, 1, 'o callback anterior não dispara de novo');
+});
+
+// ---------------------------------------------------------------------------
+// Fila confiável dos efeitos críticos
+// ---------------------------------------------------------------------------
+//
+// O defeito que estes testes cobrem: o primeiro efeito de um processo, ao entrar
+// numa fase, era pedido antes de o arquivo estar decodificado. A janela dos
+// transitórios é de 80 ms — curta demais para um primeiro fetch — e o evento
+// sumia. Como era uma transição única, ele não voltava nunca mais.
+
+function bancadaComBufferAtrasado() {
+  const b = bancada();
+  let liberar = null;
+  b.windowRef.fetch = () => new Promise(resolve => {
+    liberar = () => resolve({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) });
+  });
+  return { ...b, liberar: () => liberar && liberar() };
+}
+
+test('efeito crítico espera o buffer e toca exatamente uma vez', async () => {
+  const b = bancadaComBufferAtrasado();
+  b.audio.init();
+  await b.audio.unlock();
+
+  const antes = b.contexts[0].criados.filter(node => node.kind === 'bufferSource').length;
+  // 300 ms de atraso: muito além dos 80 ms dos transitórios, dentro do 1,5 s
+  // dos críticos.
+  assert.equal(b.audio.playFx('rhizobiumMatureNodule').state, 'queued');
+
+  await new Promise(resolve => setTimeout(resolve, 300));
+  b.liberar();
+  await flush(20);
+
+  const depois = b.contexts[0].criados.filter(node => node.kind === 'bufferSource').length;
+  assert.equal(depois - antes, 1, 'tocou uma vez, quando o arquivo chegou');
+});
+
+test('o mesmo evento pedido em vários quadros gera UMA pendência e UM som', async () => {
+  const b = bancadaComBufferAtrasado();
+  b.audio.init();
+  await b.audio.unlock();
+  const antes = b.contexts[0].criados.filter(node => node.kind === 'bufferSource').length;
+
+  // É o padrão real: o sistema roda a 60 Hz e repete o pedido enquanto a
+  // transição não é marcada.
+  for (let quadro = 0; quadro < 12; quadro++) {
+    assert.equal(
+      b.audio.playFx('rhizobiumMatureNodule', { instanceId: 'nodule-1' }).state,
+      'queued',
+    );
+  }
+
+  b.liberar();
+  await flush(20);
+  const depois = b.contexts[0].criados.filter(node => node.kind === 'bufferSource').length;
+  assert.equal(depois - antes, 1, 'doze pedidos, um único som');
+});
+
+test('instâncias diferentes do mesmo evento não são deduplicadas entre si', async () => {
+  const b = bancadaComBufferAtrasado();
+  b.audio.init();
+  await b.audio.unlock();
+  const antes = b.contexts[0].criados.filter(node => node.kind === 'bufferSource').length;
+
+  b.audio.playFx('rhizobiumMatureNodule', { instanceId: 'nodule-1' });
+  b.audio.playFx('rhizobiumMatureNodule', { instanceId: 'nodule-2' });
+  b.liberar();
+  await flush(20);
+
+  const depois = b.contexts[0].criados.filter(node => node.kind === 'bufferSource').length;
+  assert.equal(depois - antes, 2, 'dois nódulos distintos, dois sons');
+});
+
+test('a troca de fase cancela os críticos que ainda esperavam o buffer', async () => {
+  const b = bancadaComBufferAtrasado();
+  b.audio.init();
+  await b.audio.unlock();
+  const antes = b.contexts[0].criados.filter(node => node.kind === 'bufferSource').length;
+
+  b.audio.playFx('rhizobiumMatureNodule', { instanceId: 'nodule-1' });
+  // A fase acabou antes de o arquivo chegar.
+  b.audio.clearQueuedFx();
+  b.liberar();
+  await flush(20);
+
+  const depois = b.contexts[0].criados.filter(node => node.kind === 'bufferSource').length;
+  assert.equal(depois - antes, 0, 'nenhum som da fase anterior atravessa a troca');
+});
+
+test('um efeito transitório continua com a janela curta', async () => {
+  const b = bancadaComBufferAtrasado();
+  b.audio.init();
+  await b.audio.unlock();
+  const antes = b.contexts[0].criados.filter(node => node.kind === 'bufferSource').length;
+
+  // `azospirillumStepMature` é transitório: é o degrau, e chegar tarde é pior
+  // que não chegar.
+  assert.equal(b.audio.playFx('azospirillumStepMature').state, 'queued');
+  await new Promise(resolve => setTimeout(resolve, 200));
+  b.liberar();
+  await flush(20);
+
+  const depois = b.contexts[0].criados.filter(node => node.kind === 'bufferSource').length;
+  assert.equal(depois - antes, 0, 'passou da janela e foi descartado');
+  assert.ok(b.audio.debugSnapshot().errors.some(m => m.includes('tarde demais')));
 });

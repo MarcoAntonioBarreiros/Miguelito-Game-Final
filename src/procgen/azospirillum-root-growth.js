@@ -2,6 +2,7 @@ import { W } from '../core/constants.js';
 import { getPhaseManifest } from './campaign-manifest.js';
 import { ensurePhaseObjectiveProgress } from './campaign-objective-progress.js';
 import { createRandom } from './random.js';
+import { fxLanded } from '../game-audio.js';
 
 export const AZOSPIRILLUM_ROOT_LADDER_BLOCK_TYPE = 'azospirillum-root-ladder';
 
@@ -482,8 +483,10 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     // Início real: progresso zero e colônia funcional presente. `audioStarted`
     // separa isto do toast, que tem cooldown e é suprimido em `knownSkill`.
     if (ladder.progress === 0 && !ladder.audioStarted) {
-      ladder.audioStarted = true;
-      audio?.play('azospirillumRootGrowthStart', { x: colony.x, y: ladder.host.y });
+      const entregue = audio ? fxLanded(audio.play('azospirillumRootGrowthStart', {
+        x: colony.x, y: ladder.host.y, instanceId: ladder.id,
+      })) : true;
+      if (entregue) ladder.audioStarted = true;
     }
     if (ladder.progress === 0 && !ladder.knownSkill) {
       announce('Azospirillum inoculado: fitormônios iniciaram a escada de ramificações radiculares.');
@@ -521,12 +524,13 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     // Conclusão: primeira transição de `developed`, marca própria (não a do
     // toast). O loop sai antes para o remate não competir com ele.
     if (ladder.developed && !ladder.audioCompleted) {
-      ladder.audioCompleted = true;
       audio?.stopLoop(loopKey);
-      audio?.play('azospirillumLadderComplete', {
+      const entregue = audio ? fxLanded(audio.play('azospirillumLadderComplete', {
         x: ladder.endX,
         y: ladder.endY,
-      });
+        instanceId: ladder.id,
+      })) : true;
+      if (entregue) ladder.audioCompleted = true;
     }
     if (ladder.developed && !ladder.announced) {
       ladder.announced = true;

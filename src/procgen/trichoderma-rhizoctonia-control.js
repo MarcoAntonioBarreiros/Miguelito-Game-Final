@@ -1,3 +1,5 @@
+import { fxLanded } from '../game-audio.js';
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const TAU = Math.PI * 2;
 
@@ -220,8 +222,12 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
       attack.enemy.trichodermaContact = .04;
       // Primeira chegada da hifa ao alvo: uma vez por ataque.
       if (!attack.audioContacted) {
-        attack.audioContacted = true;
-        entities?.audio?.play('trichodermaTargetContact', { x: point.x, y: point.y });
+        const entregue = entities?.audio
+          ? fxLanded(entities.audio.play('trichodermaTargetContact', {
+              x: point.x, y: point.y, instanceId: attack.id,
+            }))
+          : true;
+        if (entregue) attack.audioContacted = true;
       }
       entities.burst(point.x, point.y, '#baf66f', 16, 105);
       announce('Contato estabelecido: Trichoderma iniciou o enovelamento sobre as hifas de Rhizoctonia.', 4.5, 1.2);

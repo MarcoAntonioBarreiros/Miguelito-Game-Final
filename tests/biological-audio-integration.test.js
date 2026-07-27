@@ -20,6 +20,10 @@ import { createTrichodermaColonies } from '../src/procgen/trichoderma-colonies.j
 import { createAzospirillumRootGrowth } from '../src/procgen/azospirillum-root-growth.js';
 import { createMycorrhizaGrowth } from '../src/procgen/mycorrhiza-growth.js';
 import { createPhosphateSolubilization } from '../src/procgen/phosphate-solubilization.js';
+import { createTrichodermaGrowth } from '../src/procgen/trichoderma-growth.js';
+import { publishControlSignal } from '../src/procgen/biological-audio-signals.js';
+import { campaignManifest } from '../src/procgen/campaign-manifest.js';
+import { biologicalGroupsForProgress } from '../src/audio-manifest.js';
 
 function spyAudio() {
   const calls = [];
@@ -770,4 +774,195 @@ test('fósforo: clear limpa carga e transporte', () => {
   assert.equal(audio.loops.size, 1);
   phosphate.clear();
   assert.equal(audio.loops.size, 0);
+});
+
+// ---------------------------------------------------------------------------
+// TRICHODERMA GENÉRICO (Etapa 4)
+// ---------------------------------------------------------------------------
+//
+// O ataque contra o fungo oportunista tinha toda a mecânica — busca, contato,
+// lise — e nenhum som: só os controles específicos de Rhizoctonia e Meloidogyne
+// tocavam. Este é o sistema que o jogador encontra primeiro.
+
+function trichodermaGenericoHarness() {
+  const audio = spyAudio();
+  const entities = makeEntities(audio);
+  const state = baseState();
+  state.level.endX = 4000;
+  state.discoveredMicrobes = new Set();
+
+  const alvo = {
+    id: 'fungo-1', type: 'oportunista', x: 400, y: 380,
+    vx: 0, vy: 0, homeX: 400, homeY: 380, w: 20, h: 20, alive: true,
+  };
+  const ecology = { agents: [alvo] };
+  const colony = {
+    id: 'tri-col-1', x: 250, y: 400, vigor: 1, growth: 1,
+    exhausted: false, activeTargetId: null, cooldownUntil: 0,
+    stage: 'ready', kills: 0, rechargeIntensity: 1, sourceCount: 1,
+  };
+  const colonies = { colonies: [colony], byId: id => (id === colony.id ? colony : null) };
+  const growth = createTrichodermaGrowth({ state, entities, ecology, colonies });
+  return { audio, state, alvo, colony, ecology, growth };
+}
+
+test('trichoderma genérico: o ataque abre um loop com chave por instância', () => {
+  const { audio, growth } = trichodermaGenericoHarness();
+  for (let index = 0; index < 40; index++) growth.update(0.05);
+  const ataques = [...audio.loops.keys()].filter(key => key.startsWith('trichoderma-attack'));
+  assert.equal(ataques.length, 1, 'um loop de ataque');
+  assert.equal(ataques[0], 'trichoderma-attack:tri-col-1:fungo-1');
+  assert.equal(audio.loops.get(ataques[0]).trackId, 'trichodermaHyphalAttack');
+});
+
+test('trichoderma genérico: contato e conclusão tocam uma vez cada', () => {
+  const { audio, growth, ecology } = trichodermaGenericoHarness();
+  for (let index = 0; index < 900; index++) {
+    growth.update(0.05);
+    if (!ecology.agents.length) break;
+  }
+  assert.equal(ecology.agents.length, 0, 'o alvo foi controlado');
+  assert.equal(audio.countFx('trichodermaTargetContact'), 1);
+  assert.equal(audio.countFx('trichodermaControlComplete'), 1);
+  assert.equal([...audio.loops.keys()].some(key => key.startsWith('trichoderma-attack')), false);
+
+  // Muitos quadros depois: nada repete.
+  for (let index = 0; index < 60; index++) growth.update(0.05);
+  assert.equal(audio.countFx('trichodermaControlComplete'), 1);
+});
+
+test('trichoderma genérico: alvo removido por outro sistema não toca conclusão', () => {
+  const { audio, growth, ecology } = trichodermaGenericoHarness();
+  for (let index = 0; index < 30; index++) growth.update(0.05);
+  assert.ok([...audio.loops.keys()].some(key => key.startsWith('trichoderma-attack')));
+
+  // Outro sistema apaga o alvo no meio do ataque.
+  ecology.agents.length = 0;
+  for (let index = 0; index < 10; index++) growth.update(0.05);
+
+  assert.equal(audio.countFx('trichodermaControlComplete'), 0, 'não houve controle pelo Trichoderma');
+  assert.equal([...audio.loops.keys()].some(key => key.startsWith('trichoderma-attack')), false, 'o loop encerra');
+});
+
+test('trichoderma genérico: clear encerra os loops de ataque', () => {
+  const { audio, growth } = trichodermaGenericoHarness();
+  for (let index = 0; index < 30; index++) growth.update(0.05);
+  assert.ok(audio.loops.size > 0);
+  growth.clear();
+  assert.equal([...audio.loops.keys()].some(key => key.startsWith('trichoderma-attack')), false);
+});
+
+// ---------------------------------------------------------------------------
+// PRESSÃO EXTERNA (Etapa 5)
+// ---------------------------------------------------------------------------
+//
+// Bacillus e Pseudomonas também contêm Rhizoctonia e Ralstonia. Esses sistemas
+// já calculam a pressão; o que faltava era o áudio poder lê-la.
+
+test('bacillus: a antibiose soa contra Rhizoctonia, não só contra o oportunista', () => {
+  const { audio, state, bioprotection } = bacillusHarness();
+  // Amadurece o biofilme sem nenhum fungo oportunista por perto.
+  for (let index = 0; index < 400; index++) bioprotection.update(0.05);
+  assert.equal(audio.loops.has('bacillus-antibiosis:col-bac-1'), false, 'sem alvo, silêncio');
+
+  // Um foco de Rhizoctonia sendo contido por esta colônia, publicado pelo
+  // sistema que já faz esse cálculo.
+  publishControlSignal(state, 'bacillusAntibiosis', {
+    colonyId: 'col-bac-1',
+    targetId: 'rhizo-1',
+    targetType: 'rhizoctonia',
+    pressure: 0.6,
+    x: 180,
+    y: 300,
+  });
+  bioprotection.update(0.05);
+  assert.equal(audio.loops.has('bacillus-antibiosis:col-bac-1'), true, 'a contenção real soa');
+
+  // A pressão acabou (ninguém republicou e o sinal expirou).
+  state.time += 1;
+  bioprotection.update(0.05);
+  assert.equal(audio.loops.has('bacillus-antibiosis:col-bac-1'), false, 'termina quando o controle termina');
+});
+
+test('pseudomonas: a supressão soa contra Ralstonia, não só contra o oportunista', () => {
+  const { audio, state, siderophores } = pseudomonasHarness();
+  // Acumula reserva de ferro sem nenhum fungo oportunista.
+  for (let index = 0; index < 300; index++) siderophores.update(0.05);
+  const chave = 'pseudomonas-suppression:col-pseudo-1';
+  assert.equal(audio.loops.has(chave), false, 'reserva sozinha não é supressão');
+
+  publishControlSignal(state, 'pseudomonasSuppression', {
+    colonyId: 'col-pseudo-1',
+    targetId: 'ralstonia-foco-1',
+    targetType: 'ralstonia',
+    pressure: 0.5,
+    x: 180,
+    y: 300,
+  });
+  siderophores.update(0.05);
+  assert.equal(audio.loops.has(chave), true, 'a supressão real soa');
+
+  state.time += 1;
+  siderophores.update(0.05);
+  assert.equal(audio.loops.has(chave), false);
+});
+
+test('o quadro de sinais não altera nenhum valor de gameplay', () => {
+  const { state, colony, siderophores } = pseudomonasHarness();
+  for (let index = 0; index < 100; index++) siderophores.update(0.05);
+  const vigorAntes = colony.vigor;
+  const ferroAntes = siderophores.ironReserve;
+
+  publishControlSignal(state, 'pseudomonasSuppression', {
+    colonyId: 'col-pseudo-1', targetId: 'x', targetType: 'ralstonia',
+    pressure: 0.9, x: 180, y: 300,
+  });
+
+  assert.equal(colony.vigor, vigorAntes, 'publicar não consome vigor');
+  assert.equal(siderophores.ironReserve, ferroAntes, 'publicar não consome ferro');
+});
+
+// ---------------------------------------------------------------------------
+// PRELOAD POR PROGRESSO (Etapa 6)
+// ---------------------------------------------------------------------------
+
+test('organismos persistentes continuam no preload depois da fase de estreia', () => {
+  const unlocks = { azospirillumRoots: true, mycorrhizaStructures: true };
+  const naFase = fase => biologicalGroupsForProgress({
+    manifests: campaignManifest, phase: fase, unlocks, availableOrganisms: [],
+  });
+
+  // Pseudomonas estreia na fase 5 e Trichoderma na 6. Derivando só do cartão da
+  // fase atual, os dois sumiam do preload logo depois — e o primeiro uso numa
+  // fase adiante saía mudo ou atrasado.
+  assert.ok(naFase(5).includes('pseudomonas'), 'estreia da Pseudomonas');
+  for (const fase of [6, 7, 8, 9, 10]) {
+    assert.ok(naFase(fase).includes('pseudomonas'), `fase ${fase} mantém Pseudomonas`);
+  }
+  assert.ok(naFase(6).includes('trichoderma'), 'estreia do Trichoderma');
+  for (const fase of [7, 8, 9, 10]) {
+    assert.ok(naFase(fase).includes('trichoderma'), `fase ${fase} mantém Trichoderma`);
+  }
+});
+
+test('o que está no seletor entra no preload mesmo sem cartão', () => {
+  const grupos = biologicalGroupsForProgress({
+    manifests: campaignManifest,
+    phase: 2,
+    unlocks: {},
+    availableOrganisms: ['pseudomonas', 'trichoderma', 'phosphate-solubilization'],
+  });
+  assert.ok(grupos.includes('pseudomonas'));
+  assert.ok(grupos.includes('trichoderma'));
+  assert.ok(grupos.includes('phosphate'));
+});
+
+test('bacillus está em todas as fases jogáveis', () => {
+  for (const manifest of campaignManifest) {
+    if (manifest.phase < 1) continue;
+    const grupos = biologicalGroupsForProgress({
+      manifests: campaignManifest, phase: manifest.phase, unlocks: {}, availableOrganisms: [],
+    });
+    assert.ok(grupos.includes('bacillus'), `fase ${manifest.phase} sem Bacillus`);
+  }
 });

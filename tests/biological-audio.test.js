@@ -96,6 +96,8 @@ function fakeGameAudio({ loaded = [], deferred = [] } = {}) {
           return new Promise(resolve => resolvers.set(id, resolve));
         },
         preloadGroup: () => [],
+        clearQueuedFx() { context.queuedCleared = (context.queuedCleared || 0) + 1; },
+        groupState: () => 'pronto',
         now: () => context.currentTime,
         note() {},
         bufferStats: () => ({ loaded: buffers.size, pending: resolvers.size, failed: 0 }),
@@ -105,10 +107,11 @@ function fakeGameAudio({ loaded = [], deferred = [] } = {}) {
 }
 
 // Jogador no centro do mundo em x=1000; a câmera enquadra 1000±640.
-function fakeState({ playerX = 1000, cameraX = 360, gameState = 'play' } = {}) {
+function fakeState({ playerX = 1000, cameraX = 360, gameState = 'play', tutorialOpen = false } = {}) {
   return {
     gameState,
     cameraX,
+    tutorialOpen,
     player: { x: playerX, y: 400, w: 30, h: 40 },
   };
 }
@@ -501,8 +504,27 @@ test('efeito fora de alcance não toca', () => {
 
 test('um loop nunca é disparado como efeito pontual', () => {
   const { gameAudio, bio } = harness({ loaded: ['phosphateCharge'] });
-  assert.equal(bio.play('phosphateCharge', PERTO), false);
+  // `rejected` e diferente de `suppressed`: quem chamou NAO deve marcar a
+  // transicao como concluida, porque foi um pedido invalido.
+  assert.deepEqual(bio.play('phosphateCharge', PERTO), { accepted: false, state: 'rejected' });
   assert.equal(gameAudio.played.length, 0);
+});
+
+test('faixa inexistente é rejeitada e o motivo aparece no diagnóstico', () => {
+  const { bio } = harness();
+  assert.equal(bio.play('naoExiste', PERTO).state, 'rejected');
+  assert.equal(bio.debugSnapshot().lastRejectedEffect, 'naoExiste');
+  assert.equal(bio.debugSnapshot().lastRejectionReason, 'faixa inexistente');
+});
+
+test('cooldown e distância suprimem, não rejeitam', () => {
+  // A diferenca importa: o evento biologico ACONTECEU. Se isto voltasse como
+  // `rejected`, o sistema tentaria de novo a cada quadro e o som sairia assim
+  // que o cooldown expirasse — um eco do evento, fora de hora.
+  const { bio } = harness();
+  bio.play('pseudomonasSiderophoreLaunch', { ...PERTO, instanceId: 'c1' });
+  assert.equal(bio.play('pseudomonasSiderophoreLaunch', { ...PERTO, instanceId: 'c1' }).state, 'suppressed');
+  assert.equal(bio.play('mycorrhizaRootContact', { x: 9000, y: 400 }).state, 'suppressed');
 });
 
 // ---------------------------------------------------------------------------
@@ -511,7 +533,9 @@ test('um loop nunca é disparado como efeito pontual', () => {
 
 test('sem ponte de áudio, a fachada é silenciosa e não quebra ninguém', () => {
   const bio = createBiologicalAudio({ gameAudio: null, getState: () => fakeState() });
-  assert.equal(bio.play('rhizobiumRecognition', PERTO), false);
+  // Sem controlador: `suppressed`, nao `rejected` — os modulos marcam a
+  // transicao e nao repetem o evento a cada quadro nos testes Node.
+  assert.deepEqual(bio.play('rhizobiumRecognition', PERTO), { accepted: false, state: 'suppressed' });
   assert.equal(bio.startLoop('a:b', 'phosphateCharge', PERTO), false);
   assert.equal(bio.updateLoop('a:b', PERTO), false);
   assert.equal(bio.stopLoop('a:b'), false);
@@ -581,4 +605,126 @@ test('loops distantes cedem lugar aos próximos quando o teto aperta', () => {
   const chaves = bio.debugSnapshot().loops.map(loop => loop.instanceKey);
   assert.equal(chaves.length, 2, 'mycorrhiza-hypha tem teto 2');
   assert.ok(!chaves.includes('mycorrhiza-hypha:longe'), 'a mais distante saiu');
+});
+
+// ---------------------------------------------------------------------------
+// tutorial (Etapa 2)
+// ---------------------------------------------------------------------------
+
+test('um cartão de tutorial não destrói os loops em curso', () => {
+  const state = fakeState();
+  const { gameAudio, bio } = harness({ loaded: ['mycorrhizaBridgeGrowth'], state });
+  bio.startLoop('mycorrhiza-bridge:a', 'mycorrhizaBridgeGrowth', PERTO);
+  assert.equal(bio.debugSnapshot().registeredLoopCount, 1);
+
+  // 4 s de cartão aberto. A simulação biológica para, ninguém sustenta a chave —
+  // e antes disso bastavam 0,6 s para o loop ser recolhido como órfão.
+  state.tutorialOpen = true;
+  for (let quadro = 0; quadro < 250; quadro++) bio.update(0.016);
+
+  const durante = bio.debugSnapshot();
+  assert.equal(durante.registeredLoopCount, 1, 'o loop continua registrado');
+  assert.equal(gameAudio.context.sources.length, 1, 'nenhuma voz nova foi criada');
+
+  // Fechou: os sistemas voltam a sustentar dentro da tolerância.
+  state.tutorialOpen = false;
+  bio.update(0.016);
+  bio.startLoop('mycorrhiza-bridge:a', 'mycorrhizaBridgeGrowth', PERTO);
+  bio.update(0.016);
+
+  const depois = bio.debugSnapshot();
+  assert.equal(depois.registeredLoopCount, 1, 'continua sendo UMA voz');
+  assert.equal(gameAudio.context.sources.length, 1, 'não reiniciou o arquivo do começo');
+  assert.equal(depois.loops[0].state, 'ativo');
+});
+
+test('a tolerância pós-tutorial não impede a expiração normal depois', () => {
+  const state = fakeState();
+  const { bio } = harness({ loaded: ['mycorrhizaBridgeGrowth'], state });
+  bio.startLoop('mycorrhiza-bridge:a', 'mycorrhizaBridgeGrowth', PERTO);
+  state.tutorialOpen = true;
+  bio.update(0.016);
+  state.tutorialOpen = false;
+  // Passada a tolerância (0,8 s) e o prazo de órfã (0,6 s), sem ninguém
+  // sustentar, o loop sai — o tutorial adia, não isenta.
+  for (let quadro = 0; quadro < 40; quadro++) bio.update(0.1);
+  assert.equal(bio.debugSnapshot().registeredLoopCount, 0);
+});
+
+// ---------------------------------------------------------------------------
+// limite de vozes conta só o que é audível (Etapa 7)
+// ---------------------------------------------------------------------------
+
+test('vozes inaudíveis não bloqueiam uma voz audível', () => {
+  const state = fakeState();
+  const { bio } = harness({ loaded: TODAS_AS_LOOPS, state });
+
+  // Doze processos, e só cinco perto do jogador. Antes, o teto global contava
+  // TODAS as entradas do mapa — inclusive as fora de alcance — e um processo
+  // novo ao lado do jogador simplesmente não começava.
+  const longe = { x: state.player.x + 5000, y: 400 };
+  const registrados = [
+    ['rhizobium-thread:1', 'rhizobiumInfectionThread', PERTO],
+    ['rhizobium-thread:2', 'rhizobiumInfectionThread', PERTO],
+    ['mycorrhiza-hypha:1', 'mycorrhizaHyphaGrowth', PERTO],
+    ['mycorrhiza-hypha:2', 'mycorrhizaHyphaGrowth', PERTO],
+    ['bacillus-biofilm:1', 'bacillusBiofilmGrowth', PERTO],
+    ['bacillus-biofilm:2', 'bacillusBiofilmGrowth', longe],
+    ['phosphate-transport:1', 'phosphateTransport', longe],
+    ['phosphate-transport:2', 'phosphateTransport', longe],
+    ['trichoderma-attack:1:a', 'trichodermaHyphalAttack', longe],
+    ['trichoderma-attack:2:b', 'trichodermaHyphalAttack', longe],
+    ['bacillus-antibiosis:1', 'bacillusAntibiosis', longe],
+    ['pseudomonas-suppression:1', 'pseudomonasSuppression', longe],
+  ];
+  for (const [key, track, posicao] of registrados) bio.startLoop(key, track, posicao);
+
+  const snapshot = bio.debugSnapshot();
+  assert.ok(snapshot.activeLoopCount <= BIOLOGICAL_LOOP_LIMIT);
+
+  // O processo audível de maior prioridade entra mesmo com o mapa cheio.
+  assert.equal(bio.startLoop('mycorrhiza-bridge:nova', 'mycorrhizaBridgeGrowth', PERTO), true);
+  const chaves = bio.debugSnapshot().loops.map(loop => loop.instanceKey);
+  assert.ok(chaves.includes('mycorrhiza-bridge:nova'), 'a ponte perto do jogador soa');
+});
+
+test('o diagnóstico separa registrado, ativo, pausado e fora de alcance', () => {
+  const state = fakeState();
+  const { bio } = harness({ loaded: TODAS_AS_LOOPS, state });
+  bio.startLoop('bacillus-biofilm:1', 'bacillusBiofilmGrowth', PERTO);
+  bio.startLoop('bacillus-biofilm:2', 'bacillusBiofilmGrowth', PERTO);
+  bio.pauseLoop('bacillus-biofilm:2');
+
+  const snapshot = bio.debugSnapshot();
+  assert.equal(snapshot.registeredLoopCount, 2);
+  assert.equal(snapshot.activeLoopCount, 1);
+  assert.equal(snapshot.pausedLoopCount, 1);
+  assert.equal(snapshot.loops.find(l => l.instanceKey === 'bacillus-biofilm:1').state, 'ativo');
+  assert.equal(snapshot.loops.find(l => l.instanceKey === 'bacillus-biofilm:2').state, 'pausado');
+  assert.equal(typeof snapshot.preloadGroups.rhizobium, 'string');
+});
+
+// ---------------------------------------------------------------------------
+// alcance (Etapa 3)
+// ---------------------------------------------------------------------------
+
+test('um loop discreto continua audível dentro da área visual', () => {
+  const state = fakeState();
+  const { bio } = harness({ loaded: ['bacillusAntibiosis'], state });
+  // Ganho-base 0,09 a 350 px: com a atenuação quadrática antiga isso caía para
+  // ~0,015 e o som não existia numa distância em que o jogador VÊ o processo.
+  bio.startLoop('bacillus-antibiosis:1', 'bacillusAntibiosis', { x: state.player.x + 350, y: 400 });
+  const loop = bio.debugSnapshot().loops[0];
+  assert.ok(loop, 'o loop precisa existir a 350 px');
+  assert.ok(loop.gain > 0.03, `ganho baixo demais a 350 px: ${loop.gain}`);
+});
+
+test('o mesmo loop some perto do limite de alcance', () => {
+  const state = fakeState();
+  const { bio } = harness({ loaded: ['bacillusAntibiosis'], state });
+  const iniciou = bio.startLoop('bacillus-antibiosis:1', 'bacillusAntibiosis', {
+    x: state.player.x + 740, y: 400,
+  });
+  const loops = bio.debugSnapshot().loops;
+  assert.ok(!iniciou || loops[0].gain < 0.01, 'praticamente inaudível na borda');
 });

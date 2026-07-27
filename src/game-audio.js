@@ -24,6 +24,8 @@ import {
   BIOLOGICAL_AUDIO_GROUPS,
   BIOLOGICAL_BUS_SCALE,
   BIOLOGICAL_TUTORIAL_DUCK,
+  CRITICAL_FX_QUEUE_SECONDS,
+  fxDeliveryClass,
   AUDIO_STORAGE_KEY,
   AUDIO_STORAGE_KEY_V1,
   AUDIO_STORAGE_VERSION,
@@ -42,9 +44,31 @@ import {
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-// Janela máxima que um efeito pode esperar pelo próprio buffer. Acima disso o
-// som sairia depois do movimento e é descartado.
+// Janela máxima que um efeito TRANSITÓRIO pode esperar pelo próprio buffer.
+// Acima disso o som sairia depois do movimento e é descartado.
+//
+// Efeitos CRÍTICOS não usam esta janela: 80 ms é curto demais para a primeira
+// vez que um arquivo é pedido, e era por isso que o primeiro som de um processo
+// sumia ao entrar numa fase. Eles vão para a fila confiável, que espera
+// `CRITICAL_FX_QUEUE_SECONDS`.
 const FX_MAXIMUM_DELAY_MS = 80;
+
+// Resultado de um pedido de efeito. Quem chama precisa distinguir "não vai sair
+// nunca" (rejected) de "vai sair daqui a pouco" (queued) — marcar a transição
+// como concluída no primeiro caso apagaria o evento para sempre.
+const FX_PLAYED = Object.freeze({ accepted: true, state: 'played' });
+const FX_QUEUED = Object.freeze({ accepted: true, state: 'queued' });
+const FX_SUPPRESSED = Object.freeze({ accepted: false, state: 'suppressed' });
+const FX_REJECTED = Object.freeze({ accepted: false, state: 'rejected' });
+
+// Um pedido foi "entregue" quando não foi recusado: tocou, entrou na fila, ou o
+// jogador está sem som. Nos três casos a transição pode ser marcada — insistir
+// não traria o som de volta e repetiria o evento a cada quadro.
+export function fxLanded(result) {
+  if (result === undefined || result === null || result === false) return false;
+  if (result === true) return true;
+  return result.state !== 'rejected';
+}
 
 // Adaptador silencioso: mesma API, nenhum efeito. É o que o simulador usa nos
 // testes Node, onde não existe AudioContext nem document.
@@ -54,9 +78,12 @@ export function createNoopAudio() {
     unlock() {},
     update() {},
     setPhase() {},
-    playFx() { return false; },
+    // Sem audio no ambiente: o pedido nao foi recusado, so nao ha som. Quem
+    // chama pode marcar a transicao e seguir em frente.
+    playFx() { return { accepted: false, state: 'suppressed' }; },
     playStinger() { return false; },
     preloadBiologicalGroup() { return []; },
+    clearQueuedFx() {},
     getAudioBridge() { return null; },
     toggleMute() { return false; },
     setMuted() {},
@@ -197,6 +224,8 @@ export function createGameAudio({
   let lastVictoryPhase = null;
   let lastPlaybackError = null;
   const fxLoadPromises = new Map();
+  // Pedidos criticos aguardando o proprio buffer (ver `queueCriticalFx`).
+  const queuedFx = new Map();
 
   function note(message) {
     if (errors.length > 12) errors.shift();
@@ -627,39 +656,98 @@ export function createGameAudio({
         return loadFxBuffer(track);
       },
       preloadGroup: preloadBiologicalGroup,
+      clearQueuedFx,
+      playFx,
       now: () => context?.currentTime ?? 0,
       note,
-      bufferStats: () => ({ loaded: fxBuffers.size, pending: fxPending.size, failed: fxFailed.size }),
+      bufferStats: () => ({
+        loaded: fxBuffers.size,
+        pending: fxPending.size,
+        failed: fxFailed.size,
+        queuedFx: queuedFx.size,
+      }),
+      groupState: (groupId) => {
+        const ids = BIOLOGICAL_AUDIO_GROUPS[groupId] || [];
+        if (!ids.length) return 'desconhecido';
+        if (ids.every(id => fxBuffers.has(id))) return 'pronto';
+        if (ids.some(id => fxFailed.has(id))) return 'falhou';
+        if (ids.some(id => fxPending.has(id))) return 'carregando';
+        return 'ausente';
+      },
     };
   }
 
-  function playFx(id, { gain = 1, rate = 1, pan = 0, bus = null } = {}) {
-    if (destroyed || !unlocked || !context || settings.muted) return false;
+  function playFx(id, { gain = 1, rate = 1, pan = 0, bus = null, instanceId = null } = {}) {
+    if (destroyed || !unlocked || !context || settings.muted) return FX_SUPPRESSED;
     const track = AUDIO_TRACKS[id];
-    if (!track) { note(`FX desconhecido: ${id}`); return false; }
-    if (track.kind === 'stinger') return playStinger(id, { gain });
+    if (!track) { note(`FX desconhecido: ${id}`); return FX_REJECTED; }
+    if (track.kind === 'stinger') {
+      return playStinger(id, { gain }) ? FX_PLAYED : FX_REJECTED;
+    }
+    // Arquivo que já falhou de vez: não adianta enfileirar.
+    if (fxFailed.has(id)) return FX_REJECTED;
 
     const buffer = fxBuffers.get(id);
-    if (!buffer) {
-      // Buffer ainda a caminho: aguarda a promessa QUE JÁ EXISTE (nunca dispara
-      // um segundo fetch) por uma janela curta. Passando disso, o som chegaria
-      // depois de o movimento terminar — pior que silêncio.
-      const promise = loadFxBuffer(track);
-      if (promise?.then) {
-        const pedidoEm = Date.now();
-        const limite = new Promise(resolve => addTimer(setTimeout(() => resolve('tempo'), FX_MAXIMUM_DELAY_MS)));
-        Promise.race([promise, limite]).then(quem => {
-          const atrasado = quem === 'tempo' || Date.now() - pedidoEm > FX_MAXIMUM_DELAY_MS;
-          if (atrasado || !fxBuffers.has(id)) {
-            note(`${id}: buffer chegou tarde demais, som descartado`);
-            return;
-          }
-          emitBuffer(id, { gain, rate, pan, bus });
-        });
-      }
-      return false;
+    if (buffer) return emitBuffer(id, { gain, rate, pan, bus }) ? FX_PLAYED : FX_REJECTED;
+
+    const promise = loadFxBuffer(track);
+    if (!promise?.then) return FX_REJECTED;
+
+    if (fxDeliveryClass(id) === 'critical') {
+      return queueCriticalFx(id, { gain, rate, pan, bus, instanceId }, promise);
     }
-    return emitBuffer(id, { gain, rate, pan, bus });
+
+    // TRANSITÓRIO: aguarda a promessa QUE JÁ EXISTE (nunca dispara um segundo
+    // fetch) por uma janela curta. Passando disso o som chegaria depois do
+    // movimento — pior que silêncio.
+    const pedidoEm = Date.now();
+    const limite = new Promise(resolve => addTimer(setTimeout(() => resolve('tempo'), FX_MAXIMUM_DELAY_MS)));
+    Promise.race([promise, limite]).then(quem => {
+      const atrasado = quem === 'tempo' || Date.now() - pedidoEm > FX_MAXIMUM_DELAY_MS;
+      if (atrasado || !fxBuffers.has(id)) {
+        note(`${id}: buffer chegou tarde demais, som descartado`);
+        return;
+      }
+      emitBuffer(id, { gain, rate, pan, bus });
+    });
+    return FX_QUEUED;
+  }
+
+  // Fila confiável dos efeitos críticos.
+  //
+  // Uma entrada por trackId+instanceId: o mesmo evento pedido em vários quadros
+  // (é o padrão — os sistemas rodam a 60 Hz) não pode virar cinco reproduções
+  // quando o arquivo finalmente chegar.
+  function queueCriticalFx(id, options, promise) {
+    const chave = `${id}:${options.instanceId ?? '-'}`;
+    if (queuedFx.has(chave)) return FX_QUEUED;
+
+    const entrada = { id, options, requestedAt: Date.now(), cancelled: false };
+    queuedFx.set(chave, entrada);
+    promise.then(() => {
+      if (entrada.cancelled || queuedFx.get(chave) !== entrada) return;
+      queuedFx.delete(chave);
+      const atraso = Date.now() - entrada.requestedAt;
+      if (atraso > CRITICAL_FX_QUEUE_SECONDS * 1000) {
+        note(`${id}: evento crítico esperou ${Math.round(atraso)} ms e foi descartado`);
+        return;
+      }
+      if (!fxBuffers.has(id)) { note(`${id}: buffer nunca chegou`); return; }
+      emitBuffer(id, options);
+    });
+    // Rede de segurança: se a promessa nunca resolver, a entrada não pode ficar
+    // presa bloqueando o mesmo evento para sempre.
+    addTimer(setTimeout(() => {
+      if (queuedFx.get(chave) === entrada) queuedFx.delete(chave);
+    }, CRITICAL_FX_QUEUE_SECONDS * 1000 + 250));
+    return FX_QUEUED;
+  }
+
+  // Troca de fase, reset, morte com reinício do processo: nenhum evento da fase
+  // anterior pode tocar depois que ela acabou.
+  function clearQueuedFx() {
+    for (const entrada of queuedFx.values()) entrada.cancelled = true;
+    queuedFx.clear();
   }
 
   function emitBuffer(id, { gain = 1, rate = 1, pan = 0, bus = null } = {}) {
@@ -982,6 +1070,7 @@ export function createGameAudio({
   function destroy() {
     if (destroyed) return;
     destroyed = true;
+    clearQueuedFx();
     victoryActive = false;
     phaseVictoryPlaying = false;
     campaignVictoryPlaying = false;
@@ -1056,6 +1145,7 @@ export function createGameAudio({
     playFx,
     playStinger,
     preloadBiologicalGroup,
+    clearQueuedFx,
     getAudioBridge,
     stopStinger,
     toggleMute,

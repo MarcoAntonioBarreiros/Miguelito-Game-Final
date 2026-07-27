@@ -1,5 +1,6 @@
 import { H, W } from '../core/constants.js';
 import { clamp, createHyphalNetwork, renderHyphalNetwork, TAU, updateHyphalNetwork } from './hyphal-growth.js';
+import { fxLanded } from '../game-audio.js';
 
 function nearestPointOnRect(x, y, rect) {
   return { x: clamp(x, rect.x, rect.x + rect.w), y: clamp(y, rect.y, rect.y + rect.h) };
@@ -44,6 +45,7 @@ export function createTrichodermaGrowth({ state, entities, ecology, colonies }) 
   }
 
   function clear() {
+    entities?.audio?.stopGroup('trichoderma-attack');
     networks.clear();
     for (const colony of colonies.colonies) {
       colony.activeTargetId = null;
@@ -138,6 +140,16 @@ export function createTrichodermaGrowth({ state, entities, ecology, colonies }) 
       },
     });
     network.germination = 1;
+    // O ataque hifal generico (contra o fungo oportunista) tinha toda a
+    // mecanica e nenhum som: so os controles especificos de Rhizoctonia e
+    // Meloidogyne soavam. Mesma chave por instancia dos outros dois, entao os
+    // tres compartilham o teto de vozes de `trichoderma-attack`.
+    network.metadata.audioKey = `trichoderma-attack:${colony.id}:${target.id}`;
+    entities?.audio?.startLoop(network.metadata.audioKey, 'trichodermaHyphalAttack', {
+      x: (colony.x + target.x) / 2,
+      y: (colony.y + target.y) / 2,
+      gain: .6,
+    });
     networks.set(target.id, network);
     colony.activeTargetId = target.id;
     colony.stage = 'search';
@@ -152,6 +164,9 @@ export function createTrichodermaGrowth({ state, entities, ecology, colonies }) 
     network.metadata.aborted = true;
     network.active = false;
     network.fading = .9;
+    // Alvo sumiu ou a colonia se perdeu: encerra o loop, SEM efeito de
+    // conclusao — nao houve controle.
+    entities?.audio?.stopLoop(network.metadata.audioKey);
     releaseColony(network, { cooldown: 1.2, stage: 'ready' });
     if (target) target.trichoRetryAt = state.time + retryDelay;
   }
@@ -162,6 +177,7 @@ export function createTrichodermaGrowth({ state, entities, ecology, colonies }) 
     network.metadata.stage = 'retracting';
     network.active = false;
     network.fading = .01;
+    entities?.audio?.stopLoop(network.metadata.audioKey);
     const colony = colonies.byId(network.metadata.colonyId);
     if (colony) {
       colony.vigor = 0;
@@ -187,6 +203,12 @@ export function createTrichodermaGrowth({ state, entities, ecology, colonies }) 
     network.metadata.stage = 'completed';
     network.active = false;
     network.fading = .01;
+    // Controle concluido PELO Trichoderma. Um alvo removido por outro sistema
+    // passa por `abortAttack`, que nao chega aqui.
+    entities?.audio?.stopLoop(network.metadata.audioKey, { fade: .2 });
+    entities?.audio?.play('trichodermaControlComplete', {
+      x: target.x, y: target.y, instanceId: target.id,
+    });
     const index = ecology.agents.indexOf(target);
     if (index >= 0) ecology.agents.splice(index, 1);
     const colony = colonies.byId(network.metadata.colonyId);
@@ -272,6 +294,15 @@ export function createTrichodermaGrowth({ state, entities, ecology, colonies }) 
     network.maxPoints = Math.max(network.maxPoints, network.pointCount + 280);
     const colony = colonies.byId(network.metadata.colonyId);
     if (colony) colony.stage = 'coil';
+    // Primeira chegada da hifa ao alvo, uma vez por ataque.
+    if (!network.metadata.audioContacted) {
+      const entregue = entities?.audio
+        ? fxLanded(entities.audio.play('trichodermaTargetContact', {
+            x: target.x, y: target.y, instanceId: target.id,
+          }))
+        : true;
+      if (entregue) network.metadata.audioContacted = true;
+    }
     entities.burst(target.x, target.y, '#baf66f', 12, 90);
   }
 
@@ -389,7 +420,18 @@ export function createTrichodermaGrowth({ state, entities, ecology, colonies }) 
     } else if (!network.metadata.contactLocked) {
       network.metadata.stalled = Math.max(0, network.metadata.stalled - dt * .5);
     }
-    if (network.metadata.lysis >= 1) completeAttack(network, target);
+    if (network.metadata.lysis >= 1) { completeAttack(network, target); return; }
+
+    // Sustenta o loop: sem isto o gerenciador recolhe a voz como orfa no meio
+    // do ataque. Posicao acompanha a ponta ativa mais avancada.
+    const ponta = [...network.tips].reverse().find(tip => tip.active) || null;
+    const enovelado = network.metadata.contactLocked;
+    entities?.audio?.startLoop(network.metadata.audioKey, 'trichodermaHyphalAttack', {
+      x: enovelado ? target.x : (ponta?.x ?? network.x),
+      y: enovelado ? target.y : (ponta?.y ?? network.y),
+      gain: enovelado ? .9 : .6 + clamp(network.metadata.contact, 0, 1) * .25,
+      rate: enovelado ? 1.04 : .95,
+    });
   }
 
   function update(dt) {

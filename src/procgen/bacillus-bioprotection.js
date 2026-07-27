@@ -1,4 +1,6 @@
 import { W } from '../core/constants.js';
+import { fxLanded } from '../game-audio.js';
+import { externalControlPressure } from './biological-audio-signals.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -178,9 +180,11 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
     if (mode === 'mature' && !entry.audioBiofilmCompleted) {
       // Só a PRIMEIRA vez que o biofilme fica funcional. Alternar entre
       // `mature` e `antibiosis` depois disso não é uma nova conclusão.
-      entry.audioBiofilmCompleted = true;
       audio?.stopLoop(`bacillus-biofilm:${colony.id}`, { fade: .2 });
-      audio?.play('bacillusBiofilmComplete', position);
+      const entregue = audio
+        ? fxLanded(audio.play('bacillusBiofilmComplete', { ...position, instanceId: colony.id }))
+        : true;
+      if (entregue) entry.audioBiofilmCompleted = true;
     } else if (mode === 'sporulating') {
       audio?.play('bacillusSporulation', position);
     } else if (mode === 'germinating') {
@@ -397,14 +401,20 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
       audio.stopLoop(biofilmKey);
     }
 
-    const antibiosing = entry.activePressure > ANTIBIOSIS_AUDIBLE_PRESSURE
+    // `entry.activePressure` só enxerga o fungo oportunista. A mesma colônia
+    // contém Rhizoctonia e Ralstonia — esses sistemas já calculam a pressão, e
+    // publicam o valor no quadro de sinais para o áudio poder representá-lo.
+    // Sem isto, um biofilme segurando um foco de Rhizoctonia ficava mudo.
+    const pressaoExterna = externalControlPressure(state, 'bacillusAntibiosis', colony.id);
+    const combinedPressure = Math.max(entry.activePressure, pressaoExterna);
+    const antibiosing = combinedPressure > ANTIBIOSIS_AUDIBLE_PRESSURE
       && entry.antibioticReserve > ANTIBIOSIS_MINIMUM_RESERVE
       && isMetabolicallyActive(entry);
     if (antibiosing) {
       audio.startLoop(antibiosisKey, 'bacillusAntibiosis', {
         x: colony.x,
         y: colony.y,
-        gain: clamp(entry.activePressure, 0, 1),
+        gain: clamp(combinedPressure, 0, 1),
       });
     } else {
       audio.stopLoop(antibiosisKey);

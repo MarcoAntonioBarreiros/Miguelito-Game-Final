@@ -1,4 +1,5 @@
 import { H, W } from '../core/constants.js';
+import { fxLanded } from '../game-audio.js';
 import { organismSprites } from '../render/organism-sprites.js';
 import {
   clamp,
@@ -213,8 +214,12 @@ export function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
       const hadGerminated = network.germination > 0;
       network.germination = clamp(network.germination + dt * (established ? .72 : .34), 0, 1);
       if (!hadGerminated && network.germination > 0 && !network.audioGerminated) {
-        network.audioGerminated = true;
-        entities?.audio?.play('mycorrhizaGermination', { x: network.x, y: network.y });
+        const entregue = entities?.audio
+          ? fxLanded(entities.audio.play('mycorrhizaGermination', {
+              x: network.x, y: network.y, instanceId: network.id,
+            }))
+          : true;
+        if (entregue) network.audioGerminated = true;
       }
       if (network.germination > .16) ensureHypha(network);
       if (!network.hypha) continue;
@@ -278,11 +283,14 @@ export function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
         arbuscule.life = .65 + arbuscule.maturity * .35;
         // Só quando a maturidade CRUZA 1, uma vez por arbúsculo.
         if (arbuscule.maturity >= 1 && !arbuscule.audioCompleted) {
-          arbuscule.audioCompleted = true;
-          entities?.audio?.play('mycorrhizaArbusculeComplete', {
-            x: arbuscule.x,
-            y: arbuscule.y,
-          });
+          const entregue = entities?.audio
+            ? fxLanded(entities.audio.play('mycorrhizaArbusculeComplete', {
+                x: arbuscule.x,
+                y: arbuscule.y,
+                instanceId: arbuscule.targetId,
+              }))
+            : true;
+          if (entregue) arbuscule.audioCompleted = true;
         }
         const rootEfficiency = clamp(arbuscule.platform?.mycorrhizaEfficiency ?? 1, .08, 1);
         if (arbuscule.maturity >= 1) {

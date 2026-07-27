@@ -331,6 +331,35 @@ const CORE_TRACKS = Object.freeze({
 // chave, mais fina (`BIOLOGICAL_LOOP_LIMITS`), porque um mesmo organismo tem
 // processos que competem de forma diferente — biofilme e antibiose, por exemplo.
 
+// Classe de ENTREGA de cada efeito pontual.
+//
+//   'critical'   transição única que não pode sumir. Se o buffer ainda estiver
+//                a caminho, o pedido entra numa fila e toca quando chegar (até
+//                1,5 s). É o que impede o primeiro efeito de uma fase de
+//                desaparecer só porque o arquivo demorou.
+//   'transient'  pode ser descartado se chegar tarde: são os repetitivos, que
+//                já têm cooldown e cuja ausência isolada não apaga informação.
+//
+// Loops não usam isto: eles têm o próprio ciclo de pendência por instância.
+const CRITICAL_DELIVERY = new Set([
+  'rhizobiumRecognition', 'rhizobiumRootHairCurl', 'rhizobiumPrimordium',
+  'rhizobiumYoungNodule', 'rhizobiumMatureNodule', 'nitrogenRootComplete',
+  'azospirillumRootGrowthStart', 'azospirillumLadderComplete',
+  'mycorrhizaGermination', 'mycorrhizaRootContact', 'mycorrhizaArbusculeComplete',
+  'mycorrhizaBridgeStart', 'mycorrhizaBridgeComplete',
+  'bacillusAdhesion', 'bacillusBiofilmComplete', 'bacillusSporulation', 'bacillusGermination',
+  'pseudomonasIronBind', 'pseudomonasIronDelivery',
+  'trichodermaTargetContact', 'trichodermaControlComplete', 'trichodermaReactivation',
+  'phosphatePulseRelease', 'phosphateDepositComplete', 'phosphateRootDeliveryComplete',
+]);
+
+// Quanto tempo um pedido crítico espera pelo próprio buffer.
+export const CRITICAL_FX_QUEUE_SECONDS = 1.5;
+
+export function fxDeliveryClass(trackId) {
+  return CRITICAL_DELIVERY.has(trackId) ? 'critical' : 'transient';
+}
+
 const BIOLOGICAL_TRACK_DEFS = [
   // ---- Rhizobium, nodulação e nitrogênio ----------------------------------
   ['rhizobiumRecognition', 'fx_rhizobium_recognition', 'fx', 0.42, 'rhizobium'],
@@ -418,15 +447,26 @@ export const BIOLOGICAL_BUS_SCALE = 0.9;
 export const BIOLOGICAL_TUTORIAL_DUCK = 0.30;
 
 export const BIOLOGICAL_SPATIAL = Object.freeze({
-  // Alcance padrão de um processo do mundo, em pixels de mundo.
-  defaultRange: 620,
+  // Alcance padrão de um processo do mundo, em pixels de mundo. A tela tem
+  // 1280 px, então 760 cobre a área visível relevante e um pouco além.
+  defaultRange: 760,
   // Denominador do pan, como fração da largura da tela.
   panWidthFactor: 0.55,
   panLimit: 0.80,
   // Um loop que fica inaudível por mais que isto tem o source encerrado; o
   // processo continua vivo e o loop volta se a câmera voltar.
   inaudibleGraceSeconds: 2,
-  minimumAudibleGain: 0.02,
+  // Expoente da atenuação por distância.
+  //
+  // Era 2 (quadrática). Combinado com ganhos-base de 0,08 a 0,20, isso apagava
+  // os processos discretos bem antes da borda da tela: a 300 px de um alcance de
+  // 620, um loop de 0,08 caía para 0,027 — abaixo do piso de audibilidade, e o
+  // som simplesmente não existia numa distância em que o jogador VÊ o processo
+  // acontecendo. 1,4 mantém a queda perceptível sem apagar a camada.
+  attenuationExponent: 1.4,
+  // Piso de audibilidade. Baixado junto: com o expoente novo, 0,02 ainda
+  // recortaria os loops mais discretos (antibiose 0,09, supressão 0,08).
+  minimumAudibleGain: 0.006,
 });
 
 export const BIOLOGICAL_FADES = Object.freeze({
@@ -532,6 +572,54 @@ export function biologicalGroupsForPhaseManifest(manifest, unlocks = {}) {
   if ((manifest.pathogenDebuts || []).length) groups.add('trichoderma');
   // Bacillus é também o solubilizador que alimenta a carga de fósforo.
   if (groups.has('phosphate')) groups.add('bacillus');
+
+  return [...groups].filter(group => BIOLOGICAL_AUDIO_GROUPS[group]);
+}
+
+// Tipos de organismo, como aparecem no seletor de inóculo, mapeados para grupo.
+const ORGANISM_GROUP = Object.freeze({
+  rhizobium: 'rhizobium',
+  azospirillum: 'azospirillum',
+  azo: 'azospirillum',
+  myco: 'mycorrhiza',
+  mycorrhiza: 'mycorrhiza',
+  bacillus: 'bacillus',
+  pseudomonas: 'pseudomonas',
+  trichoderma: 'trichoderma',
+  phos: 'phosphate',
+  'phosphate-solubilization': 'phosphate',
+});
+
+// Conjunto REAL de grupos que a partida pode precisar agora.
+//
+// Derivar isto só do manifesto da fase atual era o defeito: um organismo
+// persistente (Pseudomonas, Trichoderma) continua no seletor por muitas fases
+// depois de estrear, e não volta a aparecer em nenhum cartão de apresentação —
+// então o áudio dele nunca era pré-carregado de novo, e o primeiro uso saía
+// mudo ou atrasado.
+//
+// A conta passa a ser a união de:
+//   1. todas as fases já ALCANÇADAS (o que estreou continua disponível);
+//   2. os desbloqueios permanentes;
+//   3. o que está de fato carregado no seletor de inóculo agora;
+//   4. os patógenos da fase (onde há patógeno, Trichoderma pode atacar).
+export function biologicalGroupsForProgress({
+  manifests = [],
+  phase = 0,
+  unlocks = {},
+  availableOrganisms = [],
+} = {}) {
+  const groups = new Set();
+
+  for (const manifest of manifests) {
+    if (!Number.isFinite(manifest?.phase) || manifest.phase > phase) continue;
+    for (const group of biologicalGroupsForPhaseManifest(manifest, unlocks)) groups.add(group);
+  }
+
+  for (const organism of availableOrganisms) {
+    const group = ORGANISM_GROUP[String(organism || '').toLowerCase()];
+    if (group) groups.add(group);
+  }
 
   return [...groups].filter(group => BIOLOGICAL_AUDIO_GROUPS[group]);
 }

@@ -28,8 +28,10 @@
 // e casar com o efeito de conclusão.
 
 import { W } from '../core/constants.js';
+import { fxLanded } from '../game-audio.js';
 import {
   AUDIO_TRACKS,
+  BIOLOGICAL_AUDIO_GROUPS,
   BIOLOGICAL_COOLDOWNS,
   BIOLOGICAL_FADES,
   BIOLOGICAL_LOOP_LIMIT,
@@ -42,11 +44,21 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 // Um loop que ninguém tocou por este tempo é considerado órfão e sai por fade.
 const STALE_SECONDS = 0.6;
+// Tolerancia depois de fechar um cartao de tutorial, para os sistemas voltarem
+// a sustentar as chaves antes de qualquer expiracao.
+const TUTORIAL_GRACE_SECONDS = 0.8;
 const MAXIMUM_EVENTS = 10;
+
+// Mesmos estados de `game-audio.js`. Repetidos aqui (e nao importados) porque a
+// fachada precisa responder identico mesmo quando nao existe controlador.
+const BIO_SUPPRESSED = Object.freeze({ accepted: false, state: 'suppressed' });
+const BIO_REJECTED = Object.freeze({ accepted: false, state: 'rejected' });
 
 export function createNoopBiologicalAudio() {
   return {
-    play() { return false; },
+    // Sem audio: o evento nao foi recusado, so nao ha som. Quem chama marca a
+    // transicao e segue — e por isso que os testes Node nao repetem eventos.
+    play() { return BIO_SUPPRESSED; },
     startLoop() { return false; },
     updateLoop() { return false; },
     pauseLoop() { return false; },
@@ -60,11 +72,19 @@ export function createNoopBiologicalAudio() {
     debugSnapshot() {
       return {
         available: false,
+        registeredLoopCount: 0,
         activeLoopCount: 0,
+        pausedLoopCount: 0,
+        releasedLoopCount: 0,
         pendingLoopCount: 0,
+        queuedFxCount: 0,
+        failedBufferCount: 0,
         maximumLoopCount: BIOLOGICAL_LOOP_LIMIT,
         loops: [],
+        preloadGroups: {},
         lastEffect: null,
+        lastRejectedEffect: null,
+        lastRejectionReason: null,
         events: [],
         blockedByCooldown: 0,
         rejectedByDistance: 0,
@@ -97,6 +117,9 @@ export function createBiologicalAudio({ gameAudio = null, getState = () => null 
   let blockedByCooldown = 0;
   let rejectedByDistance = 0;
   let lastEffect = null;
+  let lastRejection = null;
+  // Ate quando a expiracao por orfandade fica suspensa (ver `update`).
+  let tutorialGraceUntil = 0;
 
   function note(kind, key, detail = '') {
     events.push({ at: Math.round(clock * 100) / 100, kind, key, detail });
@@ -123,7 +146,9 @@ export function createBiologicalAudio({ gameAudio = null, getState = () => null 
       ? options.range
       : BIOLOGICAL_SPATIAL.defaultRange;
     const normalized = clamp(1 - distance / audibleRange, 0, 1);
-    const distanceGain = normalized * normalized;
+    // Expoente configuravel (1,4). Quadratico apagava os processos discretos bem
+    // antes da borda da tela — ver o comentario em BIOLOGICAL_SPATIAL.
+    const distanceGain = Math.pow(normalized, BIOLOGICAL_SPATIAL.attenuationExponent);
 
     const screenCenterX = (state.cameraX || 0) + W / 2;
     const pan = clamp(
@@ -167,36 +192,47 @@ export function createBiologicalAudio({ gameAudio = null, getState = () => null 
 
   function play(trackId, options = {}) {
     const track = AUDIO_TRACKS[trackId];
-    if (!track || track.kind === 'loop') return false;
+    if (!track || track.kind === 'loop') {
+      lastRejection = { trackId, reason: track ? 'faixa em loop nao e efeito pontual' : 'faixa inexistente' };
+      return BIO_REJECTED;
+    }
+    // Cooldown e distancia NAO sao recusa: o evento biologico aconteceu, so nao
+    // vira som. Quem chama deve marcar a transicao, senao tentaria de novo a
+    // cada quadro e o evento voltaria assim que o cooldown expirasse.
     if (cooldownBlocked(trackId, options.instanceId)) {
       blockedByCooldown++;
-      return false;
+      lastRejection = { trackId, reason: 'cooldown' };
+      return BIO_SUPPRESSED;
     }
 
     const space = spatialFor(options);
-    // Fora de alcance nem começa. Um som que ninguém vai ouvir só consome voz.
     if (space.spatial && space.distanceGain * track.defaultGain < BIOLOGICAL_SPATIAL.minimumAudibleGain) {
       rejectedByDistance++;
-      return false;
+      lastRejection = { trackId, reason: 'fora de alcance' };
+      return BIO_SUPPRESSED;
     }
 
     // Lazy-load defensivo: se o grupo não foi pré-carregado, `playFx` já aguarda
     // a promessa por uma janela curta e descarta o que chegar tarde.
     const gain = clamp((options.gain ?? 1) * space.distanceGain, 0, 2);
-    gameAudio.playFx(trackId, {
+    const resultado = gameAudio.playFx(trackId, {
       gain,
       rate: options.rate ?? 1,
       pan: space.spatial ? space.pan : 0,
       bus: 'biological',
+      // Deduplica a fila critica: o mesmo evento do mesmo objeto pedido em
+      // varios quadros gera UMA pendencia, nao uma por quadro.
+      instanceId: options.instanceId ?? null,
     });
+    if (!fxLanded(resultado)) {
+      lastRejection = { trackId, reason: resultado?.state || 'recusado' };
+      note('fx-recusado', trackId, lastRejection.reason);
+      return resultado;
+    }
     markCooldown(trackId, options.instanceId);
     lastEffect = trackId;
-    note('fx', trackId, space.spatial ? `pan ${space.pan.toFixed(2)}` : 'centrado');
-    // Devolve true mesmo quando `playFx` responde false: nesse caso o buffer
-    // ainda está a caminho e o pedido foi ACEITO (sai em até 80 ms ou é
-    // descartado por atraso). Para quem chamou, o evento aconteceu — e o
-    // cooldown precisa contar, senão o quadro seguinte tentaria de novo.
-    return true;
+    note('fx', trackId, `${resultado.state}${space.spatial ? ` pan ${space.pan.toFixed(2)}` : ' centrado'}`);
+    return resultado;
   }
 
   // ---- vozes de loop ------------------------------------------------------
@@ -214,6 +250,23 @@ export function createBiologicalAudio({ gameAudio = null, getState = () => null 
 
   function audible(voice) {
     return !voice.paused && voice.targetGain >= BIOLOGICAL_SPATIAL.minimumAudibleGain;
+  }
+
+  // O TETO conta apenas quem realmente ocupa uma voz: fonte tocando, ou prestes
+  // a receber uma. Loop pausado, fora de alcance, solto por distancia ou apenas
+  // preservado durante um tutorial NAO podem bloquear um processo audivel — era
+  // exatamente isso que fazia um processo novo, perto do jogador, nao soar
+  // porque oito processos silenciosos do outro lado da fase seguravam as vagas.
+  function occupiesVoice(voice) {
+    if (voice.cancelled) return false;
+    if (voice.paused) return false;
+    if (voice.released) return false;
+    if (voice.pending) return audible(voice);
+    return Boolean(voice.source) && audible(voice);
+  }
+
+  function activeVoices() {
+    return [...loops.values()].filter(occupiesVoice);
   }
 
   function applyGain(voice, value, seconds) {
@@ -308,7 +361,7 @@ export function createBiologicalAudio({ gameAudio = null, getState = () => null 
   function makeRoomFor(group, priority) {
     const groupLimit = BIOLOGICAL_LOOP_LIMITS[group];
     if (Number.isFinite(groupLimit)) {
-      const sameGroup = [...loops.values()].filter(voice => voice.group === group);
+      const sameGroup = activeVoices().filter(voice => voice.group === group);
       while (sameGroup.length >= groupLimit) {
         const victim = worstVoice(sameGroup);
         if (!victim || priorityOf(victim) > priority) return false;
@@ -317,7 +370,7 @@ export function createBiologicalAudio({ gameAudio = null, getState = () => null 
       }
     }
 
-    let live = [...loops.values()];
+    let live = activeVoices();
     while (live.length >= BIOLOGICAL_LOOP_LIMIT) {
       const victim = worstVoice(live);
       if (!victim || priorityOf(victim) > priority) return false;
@@ -488,6 +541,9 @@ export function createBiologicalAudio({ gameAudio = null, getState = () => null 
     if (clearPending) {
       instanceCooldowns.clear();
       globalCooldowns.clear();
+      // Efeitos criticos ainda esperando o proprio buffer nao podem tocar na
+      // fase seguinte.
+      bridge.clearQueuedFx?.();
     }
     return stopped;
   }
@@ -500,14 +556,31 @@ export function createBiologicalAudio({ gameAudio = null, getState = () => null 
   function update(dt) {
     const step = Number.isFinite(dt) ? clamp(dt, 0, 0.25) : 0;
     clock += step;
+
+    // TUTORIAL ABERTO: a simulação biológica para, mas este relógio não. Sem o
+    // tratamento abaixo, 0,6 s de cartão aberto bastavam para todo loop virar
+    // órfão e ser destruído — o jogador fechava o tutorial e o processo que
+    // estava vendo crescer tinha ficado mudo. Aqui os loops são PRESERVADOS:
+    // nada expira, nada é cancelado, e quem abaixa o volume é o barramento
+    // (BIOLOGICAL_TUTORIAL_DUCK, aplicado em game-audio).
+    const state = getState?.();
+    const tutorialAberto = state?.tutorialOpen === true;
+    if (tutorialAberto) {
+      tutorialGraceUntil = clock + TUTORIAL_GRACE_SECONDS;
+      return;
+    }
     if (!loops.size) return;
 
-    const playing = getState?.()?.gameState === 'play';
+    const playing = state?.gameState === 'play';
+    // Depois de fechar o cartão os sistemas precisam de alguns quadros para
+    // voltar a sustentar as chaves. Expirar nesse intervalo teria o mesmo
+    // efeito de expirar durante o tutorial.
+    const emTolerancia = clock < tutorialGraceUntil;
 
     for (const [key, voice] of [...loops.entries()]) {
       // Órfã: o sistema dono parou de sustentar. Sai por fade em vez de ficar
       // presa — é o que garante que morte e troca de fase não deixam som.
-      if (clock - voice.lastTouchedAt > STALE_SECONDS) {
+      if (!emTolerancia && clock - voice.lastTouchedAt > STALE_SECONDS) {
         stopLoop(key, { fade: BIOLOGICAL_FADES.stop });
         continue;
       }
@@ -552,17 +625,41 @@ export function createBiologicalAudio({ gameAudio = null, getState = () => null 
     blockedByCooldown = 0;
     rejectedByDistance = 0;
     lastEffect = null;
+    lastRejection = null;
+    tutorialGraceUntil = 0;
     clock = 0;
   }
 
+  // Estado de UMA voz, em uma palavra. Separar isto e o ponto do painel: "nao
+  // ouvi o biofilme" tem causas muito diferentes, e na tela todas sao iguais.
+  function voiceState(voice) {
+    if (voice.pending) return 'pendente';
+    if (voice.paused) return 'pausado';
+    if (voice.released) return 'fora de alcance';
+    if (!voice.source) return 'sem fonte';
+    return audible(voice) ? 'ativo' : 'inaudivel';
+  }
+
   function debugSnapshot() {
-    const stats = bridge.bufferStats?.() || { loaded: 0, pending: 0 };
+    const stats = bridge.bufferStats?.() || { loaded: 0, pending: 0, failed: 0, queuedFx: 0 };
+    const todas = [...loops.values()];
+    const grupos = {};
+    if (bridge.groupState) {
+      for (const grupo of Object.keys(BIOLOGICAL_AUDIO_GROUPS)) {
+        grupos[grupo] = bridge.groupState(grupo);
+      }
+    }
     return {
       available: true,
-      activeLoopCount: [...loops.values()].filter(voice => voice.source && !voice.paused).length,
-      pendingLoopCount: [...loops.values()].filter(voice => voice.pending).length,
+      registeredLoopCount: todas.length,
+      activeLoopCount: activeVoices().length,
+      pausedLoopCount: todas.filter(voice => voice.paused).length,
+      releasedLoopCount: todas.filter(voice => voice.released).length,
+      pendingLoopCount: todas.filter(voice => voice.pending).length,
+      queuedFxCount: stats.queuedFx || 0,
+      failedBufferCount: stats.failed || 0,
       maximumLoopCount: BIOLOGICAL_LOOP_LIMIT,
-      loops: [...loops.values()].map(voice => ({
+      loops: todas.map(voice => ({
         instanceKey: voice.instanceKey,
         trackId: voice.trackId,
         group: voice.group,
@@ -571,11 +668,15 @@ export function createBiologicalAudio({ gameAudio = null, getState = () => null 
         rate: Math.round(voice.targetRate * 100) / 100,
         priority: priorityOf(voice),
         distance: Math.round(voice.distance),
+        state: voiceState(voice),
         paused: voice.paused,
         pending: voice.pending,
         released: voice.released,
       })),
+      preloadGroups: grupos,
       lastEffect,
+      lastRejectedEffect: lastRejection?.trackId || null,
+      lastRejectionReason: lastRejection?.reason || null,
       events: [...events],
       blockedByCooldown,
       rejectedByDistance,

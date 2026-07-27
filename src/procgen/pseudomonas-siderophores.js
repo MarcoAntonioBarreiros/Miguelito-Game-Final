@@ -1,5 +1,6 @@
 import { W } from '../core/constants.js';
 import { createRandom } from './random.js';
+import { externalControlPressure } from './biological-audio-signals.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -372,22 +373,32 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     const audio = entities?.audio;
     if (!audio) return;
 
+    // O gatilho antigo era `limitedSet`, que só conta FUNGO OPORTUNISTA
+    // limitado. A mesma colônia suprime Rhizoctonia e Ralstonia, e nesses casos
+    // o loop nunca começava. Agora cada colônia é avaliada pelo seu próprio
+    // alvo real: o oportunista (via `activePressure`) ou o sinal publicado
+    // pelos outros sistemas de controle.
     let best = null;
-    if (limitedSet.size) {
-      const player = state.player;
-      const playerCenterX = player ? player.x + player.w / 2 : 0;
-      for (const entry of colonyStates.values()) {
-        const colony = entry.colony;
-        if (colony.dormant) continue;
-        if (entry.activePressure <= SUPPRESSION_MINIMUM_PRESSURE) continue;
-        if (entry.ironReserve <= SUPPRESSION_MINIMUM_RESERVE) continue;
-        const distance = Math.abs(colony.x - playerCenterX);
-        // Mais próxima vence; empate real resolve pela pressão maior.
-        if (!best
-          || distance < best.distance - 1
-          || (Math.abs(distance - best.distance) <= 1 && entry.activePressure > best.entry.activePressure)) {
-          best = { entry, colony, distance };
-        }
+    const player = state.player;
+    const playerCenterX = player ? player.x + player.w / 2 : 0;
+    for (const entry of colonyStates.values()) {
+      const colony = entry.colony;
+      if (colony.dormant) continue;
+      if (entry.ironReserve <= SUPPRESSION_MINIMUM_RESERVE) continue;
+
+      const pressaoExterna = externalControlPressure(state, 'pseudomonasSuppression', colony.id);
+      // `activePressure` só vale como alvo real quando há fungo limitado neste
+      // quadro; sozinha ela pode ser resíduo de um alvo que já saiu.
+      const pressaoOportunista = limitedSet.size ? entry.activePressure : 0;
+      const combinedPressure = Math.max(pressaoOportunista, pressaoExterna);
+      if (combinedPressure <= SUPPRESSION_MINIMUM_PRESSURE) continue;
+
+      const distance = Math.abs(colony.x - playerCenterX);
+      // Mais próxima vence; empate real resolve pela pressão maior.
+      if (!best
+        || distance < best.distance - 1
+        || (Math.abs(distance - best.distance) <= 1 && combinedPressure > best.pressure)) {
+        best = { entry, colony, distance, pressure: combinedPressure };
       }
     }
 
@@ -401,7 +412,7 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     audio.startLoop(`${SUPPRESSION_KEY_PREFIX}:${best.colony.id}`, 'pseudomonasSuppression', {
       x: best.colony.x,
       y: best.colony.y,
-      gain: clamp(best.entry.activePressure / SUPPRESSION_REFERENCE_PRESSURE, 0, 1),
+      gain: clamp(best.pressure / SUPPRESSION_REFERENCE_PRESSURE, 0, 1),
     });
   }
 

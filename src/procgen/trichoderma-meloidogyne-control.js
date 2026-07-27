@@ -1,3 +1,5 @@
+import { fxLanded } from '../game-audio.js';
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const TAU = Math.PI * 2;
 
@@ -239,8 +241,12 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
       attack.state = 'contact';
       attack.contact = .04;
       if (!attack.audioContacted) {
-        attack.audioContacted = true;
-        entities?.audio?.play('trichodermaTargetContact', targetPoint);
+        const entregue = entities?.audio
+          ? fxLanded(entities.audio.play('trichodermaTargetContact', {
+              ...targetPoint, instanceId: attack.id,
+            }))
+          : true;
+        if (entregue) attack.audioContacted = true;
       }
       entities.burst(targetPoint.x, targetPoint.y, '#baf66f', 14, 90);
     }

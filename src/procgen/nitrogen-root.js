@@ -1,4 +1,5 @@
 import { W } from '../core/constants.js';
+import { fxLanded } from '../game-audio.js';
 import { createRandom } from './random.js';
 import { drawWorldLabel } from './world-label.js';
 import { drawRootVisual } from './platform-visuals.js';
@@ -357,12 +358,16 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
     // Conclusão: transição developed false → true, uma vez, com marca própria —
     // não a do toast, que tem cooldown e poderia engolir o som.
     if (root.developed && !root.audioCompleted) {
-      root.audioCompleted = true;
       audio?.stopLoop(loopKey);
-      audio?.play('nitrogenRootComplete', {
+      // So marca depois de o pedido ser aceito. Se o arquivo ainda nao estava
+      // carregado e o pedido foi RECUSADO, a marca ficaria gravada e a conclusao
+      // desta raiz nunca mais teria som.
+      const entregue = audio ? fxLanded(audio.play('nitrogenRootComplete', {
         x: root.x + root.targetWidth / 2,
         y: root.y,
-      });
+        instanceId: root.id,
+      })) : true;
+      if (entregue) root.audioCompleted = true;
     }
     if (root.developed && !root.announced) {
       root.announced = true;

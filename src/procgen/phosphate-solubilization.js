@@ -1,6 +1,7 @@
 import { W } from '../core/constants.js';
 import { PHOSPHATE_SOLUBILIZATION_DEFAULTS } from './campaign-manifest.js';
 import { recordPhaseObjectiveAction } from './campaign-objective-progress.js';
+import { fxLanded } from '../game-audio.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -322,12 +323,15 @@ export function createPhosphateSolubilization({
       // Entrega completa: houve transporte de verdade, a poca acabou e a raiz
       // recebeu quantidade real. Uma vez por poca.
       if (pool.hadTransport && pool.amount <= .001 && !pool.audioDeliveryCompleted) {
-        pool.audioDeliveryCompleted = true;
         entities?.audio?.stopLoop(transportKey, { fade: .2 });
-        entities?.audio?.play('phosphateRootDeliveryComplete', {
-          x: root.x + root.w / 2,
-          y: root.y,
-        });
+        const entregue = entities?.audio
+          ? fxLanded(entities.audio.play('phosphateRootDeliveryComplete', {
+              x: root.x + root.w / 2,
+              y: root.y,
+              instanceId: pool.depositId,
+            }))
+          : true;
+        if (entregue) pool.audioDeliveryCompleted = true;
       }
       const particles = state.level.phosphateTransportParticles || (state.level.phosphateTransportParticles = []);
       if (particles.length < 14) {

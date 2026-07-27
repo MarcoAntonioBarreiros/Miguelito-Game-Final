@@ -1,4 +1,5 @@
 import { organismSprites } from '../render/organism-sprites.js';
+import { publishControlSignal } from './biological-audio-signals.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const TAU = Math.PI * 2;
@@ -101,6 +102,7 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
 
   function bacillusStrength(enemy, host) {
     let best = 0;
+    let melhorFilme = null;
     const spreadRadius = Math.max(34, host.w * (enemy.colonization || .1) * .48);
     for (const film of state.level.biofilms || []) {
       if (!film.functional || film.platform !== host) continue;
@@ -108,7 +110,20 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       const distance = Math.max(0, Math.abs((film.x || 0) - enemy.infectionX) - spreadRadius);
       if (distance >= radius * 1.35) continue;
       const maturity = clamp(film.protectionStrength || film.growth || .35, .2, 1);
-      best = Math.max(best, maturity * (1 - distance / (radius * 1.35)));
+      const strength = maturity * (1 - distance / (radius * 1.35));
+      if (strength > best) { best = strength; melhorFilme = film; }
+    }
+    // Publica a pressao JA CALCULADA para o audio poder representa-la. Nao
+    // altera nada: `best` e devolvido igual, com ou sem esta linha.
+    if (melhorFilme?.bacillusColonyId && best > 0) {
+      publishControlSignal(state, 'bacillusAntibiosis', {
+        colonyId: melhorFilme.bacillusColonyId,
+        targetId: enemy.trichodermaRhizoId || `rhizoctonia-${Math.round(enemy.infectionX)}`,
+        targetType: 'rhizoctonia',
+        pressure: clamp(best, 0, 1),
+        x: melhorFilme.x,
+        y: melhorFilme.y,
+      });
     }
     return clamp(best, 0, 1);
   }
@@ -129,6 +144,14 @@ export function createRhizoctoniaControl({ state, entities, pseudomonas }) {
       if (pressure <= .02) continue;
       best = Math.max(best, pressure);
       entry.activePressure = Math.max(entry.activePressure || 0, pressure * .8);
+      publishControlSignal(state, 'pseudomonasSuppression', {
+        colonyId: colony.id,
+        targetId: enemy.trichodermaRhizoId || `rhizoctonia-${Math.round(enemy.infectionX)}`,
+        targetType: 'rhizoctonia',
+        pressure,
+        x: colony.x,
+        y: colony.y,
+      });
       entry.ironReserve = Math.max(0, entry.ironReserve - dt * .0035 * pressure);
     }
     return clamp(best, 0, 1);
