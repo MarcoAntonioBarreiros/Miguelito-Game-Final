@@ -508,7 +508,7 @@ export const BIOLOGICAL_AUDIO_GROUPS = Object.freeze(
 
 // Barramento próprio, escalado pelo volume de efeitos. Não é um slider novo: os
 // processos são efeitos, e o jogador que abaixar FX abaixa a rizosfera junto.
-export const BIOLOGICAL_BUS_SCALE = 0.9;
+export const BIOLOGICAL_BUS_SCALE = 1.25;
 // Cartão de tutorial aberto: os processos recuam, mas não somem (§16 — não
 // destruir loops, só abaixar).
 export const BIOLOGICAL_TUTORIAL_DUCK = 0.30;

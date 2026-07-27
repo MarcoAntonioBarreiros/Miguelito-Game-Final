@@ -475,6 +475,42 @@
     record('responsive mobile viewport fills the full width');
     mobile.iframe.remove();
 
+    // Verify tutorial card PNG visual computed styles
+    const pngGame = await loadGame('/dist/index.html', 'test=1');
+    const pngWin = pngGame.win;
+    const pngDoc = pngWin.document;
+
+    const guiBtn = pngDoc.getElementById('tutorial-library-button');
+    if (guiBtn) guiBtn.click();
+    await wait(100);
+    const libCard = pngDoc.querySelector('.tutorial-library-card');
+    if (libCard) libCard.click();
+    await wait(100);
+
+    const panel = pngDoc.querySelector('.tutorial-panel');
+    const cardView = pngDoc.querySelector('.tutorial-card-view');
+    const cardArt = pngDoc.querySelector('.tutorial-card-art');
+    const paperContent = pngDoc.querySelector('.tutorial-paper-content');
+    const title = pngDoc.querySelector('#tutorial-title');
+    const bodyText = pngDoc.querySelector('.tutorial-page-body');
+    const nextBtn = pngDoc.querySelector('.tutorial-next');
+    const nextImg = pngDoc.querySelector('.tutorial-next img');
+
+    assert(panel && panel.classList.contains('tutorial-panel--card'), 'panel must have tutorial-panel--card class');
+    assert(cardView && cardView.getBoundingClientRect().width > 500, 'cardView width > 500px');
+    assert(cardView && cardView.getBoundingClientRect().height > 350, 'cardView height > 350px');
+    assert(cardArt && pngWin.getComputedStyle(cardArt).display !== 'none', 'cardArt visible');
+    assert(cardArt && cardArt.getBoundingClientRect().width > 500, 'cardArt width > 500px');
+    assert(paperContent && paperContent.getBoundingClientRect().width > 250, 'paper width > 250px');
+    assert(paperContent && paperContent.getBoundingClientRect().height > 200, 'paper height > 200px');
+    assert(title && title.textContent.trim().length > 0, 'title text not empty');
+    assert(bodyText && bodyText.textContent.trim().length > 0, 'body text not empty');
+    assert(nextBtn && nextBtn.getBoundingClientRect().width < 160, 'nextBtn width < 160px');
+    assert(nextImg && nextImg.getBoundingClientRect().width < 160, 'nextImg width < 160px');
+
+    record('tutorial card PNG visual styles verified');
+    pngGame.iframe.remove();
+
     document.body.dataset.status = 'pass';
     result.textContent = JSON.stringify({ status: 'pass', checks }, null, 2);
   } catch (err) {

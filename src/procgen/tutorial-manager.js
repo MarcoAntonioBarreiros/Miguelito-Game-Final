@@ -99,47 +99,43 @@ export function createTutorialManager({ state }) {
       <div class="tutorial-backdrop"></div>
       <section class="tutorial-panel" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
         <div class="tutorial-scanlines" aria-hidden="true"></div>
-        <button class="tutorial-close" type="button" aria-label="Fechar cartão">×</button>
+        <button class="tutorial-close" type="button" aria-label="Fechar cartão">
+          <img src="./assets/ui/tutorial/tutorial-close.png" alt="" draggable="false">
+        </button>
 
         <div class="tutorial-card-view">
-          <header class="tutorial-header">
-            <div class="tutorial-heading-meta">
-              <span class="tutorial-category"></span>
-              <span class="tutorial-new-badge">NOVA DESCOBERTA</span>
-            </div>
-            <h1 id="tutorial-title" class="tutorial-title"></h1>
-            <p class="tutorial-subtitle"></p>
-          </header>
+          <img class="tutorial-card-art" src="./assets/ui/tutorial/tutorial-card.png" alt="" draggable="false">
 
-          <div class="tutorial-content">
-            <aside class="tutorial-visual" aria-hidden="true">
-              <div class="tutorial-symbol">
-                <div class="tutorial-hologram-ring ring-one"></div>
-                <div class="tutorial-hologram-ring ring-two"></div>
-                <div class="tutorial-glyph"></div>
-              </div>
-            </aside>
+          <div class="tutorial-paper-content">
+            <div class="tutorial-page-counter"></div>
+
+            <header class="tutorial-header">
+              <h1 id="tutorial-title" class="tutorial-title"></h1>
+              <p class="tutorial-subtitle"></p>
+            </header>
 
             <main class="tutorial-page" tabindex="0">
-              <div class="tutorial-page-counter"></div>
               <h2 class="tutorial-page-title"></h2>
-              <p class="tutorial-page-body"></p>
-              <ul class="tutorial-page-points"></ul>
+              <div class="tutorial-page-scroll">
+                <p class="tutorial-page-body"></p>
+                <ul class="tutorial-page-points"></ul>
+              </div>
             </main>
-          </div>
 
-          <!-- A sequencia saiu de dentro da coluna do simbolo e virou uma faixa
-               propria: ela e dado sequencial e quer largura, nao altura. Numa
-               coluna de 250px cada etapa quebrava em duas linhas. -->
-          <div class="tutorial-cycle-block">
-            <span class="tutorial-cycle-label"></span>
-            <div class="tutorial-cycle"></div>
+            <div class="tutorial-cycle-block">
+              <span class="tutorial-cycle-label"></span>
+              <div class="tutorial-cycle"></div>
+            </div>
           </div>
 
           <footer class="tutorial-footer">
-            <button class="tutorial-button tutorial-prev" type="button">← Voltar</button>
-            <div class="tutorial-page-dots" aria-label="Páginas do cartão"></div>
-            <button class="tutorial-button tutorial-next" type="button">Próximo →</button>
+            <button class="tutorial-nav-image tutorial-prev" type="button" aria-label="Página anterior">
+              <img src="./assets/ui/tutorial/tutorial-arrow.png" alt="" draggable="false">
+            </button>
+            <div class="tutorial-page-dots" aria-label="Páginas do cartão" hidden style="display:none"></div>
+            <button class="tutorial-nav-image tutorial-next" type="button" aria-label="Próxima página">
+              <img src="./assets/ui/tutorial/tutorial-arrow.png" alt="" draggable="false">
+            </button>
           </footer>
         </div>
 
@@ -176,6 +172,7 @@ export function createTutorialManager({ state }) {
   const glyph = mount.querySelector('.tutorial-glyph');
   const cycleLabel = mount.querySelector('.tutorial-cycle-label');
   const cycle = mount.querySelector('.tutorial-cycle');
+  const cycleBlock = mount.querySelector('.tutorial-cycle-block');
   const pageCounter = mount.querySelector('.tutorial-page-counter');
   const pageTitle = mount.querySelector('.tutorial-page-title');
   const pageBody = mount.querySelector('.tutorial-page-body');
@@ -258,6 +255,7 @@ export function createTutorialManager({ state }) {
     overlay.hidden = true;
     overlay.setAttribute('aria-hidden', 'true');
     document.documentElement.classList.remove('tutorial-open');
+    panel.classList.remove('tutorial-panel--card', 'tutorial-panel--library');
     state.gameState = previousGameState === 'tutorial' ? 'play' : previousGameState;
     mode = 'closed';
     activeId = null;
@@ -273,18 +271,39 @@ export function createTutorialManager({ state }) {
   }
 
   function renderCycle(card) {
+    const steps = card.cycle || [];
+    if (cycleBlock) {
+      cycleBlock.hidden = steps.length === 0;
+      cycleBlock.classList.remove('tutorial-cycle-enter');
+      void cycleBlock.offsetWidth;
+      if (steps.length > 0) cycleBlock.classList.add('tutorial-cycle-enter');
+    }
     cycle.replaceChildren();
+    if (steps.length === 0) return;
     setText(cycleLabel, card.cycleLabel || 'Ciclo ou etapas');
-    for (const [index, step] of (card.cycle || []).entries()) {
-      const chip = document.createElement('span');
-      chip.className = 'tutorial-cycle-step';
-      chip.textContent = step;
-      cycle.appendChild(chip);
-      if (index < card.cycle.length - 1) {
+    cycle.classList.toggle('tutorial-cycle--long', steps.length > 5);
+
+    for (const [index, step] of steps.entries()) {
+      if (index === 0) {
+        const firstChip = document.createElement('span');
+        firstChip.className = 'tutorial-cycle-step';
+        firstChip.textContent = step;
+        cycle.appendChild(firstChip);
+      } else {
+        const link = document.createElement('span');
+        link.className = 'tutorial-cycle-link';
+
         const arrow = document.createElement('span');
         arrow.className = 'tutorial-cycle-arrow';
-        arrow.textContent = '›';
-        cycle.appendChild(arrow);
+        arrow.textContent = '→';
+
+        const chip = document.createElement('span');
+        chip.className = 'tutorial-cycle-step';
+        chip.textContent = step;
+
+        link.appendChild(arrow);
+        link.appendChild(chip);
+        cycle.appendChild(link);
       }
     }
   }
@@ -321,7 +340,7 @@ export function createTutorialManager({ state }) {
     setText(pageCounter, `${pagePosition + 1} / ${availablePages.length}`);
     setText(pageTitle, currentPage.title);
     setText(pageBody, currentPage.body);
-    newBadge.hidden = !activeFirstSeen;
+    if (newBadge) newBadge.hidden = !activeFirstSeen;
 
     pagePoints.replaceChildren();
     for (const point of currentPage.points || []) {
@@ -333,10 +352,19 @@ export function createTutorialManager({ state }) {
 
     renderCycle(card);
     renderDots(card);
+
+    const finalPage = pagePosition >= availablePages.length - 1;
+    const nextActionLabel = finalPage
+      ? (returnToLibrary ? 'Voltar à biblioteca' : 'Continuar')
+      : 'Próxima página';
+
+    nextButton.setAttribute('aria-label', nextActionLabel);
+    nextButton.title = nextActionLabel;
+    nextButton.dataset.action = finalPage ? 'finish' : 'next';
+
     previousButton.disabled = pagePosition === 0;
-    nextButton.textContent = pagePosition >= availablePages.length - 1
-      ? returnToLibrary ? 'Voltar à biblioteca' : 'Continuar'
-      : 'Próximo →';
+    previousButton.setAttribute('aria-label', 'Página anterior');
+    previousButton.title = 'Página anterior';
   }
 
   function openCard(id, {
@@ -355,6 +383,8 @@ export function createTutorialManager({ state }) {
     activeAutomaticEntry = automaticEntry;
     pausedSupport = support;
     pauseGame();
+    panel.classList.add('tutorial-panel--card');
+    panel.classList.remove('tutorial-panel--library');
     mode = 'card';
     activeId = id;
     pageIndex = availablePages[0];
@@ -439,6 +469,8 @@ export function createTutorialManager({ state }) {
 
   function openLibrary() {
     pauseGame();
+    panel.classList.remove('tutorial-panel--card');
+    panel.classList.add('tutorial-panel--library');
     mode = 'library';
     activeId = null;
     returnToLibrary = false;

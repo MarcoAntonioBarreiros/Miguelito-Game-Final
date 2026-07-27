@@ -604,3 +604,489 @@ html.tutorial-open .phase-lab {
   .tutorial-button { min-height: 36px; padding: 0 13px; font-size: 12px; }
   .tutorial-close { width: 34px; height: 34px; top: 8px; right: 8px; font-size: 19px; }
 }
+
+/* ==================================================
+   GLOBAL PROTECTION FOR NAV IMAGES
+   ================================================== */
+.tutorial-nav-image {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0 !important;
+  outline: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+.tutorial-nav-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* ==================================================
+   NEW PNG TUTORIAL CARD STYLING (.tutorial-panel--card)
+   ================================================== */
+
+.tutorial-overlay:has(.tutorial-panel--card) .tutorial-backdrop {
+  background: rgba(12, 8, 4, 0.66) !important;
+  backdrop-filter: blur(2px) !important;
+}
+
+.tutorial-panel--card {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  overflow: visible !important;
+  width: auto !important;
+  max-height: none !important;
+  animation: tutorial-card-appear 210ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+  isolation: auto !important;
+}
+
+@keyframes tutorial-card-appear {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.tutorial-panel--card::before,
+.tutorial-panel--card::after,
+.tutorial-panel--card .tutorial-scanlines,
+.tutorial-panel--card .tutorial-visual,
+.tutorial-panel--card .tutorial-symbol,
+.tutorial-panel--card .tutorial-hologram-ring,
+.tutorial-panel--card .tutorial-glyph,
+.tutorial-panel--card .tutorial-heading-meta,
+.tutorial-panel--card .tutorial-new-badge,
+.tutorial-panel--card .tutorial-page-dots {
+  display: none !important;
+}
+
+.tutorial-panel--card .tutorial-card-view {
+  --paper-left: 21%;
+  --paper-top: 24.5%;
+  --paper-width: 58%;
+  --paper-height: 51.5%;
+
+  --nav-width: 15%;
+  --nav-bottom: 6%;
+  --prev-left: 33%;
+  --next-right: 33%;
+
+  --tutorial-card-ratio: calc(2660 / 1984);
+
+  position: relative !important;
+  width: min(96vw, calc(94dvh * var(--tutorial-card-ratio)), 1120px) !important;
+  aspect-ratio: 2660 / 1984 !important;
+  overflow: visible !important;
+  container-type: inline-size;
+  padding: 0 !important;
+  margin: 0 auto !important;
+  max-height: none !important;
+  display: block !important;
+}
+
+.tutorial-panel--card .tutorial-card-art {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  z-index: 1 !important;
+}
+
+.tutorial-panel--card .tutorial-paper-content {
+  position: absolute !important;
+  left: var(--paper-left) !important;
+  top: var(--paper-top) !important;
+  width: var(--paper-width) !important;
+  height: var(--paper-height) !important;
+
+  display: grid !important;
+  grid-template-rows:
+    auto
+    minmax(0, 1fr)
+    auto !important;
+
+  min-width: 0 !important;
+  min-height: 0 !important;
+  z-index: 2 !important;
+}
+
+.tutorial-panel--card .tutorial-close {
+  position: absolute !important;
+  top: 3.2% !important;
+  right: 3.4% !important;
+  left: auto !important;
+  width: 6.2% !important;
+  min-width: 44px !important;
+  max-width: 76px !important;
+  aspect-ratio: 267 / 225 !important;
+  height: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  z-index: 6 !important;
+  cursor: pointer !important;
+  border-radius: 0 !important;
+  transition: transform .15s ease !important;
+}
+
+@media (max-height: 480px) and (orientation: landscape) {
+  .tutorial-panel--card .tutorial-close {
+    width: 5.8% !important;
+    min-width: 38px !important;
+    max-width: 58px !important;
+  }
+}
+
+.tutorial-panel--card .tutorial-close img {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  border: 0 !important;
+  background: transparent !important;
+  object-fit: contain !important;
+  pointer-events: none !important;
+}
+
+.tutorial-panel--card .tutorial-close:hover {
+  transform: scale(1.06) !important;
+  background: transparent !important;
+  outline: none !important;
+}
+
+.tutorial-panel--card .tutorial-close:active {
+  transform: scale(.93) !important;
+}
+
+.tutorial-panel--card .tutorial-close:focus-visible {
+  outline: 4px solid #f5d98c !important;
+  outline-offset: 3px !important;
+}
+
+.tutorial-panel--card .tutorial-header {
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 5% !important;
+  text-align: center !important;
+  flex: none !important;
+}
+
+.tutorial-panel--card .tutorial-title {
+  width: 100% !important;
+  margin: 0 !important;
+  color: #5f8739 !important;
+  font-family: "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif !important;
+  font-size: clamp(26px, 4.2cqw, 50px) !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  text-align: center !important;
+  letter-spacing: -0.02em !important;
+  text-shadow:
+    0 2px 0 rgba(255,255,255,.55),
+    0 3px 3px rgba(76,53,27,.14) !important;
+}
+
+.tutorial-panel--card .tutorial-subtitle {
+  width: 86% !important;
+  max-width: none !important;
+  margin: .38em auto 0 !important;
+  color: #6a4934 !important;
+  font-size: clamp(13px, 1.8cqw, 21px) !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  text-align: center !important;
+  text-wrap: balance !important;
+}
+
+.tutorial-panel--card .tutorial-page-counter {
+  position: absolute !important;
+  top: 1% !important;
+  right: 1% !important;
+  color: rgba(76,48,30,.55) !important;
+  font-size: clamp(9px, 1.1cqw, 14px) !important;
+  font-weight: 800 !important;
+  font-family: inherit !important;
+  letter-spacing: 0 !important;
+}
+
+.tutorial-panel--card .tutorial-page {
+  width: 84% !important;
+  margin: 1.25em auto 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  outline: none !important;
+  user-select: text;
+}
+
+.tutorial-panel--card .tutorial-page-title {
+  width: 100% !important;
+  margin: 0 0 .48em !important;
+  padding: 0 !important;
+
+  color: #5f8739 !important;
+  font-size: clamp(17px, 2.3cqw, 28px) !important;
+  font-weight: 900 !important;
+  line-height: 1.12 !important;
+  text-align: left !important;
+}
+
+.tutorial-panel--card .tutorial-page-scroll {
+  width: 100% !important;
+  min-height: 0 !important;
+  flex: 1;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  padding-right: 6px !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(107,73,50,.35) transparent;
+}
+
+.tutorial-panel--card .tutorial-page-body {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+
+  color: #4b3020 !important;
+  font-size: clamp(14px, 1.72cqw, 21px) !important;
+  font-weight: 600 !important;
+  line-height: 1.43 !important;
+  text-align: left !important;
+  text-wrap: pretty !important;
+}
+
+.tutorial-panel--card .tutorial-page-points {
+  width: 100% !important;
+  margin: .62em 0 0 !important;
+  padding-left: 1.3em !important;
+
+  color: #4b3020 !important;
+  font-size: clamp(12px, 1.5cqw, 18px) !important;
+  font-weight: 600 !important;
+  line-height: 1.36 !important;
+  text-align: left !important;
+  list-style-type: disc !important;
+  display: grid !important;
+  gap: 6px !important;
+}
+
+.tutorial-panel--card .tutorial-page-points li {
+  padding-left: 0 !important;
+  color: #4b3020 !important;
+  font-size: clamp(12px, 1.5cqw, 18px) !important;
+  line-height: 1.36 !important;
+}
+
+.tutorial-panel--card .tutorial-page-points li::before {
+  content: none !important;
+}
+
+.tutorial-panel--card .tutorial-cycle-block {
+  width: 92% !important;
+  margin: .7em auto 0 !important;
+  padding-top: .62em !important;
+  border-top: 1px solid rgba(100,70,40,.22) !important;
+  min-width: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  flex: none !important;
+}
+
+.tutorial-panel--card .tutorial-cycle-label {
+  display: block !important;
+  margin-bottom: .45em !important;
+  color: #5f8739 !important;
+  font-size: clamp(10px, 1.3cqw, 15px) !important;
+  font-weight: 900 !important;
+  text-align: left !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.tutorial-panel--card .tutorial-cycle {
+  width: 100% !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: .36em .42em !important;
+}
+
+.tutorial-panel--card .tutorial-cycle-link {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: .38em !important;
+  break-inside: avoid !important;
+  white-space: nowrap !important;
+}
+
+.tutorial-panel--card .tutorial-cycle-step {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 2em !important;
+  padding: .35em .75em !important;
+  border: 1px solid rgba(103,126,58,.45) !important;
+  border-radius: 999px !important;
+  background: linear-gradient(180deg, rgba(246,238,185,.92), rgba(218,201,135,.92)) !important;
+  color: #5a3b27 !important;
+  font-size: clamp(9px, 1.15cqw, 14px) !important;
+  font-weight: 800 !important;
+  line-height: 1.1 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55), 0 2px 3px rgba(74,48,29,.14) !important;
+  white-space: nowrap !important;
+}
+
+.tutorial-panel--card .tutorial-cycle--long .tutorial-cycle-step {
+  padding: .30em .62em !important;
+  font-size: clamp(8px, 1.03cqw, 13px) !important;
+}
+
+.tutorial-panel--card .tutorial-cycle-arrow {
+  color: #6c873f !important;
+  font-size: clamp(12px, 1.45cqw, 18px) !important;
+  font-weight: 900 !important;
+  opacity: 1 !important;
+}
+
+.tutorial-panel--card .tutorial-cycle-enter .tutorial-cycle-step,
+.tutorial-panel--card .tutorial-cycle-enter .tutorial-cycle-link {
+  animation: tutorial-cycle-step-in .28s ease both !important;
+}
+
+.tutorial-panel--card .tutorial-cycle-enter > *:nth-child(1) { animation-delay: 0ms !important; }
+.tutorial-panel--card .tutorial-cycle-enter > *:nth-child(2) { animation-delay: 45ms !important; }
+.tutorial-panel--card .tutorial-cycle-enter > *:nth-child(3) { animation-delay: 90ms !important; }
+.tutorial-panel--card .tutorial-cycle-enter > *:nth-child(4) { animation-delay: 135ms !important; }
+.tutorial-panel--card .tutorial-cycle-enter > *:nth-child(5) { animation-delay: 180ms !important; }
+.tutorial-panel--card .tutorial-cycle-enter > *:nth-child(6) { animation-delay: 225ms !important; }
+
+@keyframes tutorial-cycle-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-panel--card .tutorial-cycle-step,
+  .tutorial-panel--card .tutorial-cycle-link {
+    animation: none !important;
+  }
+}
+
+.tutorial-panel--card .tutorial-footer {
+  margin-top: 0 !important;
+  display: block !important;
+  grid-template-columns: none !important;
+}
+
+.tutorial-panel--card .tutorial-nav-image {
+  position: absolute !important;
+  bottom: var(--nav-bottom) !important;
+  width: var(--nav-width) !important;
+  min-width: 76px !important;
+  max-width: 150px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  z-index: 5 !important;
+  transition: transform .15s ease, opacity .15s ease, filter .15s ease !important;
+  min-height: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+@media (max-height: 480px) and (orientation: landscape) {
+  .tutorial-panel--card .tutorial-nav-image {
+    min-width: 62px !important;
+    max-width: 110px !important;
+  }
+}
+
+.tutorial-panel--card .tutorial-prev {
+  left: var(--prev-left) !important;
+}
+
+.tutorial-panel--card .tutorial-next {
+  right: var(--next-right) !important;
+}
+
+.tutorial-panel--card .tutorial-nav-image img {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  pointer-events: none !important;
+}
+
+.tutorial-panel--card .tutorial-prev img {
+  transform: scaleX(-1) !important;
+}
+
+.tutorial-panel--card .tutorial-next img {
+  transform: none !important;
+}
+
+.tutorial-panel--card .tutorial-nav-image:hover:not(:disabled) {
+  transform: scale(1.07) !important;
+  background: transparent !important;
+  outline: none !important;
+}
+
+.tutorial-panel--card .tutorial-nav-image:active:not(:disabled) {
+  transform: scale(.92) !important;
+}
+
+.tutorial-panel--card .tutorial-nav-image:disabled {
+  opacity: .22 !important;
+  filter: grayscale(.35) !important;
+  cursor: default !important;
+}
+
+.tutorial-panel--card .tutorial-nav-image:focus-visible img {
+  filter:
+    drop-shadow(0 0 3px #fff1a8)
+    drop-shadow(0 0 6px rgba(245,217,140,.8)) !important;
+}
+
+@media (max-height: 480px) and (orientation: landscape) {
+  .tutorial-panel--card .tutorial-cycle {
+    justify-content: flex-start !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+  }
+}
+
+
+

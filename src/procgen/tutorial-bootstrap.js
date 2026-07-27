@@ -2,7 +2,7 @@ export function ensureTutorialInterface() {
   if (!document.querySelector('[data-tutorial-styles]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = './src/procgen/tutorial-overlay.css';
+    link.href = './src/procgen/tutorial-overlay.css?v=20260727-organic-card-2';
     link.dataset.tutorialStyles = 'true';
     document.head.appendChild(link);
   }

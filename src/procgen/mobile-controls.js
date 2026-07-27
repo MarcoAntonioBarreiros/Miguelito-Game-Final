@@ -1,9 +1,9 @@
-import { ensureTutorialInterface } from './tutorial-bootstrap.js?v=20260723-1';
-import { createTutorialManager } from './tutorial-manager.js?v=20260723-1';
+import { ensureTutorialInterface } from './tutorial-bootstrap.js?v=20260727-organic-card-2';
+import { createTutorialManager } from './tutorial-manager.js?v=20260727-organic-card-2';
 import {
   createTutorialTriggers,
   TUTORIAL_RUNTIME_VERSION,
-} from './tutorial-triggers.js?v=20260723-1';
+} from './tutorial-triggers.js?v=20260727-organic-card-2';
 
 ensureTutorialInterface();
 

@@ -612,3 +612,42 @@ test('entradas anteriores e teclas mantidas exigem liberação', () => {
   assert.equal(gate.acceptsKeyDown('Space'), true);
   assert.equal(gate.acceptsKeyDown('ShiftLeft'), false);
 });
+
+import fs from 'node:fs';
+import path from 'node:path';
+
+test('os 3 PNGs do cartão didático existem nos caminhos de assets e dist e a pasta está limpa', () => {
+  const files = ['tutorial-card.png', 'tutorial-close.png', 'tutorial-arrow.png'];
+  for (const f of files) {
+    assert.ok(fs.existsSync(path.join('assets/ui/tutorial', f)), `Falta asset: assets/ui/tutorial/${f}`);
+    assert.ok(fs.existsSync(path.join('dist/assets/ui/tutorial', f)), `Falta em dist: dist/assets/ui/tutorial/${f}`);
+  }
+  const unwanted = ['tutorial-arrow-next.png', 'tutorial-arrow-prev.png', 'assetsuitutorialtutorial-arrow-next-prev.png'];
+  for (const f of unwanted) {
+    assert.ok(!fs.existsSync(path.join('assets/ui/tutorial', f)), `Arquivo duplicado/antigo não deve existir: ${f}`);
+  }
+});
+
+test('validação das imagens e aria-labels na estrutura do cartão didático em tutorial-manager.js', () => {
+  const managerCode = fs.readFileSync('src/procgen/tutorial-manager.js', 'utf8');
+
+  assert.ok(managerCode.includes('./assets/ui/tutorial/tutorial-card.png'), 'Arte do cartão deve referenciar tutorial-card.png');
+  assert.ok(managerCode.includes('./assets/ui/tutorial/tutorial-close.png'), 'Botão fechar deve conter tutorial-close.png');
+  assert.ok(managerCode.includes('./assets/ui/tutorial/tutorial-arrow.png'), 'Ambas as setas devem usar tutorial-arrow.png');
+  assert.ok(!managerCode.includes('tutorial-arrow-next.png'), 'Não deve referenciar tutorial-arrow-next.png');
+  assert.ok(!managerCode.includes('tutorial-arrow-prev.png'), 'Não deve referenciar tutorial-arrow-prev.png');
+  assert.ok(managerCode.includes("panel.classList.add('tutorial-panel--card')"), 'Modo cartão adiciona classe tutorial-panel--card');
+  assert.ok(managerCode.includes("panel.classList.add('tutorial-panel--library')"), 'Modo biblioteca adiciona classe tutorial-panel--library');
+  assert.ok(!managerCode.includes('nextButton.textContent ='), 'Não deve sobrescrever nextButton.textContent para preservar a imagem');
+});
+
+import { execSync } from 'node:child_process';
+
+test('validação estrita de transparência real da imagem da seta tutorial-arrow.png', () => {
+  const pyCode = "from PIL import Image; import sys; img = Image.open('assets/ui/tutorial/tutorial-arrow.png'); sys.exit('Modo nao e RGBA') if img.mode != 'RGBA' else None; w, h = img.size; corners = [img.getpixel((0,0))[3], img.getpixel((w-1,0))[3], img.getpixel((0,h-1))[3], img.getpixel((w-1,h-1))[3]]; sys.exit(f'Cantos opacos: {corners}') if any(c > 5 for c in corners) else None; alpha = img.getchannel('A'); bbox = alpha.getbbox(); sys.exit('Alfa vazio') if bbox is None else None; opaque_count = sum(1 for p in alpha.getdata() if p > 10); ratio = opaque_count / (w * h); sys.exit(f'Mais de 95% opaco: {ratio}') if ratio > 0.95 else None; print('OK')";
+  const result = execSync(`python -c "${pyCode}"`, { encoding: 'utf8' }).trim();
+  assert.equal(result, 'OK');
+});
+
+
+
