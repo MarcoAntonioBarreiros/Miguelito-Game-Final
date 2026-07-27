@@ -87,6 +87,7 @@ function avoidHazards(state, tip) {
 export function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
   const networks = [];
   let active = false;
+  let networkId = 0;
   let activeInoculants = inoculants;
 
   // A micorriza inoculada tem a mesma morfologia da que estreia no cenario:
@@ -98,11 +99,15 @@ export function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
       if (colony.growth < .68 || colony.vigor <= .05) continue;
       if (networks.some(network => network.colony === colony)) continue;
       networks.push({
+        // Identidade estável da rede: sem ela, duas redes crescendo ao mesmo
+        // tempo dividiriam a mesma voz de loop e o mesmo cooldown de contato.
+        id: `myco-network-${++networkId}`,
         ally: null,
         colony,
         x: colony.x,
         y: colony.y,
         germination: 0,
+        audioGerminated: false,
         pulse: Math.random() * TAU,
         hypha: null,
         arbuscules: [],
@@ -121,6 +126,7 @@ export function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
   }
 
   function clear() {
+    entities?.audio?.stopGroup('mycorrhiza-hypha');
     networks.length = 0;
     active = false;
     state.level.mycorrhizaArbuscules = [];
@@ -131,10 +137,12 @@ export function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
     const allies = state.level.allies.filter(ally => ally.id === 'myco' && !ally.presentationOnly);
     for (const ally of allies) {
       networks.push({
+        id: `myco-network-${++networkId}`,
         ally,
         x: ally.x,
         y: ally.y,
         germination: 0,
+        audioGerminated: false,
         pulse: Math.random() * TAU,
         hypha: null,
         arbuscules: [],
@@ -169,6 +177,7 @@ export function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
       seed,
       life: 1,
       maturity: 0,
+      audioCompleted: false,
       targetId: target.id,
       platform: target.platform || null,
       platformIndex: target.platformIndex ?? null,
@@ -198,9 +207,40 @@ export function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
       const awakened = established || playerDistance < 900;
       if (!awakened) continue;
 
+      // Germinação: a transição é 0 → valor positivo, e acontece uma vez por
+      // rede. Uma rede já estabelecida ao carregar a fase não passa por aqui com
+      // germination em zero, então não toca.
+      const hadGerminated = network.germination > 0;
       network.germination = clamp(network.germination + dt * (established ? .72 : .34), 0, 1);
+      if (!hadGerminated && network.germination > 0 && !network.audioGerminated) {
+        network.audioGerminated = true;
+        entities?.audio?.play('mycorrhizaGermination', { x: network.x, y: network.y });
+      }
       if (network.germination > .16) ensureHypha(network);
       if (!network.hypha) continue;
+
+      // Loop da rede hifal: uma voz por rede, ancorada entre a origem da colônia
+      // e a ponta ativa mais próxima da câmera. Ganho pelas pontas ativas e pela
+      // germinação — uma rede exausta não pode continuar soando como uma viva.
+      const hyphaKey = `mycorrhiza-hypha:${network.id}`;
+      const activeTips = (network.hypha.tips || []).filter(tip => tip.active);
+      if (activeTips.length) {
+        const cameraCenterX = (state.cameraX || 0) + W / 2;
+        const nearestTip = activeTips.reduce(
+          (best, tip) => (Math.abs(tip.x - cameraCenterX) < Math.abs(best.x - cameraCenterX) ? tip : best),
+          activeTips[0],
+        );
+        const intensity = clamp(activeTips.length / 6, .25, 1) * clamp(network.germination, .2, 1);
+        entities?.audio?.startLoop(hyphaKey, 'mycorrhizaHyphaGrowth', {
+          x: (network.x + nearestTip.x) / 2,
+          y: (network.y + nearestTip.y) / 2,
+          gain: .5 + intensity * .5,
+          rate: .94 + intensity * .10,
+        });
+      } else {
+        // Sem ponta ativa a rede parou de crescer: o loop sai por fade.
+        entities?.audio?.stopLoop(hyphaKey);
+      }
 
       updateHyphalNetwork(network.hypha, dt, {
         time: state.time,
@@ -209,9 +249,17 @@ export function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
         branchScale: established ? 1.15 : .82,
         targetProvider: tip => nearestRootTarget(state, tip.x, tip.y, tip.totalDistance < 70 ? 75 : 0),
         avoidanceProvider: tip => avoidHazards(state, tip),
+        // `onFirstContact` é o gatilho — `onContact` roda a cada quadro enquanto
+        // a ponta encosta e faria o som repetir com o frame rate.
         onFirstContact: (hypha, tip, target) => {
-          if (target.kind === 'root') addArbuscule(network, target, tip.seed);
-          else if (!network.exudateContacts.has(target.id)) {
+          if (target.kind === 'root') {
+            entities?.audio?.play('mycorrhizaRootContact', {
+              x: target.x,
+              y: target.y,
+              instanceId: network.id,
+            });
+            addArbuscule(network, target, tip.seed);
+          } else if (!network.exudateContacts.has(target.id)) {
             network.exudateContacts.add(target.id);
             entities.burst(target.x, target.y, '#d6afff', 8, 65);
           }
@@ -228,6 +276,14 @@ export function createMycorrhizaGrowth({ state, entities, inoculants = null }) {
         }
         arbuscule.maturity = clamp(arbuscule.maturity + dt * .34, 0, 1);
         arbuscule.life = .65 + arbuscule.maturity * .35;
+        // Só quando a maturidade CRUZA 1, uma vez por arbúsculo.
+        if (arbuscule.maturity >= 1 && !arbuscule.audioCompleted) {
+          arbuscule.audioCompleted = true;
+          entities?.audio?.play('mycorrhizaArbusculeComplete', {
+            x: arbuscule.x,
+            y: arbuscule.y,
+          });
+        }
         const rootEfficiency = clamp(arbuscule.platform?.mycorrhizaEfficiency ?? 1, .08, 1);
         if (arbuscule.maturity >= 1) {
           state.player.hope += dt * .015 * rootEfficiency;

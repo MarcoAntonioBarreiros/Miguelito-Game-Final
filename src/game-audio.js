@@ -21,6 +21,9 @@ import {
   AMBIENCE_LAYERS,
   AMBIENCE_LAYER_GAINS,
   AUDIO_DEFAULTS,
+  BIOLOGICAL_AUDIO_GROUPS,
+  BIOLOGICAL_BUS_SCALE,
+  BIOLOGICAL_TUTORIAL_DUCK,
   AUDIO_STORAGE_KEY,
   AUDIO_STORAGE_KEY_V1,
   AUDIO_STORAGE_VERSION,
@@ -53,6 +56,8 @@ export function createNoopAudio() {
     setPhase() {},
     playFx() { return false; },
     playStinger() { return false; },
+    preloadBiologicalGroup() { return []; },
+    getAudioBridge() { return null; },
     toggleMute() { return false; },
     setMuted() {},
     isMuted() { return false; },
@@ -168,6 +173,11 @@ export function createGameAudio({
   let nextDropIn = 0;
   let dropActive = false;
 
+  // Barramento dos processos biológicos (Pacote 04). Fica separado dos efeitos
+  // comuns para poder recuar durante um tutorial sem abafar o salto e o dano, e
+  // para o compressor ver a soma dos loops como uma camada só.
+  let biologicalGain = null;
+
   let stingerElement = null;
   let stingerGain = null;
   let stingerBusGain = null;
@@ -238,7 +248,8 @@ export function createGameAudio({
     // Barramento PRÓPRIO para os stingers: a vitória precisa poder tocar com a
     // música da fase suprimida, sem depender do volume dos efeitos comuns.
     stingerBusGain = context.createGain();
-    for (const bus of [musicGain, ambienceGain, dropGain, fxGain, stingerBusGain]) {
+    biologicalGain = context.createGain();
+    for (const bus of [musicGain, ambienceGain, dropGain, fxGain, stingerBusGain, biologicalGain]) {
       bus.connect(masterGain);
     }
 
@@ -297,6 +308,13 @@ export function createGameAudio({
     setGain(dropGain, settings.drops * duck);
     setGain(fxGain, settings.fx);
     setGain(stingerBusGain, settings.stinger);
+    // Tutorial aberto: os processos recuam sem serem destruídos.
+    const tutorialAberto = getState?.()?.tutorialOpen === true;
+    setGain(
+      biologicalGain,
+      settings.fx * BIOLOGICAL_BUS_SCALE * (tutorialAberto ? BIOLOGICAL_TUTORIAL_DUCK : 1),
+      0.25,
+    );
   }
 
   function setGain(node, value, seconds = 0.08) {
@@ -571,7 +589,51 @@ export function createGameAudio({
     return promise;
   }
 
-  function playFx(id, { gain = 1, rate = 1, pan = 0 } = {}) {
+  // Pacote 04: carrega um grupo inteiro (rhizobium, micorriza, fósforo…) fora do
+  // caminho crítico. `loadFxBuffer` já é idempotente e guarda uma promessa por
+  // arquivo, então chamar de novo para um grupo já carregado não busca nada.
+  function preloadBiologicalGroup(groupId) {
+    const ids = BIOLOGICAL_AUDIO_GROUPS[groupId];
+    if (!ids || !context) return [];
+    const promises = [];
+    for (const id of ids) {
+      const track = AUDIO_TRACKS[id];
+      if (!track) continue;
+      const promise = loadFxBuffer(track);
+      if (promise) promises.push(promise);
+    }
+    return promises;
+  }
+
+  // Ponte para o gerenciador de loops biológicos. Ele NÃO cria contexto nem
+  // decodifica por conta própria: usa este contexto, este cache de buffers e um
+  // barramento dedicado.
+  function getAudioBridge() {
+    return {
+      get context() { return context; },
+      get destination() { return biologicalGain; },
+      isReady: () => Boolean(context)
+        && unlocked
+        && !settings.muted
+        && !destroyed
+        && context.state === 'running',
+      isMuted: () => settings.muted,
+      getBuffer: id => fxBuffers.get(id) || null,
+      hasFailed: id => fxFailed.has(id),
+      loadBuffer: id => {
+        const track = AUDIO_TRACKS[id];
+        if (!track || !context) return null;
+        if (fxBuffers.has(id)) return Promise.resolve(fxBuffers.get(id));
+        return loadFxBuffer(track);
+      },
+      preloadGroup: preloadBiologicalGroup,
+      now: () => context?.currentTime ?? 0,
+      note,
+      bufferStats: () => ({ loaded: fxBuffers.size, pending: fxPending.size, failed: fxFailed.size }),
+    };
+  }
+
+  function playFx(id, { gain = 1, rate = 1, pan = 0, bus = null } = {}) {
     if (destroyed || !unlocked || !context || settings.muted) return false;
     const track = AUDIO_TRACKS[id];
     if (!track) { note(`FX desconhecido: ${id}`); return false; }
@@ -592,15 +654,15 @@ export function createGameAudio({
             note(`${id}: buffer chegou tarde demais, som descartado`);
             return;
           }
-          emitBuffer(id, { gain, rate, pan });
+          emitBuffer(id, { gain, rate, pan, bus });
         });
       }
       return false;
     }
-    return emitBuffer(id, { gain, rate, pan });
+    return emitBuffer(id, { gain, rate, pan, bus });
   }
 
-  function emitBuffer(id, { gain = 1, rate = 1, pan = 0 } = {}) {
+  function emitBuffer(id, { gain = 1, rate = 1, pan = 0, bus = null } = {}) {
     const track = AUDIO_TRACKS[id];
     const buffer = fxBuffers.get(id);
     if (!track || !buffer || !context || settings.muted) return false;
@@ -619,7 +681,8 @@ export function createGameAudio({
         tail = panner;
       }
       source.connect(nodeGain);
-      tail.connect(fxGain);
+      // Efeito biológico vai pelo barramento dos processos; o resto pelo de FX.
+      tail.connect((bus === 'biological' && biologicalGain) ? biologicalGain : fxGain);
       source.onended = () => { try { source.disconnect(); tail.disconnect(); } catch { /* já desconectado */ } };
       source.start();
       lastFxId = id;
@@ -992,6 +1055,8 @@ export function createGameAudio({
     setPhase,
     playFx,
     playStinger,
+    preloadBiologicalGroup,
+    getAudioBridge,
     stopStinger,
     toggleMute,
     setMuted,

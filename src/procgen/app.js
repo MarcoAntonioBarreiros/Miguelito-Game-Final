@@ -25,7 +25,12 @@ import { JETPACK_CONFIG, jetpackRechargeBonuses } from '../player-jetpack.js';
 import { initPlayerTuning } from '../render/player-skin-tuning.js';
 import { createSimulator } from './simulator.js';
 import { createGameAudio } from '../game-audio.js';
-import { PHASE_VICTORY_TOAST_SECONDS, VICTORY_AUDIO_FALLBACK_SECONDS } from '../audio-manifest.js';
+import { createBiologicalAudio } from './biological-audio.js';
+import {
+  biologicalGroupsForPhaseManifest,
+  PHASE_VICTORY_TOAST_SECONDS,
+  VICTORY_AUDIO_FALLBACK_SECONDS,
+} from '../audio-manifest.js';
 import {
   advanceGameplayFrame,
   createTutorialInputGate,
@@ -92,7 +97,28 @@ function audioDiagnostico() {
     + `\nAmbientes: ${ambientes} · rootFlow ${Math.round(info.internalRootFlow * 1000) / 10}%`
     + `\nGota: ${info.currentDrop || '—'} · próxima em ${proxima}`
     + `\nÚltimo FX: ${info.lastFx || '—'}`
+    + `\n${biologicalDiagnostico()}`
     + `${info.errors.length ? `\nErros: ${info.errors.slice(-2).join(' | ')}` : ''}`;
+}
+
+// Painel dos processos biológicos (Pacote 04). "Não ouvi o biofilme" tem causas
+// muito diferentes — o loop nem começou, começou e foi despejado pelo limite de
+// vozes, ou está tocando longe demais para ser audível — e na tela as três são
+// idênticas. Aqui elas se separam.
+function biologicalDiagnostico() {
+  const bio = biologicalAudio.debugSnapshot();
+  if (!bio.available) return 'Biológico: indisponível';
+  const linhas = bio.loops.map(loop => (
+    `  ${loop.instanceKey} · ${loop.trackId}`
+    + ` · ganho ${loop.gain.toFixed(3)} · pan ${loop.pan >= 0 ? '+' : ''}${loop.pan.toFixed(2)}`
+    + ` · rate ${loop.rate.toFixed(2)} · prio ${loop.priority} · ${Math.round(loop.distance)}px`
+    + `${loop.paused ? ' · PAUSADO' : ''}${loop.pending ? ' · aguardando buffer' : ''}`
+  ));
+  return `Biológico: ${bio.activeLoopCount}/${bio.maximumLoopCount} loops`
+    + ` (${bio.pendingLoopCount} pendentes) · último ${bio.lastEffect || '—'}`
+    + `\nBuffers: ${bio.buffersLoaded} prontos / ${bio.buffersPending} carregando`
+    + ` · cooldown bloqueou ${bio.blockedByCooldown} · distância rejeitou ${bio.rejectedByDistance}`
+    + (linhas.length ? `\n${linhas.join('\n')}` : '');
 }
 
 function spriteDiagnostico() {
@@ -382,7 +408,14 @@ const gameAudio = createGameAudio({
 });
 gameAudio.init();
 
-sim = createSimulator({ audio: gameAudio });
+// Gerenciador de loops dos processos biológicos. Usa o MESMO AudioContext do
+// controlador (via `getAudioBridge`) — nunca cria um segundo.
+const biologicalAudio = createBiologicalAudio({
+  gameAudio,
+  getState: () => sim?.state,
+});
+
+sim = createSimulator({ audio: gameAudio, biologicalAudio });
 const campaign = createCampaign(phaseLab.enabled ? phaseLab.config.seed : undefined, { storage: campaignStorage });
 if (phaseLab.enabled) phaseLab.configureCampaign(campaign);
 sim.state.campaign = campaign;
@@ -683,6 +716,19 @@ function updateTouchAbilityVisibility() {
   if (selectionTouchButton) selectionTouchButton.disabled = false;
 }
 
+// Carrega os grupos de áudio biológico que ESTA fase pode usar, derivados do
+// manifesto e dos desbloqueios já conquistados — nunca do nome da música (a
+// fase 5 toca o tema da Pseudomonas e usa micorriza, Bacillus e fósforo).
+//
+// Não bloqueia nada: as promessas ficam soltas, e um som pedido antes de o
+// arquivo chegar tem lazy-load defensivo com janela de 80 ms.
+function preloadPhaseBiologicalAudio() {
+  const manifest = getPhaseManifest(campaign.phase);
+  for (const group of biologicalGroupsForPhaseManifest(manifest, campaign.unlocks)) {
+    gameAudio.preloadBiologicalGroup(group);
+  }
+}
+
 function initGame({ announce = false } = {}) {
   sim.reset();
   rhizoctoniaControl.reset();
@@ -694,6 +740,7 @@ function initGame({ announce = false } = {}) {
   // so faz crossfade quando muda. Reset da campanha nao recria contexto nem
   // duplica ambientes.
   gameAudio.setPhase(campaign.phase);
+  preloadPhaseBiologicalAudio();
   Object.assign(sim.state.level, levelData);
   sim.state.player.x = 100;
   sim.state.player.y = 400;
@@ -869,6 +916,8 @@ window.miguelitoAudio = {
   isMuted: () => gameAudio.isMuted(),
   uiState: () => gameAudio.getUiState(),
   debug: () => gameAudio.debugSnapshot(),
+  // Processos biológicos (Pacote 04), para inspeção no Console.
+  biological: () => biologicalAudio.debugSnapshot(),
 };
 
 function maybeAdvanceCampaign() {
@@ -928,6 +977,8 @@ function maybeAdvanceCampaign() {
   // Fase seguinte: o stinger sai por fade, o ambiente volta, a musica nova entra
   // por crossfade e as gotas so retornam depois de alguns segundos.
   gameAudio.endPhaseVictory();
+  // Nenhum processo da fase anterior pode atravessar a troca.
+  biologicalAudio.stopAll({ fade: .20, clearPending: true });
   prepareLevel();
   initGame({ announce: true });
   return true;
@@ -1104,6 +1155,9 @@ function loop(now) {
       },
     });
     gameAudio.update(dt);
+    // Depois de `sim.step`: as posições e os estados dos processos deste quadro
+    // já estão atualizados, então pan, ganho e limite de vozes usam o presente.
+    biologicalAudio.update(dt);
     // O desbloqueio pode vir de qualquer clique no jogo: o botao acompanha.
     if (gameAudio.isUnlocked() !== soundButtonUnlocked) {
       soundButtonUnlocked = gameAudio.isUnlocked();

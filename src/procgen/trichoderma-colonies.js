@@ -123,9 +123,12 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
       colony.rechargeIntensity = fuel;
       if (fuel > .02) {
         colony.vigor = clamp(colony.vigor + dt * (.035 + fuel * .13), 0, 1);
+        // Transicao exhausted true -> false por exsudato. O combustivel continuo
+        // mantem `exhausted` em false depois disso, entao nao repete.
         if (colony.vigor > .1 && colony.exhausted) {
           colony.exhausted = false;
           colony.stage = 'ready';
+          entities?.audio?.play('trichodermaReactivation', { x: colony.x, y: colony.y });
           entities.burst(colony.x, colony.y, '#d6ff94', 14, 85);
         }
       }
@@ -213,6 +216,7 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
   }
 
   function clear() {
+    entities?.audio?.stopGroup('trichoderma-attack');
     colonies.length = 0;
     nextColonyId = 1;
     eHeldLast = false;

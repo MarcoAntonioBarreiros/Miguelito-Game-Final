@@ -131,6 +131,7 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
   }
 
   function clear() {
+    entities?.audio?.stopGroup('pseudomonas-suppression');
     siderophores.length = 0;
     for (const entry of colonyStates.values()) {
       if (entry.colony) entry.colony.siderophoreState = null;
@@ -146,6 +147,7 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
   }
 
   function reset() {
+    entities?.audio?.stopGroup('pseudomonas-suppression');
     siderophores.length = 0;
     colonyStates.clear();
     state.level.ironDeposits = (state.level.ironDeposits || []).filter(deposit => deposit.authored);
@@ -201,6 +203,19 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     siderophores.push(particle);
     entry.launchCooldown = .75 + random() * .75;
     colony.vigor = clamp(colony.vigor - .0045, 0, 1);
+    // Cooldown por colônia (0,40 s) + global (0,12 s) vive no manifesto: dez
+    // partículas no mesmo instante não podem virar dez disparos.
+    //
+    // A variação de rate é DERIVADA de `particle.phase`, que já foi sorteado
+    // acima — puxar um número novo de `random()` aqui deslocaria a sequência do
+    // módulo e mudaria ângulos e cooldowns das partículas seguintes. Áudio não
+    // pode consumir RNG de gameplay.
+    entities?.audio?.play('pseudomonasSiderophoreLaunch', {
+      x: particle.x,
+      y: particle.y,
+      instanceId: colony.id,
+      rate: .97 + (particle.phase / TAU) * .06,
+    });
     entities.burst(particle.x, particle.y, '#d5ff6d', 5, 42);
 
     if (!target && !entry.noIronToast) {
@@ -233,6 +248,8 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     particle.boundIron = amount;
     particle.state = 'loaded';
     particle.target = null;
+    // Só com ferro real: o retorno acima já descartou amount <= .02.
+    entities?.audio?.play('pseudomonasIronBind', { x: deposit.x, y: deposit.y });
     entities.burst(deposit.x, deposit.y, '#ffad5f', 10, 66);
     announce('Complexo sideróforo–Fe³⁺ formado: o ferro capturado está retornando à colônia de Pseudomonas.');
   }
@@ -244,6 +261,12 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     entry.delivered++;
     totalIronRecovered += amount;
     particle.state = 'expired';
+    // Uma vez por partícula entregue. Uma partícula que expirou no caminho não
+    // passa por aqui.
+    entities?.audio?.play('pseudomonasIronDelivery', {
+      x: entry.colony.x,
+      y: entry.colony.y,
+    });
     entities.burst(entry.colony.x, entry.colony.y, '#b8ff77', 12, 78);
   }
 
@@ -338,6 +361,50 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     else colony.stage = 'colonização da rizosfera';
   }
 
+  // A zona supressiva só soa quando SUPRIME: pressão real, reserva de ferro e ao
+  // menos um fungo limitado. Ter sideróforos livres na tela não é supressão.
+  const SUPPRESSION_MINIMUM_PRESSURE = .05;
+  const SUPPRESSION_MINIMUM_RESERVE = .025;
+  const SUPPRESSION_REFERENCE_PRESSURE = .35;
+  const SUPPRESSION_KEY_PREFIX = 'pseudomonas-suppression';
+
+  function updateSuppressionLoop(limitedSet) {
+    const audio = entities?.audio;
+    if (!audio) return;
+
+    let best = null;
+    if (limitedSet.size) {
+      const player = state.player;
+      const playerCenterX = player ? player.x + player.w / 2 : 0;
+      for (const entry of colonyStates.values()) {
+        const colony = entry.colony;
+        if (colony.dormant) continue;
+        if (entry.activePressure <= SUPPRESSION_MINIMUM_PRESSURE) continue;
+        if (entry.ironReserve <= SUPPRESSION_MINIMUM_RESERVE) continue;
+        const distance = Math.abs(colony.x - playerCenterX);
+        // Mais próxima vence; empate real resolve pela pressão maior.
+        if (!best
+          || distance < best.distance - 1
+          || (Math.abs(distance - best.distance) <= 1 && entry.activePressure > best.entry.activePressure)) {
+          best = { entry, colony, distance };
+        }
+      }
+    }
+
+    // Um único loop de supressão audível: as demais colônias somariam a mesma
+    // textura sem acrescentar informação.
+    for (const [id] of colonyStates) {
+      const key = `${SUPPRESSION_KEY_PREFIX}:${id}`;
+      if (!best || best.colony.id !== id) audio.stopLoop(key);
+    }
+    if (!best) return;
+    audio.startLoop(`${SUPPRESSION_KEY_PREFIX}:${best.colony.id}`, 'pseudomonasSuppression', {
+      x: best.colony.x,
+      y: best.colony.y,
+      gain: clamp(best.entry.activePressure / SUPPRESSION_REFERENCE_PRESSURE, 0, 1),
+    });
+  }
+
   function update(dt) {
     if (state.gameState !== 'play') return;
     ensureDeposits();
@@ -366,6 +433,7 @@ export function createPseudomonasSiderophores({ state, entities, ecology, inocul
     for (const entry of colonyStates.values()) applyIronLimitation(entry, dt, limitedSet);
     fungiLimitedCount = limitedSet.size;
     for (const entry of colonyStates.values()) updateColony(entry, dt);
+    updateSuppressionLoop(limitedSet);
   }
 
   function drawDeposit(ctx, deposit) {

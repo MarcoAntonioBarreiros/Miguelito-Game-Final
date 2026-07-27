@@ -52,6 +52,9 @@ export function createRhizobiumNodulation({ state, entities, inoculants }) {
   let lastToastAt = -Infinity;
 
   function clear() {
+    // Os fios de infecção e a FBN pertencem a esta fase: nenhum atravessa.
+    entities?.audio?.stopGroup('rhizobium-thread');
+    entities?.audio?.stopLoop('nitrogen-fixation:nearest');
     sites.clear();
     totalFixation = 0;
     state.level.rhizobiumNodules = [];
@@ -83,6 +86,11 @@ export function createRhizobiumNodulation({ state, entities, inoculants }) {
       announced: new Set(),
     };
     sites.set(colony.id, site);
+    // Reconhecimento hospedeiro–Rhizobium: o sítio nasce JÁ nesse estágio, então
+    // a criação é a transição. Uma vez por sítio, nunca por quadro.
+    if (compatible) {
+      entities?.audio?.play('rhizobiumRecognition', { x: site.x, y: site.surfaceY });
+    }
     if (!compatible && state.time - lastToastAt > 2.4) {
       state.toast = 'Rhizobium sem hospedeiro: a colônia permanece na rizosfera, mas não forma nódulos em blocos de solo.';
       state.toastTime = 5.2;
@@ -118,23 +126,38 @@ export function createRhizobiumNodulation({ state, entities, inoculants }) {
     lastToastAt = state.time;
   }
 
+  // Áudio e toast respondem à MESMA transição, mas um não depende do outro: o
+  // toast tem cooldown próprio (`announce`) e engoliria o som se fosse o gatilho.
   function advanceStage(site) {
     const index = stageIndex(site.stage);
     const next = STAGES[Math.min(STAGES.length - 1, index + 1)];
     site.stage = next;
     site.progress = 0;
+    const audio = entities?.audio;
+    const threadKey = `rhizobium-thread:${site.id}`;
 
     if (next === 'root-hair-curl') {
+      audio?.play('rhizobiumRootHairCurl', { x: site.x, y: site.surfaceY });
       announce(site, next, 'Sinalização simbiótica: o pelo radicular começou a se curvar ao redor do Rhizobium.');
     } else if (next === 'infection-thread') {
+      audio?.startLoop(threadKey, 'rhizobiumInfectionThread', {
+        x: site.x, y: site.surfaceY, gain: .55,
+      });
       announce(site, next, 'Fio de infecção: as bactérias avançam de forma controlada para o interior da raiz.');
     } else if (next === 'primordium') {
+      // O fio terminou: o loop sai antes de o primórdio soar.
+      audio?.stopLoop(threadKey);
+      audio?.play('rhizobiumPrimordium', { x: site.x, y: site.surfaceY + site.depth });
       announce(site, next, 'Primórdio nodular: células da raiz começaram a formar o novo órgão simbiótico.');
     } else if (next === 'young-nodule') {
+      audio?.play('rhizobiumYoungNodule', { x: site.x, y: site.surfaceY + site.depth });
       announce(site, next, 'Nódulo jovem: o Rhizobium começa a se diferenciar em bacteroides.');
     } else if (next === 'mature-nodule') {
       site.mature = true;
       site.maturity = 1;
+      // Única transição mature false → true de um sítio. Um nódulo restaurado já
+      // maduro não passa por aqui e por isso não toca conclusão.
+      audio?.play('rhizobiumMatureNodule', { x: site.x, y: site.surfaceY + site.depth });
       announce(site, next, 'Nódulo maduro: leghemoglobina controla o oxigênio e a fixação biológica de nitrogênio foi ativada.', 5.6);
       entities.burst(site.x, site.surfaceY + site.depth, '#ff9db5', 36, 145);
     }
@@ -152,7 +175,12 @@ export function createRhizobiumNodulation({ state, entities, inoculants }) {
     site.activity = 0;
     site.fixationRate = 0;
 
+    const audio = entities?.audio;
+    const threadKey = `rhizobium-thread:${site.id}`;
+
     if (site.paused) {
+      // Sem carbono o fio para de avançar: o loop recua, mas não é destruído.
+      if (site.stage === 'infection-thread') audio?.pauseLoop(threadKey);
       colony.stage = stageLabel(site);
       return;
     }
@@ -160,6 +188,19 @@ export function createRhizobiumNodulation({ state, entities, inoculants }) {
     const duration = STAGE_DURATION[site.stage] || 1;
     site.progress = clamp(site.progress + dt * carbon * sourceBoost / duration, 0, 1);
     colony.stage = stageLabel(site);
+
+    // Sustenta o loop do fio: posição acompanha a profundidade atual, ganho e
+    // rate sobem com o avanço. `startLoop` é idempotente — não cria segundo
+    // source nem reinicia a faixa.
+    if (site.stage === 'infection-thread') {
+      audio?.startLoop(threadKey, 'rhizobiumInfectionThread', {
+        x: site.x,
+        y: site.surfaceY + site.depth * site.progress,
+        gain: .55 + site.progress * .45,
+        rate: .94 + site.progress * .12,
+      });
+    }
+
     if (site.progress >= 1) advanceStage(site);
   }
 
@@ -196,6 +237,42 @@ export function createRhizobiumNodulation({ state, entities, inoculants }) {
     }
   }
 
+  // Um loop de FBN por nódulo viraria zumbido: numa raiz com três nódulos
+  // maduros seriam três cópias da mesma textura somadas. Toca no máximo UM, o do
+  // nódulo funcional mais próximo, e a posição acompanha esse nódulo.
+  const FIXATION_AUDIBLE_ACTIVITY = .16;
+  const FIXATION_KEY = 'nitrogen-fixation:nearest';
+
+  function updateFixationLoop() {
+    const audio = entities?.audio;
+    if (!audio) return;
+    const player = state.player;
+    const playerCenterX = player ? player.x + player.w / 2 : 0;
+
+    let nearest = null;
+    let nearestDistance = Infinity;
+    for (const site of sites.values()) {
+      if (!site.mature || site.activity <= FIXATION_AUDIBLE_ACTIVITY) continue;
+      const distance = Math.abs(site.x - playerCenterX);
+      if (distance < nearestDistance) {
+        nearest = site;
+        nearestDistance = distance;
+      }
+    }
+
+    if (!nearest) {
+      audio.stopLoop(FIXATION_KEY);
+      return;
+    }
+    audio.startLoop(FIXATION_KEY, 'nitrogenFixationActive', {
+      x: nearest.x,
+      y: nearest.surfaceY + nearest.depth,
+      // Proporcional à atividade real do nódulo, e sempre discreto.
+      gain: clamp(nearest.activity, 0, 1),
+      rate: .96 + clamp(nearest.activity, 0, 1) * .08,
+    });
+  }
+
   function update(dt) {
     if (state.gameState !== 'play') return;
     syncSites();
@@ -212,6 +289,8 @@ export function createRhizobiumNodulation({ state, entities, inoculants }) {
       if (!site.mature) updateDevelopingSite(site, dt);
       else updateMatureSite(site, dt);
     }
+
+    updateFixationLoop();
   }
 
   function drawRootHair(ctx, site) {

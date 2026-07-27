@@ -84,10 +84,19 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
       announcedMature: false,
       announcedSpores: false,
       announcedGermination: false,
+      // Estado de áudio, separado dos toasts.
+      audioInitialized: true,
+      audioPreviousMode: null,
+      audioBiofilmCompleted: authoredMature,
       phase: Math.random() * TAU,
     };
     colony.bacillusState = entry;
     colonyStates.set(colony.id, entry);
+    // Adesão só em inoculação REAL. Colônia autoral (`colony.authored`) já vem
+    // com o cenário: tocar adesão ao carregar a fase seria som sem evento.
+    if (!colony.authored) {
+      entities?.audio?.play('bacillusAdhesion', { x: colony.x, y: colony.y });
+    }
     return entry;
   }
 
@@ -116,6 +125,8 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
   }
 
   function clear() {
+    entities?.audio?.stopGroup('bacillus-biofilm');
+    entities?.audio?.stopGroup('bacillus-antibiosis');
     for (const entry of colonyStates.values()) {
       if (entry.colony) entry.colony.bacillusState = null;
       removeManagedFilm(entry);
@@ -154,10 +165,29 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
     film.functional = entry.maturity >= .42 && entry.mode !== 'sporulating';
   }
 
+  // Único ponto de transição de modo do Bacillus — por isso é aqui que o áudio
+  // entra, e não espalhado pelo ciclo de vida.
   function enterMode(entry, mode) {
     if (entry.mode === mode) return;
+    entry.audioPreviousMode = entry.mode;
     entry.mode = mode;
     const colony = entry.colony;
+    const audio = entities?.audio;
+    const position = { x: colony.x, y: colony.y };
+
+    if (mode === 'mature' && !entry.audioBiofilmCompleted) {
+      // Só a PRIMEIRA vez que o biofilme fica funcional. Alternar entre
+      // `mature` e `antibiosis` depois disso não é uma nova conclusão.
+      entry.audioBiofilmCompleted = true;
+      audio?.stopLoop(`bacillus-biofilm:${colony.id}`, { fade: .2 });
+      audio?.play('bacillusBiofilmComplete', position);
+    } else if (mode === 'sporulating') {
+      audio?.play('bacillusSporulation', position);
+    } else if (mode === 'germinating') {
+      // Reconstrução: o ciclo recomeça e a conclusão volta a ser possível.
+      entry.audioBiofilmCompleted = false;
+      audio?.play('bacillusGermination', position);
+    }
 
     if (mode === 'mature' && !entry.announcedMature) {
       entry.announcedMature = true;
@@ -339,6 +369,48 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
     state.player.soil += dt * .055 * strength;
   }
 
+  // Pressão mínima para a antibiose SOAR. Abaixo disto a colônia está madura,
+  // mas não está fazendo nada com ninguém — e madura não é motivo para som.
+  const ANTIBIOSIS_AUDIBLE_PRESSURE = .06;
+  const ANTIBIOSIS_MINIMUM_RESERVE = .02;
+
+  function updateColonyAudio(entry) {
+    const audio = entities?.audio;
+    if (!audio) return;
+    const colony = entry.colony;
+    const biofilmKey = `bacillus-biofilm:${colony.id}`;
+    const antibiosisKey = `bacillus-antibiosis:${colony.id}`;
+
+    // Matriz em construção: adesão, matriz e a reconstrução pós-germinação.
+    const building = entry.mode === 'adhesion'
+      || entry.mode === 'matrix'
+      || entry.mode === 'germinating';
+    if (building) {
+      audio.startLoop(biofilmKey, 'bacillusBiofilmGrowth', {
+        x: colony.x,
+        y: colony.y,
+        // A reconstrução entra baixa: é um biofilme voltando, não nascendo.
+        gain: (entry.mode === 'germinating' ? .40 : .55) + clamp(entry.maturity, 0, 1) * .45,
+        rate: .90 + clamp(entry.maturity, 0, 1) * .16,
+      });
+    } else {
+      audio.stopLoop(biofilmKey);
+    }
+
+    const antibiosing = entry.activePressure > ANTIBIOSIS_AUDIBLE_PRESSURE
+      && entry.antibioticReserve > ANTIBIOSIS_MINIMUM_RESERVE
+      && isMetabolicallyActive(entry);
+    if (antibiosing) {
+      audio.startLoop(antibiosisKey, 'bacillusAntibiosis', {
+        x: colony.x,
+        y: colony.y,
+        gain: clamp(entry.activePressure, 0, 1),
+      });
+    } else {
+      audio.stopLoop(antibiosisKey);
+    }
+  }
+
   function update(dt) {
     if (state.gameState !== 'play') return;
     syncColonies();
@@ -349,6 +421,9 @@ export function createBacillusBioprotection({ state, entities, ecology, inoculan
     for (const entry of colonyStates.values()) updateLifecycle(entry, dt);
     for (const entry of colonyStates.values()) applyAntibiosis(entry, dt);
     for (const entry of colonyStates.values()) applyInducedResistance(entry, dt);
+    // Depois de `applyAntibiosis`: a pressão do quadro já está calculada, então
+    // o loop de antibiose só existe quando ela está realmente atuando.
+    for (const entry of colonyStates.values()) updateColonyAudio(entry);
 
     fungiUnderAntibiosis = ecology.agents.filter(agent => (
       agent.type === 'oportunista' && (agent.bacillusAntibiosis || 0) > .04

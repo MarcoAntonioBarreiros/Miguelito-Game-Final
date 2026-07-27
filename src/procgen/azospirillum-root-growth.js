@@ -349,6 +349,7 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
   }
 
   function clear() {
+    entities?.audio?.stopGroup('azospirillum-growth');
     state.level.platforms = (state.level.platforms || [])
       .filter(platform => !platform.azospirillumStructure);
     state.level.azospirillumRootLadders = [];
@@ -358,6 +359,7 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
   }
 
   function reset() {
+    entities?.audio?.stopGroup('azospirillum-growth');
     removeStepPlatforms();
     // So os estados transitorios da tentativa sao limpos aqui; challenge.developed
     // e challenge.traversed pertencem ao nivel e sao regidos pelo runtime.
@@ -370,6 +372,8 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
       ladder.paused = false;
       ladder.colony = null;
       ladder.announced = false;
+      ladder.audioStarted = false;
+      ladder.audioCompleted = false;
       ladder.host.azospirillumHairDensity = 0;
       for (const step of ladder.steps || []) {
         step.progress = 0;
@@ -413,6 +417,9 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
   }
 
   function updateStep(ladder, step) {
+    // Só a transição conta. Um degrau que já estava maduro (escada restaurada,
+    // bloco `developed` no topo de `updateLadder`) nunca passa por aqui.
+    const wasMature = step.mature === true;
     const localProgress = clamp(ladder.progress * ladder.steps.length - step.index, 0, 1);
     step.progress = Math.max(step.progress, localProgress);
     step.currentWidth = lerp(step.startWidth, step.targetWidth, step.progress);
@@ -425,6 +432,13 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     step.mature = step.progress >= 1;
     if (step.mature) activateStepCollider(ladder, step);
     else removeStepCollider(step);
+    if (!wasMature && step.mature) {
+      entities?.audio?.play('azospirillumStepMature', {
+        x: step.centerX,
+        y: step.y,
+        instanceId: ladder.id,
+      });
+    }
   }
 
   function updateLadder(ladder, dt) {
@@ -456,8 +470,21 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     const colony = activeAzospirillumColony(inoculants, ladder);
     ladder.colony = colony;
     ladder.paused = ladder.progress > 0 && !colony;
-    if (!colony) return;
+    const audio = entities?.audio;
+    const loopKey = `azospirillum-growth:${ladder.id}`;
+    if (!colony) {
+      // Sem colônia funcional a escada para de crescer: o loop recua sem morrer,
+      // e o efeito de início NÃO volta a tocar quando ela retomar.
+      if (ladder.progress > 0) audio?.pauseLoop(loopKey);
+      return;
+    }
 
+    // Início real: progresso zero e colônia funcional presente. `audioStarted`
+    // separa isto do toast, que tem cooldown e é suprimido em `knownSkill`.
+    if (ladder.progress === 0 && !ladder.audioStarted) {
+      ladder.audioStarted = true;
+      audio?.play('azospirillumRootGrowthStart', { x: colony.x, y: ladder.host.y });
+    }
     if (ladder.progress === 0 && !ladder.knownSkill) {
       announce('Azospirillum inoculado: fitormônios iniciaram a escada de ramificações radiculares.');
       entities?.burst?.(colony.x, ladder.host.y, '#72e8dd', 22, 90);
@@ -473,6 +500,16 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
       ladder.progress,
     );
     colony.stage = ladder.progress < 1 ? 'formando escada radicular' : 'escada radicular madura';
+    // Loop de crescimento, sustentado por quadro enquanto a escada avança.
+    // Ganho e rate são multiplicadores relativos ao defaultGain da faixa.
+    if (ladder.progress < 1) {
+      audio?.startLoop(loopKey, 'azospirillumRootGrowth', {
+        x: ladder.startX,
+        y: lerp(ladder.startY, ladder.endY, ladder.progress),
+        gain: .55 + ladder.progress * .45,
+        rate: .92 + ladder.progress * .12,
+      });
+    }
     for (const step of ladder.steps) updateStep(ladder, step);
 
     ladder.developed = ladder.progress >= 1 && ladder.steps.every(step => step.mature);
@@ -480,6 +517,16 @@ export function createAzospirillumRootGrowth({ state, entities, inoculants }) {
     ladder.paused = false;
     if (ladder.developed && ladder.mandatoryChallenge && state.level.azospirillumChallenge) {
       state.level.azospirillumChallenge.developed = true;
+    }
+    // Conclusão: primeira transição de `developed`, marca própria (não a do
+    // toast). O loop sai antes para o remate não competir com ele.
+    if (ladder.developed && !ladder.audioCompleted) {
+      ladder.audioCompleted = true;
+      audio?.stopLoop(loopKey);
+      audio?.play('azospirillumLadderComplete', {
+        x: ladder.endX,
+        y: ladder.endY,
+      });
     }
     if (ladder.developed && !ladder.announced) {
       ladder.announced = true;

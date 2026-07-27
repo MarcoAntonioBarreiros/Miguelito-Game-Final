@@ -120,6 +120,7 @@ export function createPhosphateSolubilization({
   let chargeParticles = [];
   let transported = 0;
   let solubilizedCount = 0;
+  const CHARGE_KEY = 'phosphate-charge:player';
 
   function settings() {
     return { ...PHOSPHATE_SOLUBILIZATION_DEFAULTS, ...(state.level.phaseProfile?.phosphateSolubilization || {}) };
@@ -144,6 +145,7 @@ export function createPhosphateSolubilization({
   function fireShot() {
     const config = settings();
     if (charge < config.minimumCharge) {
+      // Carga insuficiente e descartada: nao houve disparo, entao nao ha som.
       charge = 0;
       state.player.phosphateCharge = 0;
       return;
@@ -155,6 +157,7 @@ export function createPhosphateSolubilization({
       charge, energy: charge * 2, distance: 0, hitDeposits: new Set(),
     });
     recordPhaseObjectiveAction(state, 'performedPhosphatePulseCount');
+    entities?.audio?.play('phosphatePulseRelease', { x, y });
     entities.burst(x, y, '#df91ff', 10 + Math.round(charge * 12), 110);
     charge = 0;
     state.player.phosphateCharge = 0;
@@ -163,6 +166,10 @@ export function createPhosphateSolubilization({
   function prepare(dt) {
     if (state.gameState !== 'play') return;
     const held = Boolean(input.keys.KeyE);
+    // A barra so pode SOAR enquanto ela realmente sobe. Segurar E sem
+    // solubilizador por perto, sem reserva ou com a carga no teto nao produz
+    // som nenhum — o loop e o retrato da carga, nao da tecla.
+    let charging = false;
     if (selected() && held) {
       const entry = nearestSolubilizer();
       if (entry && entry.phosphateMetaboliteReserve > 0) {
@@ -171,6 +178,7 @@ export function createPhosphateSolubilization({
         const consumed = Math.min(gain, entry.phosphateMetaboliteReserve, config.maximumCharge - charge);
         charge = clamp(charge + consumed, 0, config.maximumCharge);
         entry.phosphateMetaboliteReserve -= consumed;
+        charging = consumed > 0;
         // Uma particula por quadro empilhava tudo na mesma reta, com fase quase
         // identica: virava um tracejado rigido. Agora saem espacadas no tempo,
         // de pontos diferentes da colonia e com fase propria.
@@ -189,6 +197,20 @@ export function createPhosphateSolubilization({
         }
       }
     }
+    // Som centrado (nao espacial): a carga e do jogador, nao do mundo.
+    // `protect` impede o limitador de vozes de derrubar justamente o loop da
+    // acao que o jogador esta executando neste instante.
+    if (charging) {
+      const proporcao = clamp(charge / Math.max(.001, settings().maximumCharge), 0, 1);
+      entities?.audio?.startLoop(CHARGE_KEY, 'phosphateCharge', {
+        protect: true,
+        gain: .55 + proporcao * .45,
+        rate: .82 + proporcao * .32,
+      });
+    } else {
+      entities?.audio?.stopLoop(CHARGE_KEY, { fade: .12 });
+    }
+
     if (selected() && !held && eHeldLast) fireShot();
     if (!selected() && !held) charge = 0;
     eHeldLast = held;
@@ -222,11 +244,19 @@ export function createPhosphateSolubilization({
       }
       pool.amount += amount;
       if (deposit.remainingPhosphate <= .0001) {
+        // Transicao broken false -> true, uma vez. Sem cooldown: a conclusao
+        // nao pode ser engolida pelo cooldown do impacto parcial.
         deposit.broken = true;
+        entities?.audio?.play('phosphateDepositComplete', { x: cx, y: cy });
         solubilizedCount += 1;
         state.toast = 'Deposito esgotado: o fosforo foi solubilizado e permanece disponivel localmente.';
         state.toastTime = 4;
       } else {
+        // Impacto parcial: cooldown por deposito (0,18 s) evita um som por quadro
+        // quando varios tiros chegam juntos.
+        entities?.audio?.play('phosphateDissolvePartial', {
+          x: cx, y: cy, instanceId: deposit.id,
+        });
         state.toast = `Solubilizacao parcial: ${Math.round((1 - deposit.remainingPhosphate / deposit.initialPhosphate) * 100)}%.`;
         state.toastTime = 2.5;
       }
@@ -258,13 +288,26 @@ export function createPhosphateSolubilization({
       if (pool.amount <= 0) continue;
       const colony = transportingColony(pool);
       pool.transportingColony = colony;
+      const transportKey = `phosphate-transport:${pool.depositId}`;
       if (!colony) {
+        // Sem micorriza nao ha transporte: o loop encerra.
+        entities?.audio?.stopLoop(transportKey);
         pool.absorptionState = 'waiting-mycorrhiza';
         continue;
       }
       const root = colony.platform;
       const amount = Math.min(pool.amount, dt * config.mycorrhizalTransportRate);
       pool.amount -= amount;
+      if (amount > 0) {
+        pool.hadTransport = true;
+        // Ponto medio entre a poca e a colonia que transporta.
+        entities?.audio?.startLoop(transportKey, 'phosphateTransport', {
+          x: (pool.x + colony.x) / 2,
+          y: (pool.y + colony.y) / 2,
+          gain: clamp(.45 + amount / Math.max(.0001, dt * config.mycorrhizalTransportRate) * .55, 0, 1),
+          rate: .94 + clamp(amount * 6, 0, .12),
+        });
+      }
       pool.absorptionState = pool.amount > .001 ? 'absorbing' : 'depleted';
       const sourceDeposit = (state.level.phosphateDeposits || []).find(deposit => deposit.id === pool.depositId);
       if (sourceDeposit) sourceDeposit.localAvailablePhosphate = Math.max(0, pool.amount);
@@ -276,6 +319,16 @@ export function createPhosphateSolubilization({
       root.rootHealth = Math.min(maximumHealth, (root.rootHealth ?? maximumHealth) + amount * .025);
       state.player.soil += amount * .35;
       state.player.hope += amount * .22;
+      // Entrega completa: houve transporte de verdade, a poca acabou e a raiz
+      // recebeu quantidade real. Uma vez por poca.
+      if (pool.hadTransport && pool.amount <= .001 && !pool.audioDeliveryCompleted) {
+        pool.audioDeliveryCompleted = true;
+        entities?.audio?.stopLoop(transportKey, { fade: .2 });
+        entities?.audio?.play('phosphateRootDeliveryComplete', {
+          x: root.x + root.w / 2,
+          y: root.y,
+        });
+      }
       const particles = state.level.phosphateTransportParticles || (state.level.phosphateTransportParticles = []);
       if (particles.length < 14) {
         particles.push({
@@ -431,6 +484,8 @@ export function createPhosphateSolubilization({
   }
 
   function clear() {
+    entities?.audio?.stopLoop(CHARGE_KEY, { fade: .05 });
+    entities?.audio?.stopGroup('phosphate-transport');
     charge = 0;
     eHeldLast = false;
     shots = [];

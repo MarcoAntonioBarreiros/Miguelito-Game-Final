@@ -234,6 +234,8 @@ export function generateUnderdevelopedNitrogenRoots({
       collider: null,
       activeSite: null,
       announced: false,
+      // Marca de áudio própria: independente do toast (que tem cooldown).
+      audioCompleted: false,
     };
   });
   return level.nitrogenRoots;
@@ -280,13 +282,16 @@ function associatedNodule(state, root) {
 
 export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
   function clear() {
+    entities?.audio?.stopGroup('nitrogen-root-growth');
     for (const root of state.level.nitrogenRoots || []) removeCollider(state, root);
     state.level.nitrogenRoots = [];
   }
 
   function reset() {
+    entities?.audio?.stopGroup('nitrogen-root-growth');
     for (const root of state.level.nitrogenRoots || []) {
       removeCollider(state, root);
+      root.audioCompleted = false;
       root.progress = 0;
       root.functionalProgress = 0;
       root.currentWidth = root.startWidth;
@@ -314,12 +319,29 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
     const mature = Boolean(site?.mature || site?.stage === 'mature-nodule');
     const fixationActive = mature && (site.fixationRate || 0) >= root.requiredFixationRate;
     root.paused = root.progress > 0 && !fixationActive;
+    const audio = entities?.audio;
+    const loopKey = `nitrogen-root:${root.id}`;
+
     if (!fixationActive) {
+      // Nódulo maduro não basta: sem taxa suficiente a raiz não cresce, e o som
+      // não pode dizer que cresce. Pausa em vez de parar — retomar do começo a
+      // cada oscilação da FBN soaria como um defeito.
+      if (root.progress > 0) audio?.pauseLoop(loopKey);
       updateCollider(state, root);
       return;
     }
 
     const wasStarted = root.progress > 0;
+    // Crescimento realmente em curso: um loop por raiz, sustentado por quadro.
+    audio?.startLoop(loopKey, 'nitrogenRootGrowth', {
+      // A chave é por raiz; o grupo de vozes é o do processo (o teto e a
+      // prioridade do manifesto usam `nitrogen-root-growth`).
+      group: 'nitrogen-root-growth',
+      x: root.x + root.targetWidth / 2,
+      y: root.y,
+      gain: .60 + root.progress * .40,
+      rate: .92 + root.progress * .14,
+    });
     root.progress = clamp(root.progress + dt / Math.max(.1, root.growthDurationSeconds), 0, 1);
     const bounds = nitrogenRootVisualBounds(root);
     root.currentWidth = bounds.w;
@@ -332,6 +354,16 @@ export function createNitrogenRootDevelopment({ state, entities = null } = {}) {
     updateCollider(state, root);
 
     if (!wasStarted) entities?.burst?.(site.x, site.surfaceY + site.depth, '#ffd783', 18, 75);
+    // Conclusão: transição developed false → true, uma vez, com marca própria —
+    // não a do toast, que tem cooldown e poderia engolir o som.
+    if (root.developed && !root.audioCompleted) {
+      root.audioCompleted = true;
+      audio?.stopLoop(loopKey);
+      audio?.play('nitrogenRootComplete', {
+        x: root.x + root.targetWidth / 2,
+        y: root.y,
+      });
+    }
     if (root.developed && !root.announced) {
       root.announced = true;
       state.toast = 'FBN ativa: o nitrogenio sustentou o desenvolvimento de uma nova plataforma radicular.';

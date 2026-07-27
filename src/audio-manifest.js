@@ -120,7 +120,7 @@ const FX = 'assets/audio/fx/';
 //
 // Só as versões `_loop` entram no runtime: as `_full` ficam guardadas no ZIP
 // como fonte de edição e não são publicadas nesta etapa. Nenhum WAV entra.
-export const AUDIO_TRACKS = Object.freeze({
+const CORE_TRACKS = Object.freeze({
   // ---- Música (streaming, uma por vez, com crossfade) ---------------------
   musicTitle: Object.freeze({
     id: 'musicTitle',
@@ -313,6 +313,228 @@ export const AUDIO_TRACKS = Object.freeze({
     preload: 'none',
   }),
 });
+
+// ===========================================================================
+// PACOTE 04 — PROCESSOS BIOLÓGICOS BENÉFICOS
+// ===========================================================================
+//
+// 40 arquivos: 28 efeitos pontuais (`fx_*`) e 12 loops (`loop_*`). Todos vivem
+// em `assets/audio/fx/`.
+//
+// `preload: 'group'` é o que impede estes 40 arquivos de atrasarem a abertura da
+// página: `preloadShortFx()` (chamado no `init`) só carrega `preload === 'auto'`,
+// então nada daqui é buscado no primeiro quadro. Quem decide o momento é
+// `preloadBiologicalGroup(groupId)`, chamado por fase, mais lazy-load defensivo
+// no primeiro uso.
+//
+// `group` é a chave de PRELOAD (por organismo). O limite de vozes usa outra
+// chave, mais fina (`BIOLOGICAL_LOOP_LIMITS`), porque um mesmo organismo tem
+// processos que competem de forma diferente — biofilme e antibiose, por exemplo.
+
+const BIOLOGICAL_TRACK_DEFS = [
+  // ---- Rhizobium, nodulação e nitrogênio ----------------------------------
+  ['rhizobiumRecognition', 'fx_rhizobium_recognition', 'fx', 0.42, 'rhizobium'],
+  ['rhizobiumRootHairCurl', 'fx_rhizobium_root_hair_curl', 'fx', 0.42, 'rhizobium'],
+  ['rhizobiumInfectionThread', 'loop_rhizobium_infection_thread', 'loop', 0.18, 'rhizobium'],
+  ['rhizobiumPrimordium', 'fx_rhizobium_primordium', 'fx', 0.36, 'rhizobium'],
+  ['rhizobiumYoungNodule', 'fx_rhizobium_young_nodule', 'fx', 0.40, 'rhizobium'],
+  ['rhizobiumMatureNodule', 'fx_rhizobium_mature_nodule_complete', 'fx', 0.62, 'rhizobium'],
+  ['nitrogenFixationActive', 'loop_nitrogen_fixation_active', 'loop', 0.11, 'rhizobium'],
+  ['nitrogenRootGrowth', 'loop_nitrogen_root_growth', 'loop', 0.20, 'rhizobium'],
+  ['nitrogenRootComplete', 'fx_nitrogen_root_complete', 'fx', 0.58, 'rhizobium'],
+
+  // ---- Azospirillum e raízes laterais -------------------------------------
+  ['azospirillumRootGrowthStart', 'fx_azospirillum_root_growth_start', 'fx', 0.42, 'azospirillum'],
+  ['azospirillumRootGrowth', 'loop_azospirillum_root_growth', 'loop', 0.16, 'azospirillum'],
+  ['azospirillumStepMature', 'fx_azospirillum_step_mature', 'fx', 0.32, 'azospirillum'],
+  ['azospirillumLadderComplete', 'fx_azospirillum_ladder_complete', 'fx', 0.56, 'azospirillum'],
+
+  // ---- Micorriza: germinação, hifas, arbúsculos e ponte -------------------
+  ['mycorrhizaGermination', 'fx_mycorrhiza_germination', 'fx', 0.40, 'mycorrhiza'],
+  ['mycorrhizaHyphaGrowth', 'loop_mycorrhiza_hypha_growth', 'loop', 0.14, 'mycorrhiza'],
+  ['mycorrhizaRootContact', 'fx_mycorrhiza_root_contact', 'fx', 0.38, 'mycorrhiza'],
+  ['mycorrhizaArbusculeComplete', 'fx_mycorrhiza_arbuscule_complete', 'fx', 0.46, 'mycorrhiza'],
+  ['mycorrhizaBridgeStart', 'fx_mycorrhiza_bridge_start', 'fx', 0.42, 'mycorrhiza'],
+  ['mycorrhizaBridgeGrowth', 'loop_mycorrhiza_bridge_growth', 'loop', 0.16, 'mycorrhiza'],
+  ['mycorrhizaBridgeComplete', 'fx_mycorrhiza_bridge_complete', 'fx', 0.58, 'mycorrhiza'],
+
+  // ---- Bacillus e biofilme ------------------------------------------------
+  ['bacillusAdhesion', 'fx_bacillus_adhesion', 'fx', 0.42, 'bacillus'],
+  ['bacillusBiofilmGrowth', 'loop_bacillus_biofilm_growth', 'loop', 0.17, 'bacillus'],
+  ['bacillusBiofilmComplete', 'fx_bacillus_biofilm_complete', 'fx', 0.58, 'bacillus'],
+  ['bacillusAntibiosis', 'loop_bacillus_antibiosis', 'loop', 0.09, 'bacillus'],
+  ['bacillusSporulation', 'fx_bacillus_sporulation', 'fx', 0.43, 'bacillus'],
+  ['bacillusGermination', 'fx_bacillus_germination', 'fx', 0.44, 'bacillus'],
+
+  // ---- Pseudomonas e sideróforos ------------------------------------------
+  ['pseudomonasSiderophoreLaunch', 'fx_pseudomonas_siderophore_launch', 'fx', 0.30, 'pseudomonas'],
+  ['pseudomonasIronBind', 'fx_pseudomonas_iron_bind', 'fx', 0.42, 'pseudomonas'],
+  ['pseudomonasIronDelivery', 'fx_pseudomonas_iron_delivery', 'fx', 0.44, 'pseudomonas'],
+  ['pseudomonasSuppression', 'loop_pseudomonas_suppression', 'loop', 0.08, 'pseudomonas'],
+
+  // ---- Trichoderma ---------------------------------------------------------
+  ['trichodermaHyphalAttack', 'loop_trichoderma_hyphal_attack', 'loop', 0.13, 'trichoderma'],
+  ['trichodermaTargetContact', 'fx_trichoderma_target_contact', 'fx', 0.36, 'trichoderma'],
+  ['trichodermaControlComplete', 'fx_trichoderma_control_complete', 'fx', 0.52, 'trichoderma'],
+  ['trichodermaReactivation', 'fx_trichoderma_reactivation', 'fx', 0.44, 'trichoderma'],
+
+  // ---- Solubilização e transporte de fósforo -------------------------------
+  ['phosphateCharge', 'loop_phosphate_charge', 'loop', 0.16, 'phosphate'],
+  ['phosphatePulseRelease', 'fx_phosphate_pulse_release', 'fx', 0.58, 'phosphate'],
+  ['phosphateDissolvePartial', 'fx_phosphate_dissolve_partial', 'fx', 0.34, 'phosphate'],
+  ['phosphateDepositComplete', 'fx_phosphate_deposit_complete', 'fx', 0.56, 'phosphate'],
+  ['phosphateTransport', 'loop_phosphate_transport', 'loop', 0.14, 'phosphate'],
+  ['phosphateRootDeliveryComplete', 'fx_phosphate_root_delivery_complete', 'fx', 0.52, 'phosphate'],
+];
+
+export const BIOLOGICAL_TRACKS = Object.freeze(Object.fromEntries(
+  BIOLOGICAL_TRACK_DEFS.map(([id, file, kind, defaultGain, group]) => [id, Object.freeze({
+    id,
+    src: `${FX}${file}.ogg`,
+    kind,
+    loop: kind === 'loop',
+    defaultGain,
+    group,
+    // Nunca 'auto': o Pacote 04 não pode atrasar o primeiro quadro.
+    preload: 'group',
+  })]),
+));
+
+export const AUDIO_TRACKS = Object.freeze({ ...CORE_TRACKS, ...BIOLOGICAL_TRACKS });
+
+// Grupos de PRELOAD, por organismo.
+export const BIOLOGICAL_AUDIO_GROUPS = Object.freeze(
+  BIOLOGICAL_TRACK_DEFS.reduce((groups, [id, , , , group]) => {
+    (groups[group] = groups[group] || []).push(id);
+    return groups;
+  }, {}),
+);
+
+// Barramento próprio, escalado pelo volume de efeitos. Não é um slider novo: os
+// processos são efeitos, e o jogador que abaixar FX abaixa a rizosfera junto.
+export const BIOLOGICAL_BUS_SCALE = 0.9;
+// Cartão de tutorial aberto: os processos recuam, mas não somem (§16 — não
+// destruir loops, só abaixar).
+export const BIOLOGICAL_TUTORIAL_DUCK = 0.30;
+
+export const BIOLOGICAL_SPATIAL = Object.freeze({
+  // Alcance padrão de um processo do mundo, em pixels de mundo.
+  defaultRange: 620,
+  // Denominador do pan, como fração da largura da tela.
+  panWidthFactor: 0.55,
+  panLimit: 0.80,
+  // Um loop que fica inaudível por mais que isto tem o source encerrado; o
+  // processo continua vivo e o loop volta se a câmera voltar.
+  inaudibleGraceSeconds: 2,
+  minimumAudibleGain: 0.02,
+});
+
+export const BIOLOGICAL_FADES = Object.freeze({
+  start: 0.22,
+  stop: 0.26,
+  pause: 0.12,
+  resume: 0.18,
+});
+
+// Teto global e por grupo de vozes. O grupo aqui é o PROCESSO, mais fino que o
+// grupo de preload: biofilme e antibiose são do mesmo organismo e competem
+// separadamente.
+export const BIOLOGICAL_LOOP_LIMIT = 8;
+export const BIOLOGICAL_LOOP_LIMITS = Object.freeze({
+  'rhizobium-thread': 2,
+  'nitrogen-fixation': 1,
+  'nitrogen-root-growth': 1,
+  'azospirillum-growth': 2,
+  'mycorrhiza-hypha': 2,
+  'mycorrhiza-bridge': 1,
+  'bacillus-biofilm': 2,
+  'bacillus-antibiosis': 1,
+  'pseudomonas-suppression': 1,
+  'trichoderma-attack': 2,
+  'phosphate-charge': 1,
+  'phosphate-transport': 2,
+});
+
+// Quem sobrevive quando o teto global é atingido. Maior vence.
+export const BIOLOGICAL_LOOP_PRIORITY = Object.freeze({
+  'phosphate-charge': 8,
+  'mycorrhiza-bridge': 7,
+  'nitrogen-root-growth': 7,
+  'azospirillum-growth': 6,
+  'trichoderma-attack': 6,
+  'phosphate-transport': 5,
+  'rhizobium-thread': 4,
+  'bacillus-biofilm': 4,
+  'mycorrhiza-hypha': 3,
+  'bacillus-antibiosis': 2,
+  'pseudomonas-suppression': 2,
+  'nitrogen-fixation': 1,
+});
+
+// Cooldowns dos efeitos PONTUAIS. `perInstance` é por objeto (colônia, rede,
+// depósito); `global` é para o jogo inteiro. Conclusões únicas não entram aqui:
+// elas já são protegidas por uma marca de transição e não podem ser engolidas.
+export const BIOLOGICAL_COOLDOWNS = Object.freeze({
+  pseudomonasSiderophoreLaunch: Object.freeze({ perInstance: 0.40, global: 0.12 }),
+  mycorrhizaRootContact: Object.freeze({ perInstance: 0.18, global: 0 }),
+  azospirillumStepMature: Object.freeze({ perInstance: 0.10, global: 0 }),
+  phosphateDissolvePartial: Object.freeze({ perInstance: 0.18, global: 0 }),
+  pseudomonasIronBind: Object.freeze({ perInstance: 0, global: 0.12 }),
+  pseudomonasIronDelivery: Object.freeze({ perInstance: 0, global: 0.12 }),
+});
+
+// Quais grupos uma fase precisa. Recebe o manifesto da fase e os desbloqueios já
+// conquistados — NUNCA o nome da música: a fase 5 toca o tema da Pseudomonas e
+// mesmo assim usa micorriza, Bacillus e fósforo.
+export function biologicalGroupsForPhaseManifest(manifest, unlocks = {}) {
+  const groups = new Set();
+  if (!manifest) return [];
+  const phase = Number.isFinite(manifest.phase) ? manifest.phase : 0;
+
+  // Rhizobium/FBN e a raiz nitrogenada estreiam na fase 2 e seguem disponíveis.
+  if (phase >= 2 || manifest.nitrogenRoot?.enabled) groups.add('rhizobium');
+  // Bacillus está em TODAS as fases jogáveis, e não por causa de uma estreia: os
+  // checkpoints são biofilmes, e a formação ecológica (nuvem de exsudato + três
+  // bacilos) pode acontecer em qualquer plataforma. Derivar isto só das
+  // apresentações deixaria a adesão e o crescimento da matriz mudos fora das
+  // fases 1 e 7.
+  if (phase >= 1) groups.add('bacillus');
+  // Azospirillum: a escada exige o desbloqueio, mas o manifesto da fase de
+  // estreia declara o evento antes de o jogador coletá-lo.
+  if (unlocks.azospirillumRoots || manifest.azospirillumRootLadder
+    || (manifest.unlockEvents || []).some(event => event.feature === 'azospirillumRoots')) {
+    groups.add('azospirillum');
+  }
+  if (unlocks.mycorrhizaStructures || manifest.mycorrhizaBridge
+    || (manifest.unlockEvents || []).some(event => event.feature === 'mycorrhizaStructures')) {
+    groups.add('mycorrhiza');
+  }
+  if (unlocks.phosphateSolubilization || manifest.phosphateSolubilization
+    || (manifest.unlockEvents || []).some(event => event.feature === 'phosphateSolubilization')) {
+    groups.add('phosphate');
+  }
+  // Organismos que aparecem como encontro/apresentação da fase.
+  const organisms = new Set();
+  for (const presentation of manifest.presentations || []) {
+    if (presentation.roamingType) organisms.add(presentation.roamingType);
+    for (const type of presentation.roamingTypes || []) organisms.add(type);
+    if (typeof presentation.cardId === 'string') organisms.add(presentation.cardId);
+  }
+  const has = needle => [...organisms].some(name => String(name).includes(needle));
+  if (has('bacillus')) groups.add('bacillus');
+  if (has('pseudomonas')) groups.add('pseudomonas');
+  if (has('trichoderma')) groups.add('trichoderma');
+  if (has('myco')) groups.add('mycorrhiza');
+  if (has('azospirillum') || has('azo')) groups.add('azospirillum');
+  if (has('rhizobium')) groups.add('rhizobium');
+  // Onde há patógeno, o Trichoderma é a resposta: o áudio dele precisa estar
+  // pronto antes do primeiro ataque.
+  if ((manifest.pathogenDebuts || []).length) groups.add('trichoderma');
+  // Bacillus é também o solubilizador que alimenta a carga de fósforo.
+  if (groups.has('phosphate')) groups.add('bacillus');
+
+  return [...groups].filter(group => BIOLOGICAL_AUDIO_GROUPS[group]);
+}
 
 // Camadas ambientais que tocam continuamente após o desbloqueio, na ordem em que
 // entram. `ambienceInternalRootFlow` está aqui, mas seu ganho é dirigido pelo

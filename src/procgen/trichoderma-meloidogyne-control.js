@@ -113,6 +113,12 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
       aborted: false,
     };
     attacks.set(id, attack);
+    attack.audioKey = `trichoderma-attack:${colony.id}:${id}`;
+    entities?.audio?.startLoop(attack.audioKey, 'trichodermaHyphalAttack', {
+      x: (colony.x + assignment.point.x) / 2,
+      y: (colony.y + assignment.point.y) / 2,
+      gain: .6,
+    });
     colony.activeTargetId = `melo-control:${id}`;
     colony.stage = assignment.type === 'egg' ? 'buscando massa de ovos' : 'interceptando J2';
     entities.burst(colony.x, colony.y, '#8df0a8', 16, 105);
@@ -150,6 +156,7 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
     if (attack.aborted || attack.completed) return;
     attack.aborted = true;
     attack.state = 'aborted';
+    entities?.audio?.stopLoop(attack.audioKey);
     attack.fading = .01;
     if (attack.type === 'egg') {
       attack.target.trichodermaSuppression = 0;
@@ -181,6 +188,8 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
     attack.completed = true;
     attack.state = 'completed';
     attack.fading = .01;
+    entities?.audio?.stopLoop(attack.audioKey, { fade: .2 });
+    entities?.audio?.play('trichodermaControlComplete', { x: mass.x, y: mass.y });
     eggMassesNeutralized++;
     state.player.soil += 3.4;
     state.player.hope += 4.2;
@@ -197,6 +206,8 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
     attack.completed = true;
     attack.state = 'completed';
     attack.fading = .01;
+    entities?.audio?.stopLoop(attack.audioKey, { fade: .2 });
+    entities?.audio?.play('trichodermaControlComplete', point);
     juvenilesDestroyed++;
     state.player.soil += 1.2;
     state.player.hope += 1.8;
@@ -227,6 +238,10 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
     if (attack.search >= 1 && !attack.aborted) {
       attack.state = 'contact';
       attack.contact = .04;
+      if (!attack.audioContacted) {
+        attack.audioContacted = true;
+        entities?.audio?.play('trichodermaTargetContact', targetPoint);
+      }
       entities.burst(targetPoint.x, targetPoint.y, '#baf66f', 14, 90);
     }
   }
@@ -290,10 +305,30 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
     }
     if (attack.state === 'search') {
       advanceSearch(attack, dt);
+      sustainAttackAudio(attack);
       return;
     }
     if (attack.type === 'egg') advanceEggLysis(attack, dt);
     else advanceJ2Lysis(attack, dt);
+    sustainAttackAudio(attack);
+  }
+
+  // Mantem o loop do ataque vivo e posicionado. Sem isto o gerenciador recolhe
+  // a voz como orfa depois de meio segundo, no meio do ataque.
+  function sustainAttackAudio(attack) {
+    if (attack.completed || attack.aborted) return;
+    const point = targetPosition(attack.target, attack.type);
+    const searching = attack.state === 'search';
+    entities?.audio?.startLoop(attack.audioKey, 'trichodermaHyphalAttack', {
+      x: searching
+        ? attack.colony.x + (point.x - attack.colony.x) * clamp(attack.search, 0, 1)
+        : point.x,
+      y: searching
+        ? attack.colony.y + (point.y - attack.colony.y) * clamp(attack.search, 0, 1)
+        : point.y,
+      gain: searching ? .6 + attack.search * .25 : .9,
+      rate: searching ? .95 : 1.04,
+    });
   }
 
   function update(dt) {
@@ -401,6 +436,7 @@ export function createTrichodermaMeloidogyneControl({ state, entities, colonies,
   }
 
   function reset() {
+    entities?.audio?.stopGroup('trichoderma-attack');
     for (const attack of attacks.values()) {
       if (attack.type === 'egg' && attack.target) {
         attack.target.trichodermaSuppression = 0;

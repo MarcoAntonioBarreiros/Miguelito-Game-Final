@@ -27,6 +27,7 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
   }
 
   function clear() {
+    entities?.audio?.stopGroup('bacillus-biofilm');
     clouds.length = 0;
     biofilms.length = 0;
     formingBiofilms.clear();
@@ -185,6 +186,9 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
       platform,
       natural: false,
     });
+    // Criação REAL (o guarda acima já descartou o caso de filme vizinho). Entrar
+    // numa zona pronta não passa por aqui e por isso não toca de novo.
+    entities?.audio?.play('bacillusBiofilmComplete', { x: point.x, y: point.y });
     entities.burst(point.x, point.y, '#70e5d6', 38, 175);
     toast('Biofilme de Bacillus', 'A matriz aderida estabilizou a raiz e criou uma nova zona segura.', 4.8);
     state.discoveredMicrobes.add('bacillus');
@@ -199,6 +203,9 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
         && Math.hypot(agent.x - support.point.x, agent.y - support.point.y) < 112
       ));
       const key = `${cloud.id}:${support.platform.logicIndex ?? Math.round(support.platform.x)}`;
+      // Uma voz por FORMAÇÃO (nuvem + plataforma), não por biofilme: duas
+      // formações simultâneas em plataformas diferentes soam como duas.
+      const loopKey = `ecological-biofilm:${key}`;
       if (bacilli.length >= 3) {
         const current = formingBiofilms.get(key) || {
           progress: 0,
@@ -210,7 +217,17 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
         current.x = support.point.x;
         current.y = support.point.y;
         formingBiofilms.set(key, current);
+        entities?.audio?.startLoop(loopKey, 'bacillusBiofilmGrowth', {
+          // Compartilha o teto de vozes com o biofilme das colônias: é o mesmo
+          // processo, e somar as duas fontes dobraria a mesma textura.
+          group: 'bacillus-biofilm',
+          x: current.x,
+          y: current.y,
+          gain: .5 + clamp(current.progress / 3.4, 0, 1) * .5,
+          rate: .92 + clamp(current.progress / 3.4, 0, 1) * .14,
+        });
         if (current.progress >= 3.4) {
+          entities?.audio?.stopLoop(loopKey, { fade: .2 });
           createBiofilm(current, current.platform);
           formingBiofilms.delete(key);
           cloud.life = Math.min(cloud.life, 1.2);
@@ -219,7 +236,11 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
         const current = formingBiofilms.get(key);
         if (current) {
           current.progress = Math.max(0, current.progress - dt * .4);
-          if (current.progress <= 0) formingBiofilms.delete(key);
+          // Progresso zerado: a formação foi abandonada e o loop some com ela.
+          if (current.progress <= 0) {
+            formingBiofilms.delete(key);
+            entities?.audio?.stopLoop(loopKey);
+          }
         }
       }
     }

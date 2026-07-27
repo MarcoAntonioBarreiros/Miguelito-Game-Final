@@ -123,6 +123,13 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
       fragmentTimer: .15,
     };
     attacks.set(id, attack);
+    attack.audioKey = `trichoderma-attack:${colony.id}:${id}`;
+    // O ataque comecou de verdade: a hifa esta crescendo em direcao ao alvo.
+    entities?.audio?.startLoop(attack.audioKey, 'trichodermaHyphalAttack', {
+      x: (colony.x + assignment.point.x) / 2,
+      y: (colony.y + assignment.point.y) / 2,
+      gain: .6,
+    });
     colony.activeTargetId = `rhizo-mycoparasitism:${id}`;
     colony.stage = 'hifa buscando Rhizoctonia';
     enemy.trichodermaRhizoTargeted = true;
@@ -170,6 +177,7 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
     attack.aborted = true;
     attack.state = 'aborted';
     attack.fading = .01;
+    entities?.audio?.stopLoop(attack.audioKey);
     if (attack.enemy?.alive) attack.enemy.trichoRhizoRetryAt = state.time + retry;
     clearEnemyMarkers(attack.enemy);
     releaseColony(attack, { cooldown: exhausted ? 3 : 1.35, exhausted });
@@ -210,6 +218,11 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
       attack.state = 'contact';
       attack.contact = .04;
       attack.enemy.trichodermaContact = .04;
+      // Primeira chegada da hifa ao alvo: uma vez por ataque.
+      if (!attack.audioContacted) {
+        attack.audioContacted = true;
+        entities?.audio?.play('trichodermaTargetContact', { x: point.x, y: point.y });
+      }
       entities.burst(point.x, point.y, '#baf66f', 16, 105);
       announce('Contato estabelecido: Trichoderma iniciou o enovelamento sobre as hifas de Rhizoctonia.', 4.5, 1.2);
     }
@@ -223,6 +236,10 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
     attack.completed = true;
     attack.state = 'completed';
     attack.fading = .01;
+    // Controle pelo Trichoderma. Alvo que some por outro sistema passa por
+    // `abortAttack`, que so encerra o loop e nao toca conclusao.
+    entities?.audio?.stopLoop(attack.audioKey, { fade: .2 });
+    entities?.audio?.play('trichodermaControlComplete', { x: point.x, y: point.y });
     enemy.alive = false;
     enemy.hp = 0;
     enemy.colonization = .06;
@@ -320,6 +337,22 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
     }
     if (attack.state === 'search') advanceSearch(attack, dt);
     else advanceMycoparasitism(attack, dt);
+    if (attack.completed || attack.aborted) return;
+
+    // Sustenta o loop: a posição acompanha a ponta ativa (durante a busca, o
+    // ponto intermediário entre colônia e alvo; no contato, o próprio alvo).
+    const point = targetPosition(attack.enemy);
+    const searching = attack.state === 'search';
+    entities?.audio?.startLoop(attack.audioKey, 'trichodermaHyphalAttack', {
+      x: searching
+        ? attack.colony.x + (point.x - attack.colony.x) * clamp(attack.search, 0, 1)
+        : point.x,
+      y: searching
+        ? attack.colony.y + (point.y - attack.colony.y) * clamp(attack.search, 0, 1)
+        : point.y,
+      gain: searching ? .6 + attack.search * .25 : .9,
+      rate: searching ? .95 : 1.04,
+    });
   }
 
   function update(dt) {
@@ -442,6 +475,7 @@ export function createTrichodermaRhizoctoniaControl({ state, entities, colonies 
   }
 
   function reset() {
+    entities?.audio?.stopGroup('trichoderma-attack');
     for (const attack of attacks.values()) {
       clearEnemyMarkers(attack.enemy);
       releaseColony(attack, { cooldown: 0 });

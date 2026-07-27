@@ -145,6 +145,7 @@ export function createMycorrhizaStructures({ state, entities, inoculants = null 
   let lastToastAt = -Infinity;
 
   function clear() {
+    entities?.audio?.stopGroup('mycorrhiza-bridge');
     structures.length = 0;
     if (state.level.platforms) {
       state.level.platforms = state.level.platforms.filter(platform => !platform.mycorrhizaStructure);
@@ -186,6 +187,17 @@ export function createMycorrhizaStructures({ state, entities, inoculants = null 
     structures.push(structure);
     cloud.mycorrhizaStructureHandled = true;
     cloud.life = Math.max(cloud.life, 4.5);
+    // Depois de a estrutura existir de verdade: início e loop. Vale também para
+    // a ponte PENDENTE (`dangling`) — ela cresce e merece o mesmo áudio.
+    entities?.audio?.play('mycorrhizaBridgeStart', {
+      x: structure.start.x,
+      y: structure.start.y,
+    });
+    entities?.audio?.startLoop(`mycorrhiza-bridge:${structure.id}`, 'mycorrhizaBridgeGrowth', {
+      x: structure.start.x,
+      y: structure.start.y,
+      gain: .65,
+    });
     entities.burst(structure.start.x, structure.start.y, '#d6afff', 20, 110);
     state.toast = 'Micorriza orientada: hifas finas começaram a conectar lateralmente as raízes sobre o vão.';
     state.toastTime = 4.8;
@@ -288,9 +300,25 @@ export function createMycorrhizaStructures({ state, entities, inoculants = null 
       if (structure.progress > .72) {
         structure.maturity = clamp(structure.maturity + dt * .56, 0, 1);
       }
+      // O som acompanha a ponta que avança: posição interpolada entre origem e
+      // destino pelo progresso real.
+      const bridgeKey = `mycorrhiza-bridge:${structure.id}`;
+      entities?.audio?.startLoop(bridgeKey, 'mycorrhizaBridgeGrowth', {
+        x: lerp(structure.start.x, structure.end.x, structure.progress),
+        y: lerp(structure.start.y, structure.end.y, structure.progress),
+        gain: .65 + structure.progress * .35,
+        rate: .90 + structure.progress * .13,
+      });
       if (structure.progress >= 1 && structure.maturity >= 1) {
         structure.mature = true;
         collisionDirty = true;
+        // Conclusão pela transição mature false → true, no ponto de chegada.
+        // Independente do toast, que tem cooldown de 1,5 s logo abaixo.
+        entities?.audio?.stopLoop(bridgeKey, { fade: .25 });
+        entities?.audio?.play('mycorrhizaBridgeComplete', {
+          x: structure.end.x,
+          y: structure.end.y,
+        });
         state.player.hope += 3;
         state.player.soil += 1.6;
         entities.burst(structure.end.x, structure.end.y, '#d6afff', 34, 175);

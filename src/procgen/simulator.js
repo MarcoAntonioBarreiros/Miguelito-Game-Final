@@ -24,6 +24,7 @@ import { createGoalSystem } from './goal-system.js';
 import { createEcologicalGameplay } from './ecological-gameplay.js';
 import { createPathogenSurvival } from './pathogen-survival.js';
 import { createNoopAudio } from '../game-audio.js';
+import { createNoopBiologicalAudio } from './biological-audio.js';
 import { createInoculumSelection } from './inoculum-selection.js';
 import { createPhosphateSolubilization } from './phosphate-solubilization.js';
 import {
@@ -76,7 +77,10 @@ export function restoreExudatesAhead(level, fromX) {
   return restored;
 }
 
-export function createSimulator({ audio: audioController = null } = {}) {
+export function createSimulator({
+  audio: audioController = null,
+  biologicalAudio: biologicalAudioController = null,
+} = {}) {
   const state = {
     time: 0,
     gameState: 'play',
@@ -121,6 +125,10 @@ export function createSimulator({ audio: audioController = null } = {}) {
   };
 
   const entities = {
+    // Fachada de áudio dos processos biológicos (Pacote 04). SEMPRE existe: nos
+    // testes Node e em qualquer caminho sem navegador é o adaptador silencioso,
+    // então nenhum módulo biológico precisa checar `window` ou `AudioContext`.
+    audio: biologicalAudioController || createNoopBiologicalAudio(),
     burst: (x, y, color, count, speed) => {
       for (let i = 0; i < count; i++) {
         const angle = Math.random() * Math.PI * 2;
@@ -288,6 +296,9 @@ export function createSimulator({ audio: audioController = null } = {}) {
   const physics = createPhysicsSystem({ state, input, entities, hud, audio });
 
   function reset() {
+    // Antes de qualquer sistema: nenhum loop de uma fase pode atravessar para a
+    // seguinte, nem sobreviver a um reinício de campanha.
+    entities.audio.stopAll({ fade: 0.20, clearPending: true });
     const nextObjectiveAttemptId = (state.level.objectiveProgress?.attemptId || 0) + 1;
     resetPlayer(state.player, state.campaign?.unlocks);
     state.player.alive = true;
@@ -406,6 +417,7 @@ export function createSimulator({ audio: audioController = null } = {}) {
 
   const simulator = {
     audio,
+    biologicalAudio: entities.audio,
     state, input, entities, ecology, mycorrhiza, mycorrhizaStructures,
     trichoderma, recruitment, trichodermaColonies, beneficialInoculants,
     pseudomonasSiderophores, opportunisticFungus, bacillusBioprotection, bacillusBioprotectionSafety,
