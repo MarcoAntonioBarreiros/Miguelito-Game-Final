@@ -227,8 +227,15 @@ export function createGameAudio({
   // Pedidos criticos aguardando o proprio buffer (ver `queueCriticalFx`).
   const queuedFx = new Map();
 
+  // Anel de mensagens do painel de debug.
+  //
+  // Eram 12, e isso ficou pequeno demais: `preloadShortFx` passou a buscar 14
+  // arquivos (os 4 efeitos do jogador mais os 10 do Pacote 03). Numa rede ruim,
+  // em que todos falham, as primeiras mensagens eram empurradas para fora antes
+  // de alguém abrir o painel — e a falha do salto, que é a mais importante,
+  // sumia justamente no cenário em que ela acontece.
   function note(message) {
-    if (errors.length > 12) errors.shift();
+    if (errors.length > 40) errors.shift();
     errors.push(message);
   }
 

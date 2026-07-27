@@ -77,6 +77,10 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
       phase: Math.random() * TAU,
     };
     clouds.push(cloud);
+    // Depois da nuvem existir de verdade: o retorno lá em cima já descartou o
+    // caso "sem exsudatos", e `prepare` já filtra a tecla segurada. A expansão e
+    // a morte da nuvem não passam por aqui.
+    entities?.interactionFx?.('exudateRelease', { gain: 1, rate: 1, instanceId: cloud.id });
     deployedCloudCount++;
     entities.burst(cloud.x, cloud.y, '#b7f36b', 22, 135);
     toast('Gradiente de exsudatos', 'A nuvem atrai comunidades móveis e orienta interações ecológicas.', 3.5);
@@ -264,6 +268,21 @@ export function createEcologicalGameplay({ state, input, entities, ecology }) {
         film.activated = true;
         if (film.checkpoint) film.checkpoint.active = true;
         state.currentCheckpoint = { x: film.x - player.w / 2, y: film.y - player.h - 8 };
+        // A marca fica no checkpoint quando ele existe, senão no próprio filme.
+        // É o que impede a física e este sistema de tocarem o mesmo ponto duas
+        // vezes — os dois enxergam o mesmo objeto.
+        //
+        // Um checkpoint que já nasceu ativo nem chega aqui: a linha acima marca
+        // `film.activated` e o bloco inteiro é pulado.
+        const audioOwner = film.checkpoint || film;
+        if (!audioOwner.interactionAudioActivated) {
+          audioOwner.interactionAudioActivated = true;
+          entities?.interactionFx?.('checkpointActivation', {
+            gain: 1,
+            rate: 1,
+            instanceId: audioOwner.id ?? `biofilm:${Math.round(film.x)}:${Math.round(film.y)}`,
+          });
+        }
         entities.burst(film.x, film.y, '#70e5d6', 26, 145);
         toast('Zona segura de Bacillus', 'Checkpoint ativado; a matriz remove contaminação e recupera o solo.', 4.5);
       }

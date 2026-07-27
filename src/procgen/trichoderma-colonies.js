@@ -1,5 +1,6 @@
 import { H } from '../core/constants.js';
 import { organismSprites } from '../render/organism-sprites.js';
+import { COLONY_ESTABLISHMENT_GROWTH } from '../audio-manifest.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -58,12 +59,15 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
       kills: 0,
       stage: 'inoculated',
       exhausted: false,
+      // Germinação natural não é ação do jogador: nasce já "estabelecida" para
+      // não imitar o feedback de uma inoculação manual.
+      audioEstablished: natural,
       rechargeIntensity: 0,
       phase: Math.random() * TAU,
     };
     colonies.push(colony);
     for (const agent of agents) removeAgent(agent);
-    state.discoveredMicrobes.add('trichoderma');
+    entities.discoverMicrobe?.('trichoderma', false, { sound: false });
     entities.burst(colony.x, colony.y, '#8df0a8', 28 + count * 4, 145);
     return colony;
   }
@@ -75,6 +79,10 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
     const x = player.x + player.w / 2 + player.facing * 42;
     const y = player.y + player.h - 2;
     const colony = createColony({ x, y, agents: followers, natural: false });
+    // Depois da colônia existir e dos agentes saírem da lista móvel. Uma vez por
+    // ação — `inoculateNaturalAgent` não passa por aqui, e não deve: germinação
+    // natural não é uso do inoculante carregado.
+    entities.interactionFx?.('inoculationPlace', { gain: 1, rate: 1, instanceId: colony.id });
     state.toast = `Trichoderma inoculado: ${followers.length} propágulo${followers.length > 1 ? 's' : ''} formaram uma colônia fixa com vigor persistente`;
     state.toastTime = 5.2;
     colony.stage = 'ready';
@@ -118,7 +126,20 @@ export function createTrichodermaColonies({ state, input, ecology, entities }) {
     if (state.gameState !== 'play') return;
     for (const colony of colonies) {
       colony.age += dt;
+      const previousGrowth = colony.growth;
       colony.growth = clamp(colony.growth + dt * .34, 0, 1);
+      // Primeira passagem pelo limiar de aderência, só para colônia inoculada
+      // pelo jogador. Reativação, ataque e crescimento contínuo não tocam.
+      if (
+        !colony.audioEstablished
+        && previousGrowth < COLONY_ESTABLISHMENT_GROWTH
+        && colony.growth >= COLONY_ESTABLISHMENT_GROWTH
+      ) {
+        const result = entities.interactionFx?.('colonyEstablished', {
+          gain: 1, rate: 1, instanceId: colony.id,
+        });
+        if (result?.state !== 'rejected') colony.audioEstablished = true;
+      }
       const fuel = cloudIntensity(colony);
       colony.rechargeIntensity = fuel;
       if (fuel > .02) {

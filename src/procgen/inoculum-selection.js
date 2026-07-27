@@ -8,7 +8,7 @@ const LABELS = Object.freeze({
 });
 
 // Uma unica selecao decide qual acao responde ao E.
-export function createInoculumSelection({ state, input, inoculants, trichodermaColonies }) {
+export function createInoculumSelection({ state, input, inoculants, trichodermaColonies, entities = null }) {
   let index = 0;
   let cycleHeldLast = false;
   let lastToastAt = -Infinity;
@@ -66,8 +66,12 @@ export function createInoculumSelection({ state, input, inoculants, trichodermaC
 
   function cycle() {
     const list = options();
+    // Uma opção só: a seta não muda nada, então não há o que sinalizar.
     if (list.length < 2) return false;
     index = (index + 1) % list.length;
+    // Depois da troca REAL do índice. `prepare` já filtra a tecla segurada, e
+    // `options()` sozinho nunca chega aqui.
+    entities?.interactionFx?.('uiSelectionCycle', { gain: 1, rate: 1 });
     announce(list[index]);
     return true;
   }

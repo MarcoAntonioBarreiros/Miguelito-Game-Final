@@ -17,7 +17,10 @@ import {
   AUDIO_TRACKS,
   AMBIENCE_LAYERS,
   BIOLOGICAL_AUDIO_GROUPS,
+  BIOLOGICAL_BUS_SCALE,
   BIOLOGICAL_TRACKS,
+  EXUDATE_PICKUP_TRACKS,
+  INTERACTION_TRACKS,
   DROP_TRACK_IDS,
   PHASE_MUSIC,
   PHASE_VICTORY_TOAST_SECONDS,
@@ -307,4 +310,87 @@ test('os grupos de preload cobrem as 40 faixas, sem sobra nem repetição', () =
     Object.keys(BIOLOGICAL_AUDIO_GROUPS).sort(),
     ['azospirillum', 'bacillus', 'mycorrhiza', 'phosphate', 'pseudomonas', 'rhizobium', 'trichoderma'],
   );
+});
+
+// ===========================================================================
+// PACOTE 03 — INTERAÇÕES
+// ===========================================================================
+
+const interacoes = Object.values(INTERACTION_TRACKS);
+
+test('o Pacote 03 declara exatamente 10 faixas, com IDs únicos', () => {
+  assert.equal(interacoes.length, 10);
+  const ids = interacoes.map(track => track.id);
+  assert.equal(new Set(ids).size, 10);
+  for (const track of interacoes) {
+    assert.equal(AUDIO_TRACKS[track.id], track, `${track.id}: sobrescrito no merge`);
+  }
+});
+
+test('todas as faixas do Pacote 03 são efeitos curtos, sem loop', () => {
+  for (const track of interacoes) {
+    assert.equal(track.kind, 'fx', `${track.id}: precisa ser kind fx`);
+    assert.equal(track.loop, false, `${track.id}: não pode ter loop`);
+  }
+});
+
+test('todas as faixas do Pacote 03 usam preload auto', () => {
+  // São dez arquivos curtos que podem acontecer no primeiro segundo da fase.
+  for (const track of interacoes) {
+    assert.equal(track.preload, 'auto', `${track.id}: precisa ser preload auto`);
+  }
+});
+
+test('os caminhos do Pacote 03 apontam para assets/audio/fx/ e são OGG', () => {
+  for (const track of interacoes) {
+    assert.ok(track.src.startsWith('assets/audio/fx/'), `${track.id}: ${track.src}`);
+    assert.ok(track.src.endsWith('.ogg'), `${track.id}: só OGG no runtime`);
+    assert.equal(/\.wav$/i.test(track.src), false, `${track.id}: WAV não entra`);
+  }
+});
+
+test('todo defaultGain do Pacote 03 é finito e está entre 0 e 1', () => {
+  for (const track of interacoes) {
+    assert.ok(Number.isFinite(track.defaultGain), `${track.id}: não finito`);
+    assert.ok(
+      track.defaultGain > 0 && track.defaultGain <= 1,
+      `${track.id}: fora de (0, 1] — ${track.defaultGain}`,
+    );
+  }
+});
+
+test('os 10 arquivos do Pacote 03 existem no disco', () => {
+  for (const track of interacoes) {
+    assert.ok(fs.existsSync(path.join(raiz, track.src)), `${track.id}: ausente em ${track.src}`);
+  }
+});
+
+test('a rotação de coleta tem as três variações, na ordem', () => {
+  assert.deepEqual([...EXUDATE_PICKUP_TRACKS], ['exudatePickup01', 'exudatePickup02', 'exudatePickup03']);
+  for (const id of EXUDATE_PICKUP_TRACKS) assert.ok(INTERACTION_TRACKS[id], `${id} ausente`);
+});
+
+test('o Pacote 04 não foi alterado pelo Pacote 03', () => {
+  // Contagem, tipos e ganhos das 40 faixas continuam como estavam.
+  assert.equal(Object.keys(BIOLOGICAL_TRACKS).length, 40);
+  assert.equal(biologicas.filter(track => track.kind === 'fx').length, 28);
+  assert.equal(biologicas.filter(track => track.kind === 'loop').length, 12);
+  for (const track of biologicas) {
+    assert.equal(track.preload, 'group', `${track.id}: preload do Pacote 04 mudou`);
+  }
+  // Nenhum ID do Pacote 03 invadiu os grupos de preload biológico.
+  const agrupadas = new Set(Object.values(BIOLOGICAL_AUDIO_GROUPS).flat());
+  for (const track of interacoes) {
+    assert.equal(agrupadas.has(track.id), false, `${track.id}: não pertence ao Pacote 04`);
+  }
+});
+
+test('BIOLOGICAL_BUS_SCALE foi preservado', () => {
+  // O Pacote 03 vai pelo barramento geral de FX justamente para não depender
+  // deste valor. Mexer nele aqui mudaria o equilíbrio do Pacote 04.
+  assert.equal(BIOLOGICAL_BUS_SCALE, 0.9);
+});
+
+test('AUDIO_DEFAULTS.fx não foi alterado para acomodar o Pacote 03', () => {
+  assert.equal(AUDIO_DEFAULTS.fx, 0.35);
 });

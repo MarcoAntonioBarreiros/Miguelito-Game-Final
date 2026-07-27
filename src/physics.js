@@ -17,6 +17,11 @@ import {
 } from './player-jetpack.js';
 
 export function createPhysicsSystem({ state, input, entities, hud, audio }) {
+  // Rotação das três variações de coleta de exsudato (Pacote 03). Contador, não
+  // sorteio — ver o comentário no ponto de coleta.
+  const EXUDATE_PICKUP_TRACKS = ['exudatePickup01', 'exudatePickup02', 'exudatePickup03'];
+  let nextExudatePickupVariant = 0;
+
   function collectCampaignUnlock(ally, player) {
     const feature = ally.unlockFeature
       || (ally.id === 'power-jump' ? 'doubleJump' : ally.id === 'power-dash' ? 'dash' : ally.id === 'power-pulse' ? 'phosphateSolubilization' : ally.id === 'myco' ? 'mycorrhizaStructures' : ally.id === 'azo' ? 'azospirillumRoots' : null);
@@ -398,6 +403,22 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
         player.exudates++;
         player.soil += 2.3;
         player.hope += 1.7;
+        // Depois da coleta REAL. Um item já `taken` nunca chega aqui, e o
+        // respawn que devolve exsudatos adiante apenas volta `taken` a false —
+        // sem passar por este ramo.
+        //
+        // A rotação 01 → 02 → 03 → 01 é um contador, não sorteio: `Math.random()`
+        // aqui repetiria a mesma variação com frequência perceptível e ainda
+        // consumiria RNG de gameplay.
+        const trackId = EXUDATE_PICKUP_TRACKS[
+          nextExudatePickupVariant % EXUDATE_PICKUP_TRACKS.length
+        ];
+        nextExudatePickupVariant = (nextExudatePickupVariant + 1) % EXUDATE_PICKUP_TRACKS.length;
+        entities.interactionFx?.(trackId, {
+          gain: 1,
+          rate: 1,
+          instanceId: o.id ?? `${Math.round(o.x)}:${Math.round(o.y)}`,
+        });
         entities.burst(o.x, o.y, '#b7f36b', 12, 130);
       }
     });
@@ -420,9 +441,21 @@ export function createPhysicsSystem({ state, input, entities, hud, audio }) {
       if (!c.active && Math.abs((player.x + 16) - c.x) < 46 && Math.abs((player.y + 24) - c.y) < 76) {
         c.active = true;
         state.currentCheckpoint = { x: c.x - 16, y: c.y - 54 };
+        // Transição false → true, uma vez por checkpoint. A marca vive no objeto
+        // real porque o biofilme ecológico pode ver o MESMO ponto e ativá-lo —
+        // sem ela, os dois sistemas tocariam o mesmo som.
+        if (!c.interactionAudioActivated) {
+          c.interactionAudioActivated = true;
+          entities.interactionFx?.('checkpointActivation', {
+            gain: 1,
+            rate: 1,
+            instanceId: c.id ?? `checkpoint:${Math.round(c.x)}:${Math.round(c.y)}`,
+          });
+        }
         entities.burst(c.x, c.y, '#70e5d6', 28, 165);
         const first = !state.discoveredMicrobes.has('bacillus');
-        if (first) entities.discoverMicrobe('bacillus', false);
+        // Sem som de descoberta: quem manda aqui é a ativação do checkpoint.
+        if (first) entities.discoverMicrobe('bacillus', false, { sound: false });
         hud.showToast(
           first ? 'Colônia resistente de Bacillus' : 'Checkpoint de Bacillus ativado',
           first ? 'Biofilme e endósporos estabilizam este ponto. No jogo, a colônia funciona como checkpoint.' : 'Esta microcolônia passa a ser seu novo ponto de retorno.',

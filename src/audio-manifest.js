@@ -351,6 +351,12 @@ const CRITICAL_DELIVERY = new Set([
   'pseudomonasIronBind', 'pseudomonasIronDelivery',
   'trichodermaTargetContact', 'trichodermaControlComplete', 'trichodermaReactivation',
   'phosphatePulseRelease', 'phosphateDepositComplete', 'phosphateRootDeliveryComplete',
+
+  // Pacote 03. Seleção e coleta ficam de fora: são repetíveis, e uma coleta sem
+  // som isolada não apaga informação nenhuma. Estes seis são transições únicas —
+  // uma inoculação ou um checkpoint não pode ficar mudo porque o buffer atrasou.
+  'exudateRelease', 'microbeDiscovery', 'microbeRecruitment',
+  'inoculationPlace', 'colonyEstablished', 'checkpointActivation',
 ]);
 
 // Quanto tempo um pedido crítico espera pelo próprio buffer.
@@ -429,7 +435,68 @@ export const BIOLOGICAL_TRACKS = Object.freeze(Object.fromEntries(
   })]),
 ));
 
-export const AUDIO_TRACKS = Object.freeze({ ...CORE_TRACKS, ...BIOLOGICAL_TRACKS });
+// ===========================================================================
+// PACOTE 03 — INTERAÇÕES
+// ===========================================================================
+//
+// Dez efeitos pontuais, nenhum loop. Vão pelo barramento GERAL de efeitos
+// (`fxGain`), não pelo biológico: seleção é interface, coleta e inoculação são
+// ações diretas do jogador e checkpoint é feedback de gameplay. Nenhum deles
+// pode subir ou descer junto com `BIOLOGICAL_BUS_SCALE`, que existe para
+// equilibrar a camada de processos do Pacote 04.
+//
+// `preload: 'auto'` em todos: são dez arquivos curtos (117 KB somados) que podem
+// acontecer no primeiro segundo da fase. Adiar isso para um preload por
+// organismo só criaria o defeito que o Pacote 04 já teve — o primeiro som
+// sumindo por buffer atrasado.
+const INTERACTION_TRACK_DEFS = [
+  ['uiSelectionCycle', 'fx_ui_selection_cycle', 0.70],
+  ['exudatePickup01', 'fx_exudate_pickup_01', 0.90],
+  ['exudatePickup02', 'fx_exudate_pickup_02', 0.90],
+  ['exudatePickup03', 'fx_exudate_pickup_03', 0.90],
+  ['exudateRelease', 'fx_exudate_release', 1.00],
+  ['microbeDiscovery', 'fx_microbe_discovery', 1.00],
+  ['microbeRecruitment', 'fx_microbe_recruitment', 0.95],
+  ['inoculationPlace', 'fx_inoculation_place', 1.00],
+  ['colonyEstablished', 'fx_colony_established', 0.95],
+  ['checkpointActivation', 'fx_checkpoint_activation', 1.00],
+];
+
+export const INTERACTION_TRACKS = Object.freeze(Object.fromEntries(
+  INTERACTION_TRACK_DEFS.map(([id, file, defaultGain]) => [id, Object.freeze({
+    id,
+    src: `${FX}${file}.ogg`,
+    kind: 'fx',
+    loop: false,
+    defaultGain,
+    preload: 'auto',
+  })]),
+));
+
+// As três variações de coleta, na ordem da rotação 01 → 02 → 03 → 01.
+export const EXUDATE_PICKUP_TRACKS = Object.freeze([
+  'exudatePickup01', 'exudatePickup02', 'exudatePickup03',
+]);
+
+// Só estes contam como descoberta de organismo. Fitohormônios (power-jump,
+// power-dash, power-pulse) e o solubilizador de fosfato (`phos`) passam pelo
+// mesmo `discoverMicrobe`, mas não são micróbios que o jogador "encontra".
+export const DISCOVERABLE_MICROBE_IDS = Object.freeze([
+  'rhizobium', 'azospirillum', 'bacillus', 'pseudomonas', 'myco',
+  'trichoderma', 'oportunista', 'rhizoctonia', 'meloidogyne', 'ralstonia',
+]);
+
+// Limiar de ADERÊNCIA da colônia — não de função. Fica bem abaixo dos limiares
+// funcionais do Pacote 04 (.65 / .68 / .72 / 1) de propósito: `colonyEstablished`
+// diz "pegou e vai ficar", enquanto nódulo, biofilme maduro e ponte dizem "a
+// função biológica começou". Confundir os dois faria dois sons no mesmo instante.
+export const COLONY_ESTABLISHMENT_GROWTH = 0.30;
+
+export const AUDIO_TRACKS = Object.freeze({
+  ...CORE_TRACKS,
+  ...BIOLOGICAL_TRACKS,
+  ...INTERACTION_TRACKS,
+});
 
 // Grupos de PRELOAD, por organismo.
 export const BIOLOGICAL_AUDIO_GROUPS = Object.freeze(

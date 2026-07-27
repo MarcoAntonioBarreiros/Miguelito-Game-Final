@@ -60,7 +60,16 @@ export function createTrichodermaRecruitment({ state, ecology, entities }) {
         if (!cloud.recruitedTrichoderma.has(agent.id)) {
           cloud.recruitedTrichoderma.add(agent.id);
           entities.burst(agent.x, agent.y, '#baf66f', 16, 105);
-          state.discoveredMicrobes.add('trichoderma');
+          // MESMA marca do recrutamento benéfico, de propósito: uma nuvem que
+          // atrai Bacillus e Trichoderma no mesmo período dá um único
+          // feedback de "os organismos começaram a seguir", não dois.
+          if (!alreadyFollowing && !cloud.interactionRecruitmentAudioPlayed) {
+            cloud.interactionRecruitmentAudioPlayed = true;
+            entities.interactionFx?.('microbeRecruitment', {
+              gain: 1, rate: 1, instanceId: `cloud:${cloud.id}`,
+            });
+          }
+          entities.discoverMicrobe?.('trichoderma', false, { sound: false });
           if (state.time - lastToastAt > 2.5) {
             state.toast = 'Trichoderma recrutado: a colônia seguirá o gradiente de Miguelito e poderá atacar novos alvos';
             state.toastTime = 4.8;

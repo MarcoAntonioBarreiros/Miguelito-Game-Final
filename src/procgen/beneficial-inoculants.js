@@ -1,6 +1,7 @@
 import { H, W } from '../core/constants.js';
 import { drawInoculatedBacillusSprite, isBacillusSpriteEnabled } from '../render/bacillus-sprite.js';
 import { organismSprites } from '../render/organism-sprites.js';
+import { COLONY_ESTABLISHMENT_GROWTH } from '../audio-manifest.js';
 
 const TAU = Math.PI * 2;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -173,7 +174,18 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
           cloud.recruitedBeneficials.add(agent.id);
           const profile = PROFILES[agent.type];
           entities.burst(agent.x, agent.y, profile.color, 12, 92);
-          state.discoveredMicrobes.add(agent.type);
+          // UMA confirmação por nuvem. Uma nuvem recruta vários agentes no mesmo
+          // quadro; um som por célula viraria seis cópias sobrepostas do mesmo
+          // arquivo. `alreadyFollowing` acima já garante que renovar o tempo de
+          // seguimento não passa por aqui.
+          if (!alreadyFollowing && !cloud.interactionRecruitmentAudioPlayed) {
+            cloud.interactionRecruitmentAudioPlayed = true;
+            entities.interactionFx?.('microbeRecruitment', {
+              gain: 1, rate: 1, instanceId: `cloud:${cloud.id}`,
+            });
+          }
+          // Descoberta silenciosa: o recrutamento já é o feedback deste quadro.
+          entities.discoverMicrobe?.(agent.type, false, { sound: false });
           if (state.time - lastRecruitToastAt > 2.2) {
             state.toast = `${profile.label} recrutado: leve a comunidade até uma raiz e pressione E novamente para inocular.`;
             state.toastTime = 4.6;
@@ -281,6 +293,8 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
       age: 0,
       stage: 'estabelecendo',
       dormant: false,
+      // Colônia do jogador: ainda vai aderir, então pode soar ao cruzar o limiar.
+      audioEstablished: false,
       rechargeIntensity: 0,
       radius: 58 + count * 8,
       phase: Math.random() * TAU,
@@ -318,6 +332,8 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
       phase: Number.isFinite(spec.phase) ? spec.phase : 0,
       linkedBiofilm: null,
       authored: true,
+      // Colônia autoral já vem aderida com o cenário: nunca toca estabelecimento.
+      audioEstablished: true,
     };
     colonies.push(colony);
     if (colony.type === 'bacillus') colony.linkedBiofilm = createBacillusBiofilm(colony);
@@ -353,10 +369,21 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
 
     const entries = [...groups.entries()];
     const names = [];
+    const createdColonies = [];
     entries.forEach(([type, agents], index) => {
-      createColony(type, agents, support, index, entries.length);
+      createdColonies.push(createColony(type, agents, support, index, entries.length));
       names.push(`${PROFILES[type].label} (${agents.length})`);
     });
+    // UMA vez por ação, não uma por espécie. Sem seletor os testes depositam
+    // vários grupos de uma vez, e o jogador executou um comando só.
+    // Os retornos antecipados acima já cobriram "sem seguidores" e "sem suporte".
+    if (createdColonies.length) {
+      entities.interactionFx?.('inoculationPlace', {
+        gain: 1,
+        rate: 1,
+        instanceId: createdColonies.map(colony => colony.id).join('|'),
+      });
+    }
     state.toast = `Inoculantes depositados: ${names.join(', ')}. As comunidades agora permanecem fixas e usam vigor persistente.`;
     state.toastTime = 5.5;
     return true;
@@ -419,7 +446,22 @@ export function createBeneficialInoculants({ state, input, ecology, entities }) 
 
   function updateColony(colony, dt) {
     colony.age += dt;
+    const previousGrowth = colony.growth;
     colony.growth = clamp(colony.growth + dt * .3, 0, 1);
+    // Só a PASSAGEM pelo limiar de aderência, uma vez por colônia. Permanecer
+    // acima dele nos quadros seguintes não repete.
+    if (
+      !colony.audioEstablished
+      && previousGrowth < COLONY_ESTABLISHMENT_GROWTH
+      && colony.growth >= COLONY_ESTABLISHMENT_GROWTH
+    ) {
+      const result = entities.interactionFx?.('colonyEstablished', {
+        gain: 1, rate: 1, instanceId: colony.id,
+      });
+      // `rejected` significa que o pedido não foi aceito (faixa inexistente ou
+      // arquivo com falha definitiva). Marcar aqui apagaria o evento para sempre.
+      if (result?.state !== 'rejected') colony.audioEstablished = true;
+    }
     // A recarga e derivada do combustivel-base vezes os multiplicadores que os
     // patogenos publicam. Antes a Ralstonia fazia `rechargeIntensity *= ...`
     // direto no campo: o valor-base era destruido e tirar a pressao nao

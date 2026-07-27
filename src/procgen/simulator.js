@@ -24,6 +24,7 @@ import { createGoalSystem } from './goal-system.js';
 import { createEcologicalGameplay } from './ecological-gameplay.js';
 import { createPathogenSurvival } from './pathogen-survival.js';
 import { createNoopAudio } from '../game-audio.js';
+import { DISCOVERABLE_MICROBE_IDS } from '../audio-manifest.js';
 import { createNoopBiologicalAudio } from './biological-audio.js';
 import { createInoculumSelection } from './inoculum-selection.js';
 import { createPhosphateSolubilization } from './phosphate-solubilization.js';
@@ -124,11 +125,23 @@ export function createSimulator({
     },
   };
 
+  // Audio injetado pelo app; nos testes Node entra o adaptador silencioso. O
+  // simulador nunca toca em `window` ou `document` — quem faz isso e o
+  // controlador, criado no app. Precisa nascer ANTES de `entities` porque a
+  // fachada de interacao (Pacote 03) encaminha para ele.
+  const audio = audioController || createNoopAudio();
+
   const entities = {
     // Fachada de áudio dos processos biológicos (Pacote 04). SEMPRE existe: nos
     // testes Node e em qualquer caminho sem navegador é o adaptador silencioso,
     // então nenhum módulo biológico precisa checar `window` ou `AudioContext`.
     audio: biologicalAudioController || createNoopBiologicalAudio(),
+
+    // Fachada dos efeitos de INTERAÇÃO (Pacote 03). Só encaminha para `playFx`,
+    // sem `bus: 'biological'` — estes sons vão pelo barramento geral de efeitos.
+    // Devolve o resultado original (`played` / `queued` / `suppressed` /
+    // `rejected`) para quem chama decidir se marca o evento como entregue.
+    interactionFx: (trackId, options = {}) => audio.playFx(trackId, options),
     burst: (x, y, color, count, speed) => {
       for (let i = 0; i < count; i++) {
         const angle = Math.random() * Math.PI * 2;
@@ -144,7 +157,22 @@ export function createSimulator({
         });
       }
     },
-    discoverMicrobe: id => { state.discoveredMicrobes.add(id); },
+    // Único ponto de descoberta — e por isso o único lugar onde o som dela pode
+    // morar sem repetir. Devolve se ESTA chamada foi a primeira, para quem
+    // chama não precisar consultar o Set antes.
+    //
+    // `options.sound = false` existe para os casos em que a descoberta acontece
+    // junto de um evento mais forte: o checkpoint que revela o Bacillus e o
+    // recrutamento que é o primeiro contato com a espécie. Ali empilhar dois
+    // sons no mesmo quadro só embola.
+    discoverMicrobe: (id, showCard = true, options = {}) => {
+      const first = !state.discoveredMicrobes.has(id);
+      state.discoveredMicrobes.add(id);
+      if (first && options.sound !== false && DISCOVERABLE_MICROBE_IDS.includes(id)) {
+        entities.interactionFx('microbeDiscovery', { gain: 1, rate: 1, instanceId: id });
+      }
+      return first;
+    },
     // Desbloqueio disparado pelo proprio organismo, ao inves de por um item de
     // coleta a parte. Ver o comentario em microbe-ecology.js.
     unlockCampaignFeature: (feature, zone) => {
@@ -201,11 +229,6 @@ export function createSimulator({
     showEnd: () => {},
   };
 
-  // Audio injetado pelo app; nos testes Node entra o adaptador silencioso. O
-  // simulador nunca toca em `window` ou `document` — quem faz isso e o
-  // controlador, criado no app.
-  const audio = audioController || createNoopAudio();
-
   const ecology = createRoamingMicrobeEcology({ state, entities });
   const mycorrhiza = createMycorrhizaGrowth({ state, entities });
   const mycorrhizaStructures = createMycorrhizaStructures({ state, entities });
@@ -246,6 +269,7 @@ export function createSimulator({
   // Um unico item selecionado por vez decide quem responde ao E: cada sistema
   // consulta a selecao antes de agir, em vez de disputar a tecla por ordem.
   const inoculumSelection = createInoculumSelection({
+    entities,
     state,
     input,
     inoculants: beneficialInoculants,
